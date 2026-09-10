@@ -8,6 +8,10 @@
 //! `metric_record/tests.rs` and `metric_record_revision/tests.rs`, consumed
 //! as-is.
 //!
+//! Extended by `MET-WP2-01A` with the exact `REJECTED` nullable-hash truth
+//! table and the ordered bounded-batch linkage that makes one committed
+//! batch's per-row outcomes replayable in `batch_row_index` order.
+//!
 //! These tests deliberately assert **schema** behaviour only. This slice
 //! stores classifications but implements no algorithm that assigns them, and
 //! nothing here pretends otherwise.
@@ -57,6 +61,66 @@ fn insert_provenance_row(
     .bind::<diesel::sql_types::Text, _>(identity_hash)
     .bind::<diesel::sql_types::Text, _>(content_hash)
     .execute(&mut connection)
+}
+
+/// Insert one provenance row whose hashes may each be NULL.
+///
+/// The `MET-WP2-01A` truth table is about absence, so it cannot be exercised
+/// through the non-null helper above.
+fn insert_provenance_hashes(
+    pool: &PgPool,
+    import_id: Uuid,
+    identity_hash: Option<&str>,
+    content_hash: Option<&str>,
+    classification: &str,
+) -> Result<usize, DieselError> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(format!(
+        "INSERT INTO metric_record_provenance \
+             (import_id, identity_hash, content_hash, classification) \
+         VALUES ($1, $2, $3, '{classification}')"
+    ))
+    .bind::<diesel::sql_types::Uuid, _>(import_id)
+    .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(identity_hash)
+    .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(content_hash)
+    .execute(&mut connection)
+}
+
+/// Insert one provenance row linked to a batch position.
+fn insert_provenance_batch_link(
+    pool: &PgPool,
+    import_id: Uuid,
+    identity_hash: &str,
+    import_batch_id: Option<Uuid>,
+    batch_row_index: Option<i64>,
+) -> Result<usize, DieselError> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(
+        "INSERT INTO metric_record_provenance \
+             (import_id, identity_hash, content_hash, classification, \
+              import_batch_id, batch_row_index) \
+         VALUES ($1, $2, $3, 'WINNER', $4, $5)",
+    )
+    .bind::<diesel::sql_types::Uuid, _>(import_id)
+    .bind::<diesel::sql_types::Text, _>(identity_hash)
+    .bind::<diesel::sql_types::Text, _>(format!("content-for-{identity_hash}"))
+    .bind::<diesel::sql_types::Nullable<diesel::sql_types::Uuid>, _>(import_batch_id)
+    .bind::<diesel::sql_types::Nullable<diesel::sql_types::BigInt>, _>(batch_row_index)
+    .execute(&mut connection)
+}
+
+/// Insert one bounded batch under `import_id` and return its id.
+fn insert_batch(pool: &PgPool, import_id: Uuid, batch_key: &str) -> Uuid {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    diesel::insert_into(crate::schema::metric_import_batch::table)
+        .values((
+            crate::schema::metric_import_batch::import_id.eq(import_id),
+            crate::schema::metric_import_batch::batch_key.eq(batch_key),
+            crate::schema::metric_import_batch::request_hash.eq(format!("hash-{batch_key}")),
+        ))
+        .returning(crate::schema::metric_import_batch::import_batch_id)
+        .get_result(&mut connection)
+        .expect("Failed to insert the batch fixture row")
 }
 
 #[test]
@@ -143,8 +207,10 @@ fn metric_record_provenance_rows_map_through_diesel() {
         Some("source-row-key-42")
     );
     assert_eq!(loaded.source_row_number, Some(9_000_000_000));
-    assert_eq!(loaded.identity_hash, "identity-a");
-    assert_eq!(loaded.content_hash, "content-a");
+    assert_eq!(loaded.identity_hash.as_deref(), Some("identity-a"));
+    assert_eq!(loaded.content_hash.as_deref(), Some("content-a"));
+    assert_eq!(loaded.import_batch_id, None);
+    assert_eq!(loaded.batch_row_index, None);
     assert_eq!(
         loaded.classification,
         MetricRecordProvenanceClassification::Winner
@@ -181,6 +247,11 @@ fn provenance_database_defaults_are_applied_without_explicit_values() {
     );
     assert_eq!(loaded.source_record_id, None);
     assert_eq!(loaded.source_row_number, None);
+    assert_eq!(
+        loaded.import_batch_id, None,
+        "an unbatched row must keep the MET-WP2-01A linkage null"
+    );
+    assert_eq!(loaded.batch_row_index, None);
     assert_eq!(
         loaded.details,
         json!({}),
@@ -476,10 +547,14 @@ fn metric_record_provenance_has_exactly_the_authorized_check_constraints() {
             "metric_record_provenance"
         ),
         vec![
+            "metric_record_provenance_batch_link_check",
+            "metric_record_provenance_batch_row_index_check",
+            "metric_record_provenance_classification_hash_check",
             "metric_record_provenance_content_hash_check",
             "metric_record_provenance_identity_hash_check",
         ],
-        "metric_record_provenance must carry exactly the two authorized CHECK constraints"
+        "metric_record_provenance must carry exactly the two original nonblank \
+         CHECK constraints plus the three authorized MET-WP2-01A constraints"
     );
 }
 
@@ -490,10 +565,12 @@ fn metric_record_provenance_has_exactly_the_authorized_non_cascading_foreign_key
     assert_eq!(
         keys.iter().map(|key| key.0.as_str()).collect::<Vec<_>>(),
         vec![
+            "metric_record_provenance_import_batch_fkey",
             "metric_record_provenance_import_id_fkey",
             "metric_record_provenance_record_id_fkey",
         ],
-        "metric_record_provenance must carry exactly the two authorized foreign keys"
+        "metric_record_provenance must carry exactly the two original foreign keys \
+         plus the MET-WP2-01A composite batch key"
     );
     for (name, definition) in &keys {
         assert!(
@@ -511,12 +588,14 @@ fn metric_record_provenance_has_exactly_the_required_indexes() {
         index_names(&pool, "metric_record_provenance"),
         vec![
             "metric_record_provenance_identity_hash_idx",
+            "metric_record_provenance_import_batch_id_batch_row_index_key",
             "metric_record_provenance_import_id_idx",
             "metric_record_provenance_pkey",
             "metric_record_provenance_record_id_idx",
         ],
-        "metric_record_provenance must carry exactly its primary key and the \
-         three design-required audit indexes"
+        "metric_record_provenance must carry exactly its primary key, the three \
+         design-required audit indexes and the one MET-WP2-01A batch-position \
+         unique key"
     );
     for (index, column) in [
         ("metric_record_provenance_import_id_idx", "import_id"),
@@ -532,4 +611,462 @@ fn metric_record_provenance_has_exactly_the_required_indexes() {
             "{index} must be a plain audit index on {column}: {definition}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// MET-WP2-01A: the exact REJECTED hash truth table.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rejected_provenance_accepts_every_approved_hash_combination() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    // A row can be refused before canonical identity exists, after identity
+    // but before valid content exists, or after both were constructible.
+    for (index, (identity, content)) in [
+        (None, None),
+        (Some("identity"), None),
+        (Some("identity"), Some("content")),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let identity = identity.map(|value| format!("{value}-{index}"));
+        let content = content.map(|value| format!("{value}-{index}"));
+        insert_provenance_hashes(
+            &pool,
+            fixture.import_id,
+            identity.as_deref(),
+            content.as_deref(),
+            "REJECTED",
+        )
+        .unwrap_or_else(|error| {
+            panic!("REJECTED ({identity:?}, {content:?}) must be storable: {error:?}")
+        });
+    }
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_record_provenance)"),
+        3
+    );
+}
+
+#[test]
+fn content_without_identity_is_refused_under_every_classification() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    // Content is only meaningful once canonical identity has been formed, so
+    // this state is nonsensical even for REJECTED.
+    for (_, label) in CLASSIFICATIONS {
+        let result =
+            insert_provenance_hashes(&pool, fixture.import_id, None, Some("content-a"), label);
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::CheckViolation,
+                    _
+                ))
+            ),
+            "{label} with a content hash but no identity hash must be refused: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn only_rejected_provenance_may_omit_a_hash() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    // Every other classification describes a row that reached canonical
+    // comparison, so both hashes must exist.
+    for (_, label) in CLASSIFICATIONS {
+        if label == "REJECTED" {
+            continue;
+        }
+        for (identity, content) in [(None, None), (Some("identity-a"), None)] {
+            let result =
+                insert_provenance_hashes(&pool, fixture.import_id, identity, content, label);
+            assert!(
+                matches!(
+                    result,
+                    Err(DieselError::DatabaseError(
+                        DatabaseErrorKind::CheckViolation,
+                        _
+                    ))
+                ),
+                "{label} must require both hashes, but ({identity:?}, {content:?}) \
+                 was accepted: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_present_hash_must_still_be_nonblank() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    // Nullability was relaxed; blankness was not. A NULL check expression is
+    // satisfied, so the original nonblank rules still bite whenever a value
+    // is actually present.
+    for blank in ["", " ", "   ", "\t", "\n"] {
+        for (identity, content) in [
+            (Some(blank), None),
+            (Some(blank), Some("content-a")),
+            (Some("identity-a"), Some(blank)),
+        ] {
+            let result =
+                insert_provenance_hashes(&pool, fixture.import_id, identity, content, "REJECTED");
+            assert!(
+                matches!(
+                    result,
+                    Err(DieselError::DatabaseError(
+                        DatabaseErrorKind::CheckViolation,
+                        _
+                    ))
+                ),
+                "a blank hash ({blank:?}) must still be refused even where NULL is \
+                 allowed: {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn null_hashes_round_trip_through_diesel() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let provenance_id: Uuid = diesel::insert_into(metric_record_provenance::table)
+        .values((
+            metric_record_provenance::import_id.eq(fixture.import_id),
+            metric_record_provenance::classification
+                .eq(MetricRecordProvenanceClassification::Rejected),
+        ))
+        .returning(metric_record_provenance::record_provenance_id)
+        .get_result(&mut connection)
+        .expect("Failed to insert the fully unhashed rejection row");
+
+    let loaded: MetricRecordProvenance = metric_record_provenance::table
+        .filter(metric_record_provenance::record_provenance_id.eq(provenance_id))
+        .first(&mut connection)
+        .expect("Failed to load the fully unhashed rejection row");
+    assert_eq!(loaded.identity_hash, None);
+    assert_eq!(loaded.content_hash, None);
+    assert_eq!(loaded.record_id, None);
+    assert_eq!(
+        loaded.classification,
+        MetricRecordProvenanceClassification::Rejected
+    );
+}
+
+// ---------------------------------------------------------------------------
+// MET-WP2-01A: ordered bounded-batch linkage.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pre_batch_provenance_rows_remain_valid_without_any_linkage() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, record_id) = fixture_record(&pool, "identity-a");
+    // Every provenance row written before MET-WP2-01A carries neither batch
+    // field. The migration must leave them valid, and new unbatched rows must
+    // stay insertable.
+    insert_provenance_row(
+        &pool,
+        Some(record_id),
+        fixture.import_id,
+        "identity-a",
+        "content-a",
+        "WINNER",
+    )
+    .expect("an unbatched provenance row must remain valid");
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM metric_record_provenance \
+              WHERE import_batch_id IS NULL AND batch_row_index IS NULL)",
+        ),
+        1
+    );
+}
+
+#[test]
+fn the_two_batch_fields_are_null_or_present_together() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let import_batch_id = insert_batch(&pool, fixture.import_id, "batch-1");
+
+    // An index without a batch has no ordering context; a batch link without
+    // an index cannot be replayed deterministically.
+    for (index, (batch, row_index)) in [(Some(import_batch_id), None), (None, Some(0_i64))]
+        .into_iter()
+        .enumerate()
+    {
+        let result = insert_provenance_batch_link(
+            &pool,
+            fixture.import_id,
+            &format!("identity-{index}"),
+            batch,
+            row_index,
+        );
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::CheckViolation,
+                    _
+                ))
+            ),
+            "a half-populated batch linkage ({batch:?}, {row_index:?}) must be \
+             refused: {result:?}"
+        );
+    }
+
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-ok",
+        Some(import_batch_id),
+        Some(0),
+    )
+    .expect("a complete batch linkage must be accepted");
+}
+
+#[test]
+fn a_negative_batch_row_index_is_refused() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let import_batch_id = insert_batch(&pool, fixture.import_id, "batch-1");
+    // Unlike source_row_number, which mirrors whatever an upstream format
+    // counted, batch_row_index is Thoth's own replay ordering.
+    for row_index in [i64::MIN, -1] {
+        let result = insert_provenance_batch_link(
+            &pool,
+            fixture.import_id,
+            &format!("identity-{row_index}"),
+            Some(import_batch_id),
+            Some(row_index),
+        );
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::CheckViolation,
+                    _
+                ))
+            ),
+            "batch row index {row_index} must be refused: {result:?}"
+        );
+    }
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-zero",
+        Some(import_batch_id),
+        Some(0),
+    )
+    .expect("a zero-based batch row index must be accepted");
+}
+
+#[test]
+fn a_batch_position_holds_exactly_one_provenance_row() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let first_batch = insert_batch(&pool, fixture.import_id, "batch-1");
+    let second_batch = insert_batch(&pool, fixture.import_id, "batch-2");
+
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-a",
+        Some(first_batch),
+        Some(0),
+    )
+    .expect("the first row of the first batch must be accepted");
+
+    let duplicate = insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-b",
+        Some(first_batch),
+        Some(0),
+    );
+    assert!(
+        matches!(
+            duplicate,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::UniqueViolation,
+                _
+            ))
+        ),
+        "two rows cannot occupy one position in one batch, or replay would be \
+         ambiguous: {duplicate:?}"
+    );
+
+    // The same position in a different batch is a different position.
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-c",
+        Some(second_batch),
+        Some(0),
+    )
+    .expect("the same row index in another batch must be accepted");
+
+    // And many unlinked rows coexist, because NULLs compare as distinct.
+    for identity in ["identity-d", "identity-e"] {
+        insert_provenance_batch_link(&pool, fixture.import_id, identity, None, None)
+            .expect("unlinked rows must not collide with each other");
+    }
+}
+
+#[test]
+fn provenance_cannot_reference_a_batch_from_another_import() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let other_import_id = Uuid::new_v4();
+    crate::model::metric_import::tests::insert_import_row(
+        &pool,
+        other_import_id,
+        fixture.source_account_id,
+    );
+    let foreign_batch = insert_batch(&pool, other_import_id, "batch-1");
+
+    // The composite key carries import_id precisely so this cannot happen.
+    let result = insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-a",
+        Some(foreign_batch),
+        Some(0),
+    );
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "provenance under one import must not reference a batch committed under \
+         another: {result:?}"
+    );
+
+    // An unknown batch is refused for the same reason.
+    let unknown = insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-b",
+        Some(Uuid::new_v4()),
+        Some(0),
+    );
+    assert!(
+        matches!(
+            unknown,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "an unknown batch must be refused: {unknown:?}"
+    );
+}
+
+#[test]
+fn deleting_a_referenced_batch_is_restricted() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let import_batch_id = insert_batch(&pool, fixture.import_id, "batch-1");
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-a",
+        Some(import_batch_id),
+        Some(0),
+    )
+    .expect("the linked provenance row must be accepted");
+
+    let result = delete_row(
+        &pool,
+        "metric_import_batch",
+        "import_batch_id",
+        import_batch_id,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "deleting a referenced batch must be restricted, not cascade away durable \
+         provenance evidence: {result:?}"
+    );
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_record_provenance)"),
+        1,
+        "the provenance row must survive the restricted deletion"
+    );
+}
+
+#[test]
+fn one_committed_batch_is_readable_in_deterministic_row_order() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-a");
+    let batch = insert_batch(&pool, fixture.import_id, "batch-1");
+    let other_batch = insert_batch(&pool, fixture.import_id, "batch-2");
+
+    // Insert out of order, and interleave a second batch plus an unlinked
+    // row, so ordering cannot accidentally come from insertion order.
+    for row_index in [2_i64, 0, 3, 1] {
+        insert_provenance_batch_link(
+            &pool,
+            fixture.import_id,
+            &format!("identity-{row_index}"),
+            Some(batch),
+            Some(row_index),
+        )
+        .expect("the batch row must be accepted");
+    }
+    insert_provenance_batch_link(
+        &pool,
+        fixture.import_id,
+        "identity-other",
+        Some(other_batch),
+        Some(0),
+    )
+    .expect("the other batch row must be accepted");
+    insert_provenance_batch_link(&pool, fixture.import_id, "identity-unlinked", None, None)
+        .expect("the unlinked row must be accepted");
+
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let ordered: Vec<MetricRecordProvenance> = metric_record_provenance::table
+        .filter(metric_record_provenance::import_batch_id.eq(batch))
+        .order(metric_record_provenance::batch_row_index)
+        .load(&mut connection)
+        .expect("Failed to load the batch provenance rows in order");
+    assert_eq!(
+        ordered
+            .iter()
+            .map(|row| row.batch_row_index)
+            .collect::<Vec<_>>(),
+        vec![Some(0), Some(1), Some(2), Some(3)],
+        "one committed batch must be replayable in exact batch_row_index order"
+    );
+    assert_eq!(
+        ordered
+            .iter()
+            .map(|row| row.identity_hash.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            Some("identity-0"),
+            Some("identity-1"),
+            Some("identity-2"),
+            Some("identity-3"),
+        ],
+        "each replayed position must carry its own evidence"
+    );
+    assert!(
+        ordered.iter().all(|row| row.import_batch_id == Some(batch)),
+        "the ordered read must be scoped to exactly one batch"
+    );
 }

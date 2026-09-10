@@ -723,6 +723,18 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+
+    metric_import_batch (import_batch_id) {
+        import_batch_id -> Uuid,
+        import_id -> Uuid,
+        batch_key -> Text,
+        request_hash -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricImportErrorSeverity;
 
     metric_import_error (import_error_id) {
@@ -915,11 +927,13 @@ table! {
         import_id -> Uuid,
         source_record_id -> Nullable<Text>,
         source_row_number -> Nullable<Int8>,
-        identity_hash -> Text,
-        content_hash -> Text,
+        identity_hash -> Nullable<Text>,
+        content_hash -> Nullable<Text>,
         classification -> MetricRecordProvenanceClassification,
         details -> Jsonb,
         received_at -> Timestamptz,
+        import_batch_id -> Nullable<Uuid>,
+        batch_row_index -> Nullable<Int8>,
     }
 }
 
@@ -990,6 +1004,7 @@ table! {
 
     metric_source_account (source_account_id) {
         source_account_id -> Uuid,
+        code -> Text,
         source_id -> Uuid,
         platform_id -> Uuid,
         external_key -> Text,
@@ -1500,6 +1515,7 @@ joinable!(metric_coverage -> metric_platform (platform_id));
 joinable!(metric_coverage -> metric_source_account (source_account_id));
 joinable!(metric_import -> metric_source_account (source_account_id));
 joinable!(metric_import -> publisher (publisher_id));
+joinable!(metric_import_batch -> metric_import (import_id));
 joinable!(metric_import_error -> metric_import (import_id));
 joinable!(metric_operas_export -> metric_operas_mapping (mapping_id));
 joinable!(metric_operas_export -> metric_record_revision (record_revision_id));
@@ -1517,6 +1533,7 @@ joinable!(metric_record -> metric_source_account (winning_source_account_id));
 joinable!(metric_record -> publication (publication_id));
 joinable!(metric_record -> work (work_id));
 joinable!(metric_record_provenance -> metric_import (import_id));
+joinable!(metric_record_provenance -> metric_import_batch (import_batch_id));
 joinable!(metric_record_provenance -> metric_record (record_id));
 joinable!(metric_record_revision -> metric_import (import_id));
 joinable!(metric_record_revision -> metric_record (record_id));
@@ -1586,6 +1603,7 @@ allow_tables_to_appear_in_same_query!(
     location_history,
     metric_coverage,
     metric_import,
+    metric_import_batch,
     metric_import_error,
     metric_measure,
     metric_operas_export,

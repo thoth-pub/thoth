@@ -12,10 +12,16 @@
 //! modules reuse them. The registry, source-account and import fixtures are
 //! the existing `pub(crate)` helpers, consumed as-is.
 //!
+//! Extended by `MET-WP2-01A` with the single overlap-supporting lookup index
+//! and representative PostgreSQL `EXPLAIN` evidence that the planner can use
+//! it for the approved same-dimensional-cell half-open overlap lookup.
+//!
 //! These tests deliberately assert **schema** behaviour only. This slice
 //! implements no identity or content hashing, no first-arrival, duplicate,
 //! revision, conflict or retraction transaction and no period-overlap
-//! detection, and nothing here pretends otherwise.
+//! detection, and nothing here pretends otherwise. `MET-WP2-01A` adds the
+//! index the later coordinator will need; it does not add the coordinator,
+//! its overlap predicate evaluation or its concurrency control.
 
 use chrono::NaiveDate;
 use diesel::pg::PgConnection;
@@ -921,14 +927,16 @@ fn metric_record_has_exactly_the_required_indexes() {
         vec![
             "metric_record_identity_hash_key",
             "metric_record_measure_id_idx",
+            "metric_record_overlap_lookup_idx",
             "metric_record_period_start_idx",
             "metric_record_pkey",
             "metric_record_platform_id_idx",
             "metric_record_work_id_idx",
         ],
         "metric_record must carry exactly its primary key, the unique identity \
-         hash and the four design-required access indexes, with no speculative \
-         dashboard composite"
+         hash, the four design-required access indexes and the one MET-WP2-01A \
+         overlap-lookup index, with no speculative dashboard composite and no \
+         second overlap index"
     );
     assert!(
         index_definition(&pool, "metric_record", "metric_record_identity_hash_key")
@@ -998,4 +1006,208 @@ fn metric_record_carries_only_the_repository_standard_updated_at_trigger() {
         "metric_record* tables must carry only the repository-standard \
          updated-at trigger"
     );
+}
+
+// ---------------------------------------------------------------------------
+// MET-WP2-01A: the overlap-supporting lookup index.
+// ---------------------------------------------------------------------------
+
+/// The exact approved index column order. Reordering these columns would
+/// silently change which planned lookups the index can serve, so the order is
+/// asserted literally rather than as a set.
+const OVERLAP_INDEX_COLUMNS: &str =
+    "(platform_id, measure_id, work_id, publication_id, country_code, institution_id, period_start)";
+
+/// One scalar `TEXT` result on a caller-owned connection.
+fn scalar_text(connection: &mut PgConnection, query: &str) -> String {
+    diesel::select(diesel::dsl::sql::<diesel::sql_types::Text>(query))
+        .get_result(connection)
+        .expect("Failed to run scalar text query")
+}
+
+#[test]
+fn the_overlap_index_has_exactly_the_approved_column_order() {
+    let (_guard, pool) = setup_registry_db();
+    let definition = index_definition(&pool, "metric_record", "metric_record_overlap_lookup_idx");
+    assert!(
+        definition.contains(OVERLAP_INDEX_COLUMNS),
+        "the overlap index must carry exactly the approved column order \
+         {OVERLAP_INDEX_COLUMNS}: {definition}"
+    );
+    assert!(
+        !definition.contains("UNIQUE"),
+        "the overlap index supplies candidate lookup only and must not impose \
+         uniqueness: {definition}"
+    );
+    assert!(
+        definition.contains("USING btree"),
+        "the overlap index must be a plain btree: {definition}"
+    );
+}
+
+#[test]
+fn met_wp2_01a_introduces_no_exclusion_constraint_extension_or_trigger() {
+    let (_guard, pool) = setup_registry_db();
+    // Concurrency serialization for same-cell writers is MET-WP2-01B's
+    // transaction-scoped advisory lock. MET-WP2-01A deliberately adds no
+    // database machinery that would pre-empt or duplicate that decision.
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM pg_constraint \
+              WHERE conrelid = 'metric_record'::regclass AND contype = 'x')",
+        ),
+        0,
+        "metric_record must carry no exclusion constraint"
+    );
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM pg_extension WHERE extname = 'btree_gist')",
+        ),
+        0,
+        "MET-WP2-01A must not install btree_gist"
+    );
+    // metric_record already carries the repository-standard set_updated_at
+    // helper, whose exact inventory is asserted by
+    // `metric_record_carries_only_the_repository_standard_updated_at_trigger`.
+    // What matters here is that MET-WP2-01A added nothing beyond it: no
+    // overlap-enforcing or locking trigger of any kind.
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM pg_trigger \
+              WHERE tgrelid = 'metric_record'::regclass \
+                AND NOT tgisinternal AND tgname <> 'set_updated_at')",
+        ),
+        0,
+        "MET-WP2-01A must add no trigger to metric_record"
+    );
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM pg_indexes \
+              WHERE schemaname = 'public' AND tablename = 'metric_record' \
+                AND indexdef LIKE '%period_end%')",
+        ),
+        0,
+        "period_end is deliberately a residual predicate: no index may cover it"
+    );
+}
+
+#[test]
+fn the_planner_can_use_the_overlap_index_for_the_approved_same_cell_lookup() {
+    let (_guard, pool) = setup_registry_db();
+    let fixture = insert_record_fixture(&pool);
+    let mut connection = pool.get().expect("Failed to get DB connection");
+
+    // A representative canonical population: many works, several reporting
+    // periods each, and both present and absent optional country values, so a
+    // single-cell lookup is genuinely selective rather than trivially the
+    // whole table.
+    let imprint_id: Uuid = diesel::select(diesel::dsl::sql::<diesel::sql_types::Uuid>(
+        "(SELECT imprint_id FROM work WHERE work_id = (SELECT work_id FROM work LIMIT 1))",
+    ))
+    .get_result(&mut connection)
+    .expect("Failed to read the fixture imprint");
+    sql_query(
+        "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+         SELECT uuid_generate_v4(), 'monograph', 'forthcoming', $1, 1 \
+         FROM generate_series(1, 100)",
+    )
+    .bind::<diesel::sql_types::Uuid, _>(imprint_id)
+    .execute(&mut connection)
+    .expect("Failed to insert the representative works");
+    sql_query(
+        "INSERT INTO metric_record \
+             (identity_hash, work_id, platform_id, measure_id, period_start, period_end, \
+              reporting_grain, country_code, winning_source_account_id) \
+         SELECT 'overlap-' || w.work_id || '-' || m.offset_months || '-' \
+                    || COALESCE(c.code, 'none'), \
+                w.work_id, $1, $2, \
+                (DATE '2026-01-01' + (m.offset_months || ' months')::interval)::date, \
+                (DATE '2026-02-01' + (m.offset_months || ' months')::interval)::date, \
+                'MONTH', c.code, $3 \
+           FROM work w \
+           CROSS JOIN generate_series(0, 9) AS m(offset_months) \
+           CROSS JOIN (VALUES ('GB'::text), ('US'), ('DE'), ('FR'), (NULL)) AS c(code)",
+    )
+    .bind::<diesel::sql_types::Uuid, _>(fixture.platform_id)
+    .bind::<diesel::sql_types::Uuid, _>(fixture.measure_id)
+    .bind::<diesel::sql_types::Uuid, _>(fixture.source_account_id)
+    .execute(&mut connection)
+    .expect("Failed to insert the representative canonical records");
+    sql_query("ANALYZE metric_record")
+        .execute(&mut connection)
+        .expect("Failed to analyze metric_record");
+
+    let planned_rows = scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_record)");
+    assert!(
+        planned_rows > 4_000,
+        "the EXPLAIN evidence needs a representative population, got {planned_rows} rows"
+    );
+
+    // The exact MET-WP2-01B access contract: the six dimensions of one
+    // canonical cell, present optional dimensions compared with `=` and absent
+    // ones with `IS NULL`, plus the half-open overlap predicate. `period_end`
+    // is deliberately residual.
+    let overlap_query = format!(
+        "SELECT record_id FROM metric_record \
+          WHERE platform_id = '{platform}' \
+            AND measure_id = '{measure}' \
+            AND work_id = '{work}' \
+            AND publication_id IS NULL \
+            AND country_code = 'GB' \
+            AND institution_id IS NULL \
+            AND period_start < DATE '2026-04-01' \
+            AND period_end > DATE '2026-03-01'",
+        platform = fixture.platform_id,
+        measure = fixture.measure_id,
+        work = fixture.work_id,
+    );
+    // The same cell with the optional country absent rather than present,
+    // proving the `IS NULL` form of the contract is served too.
+    let absent_country_query =
+        overlap_query.replace("AND country_code = 'GB'", "AND country_code IS NULL");
+
+    sql_query("CREATE TEMP TABLE met_wp2_01a_plan (step_id serial, line text)")
+        .execute(&mut connection)
+        .expect("Failed to create the plan capture table");
+    for (label, query) in [
+        ("present optional country", &overlap_query),
+        ("absent optional country", &absent_country_query),
+    ] {
+        sql_query("TRUNCATE met_wp2_01a_plan RESTART IDENTITY")
+            .execute(&mut connection)
+            .expect("Failed to reset the plan capture table");
+        // EXPLAIN cannot be used as a subquery, so its rows are captured
+        // through PL/pgSQL on this one connection and read back as text.
+        sql_query(format!(
+            "DO $$ \
+             DECLARE plan_row record; \
+             BEGIN \
+                 FOR plan_row IN EXECUTE 'EXPLAIN {}' LOOP \
+                     INSERT INTO met_wp2_01a_plan (line) VALUES (plan_row.\"QUERY PLAN\"); \
+                 END LOOP; \
+             END $$;",
+            query.replace('\'', "''")
+        ))
+        .execute(&mut connection)
+        .expect("Failed to capture the query plan");
+
+        let plan = scalar_text(
+            &mut connection,
+            "(SELECT string_agg(line, chr(10) ORDER BY step_id) FROM met_wp2_01a_plan)",
+        );
+        assert!(
+            plan.contains("metric_record_overlap_lookup_idx"),
+            "the planned same-cell overlap lookup ({label}) must be able to use \
+             metric_record_overlap_lookup_idx, but the plan was:\n{plan}"
+        );
+        assert!(
+            !plan.contains("Seq Scan on metric_record"),
+            "the planned same-cell overlap lookup ({label}) must not fall back to a \
+             sequential scan, but the plan was:\n{plan}"
+        );
+    }
 }
