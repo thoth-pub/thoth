@@ -3684,6 +3684,158 @@ fn publication_insert_update_and_delete_races_are_serialized_before_the_work_loc
 }
 
 #[test]
+fn publication_work_id_movement_between_discovery_and_barrier_is_re_resolved() {
+    // Amendment 4 C4/C10: `publication.work_id` is revalidated at the locked
+    // re-resolution barrier, and a concurrent publication identity/work
+    // movement is a real independent-connection race. Both directions are
+    // exercised: a publication moved OUT of the observed work after it was
+    // provisionally resolved, and a publication moved INTO the observed work
+    // after it was provisionally unresolvable.
+    let (_guard, f) = setup_fixture();
+    let with_isbn = |isbn: &str, day: u32| NormalizedMetricObservation {
+        publication_isbn: Some(isbn.into()),
+        period_start: date(2026, 3, day),
+        period_end: date(2026, 3, day + 1),
+        ..f.observation()
+    };
+
+    // Direction 1: the PDF publication provisionally resolves under the
+    // observed work; the competing transaction moves it to another work and
+    // holds the publication row (and, through the existing publication
+    // trigger, both work rows) until ingestion is observed blocked on its
+    // publication FOR SHARE lock. After the commit the barrier no longer finds
+    // the ISBN within the observed work: no stale publication-to-work
+    // authority is accepted, and accepting would need no unlocked row, so the
+    // approved classification is a REJECTED row, not a restart.
+    let held = HeldTransaction::start(vec![format!(
+        "UPDATE publication SET work_id = '{}' WHERE publication_id = '{}'",
+        f.other_work_id, f.publication_id
+    )]);
+    let (pool, ingestion_pid) = pinned_pool();
+    assert_ne!(
+        held.pid, ingestion_pid,
+        "the competing update and the coordinator run on distinct backends"
+    );
+    let batch = f.batch("b1", vec![with_isbn(PDF_ISBN, 1)]);
+    let ingestion = thread::spawn(move || ingest_metric_batch(&pool, &batch));
+    wait_until_blocked(ingestion_pid);
+    assert_eq!(
+        count(
+            &f.pool,
+            "publication",
+            &format!(
+                "publication_id = '{}' AND work_id = '{}'",
+                f.publication_id, f.work_id
+            )
+        ),
+        1,
+        "the movement is not yet visible while the competing transaction is open"
+    );
+    held.commit();
+    let outcome = ingestion.join().unwrap().unwrap();
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Rejected);
+    assert_eq!(outcome.rows[0].reason_code, Some(Code::UnknownPublication));
+    assert_eq!(
+        outcome.rows[0].identity_hash, None,
+        "no identity was formed from the moved publication"
+    );
+    assert_eq!(
+        count(
+            &f.pool,
+            "publication",
+            &format!(
+                "publication_id = '{}' AND work_id = '{}'",
+                f.publication_id, f.other_work_id
+            )
+        ),
+        1,
+        "the competing publication movement committed"
+    );
+    assert_eq!(count(&f.pool, "metric_record", "TRUE"), 0);
+    assert_eq!(
+        count(&f.pool, "metric_record_provenance", "classification = 'REJECTED' AND details->>'reason_code' = 'UNKNOWN_PUBLICATION' AND batch_row_index = 0"),
+        1
+    );
+    assert_eq!(
+        count(&f.pool, "metric_import_error", "error_code = 'UNKNOWN_PUBLICATION' AND field_name = 'publication_isbn' AND raw_value IS NULL"),
+        1
+    );
+    assert_eq!(count(&f.pool, "metric_import_batch", "batch_key = 'b1'"), 1);
+    assert_eq!(f.counters(f.import_a), [1, 0, 0, 0, 0, 1]);
+
+    // Direction 2: a publication of another work carries the ISBN; it is
+    // unresolvable under the observed work at discovery. The competing
+    // transaction moves it into the observed work and holds the work row via
+    // the publication trigger, so the batch's plain observation blocks on the
+    // work FOR UPDATE lock. After the commit the barrier resolves the ISBN to
+    // a publication that was never locked in its prescribed phase: the attempt
+    // rolls back and restarts, and the restarted attempt locks the moved
+    // publication before the work and accepts both rows. No late publication
+    // lock is taken inside the first attempt.
+    let moved_in = Uuid::new_v4();
+    f.sql(&format!(
+        "INSERT INTO publication (publication_id, publication_type, work_id, isbn) VALUES ('{moved_in}', 'Epub', '{}', '{OTHER_ISBN}')",
+        f.other_work_id
+    ));
+    let held = HeldTransaction::start(vec![format!(
+        "UPDATE publication SET work_id = '{}' WHERE publication_id = '{moved_in}'",
+        f.work_id
+    )]);
+    let (pool, ingestion_pid) = pinned_pool();
+    assert_ne!(held.pid, ingestion_pid);
+    let batch = f.batch(
+        "b2",
+        vec![
+            with_isbn(OTHER_ISBN, 5),
+            NormalizedMetricObservation {
+                period_start: date(2026, 3, 6),
+                period_end: date(2026, 3, 7),
+                ..f.observation()
+            },
+        ],
+    );
+    let ingestion = thread::spawn(move || ingest_metric_batch(&pool, &batch));
+    wait_until_blocked(ingestion_pid);
+    held.commit();
+    let outcome = ingestion.join().unwrap().unwrap();
+    assert!(!outcome.replayed);
+    assert_eq!(classes(&outcome), vec![Class::Winner, Class::Winner]);
+    assert_eq!(
+        count(
+            &f.pool,
+            "publication",
+            &format!(
+                "publication_id = '{moved_in}' AND work_id = '{}'",
+                f.work_id
+            )
+        ),
+        1,
+        "the competing publication movement committed"
+    );
+    assert_eq!(
+        count(&f.pool, "metric_record", &format!("publication_id = '{moved_in}' AND work_id = '{}' AND period_start = DATE '2026-03-05'", f.work_id)),
+        1,
+        "the accepted record references the moved publication under the observed work"
+    );
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_record",
+            &format!("publication_id = '{}'", f.publication_id)
+        ),
+        0
+    );
+    assert_eq!(count(&f.pool, "metric_record", "TRUE"), 2);
+    assert_eq!(
+        count(&f.pool, "metric_import_batch", "batch_key = 'b2'"),
+        1,
+        "one durable batch row despite the restart"
+    );
+    assert_eq!(f.counters(f.import_a), [3, 2, 0, 0, 0, 1]);
+}
+
+#[test]
 fn institution_update_and_ror_movement_races_are_serialized_before_the_work_lock() {
     let (_guard, f) = setup_fixture();
     let with_ror = |day: u32| NormalizedMetricObservation {
