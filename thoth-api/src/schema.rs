@@ -166,6 +166,14 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_registry_history_action"))]
     pub struct MetricRegistryHistoryAction;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_registry_history_entity"))]
+    pub struct MetricSourceRegistryHistoryEntity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_registry_history_action"))]
+    pub struct MetricSourceRegistryHistoryAction;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -1034,6 +1042,22 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::{MetricSourceRegistryHistoryAction, MetricSourceRegistryHistoryEntity};
+
+    metric_source_registry_history (metric_source_registry_history_id) {
+        metric_source_registry_history_id -> Uuid,
+        entity -> MetricSourceRegistryHistoryEntity,
+        entity_id -> Uuid,
+        action -> MetricSourceRegistryHistoryAction,
+        actor -> Text,
+        before_state -> Nullable<Jsonb>,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::CurrencyCode;
 
     price (price_id) {
@@ -1622,6 +1646,7 @@ allow_tables_to_appear_in_same_query!(
     metric_source,
     metric_source_account,
     metric_source_checkpoint,
+    metric_source_registry_history,
     price,
     price_history,
     publication,

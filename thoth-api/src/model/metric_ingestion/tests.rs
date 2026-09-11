@@ -902,7 +902,7 @@ fn setup_fixture() -> (TestDbGuard, Fixture) {
         unreachable!()
     };
 
-    exec_uuid(&mut c, "INSERT INTO metric_source (source_id, code, acquisition_type, enabled) VALUES ($1, 'cloudfront-driver', 'DRIVER', TRUE)", source_id);
+    exec_uuid(&mut c, "INSERT INTO metric_source (source_id, code, acquisition_type, driver_key, enabled) VALUES ($1, 'cloudfront-driver', 'DRIVER', 'cloudfront', TRUE)", source_id);
     exec_uuid(&mut c, "INSERT INTO metric_platform (platform_id, code, display_name, ownership_class, enabled) VALUES ($1, 'cf', 'CloudFront', 'THOTH_MANAGED', TRUE)", platform_id);
     exec_uuid(&mut c, "INSERT INTO publisher (publisher_id, publisher_name, subscription_package) VALUES ($1, 'Expected publisher', 'OBELISK')", publisher_id);
     exec_uuid(&mut c, "INSERT INTO publisher (publisher_id, publisher_name, subscription_package) VALUES ($1, 'Other publisher', 'OASIS')", other_publisher_id);
@@ -2075,9 +2075,9 @@ fn request_level_authority_failures_commit_nothing() {
     let cases: Vec<(String, String, Code)> = vec![
         (format!("UPDATE metric_source_account SET enabled = FALSE WHERE source_account_id = '{}'", f.account_a), format!("UPDATE metric_source_account SET enabled = TRUE WHERE source_account_id = '{}'", f.account_a), Code::SourceAccountDisabled),
         ("UPDATE metric_source SET enabled = FALSE".into(), "UPDATE metric_source SET enabled = TRUE".into(), Code::SourceDisabled),
-        ("UPDATE metric_source SET acquisition_type = 'PUBLISHER_UPLOAD'".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER'".into(), Code::AcquisitionTypeDeferred),
-        ("UPDATE metric_source SET acquisition_type = 'OPERAS'".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER'".into(), Code::AcquisitionTypeDeferred),
-        ("UPDATE metric_source SET acquisition_type = 'ADMIN_IMPORT'".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER'".into(), Code::AcquisitionTypeDeferred),
+        ("UPDATE metric_source SET acquisition_type = 'PUBLISHER_UPLOAD', driver_key = NULL".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER', driver_key = 'cloudfront'".into(), Code::AcquisitionTypeDeferred),
+        ("UPDATE metric_source SET acquisition_type = 'OPERAS', driver_key = NULL".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER', driver_key = 'cloudfront'".into(), Code::AcquisitionTypeDeferred),
+        ("UPDATE metric_source SET acquisition_type = 'ADMIN_IMPORT', driver_key = NULL".into(), "UPDATE metric_source SET acquisition_type = 'DRIVER', driver_key = 'cloudfront'".into(), Code::AcquisitionTypeDeferred),
         (format!("UPDATE metric_source_account SET expected_publisher_id = NULL WHERE source_account_id = '{}'", f.account_a), format!("UPDATE metric_source_account SET expected_publisher_id = '{}' WHERE source_account_id = '{}'", f.publisher_id, f.account_a), Code::PublisherScopeMismatch),
         (format!("UPDATE metric_import SET publisher_id = NULL WHERE import_id = '{}'", f.import_a), format!("UPDATE metric_import SET publisher_id = '{}' WHERE import_id = '{}'", f.publisher_id, f.import_a), Code::PublisherScopeMismatch),
         (format!("UPDATE metric_import SET publisher_id = '{}' WHERE import_id = '{}'", f.other_publisher_id, f.import_a), format!("UPDATE metric_import SET publisher_id = '{}' WHERE import_id = '{}'", f.publisher_id, f.import_a), Code::PublisherScopeMismatch),
@@ -2629,7 +2629,9 @@ fn replay_survives_import_completion_and_configuration_changes() {
         "UPDATE metric_source_account SET enabled = FALSE WHERE source_account_id = '{}'",
         f.account_a
     ));
-    f.sql("UPDATE metric_source SET acquisition_type = 'ADMIN_IMPORT', enabled = FALSE");
+    f.sql(
+        "UPDATE metric_source SET acquisition_type = 'ADMIN_IMPORT', driver_key = NULL, enabled = FALSE",
+    );
     f.sql(&format!(
         "UPDATE publisher SET subscription_package = 'OASIS' WHERE publisher_id = '{}'",
         f.publisher_id

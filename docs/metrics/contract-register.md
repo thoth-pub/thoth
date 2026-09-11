@@ -84,10 +84,123 @@ administer the registry refreshes its generated client against the merged
 contract.
 
 Still deferred to separately specified work: publisher-platform approval
-administration, source/source-account/checkpoint administration, the
-service/dashboard registry list queries `metricPlatforms` and `metricMeasures`,
-any delete or bulk operation, any audit-history query, and any real platform,
-platform-measure, source, source-account or OPERAS seed.
+administration, checkpoint administration, the service/dashboard registry list
+queries `metricPlatforms` and `metricMeasures`, any delete or bulk operation,
+any audit-history query, and any real platform, platform-measure, source,
+source-account or OPERAS seed. Source and source-account administration is
+delivered by `MET-WP1-13` (section 2.2).
+
+### 2.2 Delivered source and source-account administration (`MET-WP1-13`)
+
+`MET-WP1-13` delivers administration of exactly `metric_source` and
+`metric_source_account`. It does not administer `metric_source_checkpoint`.
+
+Operations, all **SUPERUSER only** and all authorized before any
+operation-specific database read, row lock or write:
+
+```graphql
+createMetricSource(data: NewMetricSource!): MetricSource!
+updateMetricSource(data: PatchMetricSource!): MetricSource!
+metricSourceByCode(code: String!): MetricSource!
+
+createMetricSourceAccount(data: NewMetricSourceAccount!): MetricSourceAccount!
+updateMetricSourceAccount(data: PatchMetricSourceAccount!): MetricSourceAccount!
+metricSourceAccountByCode(code: String!): MetricSourceAccount!
+```
+
+Typed source-account configuration, the only configuration representation the
+API accepts or returns:
+
+```graphql
+enum MetricSourceAccountConfigurationKind {
+  EMPTY
+  CLOUDFRONT_LEGACY_S3_V1
+}
+
+input MetricSourceAccountConfigurationInput {
+  kind: MetricSourceAccountConfigurationKind!
+  cloudfrontLegacyS3: MetricCloudFrontLegacyS3ConfigurationInput
+}
+
+input MetricCloudFrontLegacyS3ConfigurationInput {
+  hostname: String!
+  bucket: String!
+  prefix: String!
+}
+
+type MetricSourceAccountConfiguration {
+  kind: MetricSourceAccountConfigurationKind!
+  cloudfrontLegacyS3: MetricCloudFrontLegacyS3Configuration
+}
+
+type MetricCloudFrontLegacyS3Configuration {
+  hostname: String!
+  bucket: String!
+  prefix: String!
+}
+```
+
+Contract properties consumers may rely on:
+
+- **Stable code identity, exact `TEXT` matching.** As in section 2.1. Account
+  creation names its source and platform by their exact stable codes; no
+  operation requires a database-generated UUID.
+- **Driver-key invariant.** `DRIVER` requires a non-blank `driverKey`; every
+  other `acquisitionType` requires none. Enforced identically by the
+  coordinator and by the `metric_source_driver_key_check` CHECK. No driver
+  registry, driver-key uniqueness or approved driver value is implied.
+- **Immutability.** A source's `code`, `acquisitionType` and `driverKey`, and
+  an account's `code`, source, platform, `externalKey` and `expectedPublisherId`
+  cannot be changed and are absent from the patch inputs. Correcting any of
+  them is separately reviewed repair work; changing `code` alone never
+  bypasses the `(source_id, external_key)` identity.
+- **Replacement, not patch.** `PatchMetricSource` replaces exactly `enabled`,
+  `defaultLookbackDays` and `defaultFinalizationDelayDays` (omitted and `null`
+  both store SQL `NULL`); `PatchMetricSourceAccount` replaces exactly
+  `configuration` and `enabled`.
+- **Closed configuration.** `EMPTY` stores semantic `{}` and rejects a
+  payload. `CLOUDFRONT_LEGACY_S3_V1` requires its payload and stores exactly
+  `{"schemaVersion": "cloudfront-source-account/1", "hostname", "logging":
+  {"mode": "LEGACY_S3", "bucket", "prefix"}}` with the caller's exact
+  non-blank values; `schemaVersion` and `logging.mode` are derived, never
+  caller-controlled; the hostname must equal the immutable `externalKey`
+  exactly. A resolved `DRIVER` source with `driverKey = cloudfront` must use
+  `CLOUDFRONT_LEGACY_S3_V1`; every other current source must use `EMPTY`. No
+  raw JSON input, raw JSON output, alternate escape hatch or credential field
+  exists; a new non-empty configuration for another source is a separately
+  reviewed additive kind/version.
+- **CloudFront expected-publisher pin (Specification Amendment 2).** Creating
+  a `CLOUDFRONT_LEGACY_S3_V1` account requires a non-null `expectedPublisherId`
+  naming an existing publisher, because the merged managed `DRIVER` ingestion
+  coordinator fails closed unless the account's expected publisher is present
+  and equals the import's publisher. `expectedPublisherId` stays nullable in
+  the schema and the database for `EMPTY` and future kinds, and is immutable
+  through `PatchMetricSourceAccount`.
+- **Fail-closed stored configuration.** Every account returned, updated or
+  audited has passed the closed decoder against its immutable source and
+  `externalKey`. Any other stored value yields one fixed sanitized failure,
+  discloses nothing stored, performs no update and writes no audit row.
+- **Audited, atomic, no-op-silent, serialized.** As in section 2.1, against
+  the separate append-only `metric_source_registry_history` (`SOURCE`,
+  `SOURCE_ACCOUNT`; `CREATE`, `UPDATE`). Configuration equality is semantic
+  JSONB equality, never key order, whitespace or bytes. Each update takes
+  exactly one canonical-row `FOR UPDATE` lock and never locks the source,
+  platform or publisher rows.
+- **Sanitized failures.** Reachable constraint and validation failures return
+  bounded messages exposing no PostgreSQL text, constraint name, SQL, driver
+  diagnostic, connection detail or stored configuration.
+
+Downstream impact: the change is **strictly additive** — two object types,
+four input types plus the four typed configuration types, the additive
+exposure of the existing `MetricSourceAcquisitionType` enum and the new
+`MetricSourceAccountConfigurationKind` enum, four mutations and two queries,
+with no existing type, field, nullability, enum variant or authorization
+behaviour changed. No consumer requires a change to keep working.
+
+Still deferred: checkpoint administration and claim/lease runtime, the
+CloudFront collection driver, any list, search, delete or bulk source
+operation, any audit-history query, and any real source, account or platform
+row.
 
 ## 3. Internal ingestion
 

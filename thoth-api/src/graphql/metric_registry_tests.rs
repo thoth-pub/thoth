@@ -702,21 +702,46 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         );
     }
 
-    // Exactly nine Metrics fields across both roots: no tenth operation, and in
-    // particular none of the deferred service/dashboard registry queries.
-    let metric_query_fields = query_root
+    // Exactly nine registry Metrics fields across both roots, plus the six
+    // `MET-WP1-13` source/source-account operations approved under #904 and
+    // proven exactly in `metric_source_registry_tests`. No other Metrics
+    // operation exists, and in particular none of the deferred
+    // service/dashboard registry queries.
+    let wp1_13_query_fields = ["metricSourceByCode", "metricSourceAccountByCode"];
+    let wp1_13_mutation_fields = [
+        "createMetricSource",
+        "updateMetricSource",
+        "createMetricSourceAccount",
+        "updateMetricSourceAccount",
+    ];
+    let field_name = |line: &str| -> String {
+        line.trim_start()
+            .split(['(', ':'])
+            .next()
+            .unwrap_or_default()
+            .to_string()
+    };
+    let metric_query_fields: Vec<String> = query_root
         .lines()
         .filter(|line| line.trim_start().starts_with("metric"))
-        .count();
-    let metric_mutation_fields = mutation_root
+        .map(field_name)
+        .filter(|name| !wp1_13_query_fields.contains(&name.as_str()))
+        .collect();
+    let metric_mutation_fields: Vec<String> = mutation_root
         .lines()
         .filter(|line| {
             let line = line.trim_start();
             line.starts_with("createMetric") || line.starts_with("updateMetric")
         })
-        .count();
-    assert_eq!(metric_query_fields, 3, "QueryRoot: {query_root}");
-    assert_eq!(metric_mutation_fields, 6, "MutationRoot: {mutation_root}");
+        .map(field_name)
+        .filter(|name| !wp1_13_mutation_fields.contains(&name.as_str()))
+        .collect();
+    assert_eq!(metric_query_fields.len(), 3, "QueryRoot: {query_root}");
+    assert_eq!(
+        metric_mutation_fields.len(),
+        6,
+        "MutationRoot: {mutation_root}"
+    );
 
     for deferred in [
         "metricPlatforms",
@@ -725,7 +750,9 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "deleteMetric",
         "metricRegistryHistory",
         "metricPublisherPlatformApproval",
-        "metricSource",
+        "metricSources",
+        "metricSourceAccounts",
+        "metricSourceCheckpoint",
     ] {
         assert!(
             !sdl.contains(deferred),
@@ -882,12 +909,15 @@ fn the_resolvers_authorize_before_reaching_a_coordinator() {
             "`{coordinator}` must not be reachable from a second call site"
         );
     }
+    // The six registry mutations plus the four `MET-WP1-13` source/source-account
+    // mutations share the one guard; the WP1-13 call sites are proven
+    // individually in `metric_source_registry_tests`.
     assert_eq!(
         mutation_source
             .matches("authorize_metric_registry_admin(context)")
             .count(),
-        6,
-        "each of the six mutations must call the guard exactly once"
+        10,
+        "each of the ten Metrics administration mutations must call the guard exactly once"
     );
     assert_eq!(
         mutation_source
@@ -898,7 +928,8 @@ fn the_resolvers_authorize_before_reaching_a_coordinator() {
     );
     assert_eq!(
         query_source.matches("require_superuser()").count(),
-        5,
-        "the three Metrics lookups join the two pre-existing superuser queries"
+        7,
+        "the three registry lookups and the two MET-WP1-13 source lookups join the two \
+         pre-existing superuser queries"
     );
 }

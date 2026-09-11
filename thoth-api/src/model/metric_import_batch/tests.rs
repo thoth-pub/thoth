@@ -100,9 +100,29 @@ pub(crate) fn revert_through_ingestion_contract_migration(connection: &mut PgCon
 /// Attempt to revert the `MET-WP2-01A` migration, returning its error.
 ///
 /// The guard tests need the failure itself, so this deliberately does not
-/// unwrap. `MET-WP2-01A` is the newest migration, so the single
-/// `revert_last_migration` call targets exactly it.
+/// unwrap. Any migration newer than `MET-WP2-01A` is reverted first, so the
+/// attempt below targets exactly the `20260909` downgrade whose fail-closed
+/// guards these tests assert, whatever later migrations exist.
 fn try_revert_ingestion_contract_migration(connection: &mut PgConnection) -> String {
+    loop {
+        let newest = connection
+            .applied_migrations()
+            .expect("Failed to read applied migrations")
+            .iter()
+            .map(ToString::to_string)
+            .max()
+            .expect("at least the MET-WP2-01A migration must be applied");
+        assert!(
+            newest.as_str() >= MET_WP2_01A_MIGRATION_VERSION,
+            "the MET-WP2-01A migration must be applied before attempting to revert it"
+        );
+        if newest == MET_WP2_01A_MIGRATION_VERSION {
+            break;
+        }
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("Failed to revert a migration newer than MET-WP2-01A");
+    }
     match connection.revert_last_migration(MIGRATIONS) {
         Ok(version) => panic!(
             "the rollback must have failed closed, but it reverted {version} \

@@ -920,6 +920,7 @@ pub mod metric_rollup_delta;
 pub mod metric_source;
 pub mod metric_source_account;
 pub mod metric_source_checkpoint;
+pub mod metric_source_registry_history;
 pub mod price;
 pub mod publication;
 pub mod publisher;
