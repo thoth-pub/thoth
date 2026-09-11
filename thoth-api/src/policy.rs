@@ -48,7 +48,9 @@ pub(crate) enum Role {
     /// `DISSEMINATION_WORKER` and no `METRICS_READ_SERVICE` authority, and
     /// `SUPERUSER` does not imply it.
     MetricsIngestService,
-    /// The `MET-WP5-01` Metrics read service caller (same authority as above).
+    /// The `MET-WP5-01` Metrics read service caller
+    /// ([ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+    /// convention; #907 Specification Amendments 1 and 2).
     ///
     /// A **Metrics-specific** unscoped machine role for Thoth-owned
     /// server-side Metrics query clients. Its complete MOM-1 operation set is
@@ -122,8 +124,9 @@ pub(crate) trait UserAccess {
     ///
     /// True only when that exact role key is present: there is no inheritance
     /// from `SUPERUSER`, from `METRICS_READ_SERVICE` or from any other role.
-    /// Consumed by the `MET-WP2-02` / `MET-WP4-01` protected operations under
-    /// their own authorization; nothing in the repository calls it yet.
+    /// This slice defines the predicate; consuming operations are wired by
+    /// their owning `MET-WP2-02` / `MET-WP4-01` tasks under separate
+    /// authorization.
     fn is_metrics_ingest_service(&self) -> bool;
 
     /// Whether the user holds the unscoped `METRICS_READ_SERVICE` project
@@ -131,8 +134,8 @@ pub(crate) trait UserAccess {
     ///
     /// True only when that exact role key is present: there is no inheritance
     /// from `SUPERUSER`, from `METRICS_INGEST_SERVICE` or from any other role.
-    /// Consumed by the `MET-WP4-02` protected read operations under their own
-    /// authorization; nothing in the repository calls it yet.
+    /// This slice defines the predicate; consuming operations are wired by
+    /// their owning `MET-WP4-02` task under separate authorization.
     fn is_metrics_read_service(&self) -> bool;
 
     /// Returns true if the user has the given role scoped to the given ZITADEL organisation id.

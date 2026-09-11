@@ -72,9 +72,9 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
         // here.
         //
         // The two Metrics service roles (`MET-WP5-01`, #907) are declared here
-        // as inert repository configuration only: they are granted to no
-        // account below, and no MOM-1 protected operation exists yet that
-        // accepts them.
+        // as inert repository configuration only. This bootstrap declaration
+        // adds no Metrics role grant, and `MET-WP5-01` wires no GraphQL
+        // operation to either role.
         let roles = [
             ("SUPERUSER", "Superuser", "Superusers"),
             ("PUBLISHER_ADMIN", "Publisher Admin", "Publisher admins"),
