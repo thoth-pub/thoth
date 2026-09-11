@@ -122,21 +122,47 @@ The shared machine-role architecture is decided:
 role, an explicit policy guard and authorization matrix per machine role, and
 no `SUPERUSER` shortcut for machine services.
 
-Within that convention, the following remain **unapproved** and are WP5-owned
-bounded decisions under WP5's own approved specification:
+### 7.1 Delivered minimum service-role contract (`MET-WP5-01`)
 
-- exact Metrics role codes — the sketched candidates
+`MET-WP5-01` (issue #907) fixes the two MOM-1 Metrics service roles as
+repository-authoritative contract. Both are **unscoped** ZITADEL project roles
+implemented in the central policy module (`thoth-api/src/policy.rs`) as
+`Role::MetricsIngestService` and `Role::MetricsReadService`, with the
+predicates `UserAccess::is_metrics_ingest_service()` /
+`UserAccess::is_metrics_read_service()` and the guards
+`PolicyContext::require_metrics_ingest_service()` /
+`PolicyContext::require_metrics_read_service()`, and declared (never granted)
+by the `zitadel setup` bootstrap command.
 
-  ```text
-  METRICS_READ_SERVICE
-  METRICS_INGEST_SERVICE
-  METRICS_SYNC_SERVICE
-  ```
+| Role code | Purpose | Complete MOM-1 protected operation set | Consuming slice |
+| --- | --- | --- | --- |
+| `METRICS_INGEST_SERVICE` | Sphinx orchestration caller for managed-source ingestion | `claimMetricSourceUnits`, `updateMetricSourceCheckpoint`, `beginMetricImport`, `ingestMetricBatch`, `completeMetricImport`, `claimMetricRollupDeltas`, `completeMetricRollupDeltas` | `MET-WP2-02` (ingestion, checkpoint and import lifecycle), `MET-WP4-01` (rollup-delta application) |
+| `METRICS_READ_SERVICE` | Thoth-owned server-side Metrics query clients | `metricDashboard`, `metricMeasures`, `metricPlatforms` | `MET-WP4-02` |
 
-  remain proposals only and are not promoted by `ADR-0008` or by this
-  register;
-- the exact permissions/operation matrix per role;
-- credential, provisioning and rotation arrangements.
+Invariants (each has a colocated test in the policy module):
+
+1. Each role is satisfied only by the presence of its exact role key. There is
+   no role inheritance: `SUPERUSER` does not satisfy either guard,
+   `DISSEMINATION_WORKER` does not satisfy either guard, and neither Metrics
+   role satisfies the other or any existing guard.
+2. Neither role confers publisher scope, any `PublisherPermissions`, or any
+   package/capability entitlement. Both are excluded from
+   `publisher_org_ids()`, so a machine-only account never appears to hold
+   publisher organisations.
+3. `METRICS_READ_SERVICE` never supplies publisher entitlement for the data it
+   may serve (for example `METRICS_DASHBOARD`); that remains a separate
+   ADR-0001 check performed by the consuming operation.
+4. The operation sets above are complete for MOM-1. Any addition, any other
+   role code (including the sketched `METRICS_SYNC_SERVICE`, which remains a
+   deferred proposal only) and any role composition requires its own approved
+   specification.
+5. None of the listed operations exists in this slice. `MET-WP5-01` defines the
+   roles and guards only; the operations are delivered, and wired to these
+   guards, by the consuming slices under their own authorization.
+
+Credential, provisioning, grant and rotation arrangements remain outside this
+register and outside the repository: no live ZITADEL role is created or
+granted by the delivery of this contract.
 
 Consumers must not substitute superuser: `SUPERUSER` is not a machine-service
 shortcut.
