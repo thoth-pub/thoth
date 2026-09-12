@@ -24,7 +24,10 @@ use uuid::Uuid;
 use super::crud::{
     create_metric_source, metric_source_by_code, update_metric_source, DRIVER_KEY_INVARIANT_MESSAGE,
 };
-use super::{MetricSource, MetricSourceAcquisitionType, NewMetricSource, PatchMetricSource};
+use super::{
+    MetricSource, MetricSourceAcquisitionType, NewMetricSource, PatchMetricSource,
+    DRIVER_KEY_WHITESPACE,
+};
 use crate::db::{PgPool, MIGRATIONS};
 use crate::model::metric_platform::tests::{
     enum_labels, scalar_i64, serialized_update_chain, setup_registry_db, FORBIDDEN_JOIN_CONSTRUCTS,
@@ -623,6 +626,225 @@ fn the_driver_key_invariant_is_enforced_before_any_write() {
         matches!(ThothError::from(raw), ThothError::DatabaseConstraintError(message)
         if message.as_ref() == DRIVER_KEY_INVARIANT_MESSAGE)
     );
+}
+
+/// The Unicode scalar values the driver-key invariant treats as whitespace,
+/// as code points in ascending order.
+fn driver_key_whitespace_code_points() -> Vec<i32> {
+    let mut code_points: Vec<i32> = DRIVER_KEY_WHITESPACE
+        .iter()
+        .map(|&c| u32::from(c) as i32)
+        .collect();
+    code_points.sort_unstable();
+    code_points
+}
+
+#[test]
+fn the_driver_key_whitespace_set_is_exactly_the_frozen_unicode_white_space_set() {
+    let frozen: Vec<i32> = (0x0009..=0x000D)
+        .chain([0x0020, 0x0085, 0x00A0, 0x1680])
+        .chain(0x2000..=0x200A)
+        .chain([0x2028, 0x2029, 0x202F, 0x205F, 0x3000])
+        .collect();
+    assert_eq!(driver_key_whitespace_code_points(), frozen);
+
+    // Every Unicode scalar value: the explicit set is the Unicode `White_Space`
+    // property, and the application predicate refuses a one-character key
+    // exactly when that character is in the set.
+    let mut is_whitespace = Vec::new();
+    let mut refused = Vec::new();
+    for c in (0..=u32::from(char::MAX)).filter_map(char::from_u32) {
+        if c.is_whitespace() {
+            is_whitespace.push(u32::from(c) as i32);
+        }
+        if !MetricSourceAcquisitionType::Driver
+            .accepts_driver_key(Some(&*c.encode_utf8(&mut [0; 4])))
+        {
+            refused.push(u32::from(c) as i32);
+        }
+    }
+    assert_eq!(is_whitespace, frozen);
+    assert_eq!(refused, frozen);
+}
+
+#[test]
+fn the_stored_driver_key_check_classifies_exactly_the_shared_whitespace_set() {
+    let (_guard, pool) = setup_registry_db();
+    let mut connection = pool.get().expect("Failed to get DB connection");
+
+    #[derive(diesel::QueryableByName)]
+    struct Expression {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        expression: String,
+    }
+    #[derive(diesel::QueryableByName)]
+    struct CodePoint {
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        code_point: i32,
+    }
+
+    // Evaluate the CHECK exactly as PostgreSQL stored it, not a copy of its
+    // pattern, for a DRIVER row holding each one-character key in turn. NUL
+    // and the surrogate range are not valid `TEXT` characters.
+    let stored = sql_query(
+        "SELECT pg_get_expr(conbin, conrelid) AS expression FROM pg_constraint \
+         WHERE conrelid = 'metric_source'::regclass \
+           AND conname = 'metric_source_driver_key_check'",
+    )
+    .get_result::<Expression>(&mut connection)
+    .expect("the driver-key CHECK must exist")
+    .expression;
+    assert!(
+        !stored.contains("[:") && !stored.contains("\\s"),
+        "the CHECK must not use a locale-dependent character class: {stored}"
+    );
+    let refused: Vec<i32> = sql_query(format!(
+        "SELECT i AS code_point \
+           FROM generate_series(1, 1114111) AS i \
+          CROSS JOIN LATERAL ( \
+                SELECT 'DRIVER'::metric_source_acquisition_type AS acquisition_type, \
+                       chr(i) AS driver_key) AS metric_source \
+          WHERE (i < 55296 OR i > 57343) AND NOT ({stored}) \
+          ORDER BY i"
+    ))
+    .load::<CodePoint>(&mut connection)
+    .expect("Failed to evaluate the stored CHECK")
+    .into_iter()
+    .map(|row| row.code_point)
+    .collect();
+    assert_eq!(
+        refused,
+        driver_key_whitespace_code_points(),
+        "the database must refuse a one-character DRIVER key exactly when the \
+         application does"
+    );
+}
+
+#[test]
+fn the_driver_key_nonblank_decision_is_identical_at_both_boundaries() {
+    use MetricSourceAcquisitionType::{AdminImport, Driver, Operas, PublisherUpload};
+    let (_guard, pool) = setup_registry_db();
+
+    // (label, acquisition type, driver key, whether the invariant accepts it)
+    let vectors: [(&str, MetricSourceAcquisitionType, Option<&str>, bool); 14] = [
+        ("empty string", Driver, Some(""), false),
+        ("ASCII spaces only", Driver, Some("   "), false),
+        ("ASCII tab/newline only", Driver, Some("\t\n"), false),
+        ("U+00A0 only", Driver, Some("\u{00A0}"), false),
+        ("U+2003 only", Driver, Some("\u{2003}"), false),
+        ("ordinary nonblank ASCII", Driver, Some("cloudfront"), true),
+        ("ordinary nonblank Unicode", Driver, Some("caf\u{00E9}"), true),
+        (
+            "every shared whitespace character",
+            Driver,
+            Some("\t\n\u{000B}\u{000C}\r \u{0085}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}"),
+            false,
+        ),
+        (
+            "surrounding Unicode whitespace around a real key",
+            Driver,
+            Some("\u{3000} \u{00A0}cloudfront\u{2003}\t"),
+            true,
+        ),
+        // U+200B ZERO WIDTH SPACE is not `White_Space`, so it is nonblank.
+        ("U+200B only", Driver, Some("\u{200B}"), true),
+        ("DRIVER with NULL", Driver, None, false),
+        ("PUBLISHER_UPLOAD with a key", PublisherUpload, Some("cloudfront"), false),
+        ("OPERAS with a whitespace key", Operas, Some("\u{00A0}"), false),
+        ("ADMIN_IMPORT with NULL", AdminImport, None, true),
+    ];
+
+    for (index, (label, acquisition_type, driver_key, expected)) in vectors.into_iter().enumerate()
+    {
+        // 1. The application predicate.
+        assert_eq!(
+            acquisition_type.accepts_driver_key(driver_key),
+            expected,
+            "{label}: application predicate"
+        );
+
+        // 2. PostgreSQL's metric_source_driver_key_check, on a raw INSERT that
+        //    bypasses the coordinator and is always rolled back.
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let mut database_accepted = None;
+        let _ = connection.transaction::<(), DieselError, _>(|connection| {
+            let result = sql_query(
+                "INSERT INTO metric_source (code, acquisition_type, driver_key, enabled) \
+                 VALUES ($1, $2::metric_source_acquisition_type, $3, TRUE)",
+            )
+            .bind::<diesel::sql_types::Text, _>(format!("raw_{index}"))
+            .bind::<diesel::sql_types::Text, _>(acquisition_type.to_string())
+            .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(driver_key)
+            .execute(connection);
+            database_accepted = Some(match result {
+                Ok(_) => true,
+                Err(DieselError::DatabaseError(DatabaseErrorKind::CheckViolation, info))
+                    if info.constraint_name() == Some("metric_source_driver_key_check") =>
+                {
+                    false
+                }
+                Err(error) => panic!("{label}: unexpected database error {error:?}"),
+            });
+            Err(DieselError::RollbackTransaction)
+        });
+        assert_eq!(
+            database_accepted,
+            Some(expected),
+            "{label}: metric_source_driver_key_check"
+        );
+        drop(connection);
+
+        // 3. The coordinator: an accepted key persists exactly; a refused key
+        //    writes neither a canonical row nor an audit row.
+        let sources_before = scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_source)");
+        let audit_before = source_audit_rows(&pool).len();
+        let code = format!("vector_{index}");
+        let data = NewMetricSource {
+            code: code.clone(),
+            acquisition_type,
+            driver_key: driver_key.map(str::to_string),
+            enabled: true,
+            default_lookback_days: None,
+            default_finalization_delay_days: None,
+        };
+        match create_metric_source(&pool, "actor-1", &data) {
+            Ok(created) => {
+                assert!(expected, "{label}: the coordinator accepted a refused key");
+                assert_eq!(
+                    created.driver_key.as_deref(),
+                    driver_key,
+                    "{label}: returned exactly"
+                );
+                assert_eq!(
+                    metric_source_by_code(&pool, &code)
+                        .expect("lookup")
+                        .driver_key
+                        .as_deref(),
+                    driver_key,
+                    "{label}: persisted exactly"
+                );
+                assert_eq!(source_audit_rows(&pool).len(), audit_before + 1);
+            }
+            Err(error) => {
+                assert!(!expected, "{label}: the coordinator refused: {error:?}");
+                assert!(
+                    matches!(&error, ThothError::DatabaseConstraintError(message)
+                        if message.as_ref() == DRIVER_KEY_INVARIANT_MESSAGE),
+                    "{label}: expected the bounded invariant message, got {error:?}"
+                );
+                assert_eq!(
+                    scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_source)"),
+                    sources_before,
+                    "{label}: no canonical write"
+                );
+                assert_eq!(
+                    source_audit_rows(&pool).len(),
+                    audit_before,
+                    "{label}: no audit write"
+                );
+            }
+        }
+    }
 }
 
 #[test]

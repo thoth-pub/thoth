@@ -9,8 +9,14 @@
 -- 1. The DRIVER / driver_key invariant on metric_source, enforced at the
 --    database boundary as one explicit named CHECK:
 --
---        acquisition_type = DRIVER  -> driver_key contains a non-space character
+--        acquisition_type = DRIVER  -> driver_key contains a non-whitespace character
 --        acquisition_type <> DRIVER -> driver_key IS NULL
+--
+--    "Whitespace" is one explicit, locale-independent set: the 25 code points
+--    of the Unicode White_Space property, U+0009..U+000D, U+0020, U+0085,
+--    U+00A0, U+1680, U+2000..U+200A, U+2028, U+2029, U+202F, U+205F and
+--    U+3000. The application coordinator consults exactly the same set
+--    (DRIVER_KEY_WHITESPACE in thoth-api/src/model/metric_source/mod.rs).
 --
 --    No driver registry, driver-key uniqueness or approved driver value is
 --    introduced. The constraint is validated against existing rows when it is
@@ -39,11 +45,19 @@
 -- driver_key makes `driver_key ~ '...'` NULL rather than FALSE, and a CHECK
 -- whose whole expression is NULL is treated as satisfied. Without it a DRIVER
 -- row with no key would pass.
+--
+-- The nonblank test is a negated bracket expression listing every whitespace
+-- code point as a \uXXXX escape: it matches when the key holds any character
+-- outside that set. It deliberately does not use [:space:] or \s, whose
+-- membership depends on LC_CTYPE (under the C locale they miss U+00A0 and
+-- U+2003, so a key of only those characters would pass the database while
+-- the coordinator refuses it). The pattern contains no character class, no
+-- range and no case-insensitive flag, so no locale or collation participates.
 ALTER TABLE public.metric_source
     ADD CONSTRAINT metric_source_driver_key_check CHECK (
         (acquisition_type = 'DRIVER'
             AND driver_key IS NOT NULL
-            AND driver_key ~ '[^[:space:]]')
+            AND driver_key ~ '[^\u0009\u000A\u000B\u000C\u000D\u0020\u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000]')
         OR (acquisition_type <> 'DRIVER' AND driver_key IS NULL)
     );
 

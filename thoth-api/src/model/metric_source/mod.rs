@@ -148,17 +148,34 @@ pub struct PatchMetricSource {
     pub default_finalization_delay_days: Option<i32>,
 }
 
+/// Every character the driver-key invariant treats as whitespace.
+///
+/// This is the Unicode `White_Space` property written out as explicit code
+/// points, and it is the one definition both boundaries share:
+/// [`MetricSourceAcquisitionType::accepts_driver_key`] consults exactly this
+/// set, and PostgreSQL's `metric_source_driver_key_check` spells the same 25
+/// code points as `\uXXXX` escapes in a negated regular-expression bracket.
+/// Neither boundary consults a character-class name such as `[:space:]` or
+/// `char::is_whitespace`, so the decision cannot vary with the database's
+/// `LC_CTYPE`, collation or platform, nor with a toolchain's Unicode tables.
+pub const DRIVER_KEY_WHITESPACE: [char; 25] = [
+    '\u{0009}', '\u{000A}', '\u{000B}', '\u{000C}', '\u{000D}', '\u{0020}', '\u{0085}', '\u{00A0}',
+    '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
+    '\u{2007}', '\u{2008}', '\u{2009}', '\u{200A}', '\u{2028}', '\u{2029}', '\u{202F}', '\u{205F}',
+    '\u{3000}',
+];
+
 impl MetricSourceAcquisitionType {
     /// Whether the driver-key invariant holds for this acquisition type.
     ///
-    /// `DRIVER` requires a key containing at least one non-whitespace
-    /// character; every other type requires no key at all. This is the exact
-    /// application-boundary twin of PostgreSQL's
+    /// `DRIVER` requires a key containing at least one character outside
+    /// [`DRIVER_KEY_WHITESPACE`]; every other type requires no key at all. This
+    /// is the exact application-boundary twin of PostgreSQL's
     /// `metric_source_driver_key_check`, and it neither trims nor rewrites the
     /// key it inspects.
     pub fn accepts_driver_key(self, driver_key: Option<&str>) -> bool {
         match (self, driver_key) {
-            (Self::Driver, Some(key)) => key.chars().any(|c| !c.is_whitespace()),
+            (Self::Driver, Some(key)) => key.chars().any(|c| !DRIVER_KEY_WHITESPACE.contains(&c)),
             (Self::Driver, None) => false,
             (_, None) => true,
             (_, Some(_)) => false,

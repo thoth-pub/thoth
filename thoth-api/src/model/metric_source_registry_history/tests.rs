@@ -622,38 +622,66 @@ fn applying_to_a_populated_database_preserves_valid_rows_and_fails_closed_on_a_v
     let before = snapshot(&mut connection);
     assert_eq!(before.len(), 5);
 
-    // Fail closed: a pre-existing DRIVER row without a driver key cannot be
-    // silently rewritten, so the migration must refuse and leave the database
-    // in its pre-migration state.
-    sql_query(
-        "INSERT INTO metric_source (code, acquisition_type, driver_key, enabled) \
-         VALUES ('pre_broken', 'DRIVER', NULL, TRUE)",
-    )
-    .execute(&mut connection)
-    .expect("a violating row is insertable before the CHECK exists");
-    assert!(
-        connection.run_pending_migrations(MIGRATIONS).is_err(),
-        "the migration must fail closed on a pre-existing invariant violation"
-    );
-    assert_eq!(
-        on_connection(
-            &mut connection,
-            "(SELECT COUNT(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace \
-                AND relname = 'metric_source_registry_history')",
-        ),
-        0,
-        "a failed migration must leave no partial object behind"
-    );
-    assert_eq!(
-        on_connection(&mut connection, "(SELECT COUNT(*) FROM metric_source)"),
-        5,
-        "a failed migration must not delete or rewrite any row"
-    );
+    // Fail closed: a pre-existing DRIVER row without a usable driver key cannot
+    // be silently rewritten, so the migration must refuse and leave the
+    // database in its pre-migration state. The Unicode-whitespace-only keys
+    // are exactly the rows a `[:space:]` CHECK would have admitted under the
+    // C locale.
+    for broken_key in [None, Some("\u{00A0}"), Some("\u{2003}\u{3000}\u{0085}")] {
+        sql_query(
+            "INSERT INTO metric_source (code, acquisition_type, driver_key, enabled) \
+             VALUES ('pre_broken', 'DRIVER', $1, TRUE)",
+        )
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(broken_key)
+        .execute(&mut connection)
+        .expect("a violating row is insertable before the CHECK exists");
+        assert!(
+            connection.run_pending_migrations(MIGRATIONS).is_err(),
+            "the migration must fail closed on a pre-existing invariant violation \
+             ({broken_key:?})"
+        );
+        assert_eq!(
+            on_connection(
+                &mut connection,
+                "(SELECT COUNT(*) FROM pg_class WHERE relnamespace = 'public'::regnamespace \
+                    AND relname = 'metric_source_registry_history')",
+            ),
+            0,
+            "a failed migration must leave no partial object behind ({broken_key:?})"
+        );
+        assert_eq!(
+            on_connection(
+                &mut connection,
+                "(SELECT COUNT(*) FROM pg_constraint WHERE conrelid = 'metric_source'::regclass \
+                    AND conname = 'metric_source_driver_key_check')",
+            ),
+            0,
+            "a failed migration must not leave the CHECK behind ({broken_key:?})"
+        );
+        assert_eq!(
+            on_connection(&mut connection, "(SELECT COUNT(*) FROM metric_source)"),
+            5,
+            "a failed migration must not delete any row ({broken_key:?})"
+        );
+        let preserved = sql_query(
+            "SELECT 1 FROM metric_source \
+             WHERE code = 'pre_broken' AND driver_key IS NOT DISTINCT FROM $1",
+        )
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(broken_key)
+        .execute(&mut connection)
+        .expect("read the violating row back");
+        assert_eq!(
+            preserved, 1,
+            "a failed migration must not rewrite the violating row ({broken_key:?})"
+        );
+
+        // Remove the violation before trying the next one.
+        sql_query("DELETE FROM metric_source WHERE code = 'pre_broken'")
+            .execute(&mut connection)
+            .expect("remove the violating fixture row");
+    }
 
     // With the violation removed, the migration applies and rewrites nothing.
-    sql_query("DELETE FROM metric_source WHERE code = 'pre_broken'")
-        .execute(&mut connection)
-        .expect("remove the violating fixture row");
     connection
         .run_pending_migrations(MIGRATIONS)
         .expect("the migration must apply to a valid populated database");
