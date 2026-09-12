@@ -898,6 +898,8 @@ pub mod language;
 pub mod locale;
 pub mod location;
 pub mod metric_coverage;
+#[cfg(feature = "backend")]
+pub mod metric_dashboard;
 pub mod metric_import;
 pub mod metric_import_batch;
 pub mod metric_import_error;

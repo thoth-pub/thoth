@@ -2,7 +2,9 @@
 //!
 //! [`Crud`] is deliberately **not** implemented for the metric measure
 //! registry: there is no generic create/update/delete surface for it, no
-//! `all`/`count` listing and no delete at all. The two supported writes are
+//! generic `all`/`count` listing and no delete at all. `MET-WP4-02` adds one
+//! bounded, unfiltered, read-only list, [`list_metric_measures`], for protected
+//! service registry discovery. The two supported writes are
 //! [`create_metric_measure`] and [`update_metric_measure`], and they are the
 //! only places in the repository that commit a change to a `metric_measure`
 //! row.
@@ -23,6 +25,7 @@ use thoth_errors::ThothResult;
 
 use super::{MetricMeasure, NewMetricMeasure, PatchMetricMeasure};
 use crate::db::PgPool;
+use crate::model::metric_dashboard::{MetricReadError, METRIC_REGISTRY_READ_MAX};
 use crate::model::metric_registry_history::{
     record_create, record_update, MetricRegistryHistoryEntity,
 };
@@ -162,4 +165,34 @@ pub(crate) fn update_metric_measure(
 
         Ok(updated)
     })
+}
+
+/// Every metric measure, for protected service registry discovery
+/// (`MET-WP4-02`).
+///
+/// This is the read behind `metricMeasures`, which lets a
+/// `METRICS_READ_SERVICE` client learn the measure UUIDs a dashboard request
+/// filters by without any out-of-band mapping. It makes no authorization
+/// decision: the resolver authorizes before calling it.
+///
+/// Enabled and disabled rows are both returned, because disabling a registry
+/// row retires it without deleting the canonical history that still refers
+/// to its UUID.
+///
+/// The result is bounded to [`METRIC_REGISTRY_READ_MAX`] rows. One more than
+/// that is requested, so an oversized registry is detected and refused rather
+/// than silently truncated; when the registry is within the bound the query
+/// has returned every row. Ordering is by exact `code`, compared byte-wise,
+/// so it does not depend on the database collation. It takes no row lock and
+/// touches no other table.
+pub(crate) fn list_metric_measures(db: &PgPool) -> Result<Vec<MetricMeasure>, MetricReadError> {
+    let mut connection = db.get()?;
+    let mut rows: Vec<MetricMeasure> = metric_measure::table
+        .limit(METRIC_REGISTRY_READ_MAX as i64 + 1)
+        .load::<MetricMeasure>(&mut connection)?;
+    if rows.len() > METRIC_REGISTRY_READ_MAX {
+        return Err(MetricReadError::RegistryLimitExceeded);
+    }
+    rows.sort_by(|left, right| left.code.as_bytes().cmp(right.code.as_bytes()));
+    Ok(rows)
 }

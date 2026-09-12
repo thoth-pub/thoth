@@ -574,16 +574,12 @@ fn the_added_types_expose_progress_state_and_no_read_surface() {
         "CompleteMetricRollupDeltasInput must carry only the batch token"
     );
 
-    // No read surface: the coverage-aware Metrics read contract is a separate
-    // slice, and nothing here may let a caller read projected totals, delta
-    // state or the watermark outside the two protected operations.
+    // No rollup read surface: the coverage-aware Metrics read contract
+    // (`metricDashboard`) is owned and guarded by `MET-WP4-02`, and nothing
+    // here may let a caller read projected rows, delta state or the watermark
+    // directly.
     let query = sdl_block(&sdl, "type QueryRoot {");
-    for absent in [
-        "metricRollup",
-        "rollupWatermark",
-        "metricDashboard",
-        "workDayRollup",
-    ] {
+    for absent in ["metricRollup", "rollupWatermark", "workDayRollup"] {
         assert!(
             !query.contains(absent),
             "no rollup read surface may be added: `{absent}`"

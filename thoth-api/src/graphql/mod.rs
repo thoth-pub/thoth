@@ -7,6 +7,8 @@ mod distribution_job_tests;
 #[cfg(test)]
 mod distribution_platform_tests;
 #[cfg(test)]
+mod metric_dashboard_tests;
+#[cfg(test)]
 mod metric_registry_tests;
 #[cfg(test)]
 mod metric_rollup_tests;
@@ -17,6 +19,7 @@ mod mutation_guard;
 #[cfg(test)]
 mod mutation_guard_tests;
 mod query;
+pub mod scalars;
 #[cfg(all(test, feature = "backend"))]
 pub(crate) mod sdl_support;
 #[cfg(test)]

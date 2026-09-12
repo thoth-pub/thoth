@@ -704,9 +704,12 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
 
     // Exactly nine registry Metrics fields across both roots, plus the six
     // `MET-WP1-13` source/source-account operations approved under #904 and
-    // proven exactly in `metric_source_registry_tests`. No other Metrics
-    // operation exists, and in particular none of the deferred
-    // service/dashboard registry queries.
+    // proven exactly in `metric_source_registry_tests`, plus the three
+    // `MET-WP4-02` read-service operations approved under #910 and proven
+    // exactly in `metric_dashboard_tests`. No other Metrics operation exists.
+    // Each group is compared as an exact set of field names, so a renamed,
+    // missing or additional operation fails here rather than hiding behind a
+    // matching count.
     let wp1_13_query_fields = ["metricSourceByCode", "metricSourceAccountByCode"];
     let wp1_13_mutation_fields = [
         "createMetricSource",
@@ -714,6 +717,7 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "createMetricSourceAccount",
         "updateMetricSourceAccount",
     ];
+    let wp4_02_query_fields = ["metricDashboard", "metricMeasures", "metricPlatforms"];
     let field_name = |line: &str| -> String {
         line.trim_start()
             .split(['(', ':'])
@@ -721,31 +725,88 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
             .unwrap_or_default()
             .to_string()
     };
-    let metric_query_fields: Vec<String> = query_root
+    let sorted = |mut names: Vec<String>| {
+        names.sort();
+        names
+    };
+    let owned = |names: &[&str]| sorted(names.iter().map(|name| name.to_string()).collect());
+    let all_query_fields: Vec<String> = query_root
         .lines()
         .filter(|line| line.trim_start().starts_with("metric"))
         .map(field_name)
-        .filter(|name| !wp1_13_query_fields.contains(&name.as_str()))
         .collect();
-    let metric_mutation_fields: Vec<String> = mutation_root
+    let all_mutation_fields: Vec<String> = mutation_root
         .lines()
         .filter(|line| {
             let line = line.trim_start();
             line.starts_with("createMetric") || line.starts_with("updateMetric")
         })
         .map(field_name)
-        .filter(|name| !wp1_13_mutation_fields.contains(&name.as_str()))
         .collect();
-    assert_eq!(metric_query_fields.len(), 3, "QueryRoot: {query_root}");
+    let in_group = |fields: &[String], group: &[&str]| {
+        sorted(
+            fields
+                .iter()
+                .filter(|name| group.contains(&name.as_str()))
+                .cloned()
+                .collect(),
+        )
+    };
+    let metric_query_fields: Vec<String> = sorted(
+        all_query_fields
+            .iter()
+            .filter(|name| {
+                !wp1_13_query_fields.contains(&name.as_str())
+                    && !wp4_02_query_fields.contains(&name.as_str())
+            })
+            .cloned()
+            .collect(),
+    );
+    let metric_mutation_fields: Vec<String> = sorted(
+        all_mutation_fields
+            .iter()
+            .filter(|name| !wp1_13_mutation_fields.contains(&name.as_str()))
+            .cloned()
+            .collect(),
+    );
     assert_eq!(
-        metric_mutation_fields.len(),
-        6,
+        metric_query_fields,
+        owned(&[
+            "metricPlatformByCode",
+            "metricMeasureByCode",
+            "metricPlatformMeasureByCodes",
+        ]),
+        "QueryRoot: {query_root}"
+    );
+    assert_eq!(
+        metric_mutation_fields,
+        owned(&[
+            "createMetricPlatform",
+            "updateMetricPlatform",
+            "createMetricMeasure",
+            "updateMetricMeasure",
+            "createMetricPlatformMeasure",
+            "updateMetricPlatformMeasure",
+        ]),
         "MutationRoot: {mutation_root}"
+    );
+    assert_eq!(
+        in_group(&all_query_fields, &wp1_13_query_fields),
+        owned(&wp1_13_query_fields),
+        "the MET-WP1-13 lookups must each appear exactly once"
+    );
+    assert_eq!(
+        in_group(&all_mutation_fields, &wp1_13_mutation_fields),
+        owned(&wp1_13_mutation_fields),
+        "the MET-WP1-13 mutations must each appear exactly once"
+    );
+    assert_eq!(
+        in_group(&all_query_fields, &wp4_02_query_fields),
+        owned(&wp4_02_query_fields),
+        "the MET-WP4-02 read operations must each appear exactly once"
     );
 
     for deferred in [
-        "metricPlatforms",
-        "metricMeasures",
         "metricPlatformMeasures",
         "deleteMetric",
         "metricRegistryHistory",

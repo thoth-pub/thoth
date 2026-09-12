@@ -84,11 +84,12 @@ administer the registry refreshes its generated client against the merged
 contract.
 
 Still deferred to separately specified work: publisher-platform approval
-administration, checkpoint administration, the service/dashboard registry list
-queries `metricPlatforms` and `metricMeasures`, any delete or bulk operation,
-any audit-history query, and any real platform, platform-measure, source,
+administration, checkpoint administration, any delete or bulk operation, any
+audit-history query, and any real platform, platform-measure, source,
 source-account or OPERAS seed. Source and source-account administration is
-delivered by `MET-WP1-13` (section 2.2).
+delivered by `MET-WP1-13` (section 2.2). The service registry list queries
+`metricPlatforms` and `metricMeasures` are delivered by `MET-WP4-02` under
+`METRICS_READ_SERVICE`, not by this administration surface (section 4.1).
 
 ### 2.2 Delivered source and source-account administration (`MET-WP1-13`)
 
@@ -298,9 +299,10 @@ Scope boundaries a consumer must not infer:
 - `metric_rollup_work_day` is the only projection delivered. The monthly,
   work-country-month and work-institution-month projections remain future
   architecture.
-- There is no callable rebuild operation, and no read surface. Rollup
-  projections, delta state and the watermark are reachable only through the
-  two operations above; the coverage-aware read contract is `MET-WP4-02`.
+- There is no callable rebuild operation. Delta state is reachable only
+  through the two operations above. Projected values and the watermark time
+  are read only through the `MET-WP4-02` coverage-aware `metricDashboard`
+  (section 4.1), which exposes no projection row, delta, claim or sequence.
 - Sphinx orchestrates and never writes the Thoth database. All projection
   arithmetic executes inside Thoth.
 
@@ -319,6 +321,194 @@ Thoth owns entity metrics, dashboard/widget operations and registry queries.
 Required response concerns: distinct measure totals, timeline, breakdowns, coverage, freshness, watermark, warnings, partial state, BigInt strings and deterministic pagination.
 
 Semantics: OR within lists, AND between dimensions, exclusive end date, bounded ranges and filtering before pagination.
+
+### 4.1 Delivered minimum protected read contract (`MET-WP4-02`)
+
+`MET-WP4-02` (issue #910) delivers the MOM-1 read surface: one coverage-aware
+dashboard query and the two registry lists a service needs to form its UUID
+filters.
+
+Operations, each requiring exactly `METRICS_READ_SERVICE` through
+`PolicyContext::require_metrics_read_service()` before any Metrics-specific
+database access:
+
+```graphql
+metricDashboard(input: MetricDashboardInput!): MetricDashboard!
+metricMeasures: [MetricMeasure!]!
+metricPlatforms: [MetricPlatform!]!
+```
+
+```graphql
+scalar BigInt
+
+input MetricDashboardInput {
+  selector: MetricSelectorInput!
+  startDate: Date!
+  endDate: Date!
+  measures: [Uuid!]
+  platforms: [Uuid!]
+  timelineGrain: MetricTimelineGrain = "AUTO"
+}
+
+input MetricSelectorInput {
+  publisherIds: [Uuid!]
+}
+
+enum MetricTimelineGrain { AUTO DAY MONTH }
+
+type MetricDashboard {
+  totals: [MetricTotal!]!
+  timeline: [MetricTimeBucket!]!
+  coverage: MetricCoverage!
+  asOf: Timestamp!
+  dataThrough: Date
+  rollupWatermark: Timestamp!
+  warnings: [MetricWarning!]!
+  isPartial: Boolean!
+}
+
+type MetricTotal { platformId: Uuid! measureId: Uuid! value: BigInt }
+type MetricTimeBucket {
+  platformId: Uuid! measureId: Uuid! startDate: Date! endDate: Date! value: BigInt
+}
+type MetricCoverage { status: MetricCoverageStatus! items: [MetricCoverageItem!]! }
+type MetricCoverageItem {
+  platformId: Uuid! measureId: Uuid! status: MetricCoverageStatus!
+  dataThrough: Date countryCoverage: Boolean! institutionCoverage: Boolean!
+}
+enum MetricCoverageStatus { COMPLETE PARTIAL UNKNOWN }
+type MetricWarning { code: MetricWarningCode! message: String! }
+enum MetricWarningCode { PARTIAL_COVERAGE UNKNOWN_COVERAGE ROLLUP_LAG }
+```
+
+The approved design's semantic `UUID` and `DateTime` are the repository's
+existing `Uuid` and `Timestamp` scalars. `BigInt` is the one new scalar. The
+generated SDL renders the enum input default as `"AUTO"`, which is Juniper's
+rendering of every enum default in this schema.
+
+Contract properties consumers may rely on:
+
+- **Authorization matrix.** `METRICS_READ_SERVICE` is allowed, including
+  alongside unrelated roles. Anonymous callers, authenticated callers without
+  the role, `PUBLISHER_USER`, `PUBLISHER_ADMIN`, `WORK_LIFECYCLE`,
+  `CDN_WRITE`, `SUPERUSER`, `DISSEMINATION_WORKER` and
+  `METRICS_INGEST_SERVICE` are denied with `NO_ACCESS`, before any Metrics
+  read, and never receive an empty or zero result.
+- **Publisher entitlement is separate.** `metricDashboard` also requires every
+  selected publisher's package to grant `METRICS_DASHBOARD` under ADR-0001.
+  An existing publisher without it is `NO_ACCESS`. The role never supplies the
+  capability, and no package name appears in Metrics code. The registry lists
+  need no publisher and no entitlement.
+- **Plural selector, one publisher in MOM-1.** `publisherIds` is plural, and
+  the read is written over a publisher set. MOM-1 serves exactly one publisher
+  per request: none, several or an unknown ID is `METRIC_QUERY_INVALID`, never
+  a first-item choice, a truncation or a combination. That is a milestone
+  restriction, not a statement that a dashboard can only represent one
+  publisher. Serving authorized groups of publishers needs its own reviewed
+  entitlement and aggregation contract.
+- **Attribution.** Works are attributed to publishers through current
+  `work -> imprint -> publisher` metadata at read time. A moved work's
+  projected history follows it; nothing is rewritten.
+- **Request bounds.** Half-open `[startDate, endDate)` with
+  `startDate < endDate`; at most 366 days; at most 10 unique measures and 10
+  unique platforms, whether explicit or resolved; at most 25 platform/measure
+  combinations (the cross product of the served platforms and measures); at
+  most 5,000 timeline cells (combinations x buckets). A bound is never met by
+  truncation. Duplicate IDs are refused, and so is an explicit unknown
+  measure or platform. Disabled registry identities stay addressable.
+- **Omitted filters.** An omitted or empty `measures` or `platforms` resolves
+  to every identity represented for the selected publishers and range, either
+  in the work-day projection or in terminal coverage from an eligible managed
+  account, restricted by the other dimension when that one is explicit.
+- **Additivity.** Totals sum across works and time, so every served measure,
+  explicit or resolved, must be `additiveAcrossTime` and
+  `additiveAcrossWorks`. Otherwise the whole request is
+  `METRIC_QUERY_INVALID`; the measure is never summed or dropped.
+  `metricMeasures` still lists such measures.
+- **Grains.** `DAY` gives one bucket per requested day. `MONTH` gives calendar
+  months clipped to the range, each the exact sum of its daily rows. `AUTO` is
+  `DAY`.
+- **Dimensional representation (Specification Amendment 6).** The projection
+  keeps optional publication, country and institution dimensions. For each
+  base cell `(work, platform, measure, day)`, an undimensioned row is the
+  aggregate and no dimensioned row of that cell is added to it. Without one,
+  every row of the cell must share one presence mask of the three dimensions,
+  and those rows are summed. Different masks without an undimensioned row make
+  the whole request `MOM1_DIMENSION_SCOPE_AMBIGUOUS`; nothing is guessed,
+  chosen or summed across them. Base cells of different works resolve
+  independently. This is a MOM-1 serving restriction, not a permanent rule for
+  later explicit dimension selection.
+- **Values.** Totals and buckets are kept per platform and measure; nothing is
+  combined across either. A cell with projected rows returns their exact sum,
+  whatever the coverage. A cell without rows returns `"0"` only when every day
+  of it is effectively `COMPLETE` and no unapplied work-day delta touches it;
+  otherwise `null`. `BigInt` is a canonical base-10 string: no `Int`, no
+  float, signed and exact, with checked arithmetic that fails rather than
+  wraps.
+- **Coverage.** Per platform, the eligible source is the one enabled `DRIVER`
+  account on an enabled source whose `expected_publisher_id` is the selected
+  publisher. Two or more is `MOM1_SOURCE_SCOPE_AMBIGUOUS`. None leaves
+  projected values served and coverage `UNKNOWN`. For each day, the current
+  assertion comes from `COMPLETED` or `COMPLETED_WITH_ERRORS` imports with a
+  recorded `completed_at`: latest completion first, then greatest import UUID.
+  Only if both tie within one self-contradictory import is its most
+  conservative assertion preferred. `COMPLETED_WITH_ERRORS` downgrades
+  `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. An item is
+  `COMPLETE` only if every day is, `UNKNOWN` if any day is, otherwise
+  `PARTIAL`. When any value served for a platform and measure was taken from
+  country rows, every day of that combination asserted `COMPLETE` without
+  country coverage is `PARTIAL` for it, and likewise for institution rows.
+  That includes days without a value, whose cells are therefore `null`, not
+  `"0"`. Publication rows have no coverage flag, so they rely on the ordinary
+  status. `countryCoverage` and `institutionCoverage` are true only if every
+  day has a current assertion including that dimension. Top-level status is
+  `COMPLETE` only if every item is, and `UNKNOWN` if any item is, or if
+  nothing is served.
+- **One snapshot.** Everything is read on one connection in one
+  `READ ONLY, REPEATABLE READ` transaction: entitlement, the `MET-WP4-01`
+  frontier, scope, projection, coverage and outstanding rollup work.
+  `asOf` is that transaction's timestamp. `rollupWatermark` is exactly the
+  frontier's `watermark_at`. The read never advances, claims, completes,
+  repairs or records anything.
+- **Freshness.** `ROLLUP_LAG` means at least one work-day delta above the
+  applied frontier intersects the selected publishers, range, platforms and
+  measures. Unrelated backlog is not lag. An item's `dataThrough` is the last
+  day of the unbroken run from `startDate` in which every day is `COMPLETE`
+  and no such delta falls in `[startDate, D + 1 day)`, or `null` if the first
+  day fails. Backlog before `startDate` does not reduce it. Top-level
+  `dataThrough` is the earliest item value, and `null` unless every item has
+  one.
+- **Warnings.** At most one per code, in the order `UNKNOWN_COVERAGE`,
+  `PARTIAL_COVERAGE`, `ROLLUP_LAG`, with fixed text. `isPartial` is true
+  exactly when a warning is present.
+- **Registry lists.** Every row, enabled or disabled, ordered by exact `code`
+  compared byte-wise, at most 500. A larger registry is
+  `METRIC_REGISTRY_LIMIT_EXCEEDED`, never a truncated list. They return the
+  existing `MetricMeasure` and `MetricPlatform` types and no source
+  configuration.
+- **Errors.** Every failure carries a fixed message and one `extensions.type`
+  among `NO_ACCESS`, `METRIC_QUERY_INVALID`, `METRIC_QUERY_LIMIT_EXCEEDED`,
+  `METRIC_REGISTRY_LIMIT_EXCEEDED`, `MOM1_SOURCE_SCOPE_AMBIGUOUS` and
+  `MOM1_DIMENSION_SCOPE_AMBIGUOUS`. An
+  aggregate outside the representable range is `METRIC_QUERY_LIMIT_EXCEEDED`.
+  An unexpected database failure is `INTERNAL_ERROR` without detail. No SQL,
+  database diagnostic, token or source configuration is returned.
+
+Scope boundaries a consumer must not infer:
+
+- Countries, institutions, works sections, pagination, the deferred selector
+  dimensions (`imprintIds`, `seriesIds`, `workIds`, `dois`, `workTypes`,
+  `languages`, funding and affiliation institutions, `includeDescendants`),
+  `metricWidget` and entity-level Metrics fields are not part of this
+  contract. Adding them with their approved names is additive and needs its
+  own specification.
+- The read calls no external service. Browser clients must not hold the
+  `METRICS_READ_SERVICE` credential; they reach this contract through a
+  Thoth-owned server route.
+- The change is strictly additive. No existing type, field, argument,
+  nullability, enum value or authorization changed.
+  `MetricCoverageStatus` is the existing database enum, now exposed to
+  GraphQL without any value change.
 
 ## 5. Publisher import
 
