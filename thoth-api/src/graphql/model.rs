@@ -38,6 +38,7 @@ use crate::model::{
     metric_measure::{MetricMeasure, MetricMeasureCategory, MetricMeasureUnit},
     metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
     metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
+    metric_rollup_delta::{MetricRollupDeltaClaim, MetricRollupWatermark},
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3780,5 +3781,73 @@ impl MetricPlatformMeasure {
     #[graphql(description = "Whether the mapping is currently enabled")]
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics rollup application (`MET-WP4-01`)
+//
+// These two object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` rollup operations and by nothing else. There is
+// deliberately no field on `QueryRoot`, on `Work`, on `Publisher` or on any
+// other public type that navigates into rollup delta, projection or watermark
+// state: the coverage-aware Metrics read surface is a separate, separately
+// reviewed slice, and no read path may infer freshness from anything here.
+//
+// Both types render their durable progress positions as decimal **strings**.
+// GraphQL's built-in `Int` is 32-bit, so a 64-bit accounting position cannot
+// be carried by it without an eventual silent truncation, and a rollup
+// position is an ordering identity that must never be approximated.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One rollup delta granted by a claim, together with the batch claim it was granted under."
+)]
+impl MetricRollupDeltaClaim {
+    #[graphql(description = "Thoth ID of the claimed rollup delta")]
+    pub fn delta_id(&self) -> Uuid {
+        self.delta_id
+    }
+
+    #[graphql(
+        description = "The delta's immutable work-day progress position, as a decimal string. Positions are contiguous from 1 and are never reused"
+    )]
+    pub fn sequence(&self) -> String {
+        self.work_day_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "Present this token to apply the batch. Every row of one claim carries the same token, and it is returned only here"
+    )]
+    pub fn claim_token(&self) -> Uuid {
+        self.claim_token
+    }
+
+    #[graphql(
+        description = "When this claim's lease expires. After that the batch is reclaimable and this token can no longer apply it"
+    )]
+    pub fn lease_expires_at(&self) -> Timestamp {
+        self.lease_expires_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The durable safe boundary of applied rollup progress."
+)]
+impl MetricRollupWatermark {
+    #[graphql(
+        description = "Every work-day rollup position up to and including this one has been applied, as a decimal string. It never moves backwards and never crosses an unapplied position"
+    )]
+    pub fn applied_through_sequence(&self) -> String {
+        self.applied_through_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "When the current boundary was established. This is a fact about the boundary, not a claim that every canonical row has been projected"
+    )]
+    pub fn watermark_at(&self) -> Timestamp {
+        self.watermark_at
     }
 }

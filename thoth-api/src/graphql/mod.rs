@@ -8,6 +8,8 @@ mod distribution_job_tests;
 mod distribution_platform_tests;
 #[cfg(test)]
 mod metric_registry_tests;
+#[cfg(test)]
+mod metric_rollup_tests;
 mod mutation;
 mod mutation_guard;
 #[cfg(test)]
