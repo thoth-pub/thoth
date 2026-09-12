@@ -52,6 +52,14 @@ use crate::model::{
         crud::{claim_metric_rollup_deltas, complete_metric_rollup_deltas},
         CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupWatermark,
     },
+    metric_source::{
+        crud::{create_metric_source, update_metric_source},
+        MetricSource, NewMetricSource, PatchMetricSource,
+    },
+    metric_source_account::{
+        crud::{create_metric_source_account, update_metric_source_account},
+        MetricSourceAccount, NewMetricSourceAccount, PatchMetricSourceAccount,
+    },
     price::{NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
@@ -1869,6 +1877,56 @@ impl MutationRoot {
     ) -> FieldResult<MetricPlatformMeasure> {
         authorize_metric_registry_admin(context)
             .and_then(|actor| update_metric_platform_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric source with the specified values. Superuser only. The code and driverKey are stored exactly as supplied; a DRIVER source requires a non-blank driverKey and every other acquisition type requires none. Records one before/after audit entry atomically with the creation. Creates no account, driver, checkpoint or collection behaviour"
+    )]
+    fn create_metric_source(
+        context: &Context,
+        #[graphql(description = "Values for metric source to be created")] data: NewMetricSource,
+    ) -> FieldResult<MetricSource> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_source(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric source's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of enabled, defaultLookbackDays and defaultFinalizationDelayDays, not a partial patch; the code, acquisitionType and driverKey cannot be changed. A request that matches the stored values changes nothing and records no audit entry. Any real change records one before/after audit entry atomically"
+    )]
+    fn update_metric_source(
+        context: &Context,
+        #[graphql(description = "Values for metric source to be updated")] data: PatchMetricSource,
+    ) -> FieldResult<MetricSource> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_source(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric source account, referencing its source and platform by their exact stable codes and supplying its closed typed configuration. Superuser only. Records one before/after audit entry atomically with the creation. Creating an account starts, schedules and collects nothing"
+    )]
+    fn create_metric_source_account(
+        context: &Context,
+        #[graphql(description = "Values for metric source account to be created")]
+        data: NewMetricSourceAccount,
+    ) -> FieldResult<MetricSourceAccount> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_source_account(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric source account's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of configuration and enabled, not a partial patch; the code, source, platform, externalKey and expectedPublisherId cannot be changed. A request that matches the stored values changes nothing and records no audit entry. An account whose stored configuration is outside the supported representations is neither updated nor audited"
+    )]
+    fn update_metric_source_account(
+        context: &Context,
+        #[graphql(description = "Values for metric source account to be updated")]
+        data: PatchMetricSourceAccount,
+    ) -> FieldResult<MetricSourceAccount> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_source_account(&context.db, actor, &data))
             .map_err(IntoFieldError::into_field_error)
     }
 }

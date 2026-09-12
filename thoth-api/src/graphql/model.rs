@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::naive::NaiveDate;
-use juniper::{FieldError, FieldResult};
+use juniper::{FieldError, FieldResult, IntoFieldError};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
@@ -39,6 +39,8 @@ use crate::model::{
     metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
     metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
     metric_rollup_delta::{MetricRollupDeltaClaim, MetricRollupWatermark},
+    metric_source::{MetricSource, MetricSourceAcquisitionType},
+    metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3849,5 +3851,121 @@ impl MetricRollupWatermark {
     )]
     pub fn watermark_at(&self) -> Timestamp {
         self.watermark_at
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics source administration (`MET-WP1-13`)
+//
+// Like the registry objects above, these two types are reachable only through
+// the protected superuser-only operations on `QueryRoot` and `MutationRoot`.
+// No object resolves a relation by issuing a further query: the account
+// returns its source, platform and publisher identity as plain identifiers,
+// never as nested `MetricSource`/`MetricPlatform`/`Publisher` objects, and it
+// exposes its configuration only through the closed typed
+// `MetricSourceAccountConfiguration`, never as raw JSON.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "An acquisition route through which metric data arrives. Administered through the protected superuser-only metric source operations"
+)]
+impl MetricSource {
+    #[graphql(description = "Thoth ID of the metric source")]
+    pub fn source_id(&self) -> Uuid {
+        self.source_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the source. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "How metric data arrives from the source. Immutable after creation")]
+    pub fn acquisition_type(&self) -> &MetricSourceAcquisitionType {
+        &self.acquisition_type
+    }
+
+    #[graphql(
+        description = "The key of the Thoth-side driver for a DRIVER source, stored exactly as supplied; null for every other acquisition type. Immutable after creation"
+    )]
+    pub fn driver_key(&self) -> Option<&String> {
+        self.driver_key.as_ref()
+    }
+
+    #[graphql(description = "Whether the source is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Default number of days to look back when collecting, if set")]
+    pub fn default_lookback_days(&self) -> Option<i32> {
+        self.default_lookback_days
+    }
+
+    #[graphql(
+        description = "Default number of days after a period before it is treated as final, if set"
+    )]
+    pub fn default_finalization_delay_days(&self) -> Option<i32> {
+        self.default_finalization_delay_days
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One concrete account or partition of a metric source, routed to the platform on which its activity was observed. Administered through the protected superuser-only metric source account operations"
+)]
+impl MetricSourceAccount {
+    #[graphql(description = "Thoth ID of the metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "Globally unique stable code identifying the account. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Thoth ID of the account's metric source. Immutable")]
+    pub fn source_id(&self) -> Uuid {
+        self.source_id
+    }
+
+    #[graphql(
+        description = "Thoth ID of the platform on which the account's activity was observed. Immutable"
+    )]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(
+        description = "The source-side account or partition identifier, unique within the source. Immutable"
+    )]
+    pub fn external_key(&self) -> &String {
+        &self.external_key
+    }
+
+    #[graphql(
+        description = "Thoth ID of the publisher the account is expected to report for, if pinned. Immutable"
+    )]
+    pub fn expected_publisher_id(&self) -> Option<Uuid> {
+        self.expected_publisher_id
+    }
+
+    #[graphql(
+        description = "The account's closed typed configuration, decoded from its stored canonical value. A stored value outside the supported representations is never exposed"
+    )]
+    pub fn configuration(&self) -> FieldResult<MetricSourceAccountConfiguration> {
+        self.decoded_configuration()
+            .map_err(|error| thoth_errors::ThothError::from(error).into_field_error())
+    }
+
+    #[graphql(description = "Whether the account is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
     }
 }

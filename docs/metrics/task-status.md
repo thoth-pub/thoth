@@ -4,75 +4,57 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-09-08 (`MET-WP1-12`, issue
-[#894](https://github.com/thoth-pub/thoth/issues/894): the protected Metrics
-registry administration GraphQL foundation slice is implemented on its slice
-branch `feature/metrics--wp1-registry-admin`; the exact authorized base of this
-slice is `feature/metrics @ b5ca7069c9ac21a42092fdbd7400ec01b069b99e` with
-incorporated `develop @ 4546cb632428872b961ad6c17282984d298e3ade`; it adds a
-SUPERUSER-only administrative surface over exactly the three `MET-WP1-01`
-registries `metric_platform`, `metric_measure` and `metric_platform_measure` —
-the six mutations `createMetricPlatform`, `updateMetricPlatform`,
-`createMetricMeasure`, `updateMetricMeasure`, `createMetricPlatformMeasure` and
-`updateMetricPlatformMeasure`, and the three bounded administrative lookups
-`metricPlatformByCode`, `metricMeasureByCode` and
-`metricPlatformMeasureByCodes` — every one of which authorizes through the
+Last updated: 2026-09-12 (`MET-WP1-13`, issue
+[#904](https://github.com/thoth-pub/thoth/issues/904): the protected Metrics
+source and source-account administration GraphQL foundation slice is
+implemented on its slice branch `feature/metrics--wp1-source-admin`; the exact
+authorized base of this slice is `feature/metrics @
+e814983a1d893fa93be4aa8b4c76fa628c5d690b` (incorporated by an ordinary merge
+into the published slice branch) with observed `develop @
+395cc16ac770bc8bbf8a708662a1b31d85b15398`; it adds a SUPERUSER-only
+administrative surface over exactly `metric_source` and
+`metric_source_account` — the four mutations `createMetricSource`,
+`updateMetricSource`, `createMetricSourceAccount` and
+`updateMetricSourceAccount` and the two bounded lookups `metricSourceByCode`
+and `metricSourceAccountByCode` — every one authorized through the
 repository-authoritative `require_superuser()` guard before any
-mutation-specific database read, row lock or write, so anonymous callers,
-publisher users and admins, and machine roles are denied leaving both registry
-and audit state untouched; no Metrics service role, capability shortcut,
-authorization policy, `ThothError` variant or GraphQL error type is introduced;
-administration addresses rows by their stable `code`, and a mapping by its
-`(platformCode, measureCode)` pair, never by a database-generated UUID, so the
-migration-owned `title_sessions` and `net_units` measures are administrable
-without out-of-band identifier discovery; codes are exact PostgreSQL `TEXT` at
-every entry point, with no trimming, case folding, `ILIKE`, Unicode or
-whitespace normalisation or aliasing, so case and whitespace variants remain
-distinct codes; `Patch...` inputs are complete replacements of the approved
-mutable field set rather than sparse patches, so omission and explicit `null`
-both store SQL `NULL` for the nullable `publicDescription` and
-`methodologyVersion`, while `code` and `ownershipClass`, the measure's `code`
-and canonical semantics `category`, `unit`, `allowNegative`,
-`additiveAcrossTime` and `additiveAcrossWorks`, and a mapping's platform and
-measure identity are immutable and not expressible in the patch inputs at all;
-there is no delete mutation, and disablement through `enabled = false` is an
-ordinary audited update; migration `20260908_v1.9.0` adds the two closed enums
-`metric_registry_history_entity` and `metric_registry_history_action` and the
-append-only `metric_registry_history` table with `entity`, `entity_id`,
-`action`, `actor`, nullable `before_state`, required `after_state` and
-`created_at`, deliberately carrying no `updated_at` and no timestamp trigger,
-no foreign key on the polymorphic `entity_id` so audit evidence is never
-cascade-deleted with the registry state it describes, no `DELETE` action
-because no delete mutation exists and no secondary index because no approved
-audit access path exists yet, and adding no timestamp column to
-`metric_platform_measure`; every committed create and update writes its
-canonical row and exactly one audit row in one PostgreSQL transaction recording
-the exact persisted state read back from the database rather than the request,
-while rejected, unauthorized, failed and genuinely no-op requests write neither
-canonical change nor audit row and move no canonical timestamp; concurrency is
-`serialized last-write-wins`, each update taking exactly one
-application-requested `FOR UPDATE` lock on the canonical row being updated,
-with mapping updates resolving their platform and measure codes through
-ordinary non-locking reads and locking only the mapping row, no joined
-multi-table `FOR UPDATE` anywhere and no application lock on create; PostgreSQL
-remains authoritative for code uniqueness, pair uniqueness, foreign-key
-validity, the nonblank CHECKs and the `supported_grains` CHECK, and the bounded
-Metrics constraint mappings added to `thoth-errors/src/database_errors.rs` keep
-those failures from reaching a client as raw PostgreSQL text, constraint names,
-SQL or driver diagnostics; the GraphQL change is strictly additive, adding three
-object types, six inputs and the additive exposure of four existing closed
-database enums with no existing type, field, nullability, enum variant or
-authorization behaviour changed, and exposing the audit table nowhere; the
-surface remains inactive — no platform, platform-measure mapping, source,
-source account or OPERAS mapping is seeded, source/platform mappings and real
-OPERAS URI values remain unapproved, and no collection, ingestion, rollup,
-synchronization, dashboard or production behaviour is enabled or triggered; the
-deferred publisher-approval and source-account administration, the later
-service/dashboard registry queries and all delete/bulk operations remain
-separately specified future work; WP1 remains `IN PROGRESS`, not complete;
-later Sphinx/client/source/WP5/WP9 gates unchanged; no
-`feature/metrics -> develop` integration occurred and no next Metrics slice is
-authorized)
+operation-specific database read, row lock or write, with no Metrics service
+role, `ThothError` variant or GraphQL error type introduced and no checkpoint
+administration; rows are addressed by exact stable `TEXT` codes with no
+normalisation, account creation names its source and platform by code, `code`,
+`acquisitionType` and `driverKey` on a source and `code`, source, platform,
+`externalKey` and `expectedPublisherId` on an account are immutable and absent
+from the replacement-not-patch inputs; migration `20260912_v1.9.0` adds the
+named `metric_source_driver_key_check` (a `DRIVER` source requires a non-blank
+`driver_key`, every other acquisition type requires `NULL`, enforced
+identically by the coordinator over one explicit locale-independent
+whitespace set, the Unicode `White_Space` code points) and the parallel append-only
+`metric_source_registry_history` audit with its two closed enums (`SOURCE`,
+`SOURCE_ACCOUNT`; `CREATE`, `UPDATE`), leaving `MET-WP1-12`'s closed
+`metric_registry_history` unextended; source-account configuration is exposed
+only through the closed typed representation frozen by Specification
+Amendment 1 (`EMPTY` persisting semantic `{}`, `CLOUDFRONT_LEGACY_S3_V1`
+persisting exactly the `cloudfront-source-account/1` / `LEGACY_S3` shape with
+the caller's exact non-blank hostname, bucket and prefix, hostname equal to the
+immutable `externalKey`, bound to a resolved `DRIVER` source with
+`driver_key = cloudfront` and to `EMPTY` for every other source, and — per
+Specification Amendment 2 — creatable only with a non-null
+`expectedPublisherId` naming an existing publisher, the safety pin the merged
+`MET-WP2-01B` managed `DRIVER` ingestion coordinator requires), pre-existing
+stored configuration passes a fail-closed decoder before it may be returned,
+updated or copied into audit `before_state` and otherwise yields one sanitized
+failure with no disclosure, no update and no audit row; every committed
+create/update writes canonical row and audit row in one transaction with exact
+persisted before/after state, no-ops decided by semantic JSONB equality write
+nothing, and concurrency is serialized last-write-wins with exactly one
+canonical-row `FOR UPDATE` lock and no parent-row lock; the GraphQL change is
+strictly additive, and `MET-WP1-12`'s point-in-time schema guards were
+reconciled to admit exactly these six operations under Implementation
+Authorization Amendment 1; additive and inactive: no source, account, platform
+or checkpoint row is seeded, no private `CF-GATE-01` provider value or
+credential enters the repository, and no CloudFront driver, Sphinx, ingestion
+or collection behaviour exists or is activated. Exact review and authorization
+provenance is retained in the owning issue. WP1 remains `IN PROGRESS`.)
 
 ## 1. Control rule
 
@@ -96,6 +78,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | MET-WP1-10 Metrics OPERAS import ledger persistence foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-operas-import` | `feature/metrics--wp1-operas-import` -> `feature/metrics` | Adds the `metric_operas_import` table — the canonical durable record of one remote OPERAS event observed on one remote OPERAS instance, the identity of the payload that event carried, and an optional link to the canonical `MET-WP1-03` import that normalized it, which the approved design requires to be stored *before* normalization — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no inbound-ledger row is seeded or created at runtime, no OPERAS network or API access, no provider or runtime inspection, no discovery cursor, rolling scan or snapshot import, no remote polling or scheduling, no normalization or canonical ingestion, no automatic creation or completion of a `metric_import`, no `direct_collection` eligibility enforcement, no configured-uploader matching, no Thoth-export echo detection, linking or skipping, no loop-prevention behaviour, no payload-divergence handling, no `metric_reconciliation_run` or `metric_reconciliation_issue` ledger, no inbound status vocabulary or transition graph, no worker claim, lease, retry or `FOR UPDATE SKIP LOCKED` logic, no GraphQL/admin surface, no Sphinx change, no production migration. The table carries exactly the six design-named fields. Identity is the composite `PRIMARY KEY (remote_instance, remote_event_id)` and nothing else: the approved design names no surrogate inbound-ledger ID and deliberately carries `remote_instance` alongside `remote_event_id`, so one remote event observed repeatedly resolves to the same durable row, the same `remote_event_id` stays representable for two distinct remote instances, and no global event-ID uniqueness is established. `remote_instance`, `remote_event_id`, `payload_hash` and `status` are required `TEXT` carrying only the existing nonblank required-text CHECK, with no URI, hostname, tenant or environment rule, no event-ID syntax or length rule, no hash algorithm, encoding or case rule, and no PostgreSQL enum, closed vocabulary, default, trigger, state machine or cross-column rule; `payload_hash` is deliberately non-unique, so two genuinely different remote events may carry equal payload content. `import_id` is nullable and non-unique with a single-column non-cascading foreign key to `metric_import (import_id)`: nullable because remote-event evidence must be recorded before normalization and a linked or skipped event may never need a canonical import of its own, non-unique because one import may represent a batch containing many distinct remote events, and non-cascading so deleting a referenced canonical import fails rather than erasing the evidence. `created_at` uses the repository-standard current-time default and is deliberately the only timestamp. The index set is exactly the composite primary-key index: the approved design's generic import status/creation-time indexing requirement is already satisfied by the merged `metric_import_status_created_at_idx` on `metric_import`, so there is no outstanding OPERAS-import operational index requirement and WP9 may add one only from actual query-plan evidence. There is deliberately no foreign key or stored relationship to `metric_operas_export` and no duplicated export, platform, measure or mapping identifier, because loop prevention remains WP9 runtime and reconciliation logic. Creating this ledger does not imply guaranteed inbound discovery: the design's section 15.5 completeness blocker remains externally unresolved without an adequate cursor/created-at stream, replication, a complete snapshot or export, or an equivalent reliable incremental mechanism, so no cursor, remote-created-at, scan or snapshot field is added and WP9 retains ownership of discovery modes, loop prevention, reconciliation and completeness reporting. Depends on the merged `MET-WP1-03` import state (`metric_import`). ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Exact review and authorization provenance is retained in the owning issue | [#888](https://github.com/thoth-pub/thoth/issues/888) |
 | MET-WP1-11 Metrics reconciliation ledger persistence foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-reconciliation-ledger` | `feature/metrics--wp1-reconciliation-ledger` -> `feature/metrics` | Adds the two tightly coupled `metric_reconciliation_run` and `metric_reconciliation_issue` tables — one durable reconciliation execution and the machine-readable findings belonging to it, which the approved design places in Thoth as the sole canonical owner of durable reconciliation outcomes while Sphinx performs orchestration — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no reconciliation row is seeded or created at runtime, no reconciliation execution, no comparison of source manifests, canonical records, rollups or OPERAS ledgers, no runtime scope decision, no issue classification, no status, issue-type or severity vocabulary or transition rules, no resolution or reopening workflow, no OPERAS loop prevention, no payload-divergence handling, no snapshot or rolling scan, no completeness determination, no claim, lease, retry or backoff behaviour, no `recordMetricReconciliation` or other GraphQL/admin surface, no Sphinx change, no production migration. They land together because an issue belongs to exactly one run and the two objects form one durable audit unit; splitting them would add a migration and review cycle without creating an independently useful persistence boundary. `metric_reconciliation_run` carries exactly the six design-named fields. `run_id` is a surrogate `UUID` primary key with the repository-standard UUID default and no invented natural-key uniqueness; `scope` is required `JSONB` with no database-level schema and no default, because a run must state what it covered and reconciliation may cover different combinations of source, canonical, rollup and OPERAS state; `status` is required `TEXT` carrying only the existing nonblank required-text CHECK, with no PostgreSQL enum, closed vocabulary, default, trigger or transition graph; `started_at` is required `TIMESTAMPTZ` with deliberately no database default, departing from the repository-standard current-time `created_at` idiom because it is the actual reconciliation-execution start supplied by the writer and the design does not establish that Thoth's insertion time and the execution start are the same event, so an insert omitting it fails and an explicitly supplied value round-trips exactly; `completed_at` is nullable with no default and no status-dependent CHECK, because the status state machine is not design-fixed; `summary` is required `JSONB` defaulting to `'{}'` with no required keys. `metric_reconciliation_issue` carries exactly the eight design-named fields. `issue_id` is a surrogate `UUID` primary key with the standard default and no uniqueness over `(run_id, issue_type, record_id, remote_event_id)`, because runtime deduplication and reopening semantics are not design-fixed; `run_id` is required with a single-column non-cascading foreign key to `metric_reconciliation_run (run_id)`, so deleting a run while its durable issue evidence exists fails rather than cascading; `issue_type` and `severity` are required opaque `TEXT` with only the nonblank CHECK, because the design's section 15.6 prose examples are illustrative rather than an exhaustive enum and its operational mention of high-severity alerts defines no closed severity domain; `record_id` is nullable with a single-column non-cascading foreign key to `metric_record (record_id)`, nullable because unexpected remote records, unmapped measures and unresolved works can exist before or without a canonical record and referentially enforced when supplied, and with no key to `metric_record_revision` because the approved shorthand names `record_id`; `remote_event_id` is nullable opaque `TEXT`, nonblank when supplied, and deliberately carries no foreign key and no global uniqueness, because `MET-WP1-10` established canonical remote identity as the composite `(remote_instance, remote_event_id)` and a bare remote event identifier is not globally unique, while reconciliation may also refer to outbound or legacy remote evidence, so no `remote_instance`, `operas_import_id`, `export_id`, `mapping_id` or `record_revision_id` column is added to manufacture a relationship the design does not name; `details` is required `JSONB` defaulting to `'{}'`; `resolved_at` is the design-named optional resolution timestamp with no `resolved_by`, `resolution`, issue `status`, reopening counter or cross-column invariant. The complete index inventory is exactly the two primary keys: no secondary index is created on `run_id`, `record_id`, `remote_event_id`, `issue_type`, `severity` or `resolved_at`, because PostgreSQL needs no child-side referencing index to enforce these foreign keys, the merged `metric_import_error (import_id)` precedent likewise carries none, the design's section 14.4 names no reconciliation index and no reconciliation query plan exists yet; WP9 may add operational indexes only from actual access patterns with query-plan evidence. Persisting reconciliation state does not solve the design's section 15.5 OPERAS inbound-completeness blocker, which remains externally unresolved and WP9-owned, so no completeness, coverage, cursor, scan or snapshot field is added and no completeness is determined. Depends on the merged `MET-WP1-04` canonical record schema (`metric_record`). ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Exact review and authorization provenance is retained in the owning issue | [#890](https://github.com/thoth-pub/thoth/issues/890) |
 | MET-WP1-12 Metrics registry administration GraphQL foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-registry-admin` | `feature/metrics--wp1-registry-admin` -> `feature/metrics` | Adds the protected SUPERUSER-only administrative GraphQL surface for exactly the three `MET-WP1-01` registries `metric_platform`, `metric_measure` and `metric_platform_measure`: six create/update mutations and three bounded by-code administrative lookups, all nine authorized through the repository-authoritative `require_superuser()` guard before any mutation-specific database read, row lock or write. Adds migration `20260908_v1.9.0` creating the two closed audit enums and the append-only `metric_registry_history` table, written atomically with every committed create/update and carrying the exact persisted before/after state and the authenticated actor; rejected, unauthorized, failed and genuine no-op requests write nothing. Administration uses exact stable `TEXT` codes with no normalisation, `Patch...` inputs are complete replacements rather than sparse patches, immutable identity and canonical-semantic fields are not expressible in them, and there is no delete mutation. Concurrency is serialized last-write-wins with exactly one application-requested canonical-row `FOR UPDATE` lock per update and no joined multi-table lock. Strictly additive SDL change with no existing type, field, nullability, enum-variant or authorization behaviour altered, and no audit surface exposed. Additive and inactive: no platform, mapping, source, source-account or OPERAS seed, and no collection, ingestion, rollup, synchronization, dashboard or production behaviour. Publisher-approval and source-account administration, the later service/dashboard registry queries and all delete/bulk operations remain deferred to separately specified work. ADR-0001 remains the entitlement authority and WP5 retains protected-operation capability enforcement, so no Metrics service role or entitlement table is created. Exact review and authorization provenance is retained in the owning issue | [#894](https://github.com/thoth-pub/thoth/issues/894) |
+| MET-WP1-13 Metrics source and source-account administration GraphQL foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-source-admin` | `feature/metrics--wp1-source-admin` -> `feature/metrics` | Adds the protected SUPERUSER-only administrative GraphQL surface for exactly `metric_source` and `metric_source_account`: four create/update mutations and two bounded by-code administrative lookups, all six authorized through the repository-authoritative `require_superuser()` guard before any operation-specific database read, row lock or write, and no checkpoint administration. Adds migration `20260912_v1.9.0` creating the named `metric_source_driver_key_check` CHECK (a `DRIVER` source requires a non-blank `driver_key`; every other acquisition type requires `NULL`; enforced identically at the application boundary and validated against existing rows on apply without rewriting them) and the parallel append-only `metric_source_registry_history` audit with its two closed enums, written atomically with every committed create/update and carrying the exact persisted before/after state and the authenticated actor; `MET-WP1-12`'s closed `metric_registry_history` is not extended. Administration uses exact stable `TEXT` codes with no normalisation, account creation names source and platform by code, `Patch...` inputs are complete replacements of exactly the approved mutable fields, and source `code`/`acquisitionType`/`driverKey` and account `code`/source/platform/`externalKey`/`expectedPublisherId` are immutable and not expressible. Source-account configuration is exposed only as the closed typed representation frozen by Specification Amendment 1 — `EMPTY` (semantic `{}`) or `CLOUDFRONT_LEGACY_S3_V1` (exactly the `cloudfront-source-account/1` / `LEGACY_S3` shape with the caller's exact non-blank hostname, bucket and prefix, hostname equal to the immutable `externalKey`, and creatable only with a non-null `expectedPublisherId` naming an existing publisher per Specification Amendment 2) — bound by the closed compatibility matrix to the resolved source's immutable `acquisition_type` and `driver_key`; stored values pass a fail-closed decoder before return, update or audit serialization, otherwise yielding one sanitized failure with no disclosure, no update and no audit row. No-ops are decided by semantic JSONB equality; concurrency is serialized last-write-wins with exactly one canonical-row `FOR UPDATE` lock and no parent-row lock. Strictly additive SDL, with `MET-WP1-12`'s point-in-time guards reconciled under Implementation Authorization Amendment 1 to admit exactly these six operations. Additive and inactive: no source, account, platform or checkpoint seed, no private `CF-GATE-01` value or credential, and no CloudFront driver, Sphinx, ingestion, checkpoint or collection behaviour. Exact review and authorization provenance is retained in the owning issue | [#904](https://github.com/thoth-pub/thoth/issues/904) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
@@ -109,7 +92,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`), source-state foundation (`MET-WP1-02`), import-state foundation (`MET-WP1-03`), record-history foundation (`MET-WP1-04`) and coverage foundation (`MET-WP1-05`) merged/delivered to `feature/metrics`; publisher-platform approval foundation (`MET-WP1-06`), rollup-delta persistence foundation (`MET-WP1-07`), OPERAS mapping persistence foundation (`MET-WP1-08`) and OPERAS export ledger persistence foundation (`MET-WP1-09`) merged to `feature/metrics`; OPERAS import ledger persistence foundation (`MET-WP1-10`) implemented on its slice branch `feature/metrics--wp1-operas-import`; reconciliation ledger persistence foundation (`MET-WP1-11`) implemented on its slice branch `feature/metrics--wp1-reconciliation-ledger`; registry administration GraphQL foundation (`MET-WP1-12`) implemented on its slice branch `feature/metrics--wp1-registry-admin`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`), source-state foundation (`MET-WP1-02`), import-state foundation (`MET-WP1-03`), record-history foundation (`MET-WP1-04`) and coverage foundation (`MET-WP1-05`) merged/delivered to `feature/metrics`; publisher-platform approval foundation (`MET-WP1-06`), rollup-delta persistence foundation (`MET-WP1-07`), OPERAS mapping persistence foundation (`MET-WP1-08`) and OPERAS export ledger persistence foundation (`MET-WP1-09`) merged to `feature/metrics`; OPERAS import ledger persistence foundation (`MET-WP1-10`) implemented on its slice branch `feature/metrics--wp1-operas-import`; reconciliation ledger persistence foundation (`MET-WP1-11`) implemented on its slice branch `feature/metrics--wp1-reconciliation-ledger`; registry administration GraphQL foundation (`MET-WP1-12`) implemented on its slice branch `feature/metrics--wp1-registry-admin`; source and source-account administration GraphQL foundation (`MET-WP1-13`) implemented on its slice branch `feature/metrics--wp1-source-admin`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |

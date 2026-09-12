@@ -90,6 +90,27 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "metric_platform_measure_supported_grains_check" => "Supported grains must list at least one reporting grain, with no duplicates.",
     "metric_registry_history_action_before_state_check" => "Metric registry history is invalid: a creation must record no previous state and an update must record one.",
     "metric_registry_history_actor_check" => "Metric registry history actor must not be an empty string.",
+    // Metrics source administration (MET-WP1-13). Exactly the metric_source /
+    // metric_source_account constraints reachable from the six protected
+    // superuser-only source-administration operations, plus the driver-key
+    // CHECK and the two source-audit CHECKs the MET-WP1-13 migration adds.
+    // The driver-key message is byte-identical to the coordinator's own
+    // application-boundary pre-check message, so the two boundaries are
+    // indistinguishable to a client.
+    "metric_source_code_check" => "Metric source code must not be an empty string.",
+    "metric_source_code_key" => "A metric source with this code already exists.",
+    "metric_source_default_finalization_delay_days_check" => "Metric source default finalization delay days must not be negative.",
+    "metric_source_default_lookback_days_check" => "Metric source default lookback days must not be negative.",
+    "metric_source_driver_key_check" => "A DRIVER metric source requires a non-blank driver key, and a non-DRIVER metric source must not carry one.",
+    "metric_source_account_code_check" => "Metric source account code must not be an empty string.",
+    "metric_source_account_code_key" => "A metric source account with this code already exists.",
+    "metric_source_account_expected_publisher_id_fkey" => "The expected publisher of a metric source account must be an existing publisher.",
+    "metric_source_account_external_key_check" => "Metric source account external key must not be an empty string.",
+    "metric_source_account_platform_id_fkey" => "The metric platform of a metric source account must be an existing metric platform.",
+    "metric_source_account_source_id_external_key_key" => "A metric source account with this external key already exists for this metric source.",
+    "metric_source_account_source_id_fkey" => "The metric source of a metric source account must be an existing metric source.",
+    "metric_source_registry_history_action_before_state_check" => "Metric source registry history is invalid: a creation must record no previous state and an update must record one.",
+    "metric_source_registry_history_actor_check" => "Metric source registry history actor must not be an empty string.",
     "file_frontcover_work_unique_idx" => "A frontcover file for this work already exists.",
     "file_object_key_unique_idx" => "A file with this object key already exists.",
     "file_publication_unique_idx" => "A publication file for this publication already exists.",
@@ -342,6 +363,56 @@ mod tests {
             ThothError::from(Error::NotFound),
             ThothError::EntityNotFound
         )
+    }
+
+    /// Every Metrics source/source-account/audit constraint the `MET-WP1-13`
+    /// administration surface can reach maps to a bounded message, exactly as
+    /// the `MET-WP1-12` guard below proves for the registry surface.
+    #[test]
+    fn metrics_source_administration_constraints_map_to_bounded_messages() {
+        const REACHABLE: [&str; 14] = [
+            "metric_source_code_check",
+            "metric_source_code_key",
+            "metric_source_default_finalization_delay_days_check",
+            "metric_source_default_lookback_days_check",
+            "metric_source_driver_key_check",
+            "metric_source_account_code_check",
+            "metric_source_account_code_key",
+            "metric_source_account_expected_publisher_id_fkey",
+            "metric_source_account_external_key_check",
+            "metric_source_account_platform_id_fkey",
+            "metric_source_account_source_id_external_key_key",
+            "metric_source_account_source_id_fkey",
+            "metric_source_registry_history_action_before_state_check",
+            "metric_source_registry_history_actor_check",
+        ];
+
+        for constraint in REACHABLE {
+            let raw = "new row for relation \"metric_source\" violates check constraint; \
+                       DETAIL: Failing row contains (driver_key)=(x).; \
+                       CONTEXT: SQL statement \"INSERT INTO metric_source\"";
+            let error = ThothError::from(Error::DatabaseError(
+                DatabaseErrorKind::Unknown,
+                error_information(raw, Some(constraint)),
+            ));
+
+            let ThothError::DatabaseConstraintError(message) = &error else {
+                panic!("`{constraint}` is unmapped, so PostgreSQL text would reach the client: {error:?}");
+            };
+            for leaked in [
+                "INSERT INTO",
+                "DETAIL:",
+                "CONTEXT:",
+                "SQL statement",
+                "Failing row",
+                constraint,
+            ] {
+                assert!(
+                    !message.contains(leaked),
+                    "`{constraint}` message leaks `{leaked}`: {message}"
+                );
+            }
+        }
     }
 
     /// Every Metrics registry/audit constraint the `MET-WP1-12` administration

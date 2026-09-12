@@ -31,6 +31,8 @@ use crate::model::{
     metric_measure::{crud::metric_measure_by_code, MetricMeasure},
     metric_platform::{crud::metric_platform_by_code, MetricPlatform},
     metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
+    metric_source::{crud::metric_source_by_code, MetricSource},
+    metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -2203,6 +2205,38 @@ impl QueryRoot {
             .and_then(|_| {
                 metric_platform_measure_by_codes(&context.db, &platform_code, &measure_code)
             })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric source by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one source and offers no listing, search, filter or pagination"
+    )]
+    fn metric_source_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The source's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricSource> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_source_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric source account by its globally unique stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one account, offers no listing, search, filter or pagination, and never exposes a stored configuration outside the supported representations"
+    )]
+    fn metric_source_account_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The account's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricSourceAccount> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_source_account_by_code(&context.db, &code))
             .map_err(IntoFieldError::into_field_error)
     }
 }
