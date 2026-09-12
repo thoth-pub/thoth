@@ -989,6 +989,40 @@ table! {
         status -> Text,
         created_at -> Timestamptz,
         applied_at -> Nullable<Timestamptz>,
+        work_day_sequence -> Nullable<Int8>,
+        claim_token -> Nullable<Uuid>,
+        claimed_by -> Nullable<Text>,
+        claimed_at -> Nullable<Timestamptz>,
+        lease_expires_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_day (rollup_work_day_id) {
+        rollup_work_day_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        day -> Date,
+        country_code -> Nullable<Bpchar>,
+        institution_id -> Nullable<Uuid>,
+        value -> Int8,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_day_state (state_id) {
+        state_id -> Int2,
+        next_sequence -> Int8,
+        applied_through_sequence -> Int8,
+        watermark_at -> Timestamptz,
+        updated_at -> Timestamptz,
     }
 }
 
@@ -1561,6 +1595,11 @@ joinable!(metric_record_provenance -> metric_import_batch (import_batch_id));
 joinable!(metric_record_provenance -> metric_record (record_id));
 joinable!(metric_record_revision -> metric_import (import_id));
 joinable!(metric_record_revision -> metric_record (record_id));
+joinable!(metric_rollup_work_day -> institution (institution_id));
+joinable!(metric_rollup_work_day -> metric_measure (measure_id));
+joinable!(metric_rollup_work_day -> metric_platform (platform_id));
+joinable!(metric_rollup_work_day -> publication (publication_id));
+joinable!(metric_rollup_work_day -> work (work_id));
 joinable!(metric_source_account -> metric_platform (platform_id));
 joinable!(metric_source_account -> metric_source (source_id));
 joinable!(metric_source_account -> publisher (expected_publisher_id));
@@ -1643,6 +1682,8 @@ allow_tables_to_appear_in_same_query!(
     metric_record_revision,
     metric_registry_history,
     metric_rollup_delta,
+    metric_rollup_work_day,
+    metric_rollup_work_day_state,
     metric_source,
     metric_source_account,
     metric_source_checkpoint,

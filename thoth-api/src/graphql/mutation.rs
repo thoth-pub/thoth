@@ -48,6 +48,10 @@ use crate::model::{
         crud::{create_metric_platform_measure, update_metric_platform_measure},
         MetricPlatformMeasure, NewMetricPlatformMeasure, PatchMetricPlatformMeasure,
     },
+    metric_rollup_delta::{
+        crud::{claim_metric_rollup_deltas, complete_metric_rollup_deltas},
+        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupWatermark,
+    },
     metric_source::{
         crud::{create_metric_source, update_metric_source},
         MetricSource, NewMetricSource, PatchMetricSource,
@@ -205,6 +209,49 @@ fn authorize_metric_registry_admin(context: &Context) -> ThothResult<&str> {
     context.user_id()
 }
 
+/// Authorize one Metrics rollup application operation and return the claimant.
+///
+/// `MET-WP4-01`'s two operations require exactly `METRICS_INGEST_SERVICE`.
+/// The check runs **before** the coordinator is called, and therefore before
+/// any rollup-specific database read, row lock, claim or write, so a denied
+/// request leaves the deltas, the projection and the watermark untouched and
+/// writes nothing to roll back.
+///
+/// Nothing else satisfies it. `SUPERUSER` is not a machine-service shortcut,
+/// `METRICS_READ_SERVICE` reads and does not ingest, `DISSEMINATION_WORKER`
+/// belongs to Publisher Services, and publisher-scoped human roles and
+/// anonymous callers hold no Metrics authority at all — under `ADR-0008` none
+/// of them acquires this authority by implication, and no third Metrics
+/// service role is introduced.
+///
+/// The returned claimant is the authenticated principal's repository
+/// identity. It is derived, never accepted from the request, which is what
+/// makes `claimed_by` trustworthy enough to reject a foreign completion.
+fn authorize_metric_rollup_service(context: &Context) -> ThothResult<&str> {
+    context.require_metrics_ingest_service()?;
+    context.user_id()
+}
+
+/// Authorize a rollup claim and delegate to the frontier protocol.
+fn claim_rollup_deltas(context: &Context, limit: i32) -> ThothResult<Vec<MetricRollupDeltaClaim>> {
+    let claimant = authorize_metric_rollup_service(context)?;
+    claim_metric_rollup_deltas(&context.db, claimant, limit)
+}
+
+/// Authorize a rollup completion and delegate to the application transaction.
+///
+/// The resolver's whole responsibility is to authorize, derive the claimant
+/// and pass the token through. Every value, dimension, status transition and
+/// watermark advance is derived inside the coordinator's single transaction
+/// from durable state.
+fn complete_rollup_deltas(
+    context: &Context,
+    data: &CompleteMetricRollupDeltasInput,
+) -> ThothResult<MetricRollupWatermark> {
+    let claimant = authorize_metric_rollup_service(context)?;
+    complete_metric_rollup_deltas(&context.db, claimant, data.claim_token)
+}
+
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
@@ -277,6 +324,30 @@ impl MutationRoot {
         #[graphql(description = "Which job to cancel")] data: CancelDistributionJobInput,
     ) -> FieldResult<DistributionJobPayload> {
         cancel_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Claim the contiguous run of work-day rollup deltas that begins at the durable applied-through frontier, for up to 900 seconds. Requires the METRICS_INGEST_SERVICE role. The limit must be between 1 and 50 inclusive. Every returned row carries the same batch claim token. An empty result means the frontier is exhausted or is currently held by another live claim; the protocol never skips a held or missing position."
+    )]
+    fn claim_metric_rollup_deltas(
+        context: &Context,
+        #[graphql(
+            description = "How many consecutive work-day deltas to claim, from 1 to 50 inclusive. A value outside that range is rejected and claims nothing"
+        )]
+        limit: i32,
+    ) -> FieldResult<Vec<MetricRollupDeltaClaim>> {
+        claim_rollup_deltas(context, limit).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Apply one claimed rollup delta batch to the work-day projection and advance the durable watermark, in one transaction. Requires the METRICS_INGEST_SERVICE role. The batch is applied whole or not at all: any failure leaves the projection, every delta and the watermark unchanged. Repeating an already-applied token returns the current watermark without writing, so a completion that timed out after committing is safe to retry. A stale, foreign or reclaimed token changes nothing."
+    )]
+    fn complete_metric_rollup_deltas(
+        context: &Context,
+        #[graphql(description = "Which claimed rollup delta batch to apply")]
+        input: CompleteMetricRollupDeltasInput,
+    ) -> FieldResult<MetricRollupWatermark> {
+        complete_rollup_deltas(context, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]

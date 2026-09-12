@@ -9,6 +9,8 @@ mod distribution_platform_tests;
 #[cfg(test)]
 mod metric_registry_tests;
 #[cfg(test)]
+mod metric_rollup_tests;
+#[cfg(test)]
 mod metric_source_registry_tests;
 mod mutation;
 mod mutation_guard;

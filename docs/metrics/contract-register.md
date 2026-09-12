@@ -208,6 +208,104 @@ Thoth owns bounded claim/checkpoint/import/batch/rollup/export/reconciliation op
 
 Required: least privilege, leases, stale-token rejection, idempotency, bounded batches, sanitized errors, exact row classifications and fail-closed behavior.
 
+### 3.1 Delivered minimum rollup application contract (`MET-WP4-01`)
+
+`MET-WP4-01` delivers the rollup half of this contract: turning committed
+canonical rollup deltas into the one MOM-1 work-level projection, with
+exactly-once effect and a durable watermark.
+
+Operations, both requiring exactly `METRICS_INGEST_SERVICE` and both
+authorized before any rollup-specific database read, row lock, claim or write:
+
+```graphql
+claimMetricRollupDeltas(limit: Int!): [MetricRollupDeltaClaim!]!
+completeMetricRollupDeltas(input: CompleteMetricRollupDeltasInput!): MetricRollupWatermark!
+```
+
+```graphql
+type MetricRollupDeltaClaim {
+  deltaId: Uuid!
+  sequence: String!
+  claimToken: Uuid!
+  leaseExpiresAt: Timestamp!
+}
+
+input CompleteMetricRollupDeltasInput {
+  claimToken: Uuid!
+}
+
+type MetricRollupWatermark {
+  appliedThroughSequence: String!
+  watermarkAt: Timestamp!
+}
+```
+
+Contract properties consumers may rely on:
+
+- **Strict single frontier.** One claim begins at exactly
+  `appliedThroughSequence + 1` and takes a contiguous run of at most 50
+  positions. It never skips a position held by a live claim, never reaches
+  across a missing one, and never applies out of order. An empty result means
+  "nothing is yours to take right now", not an error: a worker polls, it does
+  not alert.
+- **One token per batch.** Every row of one claim carries the same claim token
+  and the same lease expiry. Completion addresses the batch by that token
+  alone.
+- **Server-fixed 900-second lease.** The duration is not a request parameter.
+  An expired claim is reclaimable by any holder of the role, under a fresh
+  token; the superseded token can no longer apply anything.
+- **Derived, never supplied.** Completion accepts the claim token and nothing
+  else. Every projected value, every aggregate dimension and the resulting
+  watermark are derived inside Thoth from the durable claimed batch and the
+  canonical records it names, so a claimant cannot choose what its completion
+  adds, to which aggregate, or how far the watermark moves.
+- **Whole-batch atomicity.** Projection updates, delta terminalization and the
+  watermark advance commit in one PostgreSQL transaction. Any failure rolls
+  the whole batch back: the projection, every delta's status and the watermark
+  stay exactly as they were, and the batch remains claimed until its lease
+  expires.
+- **Idempotent replay.** Repeating an already-applied token returns the
+  current watermark without writing, provided the whole batch is applied, was
+  applied by the same principal, and sits at or below the durable frontier.
+  That is what makes a completion which timed out *after* committing safe to
+  retry. Stale, foreign and reclaimed tokens fail without mutation.
+- **Fail-closed arithmetic.** Values are signed 64-bit. An application that
+  would overflow or underflow aborts the whole batch rather than wrapping, and
+  the frontier then blocks pending separately authorized repair. Nothing skips
+  a poison position to restore progress.
+- **Progress positions are strings.** `sequence` and `appliedThroughSequence`
+  are decimal strings, because GraphQL's `Int` is 32-bit and a durable
+  ordering identity must never be approximated.
+- **Watermark meaning.** `appliedThroughSequence = W` means every committed
+  work-day position `1..=W` is applied. It never moves backwards and never
+  crosses an unapplied position. `watermarkAt` is when the current `W` was
+  established — a fact about the boundary, not a claim that every canonical
+  row is projected. A consumer detects outstanding rollup lag by comparing `W`
+  with the highest allocated position, not by reading `watermarkAt`.
+
+Scope boundaries a consumer must not infer:
+
+- The MOM-1 progress stream covers exactly canonical records with
+  `reporting_grain = DAY` spanning exactly one calendar day. Deltas of other
+  grains are durable and pending, carry no position, and never block the
+  work-day frontier; their projection and claim design is deferred.
+- `metric_rollup_work_day` is the only projection delivered. The monthly,
+  work-country-month and work-institution-month projections remain future
+  architecture.
+- There is no callable rebuild operation, and no read surface. Rollup
+  projections, delta state and the watermark are reachable only through the
+  two operations above; the coverage-aware read contract is `MET-WP4-02`.
+- Sphinx orchestrates and never writes the Thoth database. All projection
+  arithmetic executes inside Thoth.
+
+Error surface (known limitation): rollup rejections — an out-of-range limit,
+an unknown, stale, foreign or reclaimed token, an expired lease, a blocked
+frontier and an overflowing application — are returned as GraphQL errors with
+stable messages and the generic `INTERNAL_ERROR` extension type. `MET-WP4-01`
+introduced no dedicated `thoth-errors` variant, so a consumer that needs to
+classify these programmatically requires a separately specified stable error
+code.
+
 ## 4. Dashboard/widget
 
 Thoth owns entity metrics, dashboard/widget operations and registry queries.
