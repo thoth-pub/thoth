@@ -100,15 +100,56 @@ pub(crate) fn revert_through_ingestion_contract_migration(connection: &mut PgCon
 /// Attempt to revert the `MET-WP2-01A` migration, returning its error.
 ///
 /// The guard tests need the failure itself, so this deliberately does not
-/// unwrap. `MET-WP2-01A` is the newest migration, so the single
-/// `revert_last_migration` call targets exactly it.
+/// unwrap. Reverting *through* the newer migrations first keeps the meaning
+/// under any future migration order, exactly as
+/// [`revert_through_ingestion_contract_migration`] does: the error returned is
+/// always `MET-WP2-01A`'s, never whichever migration happens to be newest.
+///
+/// `revert_last_migration` reverts the greatest applied version, so the same
+/// `applied_migrations` list Diesel itself consults says which migration the
+/// next call will target. Anything newer is peeled off first and must succeed;
+/// a newer migration refusing its own rollback is a different failure and is
+/// reported as one rather than being mistaken for this guard.
 fn try_revert_ingestion_contract_migration(connection: &mut PgConnection) -> String {
-    match connection.revert_last_migration(MIGRATIONS) {
-        Ok(version) => panic!(
-            "the rollback must have failed closed, but it reverted {version} \
-             and discarded the MET-WP2-01A contract"
-        ),
-        Err(error) => error.to_string(),
+    let applied = connection
+        .applied_migrations()
+        .expect("Failed to read applied migrations");
+    assert!(
+        applied
+            .iter()
+            .any(|version| version.to_string() == MET_WP2_01A_MIGRATION_VERSION),
+        "the MET-WP2-01A ingestion-contract migration must be applied before reverting through it"
+    );
+
+    loop {
+        let next = connection
+            .applied_migrations()
+            .expect("Failed to read applied migrations")
+            .first()
+            .expect("the MET-WP2-01A ingestion-contract migration must still be applied")
+            .to_string();
+        if next == MET_WP2_01A_MIGRATION_VERSION {
+            return match connection.revert_last_migration(MIGRATIONS) {
+                Ok(version) => panic!(
+                    "the rollback must have failed closed, but it reverted {version} \
+                     and discarded the MET-WP2-01A contract"
+                ),
+                Err(error) => error.to_string(),
+            };
+        }
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "Failed to revert {next}, a migration newer than MET-WP2-01A, \
+                     before reaching the MET-WP2-01A rollback guard: {error}"
+                )
+            });
+        assert_eq!(
+            reverted.to_string(),
+            next,
+            "reverting must have targeted the newest applied migration"
+        );
     }
 }
 
