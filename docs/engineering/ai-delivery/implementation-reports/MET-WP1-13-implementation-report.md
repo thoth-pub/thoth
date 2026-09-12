@@ -13,18 +13,19 @@ Risk: **HIGH**
 |---|---|
 | Workflow | `PROGRAMME_INTEGRATION` |
 | Base branch | `feature/metrics` |
-| Authorized base commit | `9feddceeed5c09d7d560aaae5d2b4e5df70450e6` |
-| Actual base commit | `9feddceeed5c09d7d560aaae5d2b4e5df70450e6` |
+| Authorized base commit | `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488` |
+| Actual base commit | `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488` (exactly `HEAD^`) |
+| Superseded historical base | `9feddceeed5c09d7d560aaae5d2b4e5df70450e6` (old-base snapshot only; not authority) |
 | Observed `develop` | `395cc16ac770bc8bbf8a708662a1b31d85b15398` |
 | PR target / programme integration branch | `feature/metrics` |
 | Task branch | `feature/metrics--wp1-source-admin` |
 | Head commit | the PR head: the final commit on the task branch (a commit cannot record its own SHA; the implementation commit SHA is listed in section 3 and the exact head is recorded in the DRAFT PR body) |
 | Pull request | DRAFT PR from `feature/metrics--wp1-source-admin` into `feature/metrics`; URL recorded in section 3 |
 | Migration identity | `20260912` / `thoth-api/migrations/20260912_v1.9.0` |
-| Write budget | 26 exact paths (23 frozen in `5624022951`; `metric_registry_tests.rs` added by `5632939633`; `metric_import_batch/tests.rs` added by `5636312947`; `metric_ingestion/tests.rs` added by `5636873961`) |
+| Write budget | 26 exact paths (23 frozen in `5624022951`; `metric_registry_tests.rs` added by `5632939633`; `metric_import_batch/tests.rs` added by `5636312947`; `metric_ingestion/tests.rs` added by `5636873961`; re-affirmed unchanged by `5645831329` and `5645849433`) |
 | Expected branch deletion after merge | YES |
 | Final programme PR required | YES (`feature/metrics -> develop`, separately authorized) |
-| Implementing model | Claude (Fable 5.1) |
+| Implementing model | Claude Opus 5 |
 | Reasoning level | default |
 
 ### 1.1 Authorization provenance
@@ -43,6 +44,10 @@ Risk: **HIGH**
 | Current CTO implementation authorization | #904 comment `5636000017` |
 | Implementation Authorization Amendment 2 (25th path: `thoth-api/src/model/metric_import_batch/tests.rs`; local recovery) | #904 comment `5636312947` |
 | Implementation Authorization Amendment 3 (26th path: `thoth-api/src/model/metric_ingestion/tests.rs`; DRIVER-fixture compatibility) | #904 comment `5636873961` |
+| Implementation Authorization Amendment 4 (fourth WP2-01B fixture mutation inside the existing 26th path) | #904 comment `5637018261` |
+| Current-base rebind and implementation-resume preflight (after the MET-WP5-01 merge) | #904 comment `5645799971` |
+| CTO implementation authorization amendment 5 (current-base rebind; bounded WP5 reconciliation authority) | #904 comment `5645831329` |
+| **Controlling CTO implementation-execution authorization (rebound base)** | **#904 comment `5645849433`** |
 | Migration reservation | #766 comment `5624024830` |
 
 All records, the root `AGENTS.md`, `docs/engineering/AGENTS.md`,
@@ -127,6 +132,66 @@ template were read in full before any write.
    task-isolated `CARGO_TARGET_DIR` in addition to the isolated database and
    Redis namespace. The earlier results were discarded and are not cited.
 
+8. **Current-base rebind after the MET-WP5-01 merge (2026-09-12).** Before any
+   source, worktree or branch mutation, a fresh preflight verified every
+   premise of the controlling authorization `5645849433`:
+
+| Check | Result |
+|---|---|
+| #904 state | OPEN |
+| latest controlling #904 record | `5645849433` - not superseded, revoked or on HOLD |
+| remote `feature/metrics` after `git fetch --prune` | `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488` - matches exactly |
+| remote `develop` | `395cc16ac770bc8bbf8a708662a1b31d85b15398` - matches exactly |
+| `20260912_*` migration on the authorized base / `develop` | absent; newest migration on the base is `20260909_v1.9.0` |
+| #766 reservation `5624024830` | intact and exclusive to MET-WP1-13 / #904; no later release or reassignment record |
+| remote `feature/metrics--wp1-source-admin` | absent (HTTP 404) |
+| PR from that branch into `feature/metrics` (`--state all`) | none (`[]`) |
+
+   The old-base implementation was preserved losslessly three ways before any
+   destructive local step - an in-repository backup ref
+   `refs/backup/met-wp1-13-oldbase-008f3699`, a format-patch of the full
+   old-base delta, and a `git archive` tarball of the whole implementation
+   tree. Its repository paths were enumerated and reconciled first: exactly
+   26 paths, **0 outside** the authorized envelope, and no deletion, rename or
+   move. Only then was the local task branch rebased onto exactly
+   `15ad5ffc...`. No remote ref was deleted or force-updated and no shared
+   history was rewritten.
+
+9. **MET-WP5-01 reconciliation.** The base movement `9feddcee -> 15ad5ffc` is
+   exactly PR #911 / MET-WP5-01, touching four paths. Two of them overlap this
+   task's envelope and reconciled as the authorization anticipated:
+
+   - `docs/metrics/contract-register.md` merged automatically with no
+     conflict; all 66 lines MET-WP5-01 added were verified present verbatim in
+     the reconciled file.
+   - `CHANGELOG.md` produced the single expected conflict: both tasks insert a
+     first entry under `## [Unreleased] / ### Added`. It was resolved by
+     keeping **both** entries in full under the repository's newest-first
+     convention - MET-WP1-13 above MET-WP5-01 - and the merged MET-WP5-01
+     entry was verified byte-identical to the base. Neither task's delivered
+     statement was deleted, truncated or semantically weakened.
+
+   The other two WP5 paths, `src/bin/commands/zitadel.rs` and
+   `thoth-api/src/policy.rs`, are outside this envelope and were inherited
+   unchanged. MET-WP1-13 remains SUPERUSER-only: it neither references nor
+   grants `METRICS_INGEST_SERVICE` or `METRICS_READ_SERVICE`, verified by
+   search across every changed source path.
+
+10. **Test-database encoding artifact (found and eliminated, 2026-09-12).**
+    The first full post-rebind `thoth-api` run reported a single failure,
+    `model::distribution_job::tests::a_worker_reported_detail_is_sanitized_before_storage`,
+    in a subsystem this task does not touch. Root cause, verified: the
+    task-isolated databases had been created from this host's `template1`,
+    which is `SQL_ASCII`, whereas the repository's canonical test database is
+    `UTF8`. Under `SQL_ASCII` PostgreSQL's `char_length` counts bytes, so that
+    test's 2048-character multi-byte payload exceeded the 2048-character
+    `distribution_job_last_error_detail_length_check` bound. The databases
+    were recreated from `template0` with `ENCODING 'UTF8' LC_COLLATE 'C'
+    LC_CTYPE 'C'`, matching the canonical harness database exactly, and every
+    result in section 9 and section 6 was regenerated on them. The failure was
+    an environment artifact, not a source defect: no source change was made in
+    response to it, and the discarded run is not cited as evidence.
+
 ## 2. Scope confirmation
 
 Approved specification: #904 + Specification Amendment 1 + Specification
@@ -145,11 +210,23 @@ Out-of-scope changes made: NONE.
 
 ## 3. Commits
 
-- implementation commit (SHA recorded by the follow-up report commit) - `MET-WP1-13: establish Metrics source and source-account administration`
-  (all 26 envelope paths, validated as recorded in section 9);
-- report commit (the PR head) - records the implementation commit SHA and the PR URL in this file only.
+Two commits on `feature/metrics--wp1-source-admin`:
 
-Pull request: recorded by the follow-up report commit.
+1. `MET-WP1-13: establish Metrics source and source-account administration` -
+   the bounded implementation across all 26 envelope paths, parented directly
+   by the authorized base `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488` and
+   validated as recorded in section 9.
+2. `MET-WP1-13: record current-base reconciliation evidence` (the PR head) -
+   documentation only, touching just this report and
+   `docs/metrics/task-status.md`. It changes no Rust source, SQL, schema or
+   GraphQL contract, so every result in section 9 applies unchanged to the PR
+   head; the Rust tree at the head is byte-identical to the tree those runs
+   validated.
+
+A commit cannot record its own SHA, so the exact head SHA and the pull-request
+URL are recorded in the DRAFT PR body rather than in this file. The first
+commit's parent is exactly the authorized base, verifiable directly from the
+PR.
 
 ## 4. Files changed
 
@@ -205,12 +282,12 @@ paths and nothing else (verified before commit; see section 9).
 - manual CI dispatch/rerun: NOT USED
 - provider/runtime read: NOT USED
 - provider/runtime write: NOT USED
-- migration execution: used against disposable local PostgreSQL only. Earlier runs used the repository's local `thoth_test` harness database, which another parallel task also used; because that left `20260912` applied on a database the other task had to revert, all final validation was moved to a task-isolated disposable database `met_wp1_13_test` (created empty, migrated only by this worktree's embedded harness) with the harness pointed at it via `TEST_DATABASE_URL`, and Redis isolated to a dedicated logical database via `TEST_REDIS_URL` (`.../13`); the separate `met_wp1_13_disposable` database served the CLI apply/revert/reapply evidence. No other task's database was migrated, reverted, reset or truncated; shared, staging and production databases were never accessed
+- migration execution: used against disposable local PostgreSQL only. Final validation used three task-isolated disposable databases created from `template0` as UTF8 / C locale - `thoth_test_met_wp1_13` (harness, via `TEST_DATABASE_URL`), `thoth_mig_met_wp1_13` (empty-database evidence) and `thoth_pop_met_wp1_13` (representative-populated, fail-closed and lock evidence). No other task's database was migrated, reverted, reset or truncated; the repository's shared `thoth_test` database was not used for any cited result; shared, staging and production databases were never accessed
 - release/tag/publication: NOT USED
 - merge: NOT USED
 - deployment: NOT USED
 - production activation: NOT USED
-- other: a temporary throwaway git worktree of the old exact base was built to generate the base SDL for the additive-schema proof, then removed; the local recovery (backup, cleanup of my own stale worktrees/branch, recreation from the exact base) authorized by `5636312947` was performed as described in section 1.2; the final validation used a task-isolated Cargo target directory outside the repository (section 1.2 item 7) so that no artifact was shared with, or written into, another task's build cache
+- other: for the final additive-schema proof the authorized base and the head were extracted with `git archive` into scratch directories **outside the repository** and given an identical throwaway SDL-dumping example there, so that no unlisted path was created inside the repository at any point; the local recovery authorized by `5636312947` and the current-base reconciliation authorized by `5645831329` / `5645849433` were performed as described in section 1.2 items 8-9 (lossless backup first, then a local-only rebase of the task branch onto exactly `15ad5ffc`; no remote ref deleted or force-updated, no shared history rewritten); the final validation used a task-isolated Cargo target directory outside the repository so that no artifact was shared with, or written into, another task's build cache
 
 Unauthorized actions performed: NONE.
 
@@ -318,8 +395,8 @@ expected error code or result (the replay still succeeds with rows equal to
 the original result and an unchanged snapshot; the first-time `b2` batch
 still fails with `ImportNotProcessing`), coordinator, hashing, authorization,
 fixture identity or concurrency behaviour changed; the file's other tests are
-byte-identical. The complete diff of this path against `9feddcee` is those
-five statements (section 9, envelope reconciliation).
+byte-identical. The complete diff of this path against the authorized base
+`15ad5ffc` is those five statements (section 9, envelope reconciliation).
 
 Deviations from the specification requiring authorization:
 
@@ -366,23 +443,25 @@ Migration added: YES - `thoth-api/migrations/20260912_v1.9.0`.
 - existing-data effect: none rewritten. The CHECK is validated against
   existing `metric_source` rows on apply and the migration fails closed if a
   row violates it; `metric_source_account.configuration` values are untouched.
-- locking/downtime: measured on the disposable database at `9feddcee` by running `up.sql`
-  inside one transaction against the pre-migration state and inspecting
-  `pg_locks` before `ROLLBACK`. Locks on pre-existing objects: exactly one -
-  `AccessExclusiveLock` on `metric_source` for `ADD CONSTRAINT`, held for the
-  statement (single-digit milliseconds here; on a production table it is the
-  duration of one sequential scan validating existing rows). `metric_source_account`,
-  `metric_registry_history` and every other existing table are not locked.
-  The remaining locks are on the new table and its primary key only. Whole
-  migration under 15 ms; no downtime.
-- empty database result: `cargo run -- migrate -D <disposable>` on the empty
-  UTF8/C-locale `met_wp1_13_disposable` applied all 23 migrations; the CHECK,
-  both enums (`{SOURCE,SOURCE_ACCOUNT}`, `{CREATE,UPDATE}`) and the audit table
-  are present and no source, account, platform or audit row exists. `cargo run
-  -- migrate --revert -D <disposable>` (the runner's revert-all) then removed
-  every migration and every `metric_%` table, and a second `migrate` restored
-  all 23 with `metric_source_driver_key_check` present, the audit table empty
-  and the two measure seeds intact.
+- locking/downtime: re-measured on the reconciled new-base tree against the
+  representative-populated disposable database by running the `ADD CONSTRAINT`
+  inside one transaction and inspecting `pg_locks` before `ROLLBACK`. Locks on
+  pre-existing objects: exactly one - `AccessExclusiveLock` on `metric_source`,
+  held for the statement (on a production table this is the duration of one
+  sequential scan validating existing rows). `metric_source_account`,
+  `metric_source_checkpoint`, `metric_registry_history` and every other
+  existing table are not locked. The remaining locks are on the new table and
+  its primary key only. Whole migration on the populated fixture: 105 ms; no
+  downtime.
+- empty database result: on the empty UTF8/C-locale `thoth_mig_met_wp1_13`,
+  `diesel migration run` applied every migration through `20260912`; the
+  CHECK, both enums (`{SOURCE,SOURCE_ACCOUNT}`, `{CREATE,UPDATE}`) and the
+  audit table are present, the audit table carries only its primary-key index,
+  no trigger, no foreign key and no `updated_at`, and no source, account,
+  platform or audit row exists. `diesel migration revert` then removed the
+  CHECK, the table and both enums with zero residue while leaving
+  `metric_source` and `metric_registry_history` intact, and a second
+  `diesel migration run` restored them.
 - populated database result: proven by
   `metric_source_registry_history::tests::applying_to_a_populated_database_preserves_valid_rows_and_fails_closed_on_a_violation`
   (four sources of every acquisition type, one platform, one account with
@@ -417,23 +496,53 @@ field exists.
 
 Generated schema/client updates: `thoth-client/assets/schema.graphql` is
 build-generated and gitignored; no committed generated artifact exists or was
-changed. Base-vs-head SDL diff: the exact base `9feddcee` was built in a
-throwaway detached worktree (`cargo check --workspace`, separate target
-directory, removed afterwards) and its generated schema (SHA-256
-`e639c59f2de50030ba0fdea8e7efc2f45c9f6b499bb821e41348ea2241cd36bf`, 188,673
-bytes) diffed against the head's (SHA-256
-`29aa897b2af558f75c59c45156420bf65eb27409f9bd0baf76ce8e477bb945cb`, 196,933
-bytes; regenerated by the final-source build in the task-isolated target
-directory after the last source change): `diff` reports **0 lines present
-only in the base and 126 lines present only in the head**, and the set of
-non-blank base lines is entirely contained in the head (0 missing); the added
-declarations are exactly `enum MetricSourceAccountConfigurationKind`,
+changed.
+
+Base-vs-head SDL evidence, regenerated against the **new authorized base**
+`15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488`: both trees were extracted with
+`git archive` into scratch directories outside the repository (so that no
+unlisted repository path was ever created), given an identical throwaway
+`examples/dump_sdl.rs` that prints `create_schema().as_sdl()`, and built with
+`--features backend`.
+
+```text
+base 15ad5ffc SDL  sha256 e639c59f2de50030ba0fdea8e7efc2f45c9f6b499bb821e41348ea2241cd36bf  188,673 bytes  4,813 lines
+head            SDL  sha256 29aa897b2af558f75c59c45156420bf65eb27409f9bd0baf76ce8e477bb945cb  196,933 bytes  4,939 lines
+```
+
+Two independent comparisons were made:
+
+1. **Line-level.** `diff` of the sorted line multisets reports **0 lines
+   present only in the base** and 126 present only in the head.
+2. **Structural.** Parsing both documents into top-level definitions gives 215
+   definitions at the base and 227 at the head: **0 removed**, and every base
+   definition byte-identical in the head except `QueryRoot` and `MutationRoot`,
+   which are the two that must gain fields. Field-level comparison of those
+   two roots shows `QueryRoot` 83 -> 85 and `MutationRoot` 104 -> 108 with
+   **0 existing fields removed or altered** - the additions being exactly
+   `metricSourceByCode`, `metricSourceAccountByCode`, `createMetricSource`,
+   `updateMetricSource`, `createMetricSourceAccount` and
+   `updateMetricSourceAccount`.
+
+The 12 added declarations are exactly `enum MetricSourceAccountConfigurationKind`,
 `enum MetricSourceAcquisitionType`, `input MetricCloudFrontLegacyS3ConfigurationInput`,
 `input MetricSourceAccountConfigurationInput`, `input NewMetricSource`,
 `input NewMetricSourceAccount`, `input PatchMetricSource`,
 `input PatchMetricSourceAccount`, `type MetricCloudFrontLegacyS3Configuration`,
-`type MetricSource`, `type MetricSourceAccount`,
-`type MetricSourceAccountConfiguration`, and the six root fields.
+`type MetricSource`, `type MetricSourceAccount` and
+`type MetricSourceAccountConfiguration`.
+
+The base SDL hash is identical to the one generated from the superseded base
+`9feddcee`, which independently corroborates the control finding that
+MET-WP5-01 changed no GraphQL operation, type, argument or nullability: it
+added only policy-module roles and a bootstrap declaration.
+
+`PatchMetricSource` exposes exactly `code`, `enabled`, `defaultLookbackDays`
+and `defaultFinalizationDelayDays` - `acquisitionType` and `driverKey` are
+structurally absent. `PatchMetricSourceAccount` exposes exactly `code`,
+`configuration` and `enabled` - source, platform, `externalKey` and
+`expectedPublisherId` are structurally absent. Immutability is therefore
+enforced by the schema itself, not only by the coordinator.
 `NewMetricSourceAccount.expectedPublisherId` remains the nullable `Uuid`
 Amendment 1 froze; the Amendment 2 requirement is enforced by the coordinator.
 
@@ -475,12 +584,16 @@ this surface (decision 2).
 
 ## 9. Tests and checks
 
-All final runs were executed after the last source change (the Amendment 4
-statement), from the task worktree, with `TEST_DATABASE_URL` pointing at the
-task-isolated `met_wp1_13_test` database (UTF8 / C locale, created empty and
-migrated only by this worktree's embedded harness), `TEST_REDIS_URL` at a
-dedicated Redis logical database, and a task-isolated `CARGO_TARGET_DIR`
-outside the repository (section 1.2 items 6-7). No earlier result is cited.
+All results below were produced **on the reconciled new-base tree**
+(`HEAD^ = 15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488`), after the last source
+change, from the task worktree, with `TEST_DATABASE_URL` pointing at the
+task-isolated `thoth_test_met_wp1_13` database and a task-isolated
+`CARGO_TARGET_DIR` outside the repository. Every disposable database was
+created from `template0` with `ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`,
+matching the repository's canonical harness database exactly (section 1.2
+item 10). No other task's database was migrated, reverted, reset or truncated,
+and no other worktree's compiled artifacts were reused. All old-base results
+are supporting evidence only and are not cited here.
 
 ### Predecessor compatibility (Amendments 2-4), run first
 
@@ -556,13 +669,13 @@ Result:
 
 ```text
 cargo test -p thoth-api --features backend
-  test result: ok. 1754 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 311.90s
-  test result: ok. 13 passed; 0 failed  (bin)
+  test result: ok. 1760 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 328.96s
+  test result: ok. 13 passed; 0 failed  (tests/graphql_permissions.rs)
   test result: ok. 0 passed; 0 failed; 8 ignored  (doctests)
   exit=0
 cargo test --workspace
-  thoth-api lib: ok. 1754 passed; 0 failed   thoth-errors: ok. 13 passed
-  every other crate/binary/doctest target: ok (31, 3, 4, 13, 144, 6, 2 passed; 8 ignored doctests); 0 failed anywhere
+  thoth-api lib: ok. 1760 passed; 0 failed (finished in 370.90s)
+  every other crate/binary/doctest target: ok (31, 13, 3, 4, 13, 144, 6, 2 passed; 8 ignored doctests); 0 failed anywhere
   exit=0
 ```
 
@@ -582,41 +695,108 @@ cargo check --workspace: exit=0 (only the pre-existing proc-macro-error2 future-
 cargo clippy ... -D warnings: exit=0
 ```
 
-### Migration evidence on the dedicated disposable database (final binary)
+### Migration evidence on the dedicated disposable databases
 
-Command:
+All three disposable databases (`thoth_mig_met_wp1_13` empty,
+`thoth_pop_met_wp1_13` representative-populated, `thoth_test_met_wp1_13`
+harness) were created from `template0` as UTF8 / C, and driven with the
+Diesel CLI against `thoth-api/migrations`.
 
-```text
-psql ... -f thoth-api/migrations/20260912_v1.9.0/down.sql   (returned the database to 20260909, own task database)
-cargo run -- migrate -D <met_wp1_13_disposable>              (apply)
-cargo run -- migrate --revert -D <met_wp1_13_disposable>     (runner revert-all)
-cargo run -- migrate -D <met_wp1_13_disposable>              (reapply)
-```
-
-Result:
+**Empty database** - apply all / revert `20260912` / reapply:
 
 ```text
-apply:   exit=0; ledger max=20260912, 23 rows;
+apply:   Running migration 20260912_v1.9.0; ledger newest = 20260912
          metric_source_driver_key_check = CHECK ((((acquisition_type = 'DRIVER') AND (driver_key IS NOT NULL) AND (driver_key ~ '[^[:space:]]')) OR ((acquisition_type <> 'DRIVER') AND (driver_key IS NULL))))
-         metric_source_registry_history_action = {CREATE,UPDATE}; ..._entity = {SOURCE,SOURCE_ACCOUNT}
-         audit-table constraints: _action_before_state_check, _actor_check, _pkey; audit rows = 0
-revert:  exit=0; ledger rows = 0; metric_% tables = 0; driver-key CHECK = 0
-reapply: exit=0; ledger max=20260912 / 23 rows; CHECK present = 1; audit rows = 0; metric_measure seeds = 2
-lock profile (up.sql in one transaction, pg_locks before ROLLBACK, re-measured on the final source):
-         pre-existing relations: metric_source AccessExclusiveLock only;
-         new objects: metric_source_registry_history AccessExclusiveLock+ShareLock, its pkey AccessExclusiveLock
-populated-database and targeted revert/reapply evidence: the two harness tests named in section 6, green above.
+         metric_source_registry_history_action_before_state_check = CHECK (((action = 'CREATE' AND before_state IS NULL) OR (action = 'UPDATE' AND before_state IS NOT NULL)))
+         metric_source_registry_history_actor_check              = CHECK ((actor ~ '[^[:space:]]'))
+         metric_source_registry_history_pkey                     = PRIMARY KEY (metric_source_registry_history_id)
+         enums: _entity = {SOURCE,SOURCE_ACCOUNT}; _action = {CREATE,UPDATE}
+         indexes = pkey only; triggers = 0; foreign keys = 0; updated_at columns = 0
+revert:  Rolling back 20260912_v1.9.0; residual CHECK + table + enums = 0;
+         metric_source and metric_registry_history still present (predecessors intact)
+reapply: Running migration 20260912_v1.9.0; ledger newest = 20260912; CHECK present = 1
 ```
+
+**Representative-populated database** - three `metric_source` rows (DRIVER
+with a key, `PUBLISHER_UPLOAD`, `OPERAS`), one platform, one publisher and two
+`metric_source_account` rows (one `cloudfront-source-account/1`, one `{}`), all
+sanitized fictional values on `.test`:
+
+```text
+before apply: metric_source md5=ad25b9c27b1e74c1c47b644be80afbf0  metric_source_account md5=1a37c3fdccd311bf319a7597ae84adec
+apply:        105 ms
+after  apply: metric_source md5=ad25b9c27b1e74c1c47b644be80afbf0  metric_source_account md5=1a37c3fdccd311bf319a7597ae84adec   -> DATA UNCHANGED: PASS
+revert+reapply: both md5 values unchanged                                                                                     -> DATA UNCHANGED: PASS
+audit rows after migration = 0 (nothing seeded)
+```
+
+**Fail-closed apply over non-conforming pre-existing data.** With the
+constraint absent, a `DRIVER` row with `driver_key IS NULL` was inserted, then
+the migration was applied:
+
+```text
+Failed to run 20260912_v1.9.0 with: check constraint "metric_source_driver_key_check"
+                                    of relation "metric_source" is violated by some row
+newest applied after the failed apply: 20260909   (migration NOT recorded)
+offending row: acquisition_type=DRIVER, driver_key IS NULL   (NOT rewritten)
+constraint created: 0
+```
+
+This is the intended fail-closed behaviour and it is precisely why the
+shared/production data-compatibility preflight remains a separate later gate.
+
+**Driver-key CHECK truth table** (disposable database, each case in its own
+rolled-back transaction):
+
+```text
+DRIVER           + 'cloudfront'  -> ACCEPTED
+DRIVER           + NULL          -> REJECTED (metric_source_driver_key_check)
+DRIVER           + '   '         -> REJECTED (metric_source_driver_key_check)
+PUBLISHER_UPLOAD + NULL          -> ACCEPTED
+PUBLISHER_UPLOAD + 'cloudfront'  -> REJECTED (metric_source_driver_key_check)
+OPERAS           + NULL          -> ACCEPTED
+ADMIN_IMPORT     + 'x'           -> REJECTED (metric_source_driver_key_check)
+```
+
+**Audit-table constraint truth table:**
+
+```text
+CREATE        + before_state NULL      -> ACCEPTED
+CREATE        + before_state present   -> REJECTED (_action_before_state_check)
+UPDATE        + before_state present   -> ACCEPTED
+UPDATE        + before_state NULL      -> REJECTED (_action_before_state_check)
+actor '   '                            -> REJECTED (_actor_check)
+action 'DELETE'                        -> REJECTED (not a value of the enum at all)
+```
+
+**Lock profile.** `ALTER TABLE ... ADD CONSTRAINT` measured inside one
+transaction via `pg_locks` on the populated database:
+
+```text
+metric_source : AccessExclusiveLock      (the only pre-existing relation locked)
+no lock taken on metric_source_account, metric_source_checkpoint or metric_registry_history
+whole-migration duration on the populated fixture: 105 ms
+```
+
+**`schema.rs` synchronization (ADR-0003).** `diesel print-schema
+--only-tables metric_source_registry_history` against the migrated disposable
+database returns the table with the same primary key, the same eight columns
+in the same order, the same SQL types and the same `Nullable<Jsonb>` on
+`before_state` as the committed `thoth-api/src/schema.rs` block; the only
+differences are the repository's existing cosmetic import-grouping style. No
+`joinable!` entry was added, correctly, because the polymorphic `entity_id`
+carries no foreign key.
 
 ### Envelope reconciliation
 
 Command:
 
 ```text
-{ git diff --name-only 9feddceeed5c09d7d560aaae5d2b4e5df70450e6; git ls-files --others --exclude-standard; } | sort -u
+git diff --name-status 15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488 HEAD | sort -u
 ```
 
-Result: exactly the 26 authorized paths, 0 outside. Predecessor-test paths:
+Result: exactly the 26 authorized paths (8 added, 18 modified), **0 outside**,
+and **no deletion, rename or move**. Predecessor-test paths:
 `metric_registry_tests.rs` - only the 5.1 reconciliation (44+/13-);
 `metric_import_batch/tests.rs` - only the 5.2 harness loop (one hunk);
 `metric_ingestion/tests.rs` - exactly the five statements of 5.3 (fixture
@@ -635,11 +815,14 @@ gating; recorded for a separate task.
 
 ## 10. Manual verification
 
-Environment: local Homebrew PostgreSQL 17.10 (task-isolated `met_wp1_13_test`,
-UTF8 / C locale like the repository test database, for the final harness
-runs; dedicated `met_wp1_13_disposable` for the embedded-runner run), local
-Redis on a task-isolated logical database, task-isolated Cargo target
-directory.
+Environment: local Homebrew PostgreSQL 17.10. Three task-isolated disposable
+databases, each created from `template0` as UTF8 / C locale to match the
+repository's canonical test database exactly: `thoth_test_met_wp1_13` (final
+harness runs), `thoth_mig_met_wp1_13` (empty-database migration evidence) and
+`thoth_pop_met_wp1_13` (representative-populated, fail-closed and lock
+evidence). Task-isolated `CARGO_TARGET_DIR` outside the repository. No shared,
+staging or production database was accessed, and no other task's database or
+build cache was touched.
 Steps and observed results: section 9.
 
 ## 11. CI
@@ -676,6 +859,26 @@ Monitoring required: none new.
 - Repair of an account whose stored configuration is unsupported is
   separately reviewed work; this surface fails closed on it by design.
 
+### Remaining gates
+
+This report completes the bounded implementation and DRAFT PR stage only. The
+following gates are outstanding and none of them is satisfied by this work:
+
+1. fresh independent source/migration review on the exact PR head;
+2. READY-for-review / reviewer gate;
+3. HIGH-risk SHA-bound CTO merge authorization;
+4. merge of `feature/metrics--wp1-source-admin` into `feature/metrics`;
+5. a **separate** shared/production migration compatibility preflight. This
+   task establishes no shared or production data compatibility for
+   `metric_source_driver_key_check`, and the fail-closed evidence in section 9
+   shows exactly why one is needed: if any live `metric_source` row violates
+   the invariant, the migration aborts rather than rewriting data. A read-only
+   preflight over live rows must precede any persistent migration
+   authorization. No provider, runtime, shared, staging or production database
+   was read or written by this task;
+6. later deployment, release and activation gates, including the separately
+   authorized `feature/metrics -> develop` programme integration.
+
 ## 14. Unresolved issues
 
 - NONE.
@@ -692,4 +895,8 @@ Suggested review focus:
   `ensure_supported`;
 - the bounded reconciliations in `metric_registry_tests.rs` (5.1),
   `metric_import_batch/tests.rs` (5.2) and `metric_ingestion/tests.rs` (5.3);
+- the MET-WP5-01 reconciliation of `CHANGELOG.md` and
+  `docs/metrics/contract-register.md` (section 1.2 item 9): both merged WP5
+  statements must be intact and unweakened, and MET-WP1-13 must grant neither
+  Metrics service role any operation;
 - deviation D1.

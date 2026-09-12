@@ -4,7 +4,7 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-09-11 (`MET-WP1-13`, issue
+Last updated: 2026-09-12 (`MET-WP1-13`, issue
 [#904](https://github.com/thoth-pub/thoth/issues/904): the protected Metrics
 source and source-account administration GraphQL foundation slice is
 implemented on its slice branch `feature/metrics--wp1-source-admin`; the exact
