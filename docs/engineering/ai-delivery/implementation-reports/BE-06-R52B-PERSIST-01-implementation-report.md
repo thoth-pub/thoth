@@ -83,7 +83,7 @@ Base branch / PR target:     feature/publisher-services-v1-10
 Authorized base commit:      8a711db7f61d0af9658261fc338badbee8431610
 Actual base commit:          8a711db7f61d0af9658261fc338badbee8431610
 Task branch:                 feature/publisher-services-v1-10--be-06-r52b-persist-report
-Pull request:                the draft pull request opened from this task branch
+Pull request:                #915 (opened as draft)
 Head commit:                 authoritative in GitHub pull-request history
 Implementing model:          Claude Opus 5 (claude-opus-5), high reasoning
 ```
