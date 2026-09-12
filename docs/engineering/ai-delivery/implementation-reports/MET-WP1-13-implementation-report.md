@@ -265,24 +265,29 @@ Out-of-scope changes made: NONE.
 
 ## 3. Commits
 
-Two commits on `feature/metrics--wp1-source-admin`:
+The branch carries exactly one source commit followed by documentation-only
+commits:
 
 1. `MET-WP1-13: establish Metrics source and source-account administration` -
-   the bounded implementation across all 26 envelope paths, parented directly
-   by the authorized base `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488` and
-   validated as recorded in section 9.
-2. `MET-WP1-13: record current-base reconciliation evidence` (the PR head) -
-   documentation only, touching just this report and
-   `docs/metrics/task-status.md` (one line: the tracker's `Last updated:`
-   date, section 1.2 item 12). It changes no Rust source, SQL, schema or
-   GraphQL contract, so every result in section 9 applies unchanged to the PR
-   head; the Rust tree at the head is byte-identical to the tree those runs
-   validated.
+   the bounded implementation across all 26 envelope paths. Its parent is
+   exactly the authorized base `15ad5ffcc33f4c67bb4e8d676cbc6feb2ec3e488`.
+   This is the only commit that changes Rust source, SQL, `schema.rs` or the
+   GraphQL contract, and it is the tree that section 9's validation was run
+   against.
+2. Subsequent commits are **documentation only** and touch just
+   `docs/engineering/ai-delivery/implementation-reports/MET-WP1-13-implementation-report.md`
+   and one line of `docs/metrics/task-status.md` (section 1.2 item 12). They
+   record the current-base reconciliation evidence and Amendment 6. Because
+   they change no compiled or executable artifact, every result in section 9
+   applies unchanged to the PR head: the Rust, SQL and migration tree at the
+   head is byte-identical to the tree those runs validated, which is
+   verifiable with `git diff <head> 72e7e32a -- '*.rs' '*.sql'` returning
+   empty.
 
-A commit cannot record its own SHA, so the exact head SHA and the pull-request
-URL are recorded in the DRAFT PR body rather than in this file. The first
-commit's parent is exactly the authorized base, verifiable directly from the
-PR.
+A commit cannot record its own SHA, so the exact head SHA, the full commit
+list and the pull-request URL are recorded in the DRAFT PR body rather than in
+this file. The first commit's parent is exactly the authorized base,
+verifiable directly from the PR.
 
 ## 4. Files changed
 
