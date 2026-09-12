@@ -9,7 +9,8 @@ Last updated: 2026-09-12 (`MET-WP1-13`, issue
 source and source-account administration GraphQL foundation slice is
 implemented on its slice branch `feature/metrics--wp1-source-admin`; the exact
 authorized base of this slice is `feature/metrics @
-9feddceeed5c09d7d560aaae5d2b4e5df70450e6` with observed `develop @
+e814983a1d893fa93be4aa8b4c76fa628c5d690b` (incorporated by an ordinary merge
+into the published slice branch) with observed `develop @
 395cc16ac770bc8bbf8a708662a1b31d85b15398`; it adds a SUPERUSER-only
 administrative surface over exactly `metric_source` and
 `metric_source_account` — the four mutations `createMetricSource`,
@@ -26,7 +27,8 @@ normalisation, account creation names its source and platform by code, `code`,
 from the replacement-not-patch inputs; migration `20260912_v1.9.0` adds the
 named `metric_source_driver_key_check` (a `DRIVER` source requires a non-blank
 `driver_key`, every other acquisition type requires `NULL`, enforced
-identically by the coordinator) and the parallel append-only
+identically by the coordinator over one explicit locale-independent
+whitespace set, the Unicode `White_Space` code points) and the parallel append-only
 `metric_source_registry_history` audit with its two closed enums (`SOURCE`,
 `SOURCE_ACCOUNT`; `CREATE`, `UPDATE`), leaving `MET-WP1-12`'s closed
 `metric_registry_history` unextended; source-account configuration is exposed

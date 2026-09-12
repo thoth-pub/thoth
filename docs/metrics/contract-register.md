@@ -147,8 +147,14 @@ Contract properties consumers may rely on:
   operation requires a database-generated UUID.
 - **Driver-key invariant.** `DRIVER` requires a non-blank `driverKey`; every
   other `acquisitionType` requires none. Enforced identically by the
-  coordinator and by the `metric_source_driver_key_check` CHECK. No driver
-  registry, driver-key uniqueness or approved driver value is implied.
+  coordinator and by the `metric_source_driver_key_check` CHECK: "non-blank"
+  means at least one character outside one explicit whitespace set, the 25
+  code points of the Unicode `White_Space` property (U+0009..U+000D, U+0020,
+  U+0085, U+00A0, U+1680, U+2000..U+200A, U+2028, U+2029, U+202F, U+205F,
+  U+3000), spelled out at both boundaries so the decision never depends on a
+  database locale. A valid key is stored exactly as supplied, surrounding
+  whitespace included. No driver registry, driver-key uniqueness or approved
+  driver value is implied.
 - **Immutability.** A source's `code`, `acquisitionType` and `driverKey`, and
   an account's `code`, source, platform, `externalKey` and `expectedPublisherId`
   cannot be changed and are absent from the patch inputs. Correcting any of
