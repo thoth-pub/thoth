@@ -21,7 +21,9 @@ record, it is labelled **session record (not durable)**.
 
 Sections 1 to 16 report the original persistence task `BE-06-R52B-PERSIST-01`
 (PR #914). Section 17 is the implementation report for the recovery task
-`BE-06-R52B-PERSIST-REPORT-01` itself (PR #915).
+`BE-06-R52B-PERSIST-REPORT-01` itself (PR #915). Section 18 is the
+implementation report for the durability correction
+`BE-06-R52B-PERSIST-REPORT-DURABILITY-01`.
 
 Decision recorded by this report:
 PR #914 persisted the approved R52B bytes exactly; its control deviations are
@@ -861,12 +863,16 @@ another authorized, reviewed documentation change. No runtime rollback applies.
   and they are corrected additively here without rewriting history.
 - The final correction head's review, CI, authorization and merge lifecycle is
   owned by GitHub.
-- BE-06 implementation remains unauthorized.
-- Cleanup of the merged PR #914 task branch
-  `feature/publisher-services-v1-10--be-06-r52b-spec-record` is a later, separately
-  controlled action. It has not been performed.
-- Deletion of this task branch is expected after PR #915 eventually merges. It
-  has not been performed.
+- PR #915 / `BE-06-R52B-PERSIST-REPORT-01` did not authorize BE-06
+  implementation. Current and future BE-06 implementation authorization is owned
+  by the GitHub task ledger.
+- Branch deletion for the merged PR #914 persistence slice
+  (`feature/publisher-services-v1-10--be-06-r52b-spec-record`) was not performed
+  by `BE-06-R52B-PERSIST-REPORT-01`. Later branch state is owned by GitHub.
+- Branch deletion for PR #915
+  (`feature/publisher-services-v1-10--be-06-r52b-persist-report`) was not
+  performed by `BE-06-R52B-PERSIST-REPORT-01`. Later branch state is owned by
+  GitHub.
 
 ### 17.10 Agent self-assessment
 
@@ -879,3 +885,283 @@ Suggested review focus:
 - that section 0's authority condition names `develop`;
 - the disclosed `Final programme PR required` correction in section 1.1;
 - that no PR #914 historical fact or deviation was softened.
+
+## 18. Durability correction implementation report (`BE-06-R52B-PERSIST-REPORT-DURABILITY-01`)
+
+This section is the implementation report for the durability correction task. It
+follows `docs/engineering/ai-delivery/implementation-report-template.md` within
+this existing file, because no new file is authorized. Sections 0 to 17 are
+preserved apart from the changes listed in section 18.2.
+
+### 18.1 Repository state
+
+```text
+Task ID:                      BE-06-R52B-PERSIST-REPORT-DURABILITY-01
+Owning issue:                 #848
+Parent programme issue:       #765
+Repository:                   thoth-pub/thoth
+Workflow:                     PROGRAMME_INTEGRATION
+Risk:                         MEDIUM documentation/control
+Authorization/specification:  #848 comment 5649130376
+Base branch:                  feature/publisher-services-v1-10
+Authorized base commit:       73a3709d0211063b154b3d42da8d51d5f4db7628
+Actual base commit:           73a3709d0211063b154b3d42da8d51d5f4db7628
+PR target:                    feature/publisher-services-v1-10
+Programme integration branch: feature/publisher-services-v1-10
+Task branch:                  feature/publisher-services-v1-10--be-06-r52b-report-durability
+Pull request:                 #917 (opened as draft)
+Implementing model:           Claude Opus 5 (claude-opus-5)
+Reasoning level:              High
+Expected branch deletion after merge: YES
+Final programme PR required:  YES
+```
+
+Specification `5649130376` and its handoff named Claude Sonnet 5 as the
+implementation model. The session ran as Claude Opus 5 with high reasoning, and
+this record states the model actually used.
+
+The authorized base `73a3709d` is the merge of PR #915 (parents `8a711db7` and
+`c441ce7b`). Per `ADR-0005`, this task's commits, final exact head, independent
+review, CI, authorization and merge lifecycle are authoritative in the task pull
+request's GitHub history and are not embedded here.
+
+### 18.2 Scope confirmation and objective
+
+Approved specification: #848 comment `5649130376`.
+
+Motivation: PR #915's final head `c441ce7b` received Codex P2 review thread
+`3997644819` (review `5188133116`, 2026-09-12T21:23:19Z). The thread identified
+section 17.9's sentence "BE-06 implementation remains unauthorized" as live
+authorization state that a later authorization would falsify, contrary to
+`docs/engineering/AGENTS.md` section 1.1. PR #915 merged at
+2026-09-12T21:25:13Z, which also made section 17.9's branch-cleanup wording about
+PR #915 stale.
+
+Implemented objective:
+
+- correct P2 `3997644819` in section 17.9: the statement now records that PR #915 /
+  `BE-06-R52B-PERSIST-REPORT-01` did not authorize BE-06 implementation, and that
+  current and future authorization is owned by the GitHub task ledger;
+- convert section 17.9's branch-cleanup statements into durable historical
+  statements: branch deletion for the PR #914 and PR #915 task branches was not
+  performed by `BE-06-R52B-PERSIST-REPORT-01`, and later branch state is owned by
+  GitHub;
+- add a one-sentence pointer in section 0 identifying this section 18;
+- make the existing PR #915 changelog entry's closing wording durable ("this
+  recovery did not authorize BE-06 implementation"), changing nothing else in that
+  entry;
+- add one `### Fixed` changelog entry for this task;
+- add this section 18.
+
+Not changed: the retrospective history, the missing-report history, the
+unauthorized AI-attribution history, the changelog-authorization provenance gap,
+the P1 recovery-report and authority-condition corrections, the
+`Final programme PR required` correction, and all model and session disclosures.
+No R52B, runtime, schema, migration, API, authorization, workflow, provider or
+production change.
+
+Durability review of retained wording. Occurrences outside section 17.9 that
+mention authorization or branch lifecycle were reviewed against
+`docs/engineering/AGENTS.md` section 1.1 and left unchanged:
+
+- section 5.1, "It was not authorized when made": historical fact;
+- section 14, the recovery pull request "requires fresh independent exact-head
+  review" and its merge "requires separate CTO authorization": requirements that
+  applied to that pull request;
+- section 14, BE-06 implementation remains unauthorized "until this recovery has
+  been independently reviewed, merged and reconciled, and then until separately
+  authorized": a conditional gate statement that stays true after a later
+  authorization;
+- section 14, the PR #914 branch "still existed on the remote when this report
+  was prepared (2026-09-12)": a dated observation.
+
+These sit in the historical PR #914 report sections that specification
+`5649130376` requires to be preserved.
+
+Out-of-scope changes: NONE.
+
+### 18.3 Files changed
+
+Authorized existing-file paths (`5649130376`):
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/BE-06-R52B-PERSIST-01-implementation-report.md
+```
+
+Authorized new files: NONE.
+
+Actual files changed:
+
+- `docs/engineering/ai-delivery/implementation-reports/BE-06-R52B-PERSIST-01-implementation-report.md`
+  - reason: P2 `3997644819` durability correction and this task's report;
+  - behavioural effect: none;
+  - within authorized write budget: YES.
+- `CHANGELOG.md`
+  - reason: durable closing wording in the PR #915 entry, and this task's
+    `### Fixed` entry required by root `AGENTS.md` section 13;
+  - behavioural effect: none;
+  - within authorized write budget: YES.
+
+```text
+New files:                  NONE
+Deleted files:              NONE
+Moved files:                NONE
+Renamed files:              NONE
+Unauthorized paths changed: NONE
+R52B edited:                NO
+```
+
+Write-budget compliance: PASS.
+
+### 18.4 Authorized actions actually used
+
+- repository and GitHub read inspection: used;
+- task branch creation from `73a3709d`: used. The session was already an
+  isolated harness worktree, so no additional worktree was created;
+- edits to the two authorized files: used;
+- local validation: used;
+- commit: used (normal, no amend);
+- push: used (normal, no force);
+- draft PR creation: used;
+- bounded follow-up commit and normal push solely to add the resulting PR number:
+  used.
+
+Not used:
+
+- new file creation, deletion, move or rename;
+- issue or comment mutation;
+- PR ready transition;
+- review-thread reply or resolution, including thread `3997644819`;
+- manual CI dispatch, rerun, cancel or approval;
+- provider or runtime read or write;
+- migration execution;
+- release, tag or publication;
+- merge;
+- deployment;
+- production activation;
+- branch deletion.
+
+Unauthorized actions performed: NONE.
+
+### 18.5 Tests and checks
+
+Documentation/control change only. No Rust, SQL or generated file changed, so
+formatting, unit, integration and lint suites are not applicable.
+
+Checks run against the corrected working tree before commit:
+
+```bash
+git diff --check 73a3709d0211063b154b3d42da8d51d5f4db7628
+git diff --name-status 73a3709d0211063b154b3d42da8d51d5f4db7628
+git diff --diff-filter=ADR --name-status 73a3709d0211063b154b3d42da8d51d5f4db7628
+git diff --quiet 73a3709d0211063b154b3d42da8d51d5f4db7628 -- docs/publisher-services/specifications/BE-06-R52B.md
+grep -c '^## \[Unreleased\]' CHANGELOG.md
+awk '/^## \[Unreleased\]/{f=1;next} f&&/^## /{exit} f&&/^### /{print}' CHANGELOG.md | sort | uniq -c
+grep -c 'BE-06-R52B-PERSIST-REPORT-DURABILITY-01' CHANGELOG.md
+```
+
+```text
+exit 0, no output
+M	CHANGELOG.md
+M	docs/engineering/ai-delivery/implementation-reports/BE-06-R52B-PERSIST-01-implementation-report.md
+no output (nothing added, deleted or renamed)
+exit 0 (R52B unchanged)
+1
+   1 ### Added
+   1 ### Fixed
+1
+```
+
+Transient-wording review of the changed material, against the concepts listed in
+the handoff ("remains unauthorized", "is not authorized", "has not been
+performed", "eventually merges", "awaiting", "pending merge", "merge not yet"):
+no such current-state prose remains in section 17.9, in the PR #915 changelog
+entry's closing wording, or in the new changelog entry. The new changelog entry
+quotes the former wording only as a labelled description of what was replaced.
+Retained occurrences elsewhere are classified in section 18.2.
+
+R52B identity at the authorized base:
+
+```bash
+git rev-parse 73a3709d0211063b154b3d42da8d51d5f4db7628:docs/publisher-services/specifications/BE-06-R52B.md
+git show 73a3709d0211063b154b3d42da8d51d5f4db7628:docs/publisher-services/specifications/BE-06-R52B.md | sha256sum
+git show 73a3709d0211063b154b3d42da8d51d5f4db7628:docs/publisher-services/specifications/BE-06-R52B.md | wc -c
+git show 73a3709d0211063b154b3d42da8d51d5f4db7628:docs/publisher-services/specifications/BE-06-R52B.md | wc -l
+```
+
+```text
+cabeddb84edb8fbfb5a3cdf3c1dc3e19c7799cfa
+584683ca02611afb064335db83d1fb22685fc3dae87f4eeeee2e1490b320f3ce  -
+699166
+5107
+```
+
+The same scope, whitespace and R52B checks against the committed head are
+exact-head evidence. They are recorded with the implementation handoff and the
+task pull request's GitHub history, not embedded in the commit they describe.
+
+### 18.6 CI
+
+Expected natural `pull_request` classification for this documentation-only diff:
+`check-changelog` and the classifiers run, while `build`, `test`, `lint`,
+`format_check`, `run_migrations` and `build_and_push_staging_docker_image` are
+skipped. Actual run IDs and job conclusions for this task's heads are exact-head
+evidence owned by GitHub and are checked independently before any review, ready
+transition or merge, per `ADR-0005`. No workflow is manually dispatched, rerun,
+cancelled or approved by this task.
+
+### 18.7 Effects
+
+```text
+Runtime effect:                      NONE
+Database/schema effect:              NONE
+Migration effect:                    NONE
+GraphQL/API effect:                  NONE
+Authorization implementation effect: NONE
+Provider effect:                     NONE
+Crossref external-write effect:      NONE
+Workflow definition effect:          NONE
+Deployment effect:                   NONE
+Production activation effect:        NONE
+Cross-repository contract effect:    NONE
+Metrics effect:                      NONE
+```
+
+Automatic PR-triggered CI is the only expected operational side effect.
+
+### 18.8 Rollout and rollback
+
+Rollout:
+
+- documentation/control only, into the Publisher Services programme integration
+  branch `feature/publisher-services-v1-10`;
+- repository-authoritative status only when this exact content later reaches
+  `develop` through the separately gated final programme integration;
+- no service rollout, migration, provider action or runtime activation.
+
+Rollback: if this correction is materially wrong, correct or revert it through
+another separately authorized, reviewed documentation change. No runtime or data
+rollback applies.
+
+### 18.9 Known limitations and deferred work
+
+- This task corrects documentation durability only.
+- This task did not authorize BE-06 implementation.
+- This task did not change historical branch state and deleted no branch.
+- Current and future branch, authorization, review and merge state is owned by
+  GitHub.
+- The final exact-head review and CI for this task are GitHub-owned evidence.
+
+### 18.10 Agent self-assessment
+
+The implementing agent does not approve this task.
+
+Suggested review focus:
+
+- that section 17.9 no longer asserts live authorization or branch state, and that
+  no historical deviation was softened;
+- the classification of retained wording in section 18.2;
+- that the PR #915 changelog entry changed only in its closing authorization
+  wording;
+- that section 18 does not embed its own final head or CI run identifiers.
