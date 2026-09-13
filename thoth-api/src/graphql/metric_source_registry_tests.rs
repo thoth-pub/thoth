@@ -882,8 +882,12 @@ fn the_sdl_exposes_exactly_the_six_approved_operations() {
             "missing `{operation}` in MutationRoot"
         );
     }
-    // Exactly two source-family query fields and four source-family mutation
-    // fields: no list, search, delete, bulk or checkpoint operation.
+    // Exactly two source-family query fields and four source-family
+    // administration mutation fields: no list, search, delete, bulk or
+    // checkpoint administration operation. The separately approved `MET-WP2-02`
+    // lifecycle mutation `updateMetricSourceCheckpoint` (#908) shares the
+    // `updateMetricSource` prefix but is not source administration; it is
+    // excluded by exact name here and pinned below.
     assert_eq!(
         sdl_block(&sdl, "type QueryRoot {")
             .lines()
@@ -896,18 +900,40 @@ fn the_sdl_exposes_exactly_the_six_approved_operations() {
             .lines()
             .filter(|line| {
                 let line = line.trim_start();
-                line.starts_with("createMetricSource") || line.starts_with("updateMetricSource")
+                (line.starts_with("createMetricSource") || line.starts_with("updateMetricSource"))
+                    && !line.starts_with("updateMetricSourceCheckpoint(")
             })
             .count(),
         4
+    );
+    // The MET-WP2-02 lifecycle surface that touches source checkpoints is
+    // exactly its two approved machine-service mutations, each declared once,
+    // and nothing reaches QueryRoot.
+    for lifecycle in [
+        "claimMetricSourceUnits(input:ClaimMetricSourceUnitsInput!):[MetricSourceUnitClaim!]!",
+        "updateMetricSourceCheckpoint(input:UpdateMetricSourceCheckpointInput!):MetricSourceCheckpoint!",
+    ] {
+        assert_eq!(
+            mutation.matches(lifecycle).count(),
+            1,
+            "`{lifecycle}` must be declared exactly once in MutationRoot"
+        );
+    }
+    assert!(
+        !query.contains("MetricSourceCheckpoint") && !query.contains("claimMetricSource"),
+        "no source checkpoint surface may reach QueryRoot"
     );
     for deferred in [
         "metricSources",
         "metricSourceAccounts",
         "metricSourceCheckpoint",
-        "MetricSourceCheckpoint",
+        "metricSourceCheckpoints",
+        "createMetricSourceCheckpoint",
+        "deleteMetricSourceCheckpoint",
+        "input NewMetricSourceCheckpoint",
+        "input PatchMetricSourceCheckpoint",
         "deleteMetricSource",
-        "claimMetricSource",
+        "claimMetricSourceAccount",
         "MetricSourceRegistryHistory",
         "metricSourceRegistryHistory",
     ] {
