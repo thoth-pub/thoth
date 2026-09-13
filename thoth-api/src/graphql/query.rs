@@ -28,8 +28,15 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
-    metric_measure::{crud::metric_measure_by_code, MetricMeasure},
-    metric_platform::{crud::metric_platform_by_code, MetricPlatform},
+    metric_dashboard::{metric_dashboard, MetricDashboard, MetricDashboardInput, MetricReadError},
+    metric_measure::{
+        crud::{list_metric_measures, metric_measure_by_code},
+        MetricMeasure,
+    },
+    metric_platform::{
+        crud::{list_metric_platforms, metric_platform_by_code},
+        MetricPlatform,
+    },
     metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
     metric_source::{crud::metric_source_by_code, MetricSource},
     metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
@@ -2237,6 +2244,55 @@ impl QueryRoot {
         context
             .require_superuser()
             .and_then(|_| metric_source_account_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Protected Metrics read service (`MET-WP4-02`)
+    //
+    // Exactly these three fields make up the MOM-1 read surface, and each one
+    // requires exactly `METRICS_READ_SERVICE` through the one central guard
+    // before any Metrics-specific database access. No other role satisfies
+    // that guard: `SUPERUSER`, `METRICS_INGEST_SERVICE`,
+    // `DISSEMINATION_WORKER` and every publisher-scoped role are refused.
+    // Holding the role never supplies publisher entitlement; the dashboard
+    // additionally requires `METRICS_DASHBOARD` for the selected publisher
+    // inside its own read.
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "Coverage-aware Metrics totals and timeline for one bounded request. Requires the METRICS_READ_SERVICE role, and the selected publisher must be entitled to the Metrics dashboard. Absent values are null unless complete coverage justifies a zero, and the response reports its coverage, freshness and warnings"
+    )]
+    fn metric_dashboard(
+        context: &Context,
+        #[graphql(description = "The bounded dashboard request")] input: MetricDashboardInput,
+    ) -> FieldResult<MetricDashboard> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| metric_dashboard(&context.db, &input))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Every Metrics measure, enabled or disabled, ordered by code, so a service can select dashboard measures by ID. Requires the METRICS_READ_SERVICE role. At most 500 are returned; a larger registry is an error, never a truncated list"
+    )]
+    fn metric_measures(context: &Context) -> FieldResult<Vec<MetricMeasure>> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| list_metric_measures(&context.db))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Every Metrics platform, enabled or disabled, ordered by code, so a service can select dashboard platforms by ID. Requires the METRICS_READ_SERVICE role. At most 500 are returned; a larger registry is an error, never a truncated list"
+    )]
+    fn metric_platforms(context: &Context) -> FieldResult<Vec<MetricPlatform>> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| list_metric_platforms(&context.db))
             .map_err(IntoFieldError::into_field_error)
     }
 }

@@ -3592,10 +3592,11 @@ impl Contact {
 // protected SUPERUSER-only administration surface. They are reachable **only**
 // as the result of one of the six approved mutations or the three approved
 // administrative lookups, every one of which authorizes before touching the
-// database. There is deliberately no field on `QueryRoot`, on `Work`, on
-// `Publisher` or on any other public type that navigates into them, and no
-// list, search, filter or pagination query: the later service/dashboard
-// registry queries are a separate, separately reviewed surface.
+// database, and — for `MetricPlatform` and `MetricMeasure` — of the two
+// `METRICS_READ_SERVICE` registry lists `metricPlatforms` and `metricMeasures`
+// added by `MET-WP4-02`, which also authorize first. There is deliberately no
+// field on `Work`, on `Publisher` or on any other public type that navigates
+// into them, and no search, filter or pagination query.
 //
 // No object resolves a relation by issuing a further query. The mapping type
 // returns its foreign keys as plain identifiers rather than resolving them into

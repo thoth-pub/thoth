@@ -9,8 +9,13 @@
 //! and implements **no runtime behaviour**: there is no coverage
 //! calculation, finalization, zero-versus-unknown behaviour or normalized
 //! ingestion/`ingestMetricBatch` transaction. Those belong to later bounded
-//! WP2/WP4 work. The module exposes no GraphQL or administration surface, so
-//! the enum below is deliberately **not** a `juniper::GraphQLEnum`.
+//! WP2/WP4 work.
+//!
+//! `MET-WP4-02` exposes [`MetricCoverageStatus`] as a `juniper::GraphQLEnum`,
+//! because the protected Metrics dashboard reports coverage in exactly this
+//! vocabulary. That is an additive SDL exposure of the existing closed
+//! database enum: no value is added, removed or renamed, and the persisted
+//! coverage row itself is still exposed nowhere.
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -26,7 +31,8 @@ use uuid::Uuid;
 /// state.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "Whether coverage of a Metrics period is complete, partial or unknown"),
     ExistingTypePath = "crate::schema::sql_types::MetricCoverageStatus"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -34,13 +40,29 @@ use uuid::Uuid;
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricCoverageStatus {
     /// The reported period is fully covered.
-    #[cfg_attr(feature = "backend", db_rename = "COMPLETE")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "COMPLETE",
+        graphql(description = "The period is fully covered")
+    )]
     Complete,
     /// The reported period is only partially covered.
-    #[cfg_attr(feature = "backend", db_rename = "PARTIAL")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "PARTIAL",
+        graphql(
+            description = "The period is only partially covered, so an absent value is not a zero"
+        )
+    )]
     Partial,
     /// Whether the reported period is fully covered is not known.
-    #[cfg_attr(feature = "backend", db_rename = "UNKNOWN")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "UNKNOWN",
+        graphql(
+            description = "Whether the period is covered is not known, so an absent value is not a zero"
+        )
+    )]
     Unknown,
 }
 

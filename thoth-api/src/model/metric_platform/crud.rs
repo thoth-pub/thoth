@@ -2,7 +2,9 @@
 //!
 //! [`Crud`] is deliberately **not** implemented for the metric platform
 //! registry: there is no generic create/update/delete surface for it, no
-//! `all`/`count` listing and no delete at all. The two supported writes are
+//! generic `all`/`count` listing and no delete at all. `MET-WP4-02` adds one
+//! bounded, unfiltered, read-only list, [`list_metric_platforms`], for protected
+//! service registry discovery. The two supported writes are
 //! [`create_metric_platform`] and [`update_metric_platform`], and they are the
 //! only places in the repository that commit a change to a `metric_platform`
 //! row.
@@ -19,6 +21,7 @@ use thoth_errors::ThothResult;
 
 use super::{MetricPlatform, NewMetricPlatform, PatchMetricPlatform};
 use crate::db::PgPool;
+use crate::model::metric_dashboard::{MetricReadError, METRIC_REGISTRY_READ_MAX};
 use crate::model::metric_registry_history::{
     record_create, record_update, MetricRegistryHistoryEntity,
 };
@@ -156,4 +159,34 @@ pub(crate) fn update_metric_platform(
 
         Ok(updated)
     })
+}
+
+/// Every metric platform, for protected service registry discovery
+/// (`MET-WP4-02`).
+///
+/// This is the read behind `metricPlatforms`, which lets a
+/// `METRICS_READ_SERVICE` client learn the platform UUIDs a dashboard request
+/// filters by without any out-of-band mapping. It makes no authorization
+/// decision: the resolver authorizes before calling it.
+///
+/// Enabled and disabled rows are both returned, because disabling a registry
+/// row retires it without deleting the canonical history that still refers
+/// to its UUID.
+///
+/// The result is bounded to [`METRIC_REGISTRY_READ_MAX`] rows. One more than
+/// that is requested, so an oversized registry is detected and refused rather
+/// than silently truncated; when the registry is within the bound the query
+/// has returned every row. Ordering is by exact `code`, compared byte-wise,
+/// so it does not depend on the database collation. It takes no row lock and
+/// touches no other table.
+pub(crate) fn list_metric_platforms(db: &PgPool) -> Result<Vec<MetricPlatform>, MetricReadError> {
+    let mut connection = db.get()?;
+    let mut rows: Vec<MetricPlatform> = metric_platform::table
+        .limit(METRIC_REGISTRY_READ_MAX as i64 + 1)
+        .load::<MetricPlatform>(&mut connection)?;
+    if rows.len() > METRIC_REGISTRY_READ_MAX {
+        return Err(MetricReadError::RegistryLimitExceeded);
+    }
+    rows.sort_by(|left, right| left.code.as_bytes().cmp(right.code.as_bytes()));
+    Ok(rows)
 }
