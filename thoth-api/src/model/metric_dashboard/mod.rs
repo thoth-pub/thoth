@@ -871,10 +871,20 @@ pub(crate) const DIMENSION_CELLS_SQL: &str = "SELECT cell.platform_id, cell.meas
 /// day.
 ///
 /// Only `COMPLETED` and `COMPLETED_WITH_ERRORS` imports with a recorded
-/// completion time count. The latest completion wins, then the greatest
-/// import id under PostgreSQL UUID ordering; the remaining keys only make a
+/// completion time count, and only when the import belongs to the coverage
+/// row's account and that account's expected publisher: the schema lets a
+/// coverage row reference any import, so a row whose import is owned elsewhere
+/// is not evidence. The latest completion wins, then the greatest import id
+/// under PostgreSQL UUID ordering; the remaining keys only make a
 /// self-contradictory import deterministic, preferring its most conservative
 /// assertion.
+///
+/// The ownership check is wrapped in a `CASE` that is `TRUE` only when both
+/// equalities hold, so it rejects exactly what they reject, NULL included.
+/// As plain equalities the planner multiplies in their selectivity, expects
+/// about one owned coverage row and stops materializing the day series,
+/// re-evaluating it once per coverage row (about five times slower over a
+/// year); the `CASE` keeps that estimate out of the plan.
 pub(crate) const ASSERTIONS_SQL: &str = "SELECT DISTINCT ON (c.platform_id, c.measure_id, d.day) \
                         c.platform_id, c.measure_id, d.day, c.coverage_status, \
                         mi.status::text AS import_status, \
@@ -886,7 +896,14 @@ pub(crate) const ASSERTIONS_SQL: &str = "SELECT DISTINCT ON (c.platform_id, c.me
                  JOIN public.metric_source_account sa \
                    ON sa.source_account_id = c.source_account_id \
                   AND sa.platform_id = c.platform_id \
-                 JOIN public.metric_import mi ON mi.import_id = c.import_id \
+                 JOIN public.metric_import mi \
+                   ON mi.import_id = c.import_id \
+                  AND CASE \
+                          WHEN mi.source_account_id = c.source_account_id \
+                           AND mi.publisher_id = sa.expected_publisher_id \
+                          THEN TRUE \
+                          ELSE FALSE \
+                      END \
                  WHERE c.source_account_id = ANY($1) \
                    AND c.platform_id = ANY($4) \
                    AND c.measure_id = ANY($5) \
@@ -924,7 +941,8 @@ pub(crate) const KNOWN_MEASURES_SQL: &str =
 
 /// Step 3: the platform/measure pairs represented for the selected
 /// publishers and range, in the projection or in terminal coverage from an
-/// eligible managed source account.
+/// eligible managed source account whose import that account and its expected
+/// publisher own.
 pub(crate) const REPRESENTED_SQL: &str =
     "SELECT DISTINCT represented.platform_id, represented.measure_id \
                  FROM ( \
@@ -940,10 +958,13 @@ pub(crate) const REPRESENTED_SQL: &str =
                      UNION ALL \
                      SELECT c.platform_id, c.measure_id \
                      FROM public.metric_coverage c \
-                     JOIN public.metric_import mi ON mi.import_id = c.import_id \
                      JOIN public.metric_source_account sa \
                        ON sa.source_account_id = c.source_account_id \
                       AND sa.platform_id = c.platform_id \
+                     JOIN public.metric_import mi \
+                       ON mi.import_id = c.import_id \
+                      AND mi.source_account_id = c.source_account_id \
+                      AND mi.publisher_id = sa.expected_publisher_id \
                      JOIN public.metric_source s ON s.source_id = sa.source_id \
                      WHERE sa.expected_publisher_id = ANY($1) \
                        AND sa.enabled \

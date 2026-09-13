@@ -137,18 +137,40 @@ pub(crate) fn account_sql(
     )
 }
 
-/// One import on an account; `completed_at` is an SQL literal or `NULL`.
+/// One import on an account, scoped to the account's expected publisher as
+/// managed ingestion requires; `completed_at` is an SQL literal or `NULL`.
 pub(crate) fn import_sql(
     import_id: Uuid,
     account_id: Uuid,
     status: &str,
     completed_at: &str,
 ) -> String {
+    scoped_import_sql(
+        import_id,
+        account_id,
+        &format!(
+            "(SELECT expected_publisher_id FROM metric_source_account \
+              WHERE source_account_id = '{account_id}')"
+        ),
+        status,
+        completed_at,
+    )
+}
+
+/// [`import_sql`] with an explicit publisher scope, an SQL expression or
+/// `NULL`, which may contradict the account's expected publisher.
+pub(crate) fn scoped_import_sql(
+    import_id: Uuid,
+    account_id: Uuid,
+    publisher: &str,
+    status: &str,
+    completed_at: &str,
+) -> String {
     format!(
         "INSERT INTO metric_import \
-             (import_id, source_account_id, format_code, format_version, status, \
-              normalizer_version, created_by, completed_at) \
-         VALUES ('{import_id}', '{account_id}', 'thoth_csv', '1', '{status}', \
+             (import_id, source_account_id, publisher_id, format_code, format_version, \
+              status, normalizer_version, created_by, completed_at) \
+         VALUES ('{import_id}', '{account_id}', {publisher}, 'thoth_csv', '1', '{status}', \
                  'normalizer/1', 'test', {completed_at});"
     )
 }
@@ -1708,6 +1730,186 @@ fn completed_with_errors_cannot_establish_complete_coverage() {
     );
 }
 
+/// Coverage whose referenced import is not owned by its eligible account and
+/// publisher, in the forms the schema's independent foreign keys permit.
+#[derive(Clone, Copy)]
+enum Malformed {
+    /// The coverage names the eligible account, but its import belongs to
+    /// another valid account of the same publisher.
+    AccountMismatch,
+    /// The import belongs to the eligible account but is scoped to another
+    /// publisher.
+    PublisherMismatch,
+    /// The import belongs to the eligible account but has no publisher scope.
+    PublisherMissing,
+}
+
+/// Insert one COMPLETED import and one coverage row for `(platform, measure)`
+/// over `[start, end)` naming `account_id`, whose import is owned as
+/// `malformed` says, or by `account_id` and its publisher when `None`.
+#[allow(clippy::too_many_arguments)]
+fn cover_owned(
+    fx: &Fixture,
+    account_id: Uuid,
+    platform_id: Uuid,
+    measure_id: Uuid,
+    start: NaiveDate,
+    end: NaiveDate,
+    declared: &str,
+    completed_at: &str,
+    malformed: Option<Malformed>,
+) {
+    let import_id = Uuid::new_v4();
+    let import = match malformed {
+        None => import_sql(import_id, account_id, "COMPLETED", completed_at),
+        Some(Malformed::AccountMismatch) => {
+            let source_id = Uuid::new_v4();
+            let owner = Uuid::new_v4();
+            let third_platform = Uuid::new_v4();
+            insert_platform_row(&fx.pool, third_platform, &format!("owner_{owner}"));
+            format!(
+                "{}{}{}",
+                source_sql(source_id, "DRIVER", true),
+                account_sql(
+                    owner,
+                    source_id,
+                    third_platform,
+                    Some(fx.publisher_id),
+                    true
+                ),
+                import_sql(import_id, owner, "COMPLETED", completed_at)
+            )
+        }
+        Some(Malformed::PublisherMismatch) => scoped_import_sql(
+            import_id,
+            account_id,
+            &format!("'{}'", fx.other_publisher_id),
+            "COMPLETED",
+            completed_at,
+        ),
+        Some(Malformed::PublisherMissing) => {
+            scoped_import_sql(import_id, account_id, "NULL", "COMPLETED", completed_at)
+        }
+    };
+    exec(
+        &fx.pool,
+        &format!(
+            "{import}{}",
+            coverage_sql(
+                account_id,
+                import_id,
+                platform_id,
+                measure_id,
+                start,
+                end,
+                declared,
+                true,
+                true
+            )
+        ),
+    );
+}
+
+#[test]
+fn coverage_counts_only_when_its_import_is_owned_by_the_account_and_publisher() {
+    let (_guard, fx) = setup();
+    let early = "'2026-03-10T00:00:00Z'";
+    let later = "'2026-03-20T00:00:00Z'";
+    let on_day = |n: i64, declared: &str, completed_at: &str, malformed: Option<Malformed>| {
+        cover_owned(
+            &fx,
+            fx.account_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(n),
+            day_n(n + 1),
+            declared,
+            completed_at,
+            malformed,
+        )
+    };
+
+    // Days 1-3: only malformed COMPLETE evidence, which establishes nothing.
+    on_day(1, "COMPLETE", early, Some(Malformed::AccountMismatch));
+    on_day(2, "COMPLETE", early, Some(Malformed::PublisherMismatch));
+    on_day(3, "COMPLETE", early, Some(Malformed::PublisherMissing));
+    // Day 4: valid owned COMPLETE evidence.
+    on_day(4, "COMPLETE", early, None);
+    // Days 5-8: valid evidence that later malformed evidence cannot supersede,
+    // whether it would be more pessimistic or more optimistic.
+    on_day(5, "COMPLETE", early, None);
+    on_day(5, "PARTIAL", later, Some(Malformed::AccountMismatch));
+    on_day(6, "PARTIAL", early, None);
+    on_day(6, "COMPLETE", later, Some(Malformed::AccountMismatch));
+    on_day(7, "PARTIAL", early, None);
+    on_day(7, "COMPLETE", later, Some(Malformed::PublisherMismatch));
+    on_day(8, "COMPLETE", early, None);
+    on_day(8, "PARTIAL", later, Some(Malformed::PublisherMismatch));
+
+    let expected = [
+        MetricCoverageStatus::Unknown,
+        MetricCoverageStatus::Unknown,
+        MetricCoverageStatus::Unknown,
+        MetricCoverageStatus::Complete,
+        MetricCoverageStatus::Complete,
+        MetricCoverageStatus::Partial,
+        MetricCoverageStatus::Partial,
+        MetricCoverageStatus::Complete,
+    ];
+    for (index, status) in expected.iter().enumerate() {
+        let day = day_n(index as i64 + 1);
+        assert_eq!(
+            day_status(&fx, fx.sessions, day),
+            *status,
+            "coverage status of {day}"
+        );
+    }
+
+    // With nothing projected, only owned COMPLETE evidence justifies zero.
+    let input = request(
+        fx.publisher_id,
+        d1(),
+        day_n(9),
+        &[fx.platform_id],
+        &[fx.sessions],
+        None,
+    );
+    let dashboard = read(&fx, &input);
+    assert_eq!(
+        bucket_values(&dashboard, fx.sessions),
+        vec![
+            None,
+            None,
+            None,
+            some("0"),
+            some("0"),
+            None,
+            None,
+            some("0")
+        ],
+        "malformed coverage must never manufacture or withdraw a zero"
+    );
+    assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), None);
+    let coverage = item(&dashboard, fx.sessions);
+    assert_eq!(coverage.status, MetricCoverageStatus::Unknown);
+    assert_eq!(coverage.data_through, None);
+
+    // Valid owned evidence over the whole window is COMPLETE with a real zero.
+    let valid = request(
+        fx.publisher_id,
+        day_n(4),
+        day_n(6),
+        &[fx.platform_id],
+        &[fx.sessions],
+        None,
+    );
+    let complete = read(&fx, &valid);
+    assert_eq!(complete.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(total(&complete, fx.platform_id, fx.sessions), some("0"));
+    assert_eq!(item(&complete, fx.sessions).data_through, Some(day_n(5)));
+    assert!(!complete.is_partial);
+}
+
 #[test]
 fn more_than_one_eligible_driver_account_is_ambiguous_and_ineligible_ones_are_ignored() {
     let (_guard, fx) = setup();
@@ -2496,6 +2698,113 @@ fn omitted_filters_resolve_to_the_represented_scope() {
     );
 }
 
+#[test]
+fn coverage_not_owned_by_its_account_and_publisher_is_not_represented() {
+    let (_guard, fx) = setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 2);
+    apply_all(&fx.pool);
+    let early = "'2026-03-10T00:00:00Z'";
+    // A measure, and a platform with its own eligible account, each covered
+    // only by malformed evidence in every form.
+    let measure = insert_measure(&fx.pool, "malformed_only", true, true);
+    let platform = Uuid::new_v4();
+    insert_platform_row(&fx.pool, platform, "dashboard_platform_c");
+    let source_id = Uuid::new_v4();
+    let account = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            source_sql(source_id, "DRIVER", true),
+            account_sql(account, source_id, platform, Some(fx.publisher_id), true)
+        ),
+    );
+    for malformed in [
+        Malformed::AccountMismatch,
+        Malformed::PublisherMismatch,
+        Malformed::PublisherMissing,
+    ] {
+        cover_owned(
+            &fx,
+            fx.account_id,
+            fx.platform_id,
+            measure,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            early,
+            Some(malformed),
+        );
+        cover_owned(
+            &fx,
+            account,
+            platform,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            early,
+            Some(malformed),
+        );
+    }
+
+    let served = |omitted: bool| {
+        let mut input = window(&fx, &[]);
+        if omitted {
+            input.platforms = None;
+            input.measures = None;
+        } else {
+            input.platforms = Some(vec![]);
+        }
+        let mut served: Vec<(Uuid, Uuid)> = read(&fx, &input)
+            .totals
+            .iter()
+            .map(|total| (total.platform_id, total.measure_id))
+            .collect();
+        served.sort();
+        served
+    };
+    for omitted in [true, false] {
+        assert_eq!(
+            served(omitted),
+            vec![(fx.platform_id, fx.sessions)],
+            "malformed coverage alone must not enter the resolved scope (omitted: {omitted})"
+        );
+    }
+
+    // Owned evidence for the same identities does enter it.
+    cover_owned(
+        &fx,
+        fx.account_id,
+        fx.platform_id,
+        measure,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        early,
+        None,
+    );
+    cover_owned(
+        &fx,
+        account,
+        platform,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        early,
+        None,
+    );
+    let mut expected: Vec<(Uuid, Uuid)> = [fx.platform_id, platform]
+        .iter()
+        .flat_map(|platform| [fx.sessions, measure].map(|measure| (*platform, measure)))
+        .collect();
+    expected.sort();
+    for omitted in [true, false] {
+        assert_eq!(served(omitted), expected, "omitted: {omitted}");
+    }
+}
+
 // ==========================================================================
 // Additivity
 // ==========================================================================
@@ -2869,18 +3178,20 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
         ),
         format!(
             "INSERT INTO metric_import \
-                 (import_id, source_account_id, format_code, format_version, status, \
-                  normalizer_version, created_by, period_start, period_end, completed_at) \
-             SELECT gen_random_uuid(), sa.source_account_id, 'plan', '1', 'COMPLETED', \
-                    'plan/1', 'plan', g.day::date, g.day::date + 1, g.day + interval '26 hours' \
+                 (import_id, source_account_id, publisher_id, format_code, format_version, \
+                  status, normalizer_version, created_by, period_start, period_end, completed_at) \
+             SELECT gen_random_uuid(), sa.source_account_id, sa.expected_publisher_id, 'plan', \
+                    '1', 'COMPLETED', 'plan/1', 'plan', g.day::date, g.day::date + 1, \
+                    g.day + interval '26 hours' \
              FROM metric_source_account sa \
              CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '1 day') AS g(day) \
              WHERE sa.expected_publisher_id IS NOT NULL; \
              INSERT INTO metric_import \
-                 (import_id, source_account_id, format_code, format_version, status, \
-                  normalizer_version, created_by, period_start, period_end, completed_at) \
-             SELECT gen_random_uuid(), '{account}', 'plan', '1', 'COMPLETED_WITH_ERRORS', \
-                    'plan/1', 'plan', g.day::date, g.day::date + 30, g.day + interval '40 days' \
+                 (import_id, source_account_id, publisher_id, format_code, format_version, \
+                  status, normalizer_version, created_by, period_start, period_end, completed_at) \
+             SELECT gen_random_uuid(), '{account}', '{publisher}', 'plan', '1', \
+                    'COMPLETED_WITH_ERRORS', 'plan/1', 'plan', g.day::date, g.day::date + 30, \
+                    g.day + interval '40 days' \
              FROM generate_series(DATE '{start}', DATE '{start}' + 365, interval '30 day') AS g(day); \
              INSERT INTO metric_coverage \
                  (source_account_id, import_id, platform_id, measure_id, period_start, \
@@ -2892,6 +3203,7 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
              CROSS JOIN unnest({measures}) AS m(id) \
              WHERE mi.format_code = 'plan';",
             account = fx.account_id,
+            publisher = fx.publisher_id,
             measures = uuid_array(&measures),
         ),
         format!(
