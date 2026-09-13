@@ -9,6 +9,8 @@ mod distribution_platform_tests;
 #[cfg(test)]
 mod metric_dashboard_tests;
 #[cfg(test)]
+mod metric_ingestion_lifecycle_tests;
+#[cfg(test)]
 mod metric_registry_tests;
 #[cfg(test)]
 mod metric_rollup_tests;

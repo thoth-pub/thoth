@@ -36,6 +36,13 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_import::MetricImport,
+    metric_ingestion_lifecycle::{
+        begin_metric_import, claim_metric_source_units, complete_metric_import,
+        ingest_metric_batch_under_claim, update_metric_source_checkpoint, BeginMetricImportInput,
+        ClaimMetricSourceUnitsInput, CompleteMetricImportInput, IngestMetricBatchInput,
+        MetricBatchResult, MetricSourceUnitClaim, UpdateMetricSourceCheckpointInput,
+    },
     metric_measure::{
         crud::{create_metric_measure, update_metric_measure},
         MetricMeasure, NewMetricMeasure, PatchMetricMeasure,
@@ -60,6 +67,7 @@ use crate::model::{
         crud::{create_metric_source_account, update_metric_source_account},
         MetricSourceAccount, NewMetricSourceAccount, PatchMetricSourceAccount,
     },
+    metric_source_checkpoint::MetricSourceCheckpoint,
     price::{NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
@@ -232,6 +240,24 @@ fn authorize_metric_rollup_service(context: &Context) -> ThothResult<&str> {
     context.user_id()
 }
 
+/// Authorize one managed-DRIVER ingestion lifecycle operation.
+///
+/// `MET-WP2-02`'s five operations require exactly `METRICS_INGEST_SERVICE`,
+/// checked here **before** the lifecycle coordinator is called and therefore
+/// before any checkpoint, source, import, batch or coverage read, lock, claim
+/// or write. `SUPERUSER`, `METRICS_READ_SERVICE`, `DISSEMINATION_WORKER`,
+/// publisher-scoped human roles and anonymous callers do not satisfy it. The
+/// role authorizes the machine caller only: managed collection additionally
+/// requires the pinned publisher's `METRICS_COLLECT` capability, which the
+/// coordinator decides from canonical state.
+///
+/// The returned identity is the authenticated principal, recorded as an
+/// import's `created_by`; it is never accepted from the request.
+fn authorize_metric_ingestion_lifecycle(context: &Context) -> ThothResult<&str> {
+    context.require_metrics_ingest_service()?;
+    context.user_id()
+}
+
 /// Authorize a rollup claim and delegate to the frontier protocol.
 fn claim_rollup_deltas(context: &Context, limit: i32) -> ThothResult<Vec<MetricRollupDeltaClaim>> {
     let claimant = authorize_metric_rollup_service(context)?;
@@ -348,6 +374,69 @@ impl MutationRoot {
         input: CompleteMetricRollupDeltasInput,
     ) -> FieldResult<MetricRollupWatermark> {
         complete_rollup_deltas(context, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Claim up to 50 units of one managed DRIVER metric source, each leased under a fresh token. Requires the METRICS_INGEST_SERVICE role. A unit is one enabled, correctly configured source account whose publisher holds the METRICS_COLLECT capability; its default checkpoint is created on first claim. A unit already leased by a live claim is skipped. An empty result means nothing is claimable now."
+    )]
+    fn claim_metric_source_units(
+        context: &Context,
+        #[graphql(description = "Which source to claim units of, how many and for how long")]
+        input: ClaimMetricSourceUnitsInput,
+    ) -> FieldResult<Vec<MetricSourceUnitClaim>> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        claim_metric_source_units(&context.db, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record a terminal metric import on its claimed source account checkpoint and release the claim. Requires the METRICS_INGEST_SERVICE role. Successful period progress advances only for a COMPLETED import with at least one coverage assertion, all of which cover exactly the import period completely; it never moves backwards. Repeating the call after the claim was released returns the recorded checkpoint without writing."
+    )]
+    fn update_metric_source_checkpoint(
+        context: &Context,
+        #[graphql(description = "Which terminal import to record, and under which claim")]
+        input: UpdateMetricSourceCheckpointInput,
+    ) -> FieldResult<MetricSourceCheckpoint> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        update_metric_source_checkpoint(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create, or return the existing, managed DRIVER metric import for one upstream report of a claimed source account. Requires the METRICS_INGEST_SERVICE role. The source account, publisher and platform come from canonical Thoth configuration, never from the caller. Repeating the same request returns the same import in its current state; a request for the same upstream report with different values changes nothing and is refused."
+    )]
+    fn begin_metric_import(
+        context: &Context,
+        #[graphql(description = "The import envelope, and the claim it is begun under")]
+        input: BeginMetricImportInput,
+    ) -> FieldResult<MetricImport> {
+        let actor = authorize_metric_ingestion_lifecycle(context)
+            .map_err(IntoFieldError::into_field_error)?;
+        begin_metric_import(&context.db, actor, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Ingest one expected thoth-normalized-metrics/1 batch of a claimed metric import through the canonical ingestion coordinator. Requires the METRICS_INGEST_SERVICE role. Repeating a committed batch returns its committed outcome without writing again; reusing a batch key with a different payload is refused."
+    )]
+    fn ingest_metric_batch(
+        context: &Context,
+        #[graphql(description = "The batch, its import and the claim it is ingested under")]
+        input: IngestMetricBatchInput,
+    ) -> FieldResult<MetricBatchResult> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        ingest_metric_batch_under_claim(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Complete a claimed metric import once every expected batch is committed. Requires the METRICS_INGEST_SERVICE role. The terminal status is derived from the committed batch outcomes: COMPLETED when no observation was rejected or conflicting, otherwise COMPLETED_WITH_ERRORS. Repeating the call returns the terminal import unchanged."
+    )]
+    fn complete_metric_import(
+        context: &Context,
+        #[graphql(description = "Which import to complete, and under which claim")]
+        input: CompleteMetricImportInput,
+    ) -> FieldResult<MetricImport> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        complete_metric_import(&context.db, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]

@@ -314,6 +314,111 @@ introduced no dedicated `thoth-errors` variant, so a consumer that needs to
 classify these programmatically requires a separately specified stable error
 code.
 
+### 3.2 Delivered managed-DRIVER ingestion lifecycle contract (`MET-WP2-02`)
+
+`MET-WP2-02` (#908) delivers the claim, import and checkpoint half of this
+contract for exactly one acquisition type, `DRIVER`: the protected transport
+through which Sphinx runs one managed source unit restartably through Thoth.
+Canonical ingestion itself is the unchanged `MET-WP2-01B` coordinator;
+`PUBLISHER_UPLOAD`, `OPERAS` and `ADMIN_IMPORT` remain outside it.
+
+Operations, all five requiring exactly `METRICS_INGEST_SERVICE` and all
+authorized before any operation-specific database read, lock, claim or write:
+
+```graphql
+claimMetricSourceUnits(input: ClaimMetricSourceUnitsInput!): [MetricSourceUnitClaim!]!
+beginMetricImport(input: BeginMetricImportInput!): MetricImport!
+ingestMetricBatch(input: IngestMetricBatchInput!): MetricBatchResult!
+completeMetricImport(input: CompleteMetricImportInput!): MetricImport!
+updateMetricSourceCheckpoint(input: UpdateMetricSourceCheckpointInput!): MetricSourceCheckpoint!
+```
+
+`SUPERUSER`, `METRICS_READ_SERVICE`, `DISSEMINATION_WORKER`, publisher-scoped
+roles and anonymous or failed-introspection callers are denied. The role never
+supplies entitlement: an account is claimable, and an import can begin, only
+when its pinned publisher's package grants `METRICS_COLLECT`.
+
+The public GraphQL scalars are the repository's own: `Uuid`, `Timestamp` and
+`Date`. `MetricImportStatus`, `MetricRecordProvenanceClassification` and
+`MetricIngestionErrorCode` are the existing closed domain enums, exposed
+unchanged; `MetricCoverageStatus` is reused from `MET-WP4-02`.
+
+Contract:
+
+- **Source unit.** One source account's single checkpoint
+  `(source_account_id, "default")`. The partition is fixed by Thoth, never
+  caller-selected, and the checkpoint is created lazily by the first claim
+  with a conflict-safe insert.
+- **Claim.** One transaction selects an enabled `DRIVER` source by exact code
+  and its eligible accounts in ascending stable-code order: account enabled,
+  platform enabled, a pinned publisher holding `METRICS_COLLECT`, and a stored
+  configuration that the `MET-WP1-13` decoder accepts and that is compatible
+  with the source. Unleased or expired checkpoints are locked
+  `FOR UPDATE SKIP LOCKED` and leased. `limit` defaults to 10, is clamped to
+  50 and claims nothing at or below 0; `leaseSeconds` defaults to 900 and is
+  clamped to 60..3600. An ineligible account is skipped and gains no
+  checkpoint.
+- **Lease token.** Every claim or reclaim stores a fresh Thoth-generated UUID
+  as canonical lowercase text in `metric_source_checkpoint.lease_owner`,
+  returned only in that claim as `leaseToken`. Every later operation locks the
+  checkpoint `FOR UPDATE` and requires that exact token and an unexpired
+  lease; an unknown, foreign, expired, reclaimed or released token is
+  `STALE_SOURCE_CLAIM` and changes nothing. `lease_owner`, `cursor` and
+  `last_error` are never exposed, and the last two are never written.
+- **Import envelope.** `beginMetricImport` creates the account's import for one
+  one-day unit with status `PROCESSING`, the publisher taken from the account's
+  pin, `created_by` from the authenticated principal, `raw_object_key` null,
+  and a server-owned manifest
+  `{"schemaVersion": "thoth-managed-driver-import/1", "manifestDigest", "expectedBatchKeys"}`
+  whose keys are stored as an ascending set. A new import records
+  `last_discovered_at`. A request for the same
+  `(source_account_id, upstreamReportId)` returns the existing import in its
+  current state, never reopened, when every immutable value and the manifest
+  match; otherwise it is `IMPORT_IDEMPOTENCY_MISMATCH` and changes nothing.
+  Bounds: `upstreamReportId` non-blank, at most 512 UTF-8 bytes; format,
+  format version and normalizer version non-blank, at most 128 bytes;
+  `rawSha256` and `manifestDigest` exactly 64 lowercase hexadecimal
+  characters; 1 to 100 unique non-blank expected keys of at most 256 bytes.
+- **Batch.** `ingestMetricBatch` maps the input one-to-one onto the
+  `thoth-normalized-metrics/1` coordinator request; `value` must be a
+  canonical base-10 signed 64-bit integer string and `sourceRowNumber`
+  non-negative. The batch key must be one of the import's expected keys. A
+  short guard transaction locks and validates the checkpoint and, still holding
+  that lock, calls the unchanged coordinator on a second pooled connection, so
+  no reclaim can replace the token during the call. The coordinator's limits,
+  hashing, classifications, replay and idempotency apply unchanged; a replay of
+  a committed batch returns its persisted outcome with `replayed: true`.
+- **Completion.** `completeMetricImport` requires the import's committed batch
+  keys to equal its expected set exactly (`IMPORT_INCOMPLETE` while any is
+  missing) and sets `COMPLETED` when the coordinator's persisted invalid and
+  conflict counters are zero, otherwise `COMPLETED_WITH_ERRORS`, with
+  `completed_at` at the transaction timestamp. A terminal import is returned
+  unchanged. `FAILED` is never manufactured.
+- **Checkpoint progress.** `updateMetricSourceCheckpoint` accepts only a
+  terminal one-day managed import. It moves `last_completed_at` forward to the
+  import's `completed_at` and releases the lease. It moves
+  `last_successful_period_end` forward to the import's period end only when
+  the import is `COMPLETED` **and** has at least one coverage row **and** every
+  coverage row covers exactly the import's period **and** is `COMPLETE`. Zero
+  coverage rows, a mismatched period, `PARTIAL`, `UNKNOWN` or
+  `COMPLETED_WITH_ERRORS` never advance it. Neither value moves backwards. A
+  repeat after the lease was already released returns the checkpoint without
+  writing when this import's progress is already recorded; otherwise it is
+  `STALE_SOURCE_CLAIM`.
+- **Errors.** Lifecycle failures use `extensions.type` from exactly
+  `SOURCE_NOT_FOUND`, `SOURCE_ACCOUNT_NOT_FOUND`, `SOURCE_NOT_ELIGIBLE`,
+  `METRICS_COLLECT_NOT_ENTITLED`, `STALE_SOURCE_CLAIM`, `IMPORT_NOT_FOUND`,
+  `IMPORT_IDEMPOTENCY_MISMATCH`, `UNEXPECTED_BATCH_KEY`, `IMPORT_INCOMPLETE`,
+  `INVALID_IMPORT_STATE` and `LIFECYCLE_LIMIT_EXCEEDED`, with fixed messages.
+  A coordinator request failure carries its `MetricIngestionErrorCode` value
+  unchanged, and a database failure is `INTERNAL_DATABASE_ERROR`. No message
+  carries SQL, a constraint name, connection detail, a token, source
+  configuration or caller input.
+
+No migration, table, column or index is added: the existing checkpoint lease
+columns and import idempotency index are the whole durable boundary. There is
+no second queue, no process-local claim state and no generic job abstraction.
+
 ## 4. Dashboard/widget
 
 Thoth owns entity metrics, dashboard/widget operations and registry queries.

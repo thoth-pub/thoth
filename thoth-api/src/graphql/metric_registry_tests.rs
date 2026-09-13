@@ -706,7 +706,10 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
     // `MET-WP1-13` source/source-account operations approved under #904 and
     // proven exactly in `metric_source_registry_tests`, plus the three
     // `MET-WP4-02` read-service operations approved under #910 and proven
-    // exactly in `metric_dashboard_tests`. No other Metrics operation exists.
+    // exactly in `metric_dashboard_tests`, plus the one `MET-WP2-02` lifecycle
+    // mutation approved under #908 whose name also begins `updateMetric`
+    // (proven exactly, with its four sibling lifecycle operations, in
+    // `metric_ingestion_lifecycle_tests`). No other Metrics operation exists.
     // Each group is compared as an exact set of field names, so a renamed,
     // missing or additional operation fails here rather than hiding behind a
     // matching count.
@@ -718,6 +721,7 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "updateMetricSourceAccount",
     ];
     let wp4_02_query_fields = ["metricDashboard", "metricMeasures", "metricPlatforms"];
+    let wp2_02_mutation_fields = ["updateMetricSourceCheckpoint"];
     let field_name = |line: &str| -> String {
         line.trim_start()
             .split(['(', ':'])
@@ -765,7 +769,10 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
     let metric_mutation_fields: Vec<String> = sorted(
         all_mutation_fields
             .iter()
-            .filter(|name| !wp1_13_mutation_fields.contains(&name.as_str()))
+            .filter(|name| {
+                !wp1_13_mutation_fields.contains(&name.as_str())
+                    && !wp2_02_mutation_fields.contains(&name.as_str())
+            })
             .cloned()
             .collect(),
     );
@@ -804,6 +811,11 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         in_group(&all_query_fields, &wp4_02_query_fields),
         owned(&wp4_02_query_fields),
         "the MET-WP4-02 read operations must each appear exactly once"
+    );
+    assert_eq!(
+        in_group(&all_mutation_fields, &wp2_02_mutation_fields),
+        owned(&wp2_02_mutation_fields),
+        "the MET-WP2-02 checkpoint lifecycle mutation must appear exactly once"
     );
 
     for deferred in [

@@ -17,8 +17,14 @@
 //! `MET-WP1-04` stores the classification but implements **no** algorithm
 //! that assigns it. First-arrival arbitration, duplicate/revision/conflict
 //! resolution and rejected-row handling all belong to the later bounded WP2
-//! ingestion work. The module exposes no GraphQL or administration surface, so
-//! the enum below is deliberately **not** a `juniper::GraphQLEnum`.
+//! ingestion work.
+//!
+//! `MET-WP2-02` exposes [`MetricRecordProvenanceClassification`] as a
+//! `juniper::GraphQLEnum`, because the protected `ingestMetricBatch` result
+//! reports each row's committed classification in exactly this vocabulary.
+//! That is an additive SDL exposure of the existing closed database enum: no
+//! value is added, removed or renamed, and the persisted provenance row itself
+//! is still exposed nowhere.
 
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -35,7 +41,8 @@ use crate::model::Timestamp;
 /// a nearest classification.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "How one normalized source row related to canonical metric state"),
     ExistingTypePath = "crate::schema::sql_types::MetricRecordProvenanceClassification"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -43,19 +50,43 @@ use crate::model::Timestamp;
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricRecordProvenanceClassification {
     /// The row won first arrival and established the canonical record value.
-    #[cfg_attr(feature = "backend", db_rename = "WINNER")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WINNER",
+        graphql(
+            description = "The row won first arrival and established the canonical record value"
+        )
+    )]
     Winner,
     /// The row repeated content already held for the canonical record.
-    #[cfg_attr(feature = "backend", db_rename = "DUPLICATE")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "DUPLICATE",
+        graphql(description = "The row repeated content already held for the canonical record")
+    )]
     Duplicate,
     /// The row supplied an authorized correction to the canonical record.
-    #[cfg_attr(feature = "backend", db_rename = "REVISION")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "REVISION",
+        graphql(description = "The row supplied an authorized correction to the canonical record")
+    )]
     Revision,
     /// The row disagreed with canonical state without authority to revise it.
-    #[cfg_attr(feature = "backend", db_rename = "CONFLICT")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "CONFLICT",
+        graphql(
+            description = "The row disagreed with canonical state without authority to revise it"
+        )
+    )]
     Conflict,
     /// The row was refused, so it produced no canonical record.
-    #[cfg_attr(feature = "backend", db_rename = "REJECTED")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "REJECTED",
+        graphql(description = "The row was refused, so it produced no canonical record")
+    )]
     Rejected,
 }
 

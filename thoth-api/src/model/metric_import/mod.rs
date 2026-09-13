@@ -19,9 +19,14 @@
 //! transition machine, no counter mutation protocol and no "return the
 //! existing import" duplicate handling. The database uniqueness that later
 //! idempotent-return behaviour will rely on is established here, but the
-//! lookup/return path itself belongs to later bounded WP2/WP3 work. The module
-//! exposes no GraphQL or administration surface, so the enum below is
-//! deliberately **not** a `juniper::GraphQLEnum`.
+//! lookup/return path itself belongs to later bounded WP2/WP3 work.
+//!
+//! `MET-WP2-02` exposes [`MetricImportStatus`] as a `juniper::GraphQLEnum`,
+//! because the protected managed-DRIVER import lifecycle returns an import's
+//! status in exactly this vocabulary. That is an additive SDL exposure of the
+//! existing closed database enum: no value is added, removed or renamed, and
+//! the persisted row is exposed only through that lifecycle's minimal
+//! `MetricImport` object.
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -43,7 +48,8 @@ use crate::model::Timestamp;
 /// deliberately absent.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
+    graphql(description = "The lifecycle state of one metric import"),
     ExistingTypePath = "crate::schema::sql_types::MetricImportStatus"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -51,22 +57,48 @@ use crate::model::Timestamp;
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricImportStatus {
     /// Raw evidence has been received but no processing is scheduled yet.
-    #[cfg_attr(feature = "backend", db_rename = "UPLOADED")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "UPLOADED",
+        graphql(description = "Raw evidence has been received but no processing is scheduled yet")
+    )]
     Uploaded,
     /// The import is queued for processing.
-    #[cfg_attr(feature = "backend", db_rename = "QUEUED")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "QUEUED",
+        graphql(description = "The import is queued for processing")
+    )]
     Queued,
     /// The import is being processed.
-    #[cfg_attr(feature = "backend", db_rename = "PROCESSING")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "PROCESSING",
+        graphql(description = "The import is being processed")
+    )]
     Processing,
     /// Processing finished with no row-level error.
-    #[cfg_attr(feature = "backend", db_rename = "COMPLETED")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "COMPLETED",
+        graphql(description = "Processing finished with no row-level error")
+    )]
     Completed,
     /// Processing finished, but at least one row was rejected or flagged.
-    #[cfg_attr(feature = "backend", db_rename = "COMPLETED_WITH_ERRORS")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "COMPLETED_WITH_ERRORS",
+        graphql(
+            description = "Processing finished, but at least one row was rejected or conflicted"
+        )
+    )]
     CompletedWithErrors,
     /// Processing could not complete.
-    #[cfg_attr(feature = "backend", db_rename = "FAILED")]
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "FAILED",
+        graphql(description = "Processing could not complete")
+    )]
     Failed,
 }
 

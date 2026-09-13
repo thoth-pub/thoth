@@ -35,12 +35,19 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_import::{MetricImport, MetricImportStatus},
+    metric_ingestion::MetricIngestionErrorCode,
+    metric_ingestion_lifecycle::{
+        MetricBatchResult, MetricIngestionRowResult, MetricSourceUnitClaim,
+    },
     metric_measure::{MetricMeasure, MetricMeasureCategory, MetricMeasureUnit},
     metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
     metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
+    metric_record_provenance::MetricRecordProvenanceClassification,
     metric_rollup_delta::{MetricRollupDeltaClaim, MetricRollupWatermark},
     metric_source::{MetricSource, MetricSourceAcquisitionType},
     metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
+    metric_source_checkpoint::MetricSourceCheckpoint,
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3968,5 +3975,214 @@ impl MetricSourceAccount {
     #[graphql(description = "Whether the account is currently enabled")]
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+}
+
+// --------------------------------------------------------------------------
+// Managed-DRIVER ingestion lifecycle (`MET-WP2-02`)
+//
+// These objects are returned only by the five protected
+// `METRICS_INGEST_SERVICE` lifecycle operations on `MutationRoot`, and no
+// public type navigates to them. They expose exactly the fields frozen by
+// Specification Amendments 2 and 3: the checkpoint never exposes its stored
+// claim token, cursor or error text, and the import never exposes its raw
+// evidence references, upstream identity, manifest, creator or counters. A
+// claim's token is returned once, on the claim itself.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One source account unit claimed for managed DRIVER collection, with the lease that authorizes its lifecycle"
+)]
+impl MetricSourceUnitClaim {
+    #[graphql(description = "The claimed unit's metric source")]
+    pub fn source(&self) -> &MetricSource {
+        &self.source
+    }
+
+    #[graphql(description = "The claimed metric source account")]
+    pub fn source_account(&self) -> &MetricSourceAccount {
+        &self.source_account
+    }
+
+    #[graphql(description = "The claimed checkpoint, as it stands after the claim")]
+    pub fn checkpoint(&self) -> &MetricSourceCheckpoint {
+        &self.checkpoint
+    }
+
+    #[graphql(description = "The checkpoint partition. Always \"default\"; fixed by Thoth")]
+    pub fn partition_key(&self) -> &String {
+        &self.checkpoint.partition_key
+    }
+
+    #[graphql(
+        description = "Present this token to every later lifecycle operation on the unit. It is returned only here"
+    )]
+    pub fn lease_token(&self) -> Uuid {
+        self.lease_token
+    }
+
+    #[graphql(
+        description = "When the lease expires. After that the unit is reclaimable and this token authorizes nothing"
+    )]
+    pub fn lease_expires_at(&self) -> Timestamp {
+        self.lease_expires_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The collection progress of one metric source account partition"
+)]
+impl MetricSourceCheckpoint {
+    #[graphql(description = "Thoth ID of the checkpoint")]
+    pub fn source_checkpoint_id(&self) -> Uuid {
+        self.source_checkpoint_id
+    }
+
+    #[graphql(description = "Thoth ID of the checkpoint's metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(description = "The checkpoint partition")]
+    pub fn partition_key(&self) -> &String {
+        &self.partition_key
+    }
+
+    #[graphql(description = "When a new import was last begun for the partition, if ever")]
+    pub fn last_discovered_at(&self) -> Option<Timestamp> {
+        self.last_discovered_at
+    }
+
+    #[graphql(
+        description = "Latest completion time of an import recorded on the partition, if any"
+    )]
+    pub fn last_completed_at(&self) -> Option<Timestamp> {
+        self.last_completed_at
+    }
+
+    #[graphql(
+        description = "Latest exclusive period end recorded as successfully and completely collected, if any. It never moves backwards"
+    )]
+    pub fn last_successful_period_end(&self) -> Option<NaiveDate> {
+        self.last_successful_period_end
+    }
+
+    #[graphql(description = "When the current lease expires, if the partition is leased")]
+    pub fn lease_expires_at(&self) -> Option<Timestamp> {
+        self.lease_expires_at
+    }
+
+    #[graphql(description = "When the checkpoint was last changed")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One managed metric import"
+)]
+impl MetricImport {
+    #[graphql(description = "Thoth ID of the import")]
+    pub fn import_id(&self) -> Uuid {
+        self.import_id
+    }
+
+    #[graphql(description = "Thoth ID of the import's metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher the import reports for, if any")]
+    pub fn publisher_id(&self) -> Option<Uuid> {
+        self.publisher_id
+    }
+
+    #[graphql(description = "First day of the import period, if any")]
+    pub fn period_start(&self) -> Option<NaiveDate> {
+        self.period_start
+    }
+
+    #[graphql(description = "Exclusive end of the import period, if any")]
+    pub fn period_end(&self) -> Option<NaiveDate> {
+        self.period_end
+    }
+
+    #[graphql(description = "The import's lifecycle state")]
+    pub fn status(&self) -> MetricImportStatus {
+        self.status
+    }
+
+    #[graphql(description = "When the import reached a terminal state, if it has")]
+    pub fn completed_at(&self) -> Option<Timestamp> {
+        self.completed_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The committed outcome of one metric ingestion batch"
+)]
+impl MetricBatchResult {
+    #[graphql(description = "Thoth ID of the committed batch")]
+    pub fn import_batch_id(&self) -> Uuid {
+        self.import_batch_id
+    }
+
+    #[graphql(description = "The deterministic hash of the batch request that committed it")]
+    pub fn request_hash(&self) -> &String {
+        &self.request_hash
+    }
+
+    #[graphql(
+        description = "Whether this outcome was read back from an already committed batch rather than written by this call"
+    )]
+    pub fn replayed(&self) -> bool {
+        self.replayed
+    }
+
+    #[graphql(description = "One result per submitted observation, in batch row order")]
+    pub fn rows(&self) -> &Vec<MetricIngestionRowResult> {
+        &self.rows
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The durable classification of one submitted observation"
+)]
+impl MetricIngestionRowResult {
+    #[graphql(description = "The observation's zero-based position in the batch")]
+    pub fn batch_row_index(&self) -> i32 {
+        self.batch_row_index
+    }
+
+    #[graphql(description = "How the observation related to canonical state")]
+    pub fn classification(&self) -> MetricRecordProvenanceClassification {
+        self.classification
+    }
+
+    #[graphql(
+        description = "The stable reason for a CONFLICT or REJECTED observation; null otherwise"
+    )]
+    pub fn reason_code(&self) -> Option<MetricIngestionErrorCode> {
+        self.reason_code
+    }
+
+    #[graphql(description = "Thoth ID of the canonical record the observation relates to, if any")]
+    pub fn record_id(&self) -> Option<Uuid> {
+        self.record_id
+    }
+
+    #[graphql(description = "The observation's canonical identity hash, if formed")]
+    pub fn identity_hash(&self) -> Option<&String> {
+        self.identity_hash.as_ref()
+    }
+
+    #[graphql(description = "The observation's canonical content hash, if formed")]
+    pub fn content_hash(&self) -> Option<&String> {
+        self.content_hash.as_ref()
     }
 }

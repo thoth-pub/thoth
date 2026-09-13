@@ -14,6 +14,11 @@
 //! reduced to [`MetricIngestionErrorCode::InternalDatabaseError`] before it
 //! leaves the coordinator. Public GraphQL error mapping belongs to
 //! `MET-WP2-02`, not to this module.
+//!
+//! `MET-WP2-02` exposes [`MetricIngestionErrorCode`] as a `juniper::GraphQLEnum`
+//! so that the protected `ingestMetricBatch` result can carry each row's reason
+//! in exactly this vocabulary. Every value keeps its existing
+//! SCREAMING_SNAKE_CASE name: none is added, removed, renamed or aliased.
 
 use std::fmt;
 
@@ -25,7 +30,20 @@ use strum::{Display, EnumString};
 /// There is deliberately no `OTHER` or `UNKNOWN` variant and no `Default`: an
 /// unrecognised persisted reason code must fail to parse rather than resolve to
 /// a nearest classification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumString, Display)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    EnumString,
+    Display,
+    juniper::GraphQLEnum,
+)]
+#[graphql(description = "The closed vocabulary of Metrics ingestion error and reason codes")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricIngestionErrorCode {
