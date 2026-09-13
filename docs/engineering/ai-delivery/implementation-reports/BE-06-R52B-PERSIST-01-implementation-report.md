@@ -909,7 +909,7 @@ Actual base commit:           73a3709d0211063b154b3d42da8d51d5f4db7628
 PR target:                    feature/publisher-services-v1-10
 Programme integration branch: feature/publisher-services-v1-10
 Task branch:                  feature/publisher-services-v1-10--be-06-r52b-report-durability
-Pull request:                 the draft pull request opened from this task branch
+Pull request:                 #917 (opened as draft)
 Implementing model:           Claude Opus 5 (claude-opus-5)
 Reasoning level:              High
 Expected branch deletion after merge: YES
