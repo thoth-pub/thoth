@@ -552,7 +552,7 @@ independent exact-head review after that evidence was written.
 |---|---|
 | Independent exact-head review, CHANGES REQUIRED, defines CR-1 | #908 comment `5654942925` (2026-09-13) |
 | PR #920 merge | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2`, tree `14210f97498946740b2927419f993432977b4560` (merged 2026-09-13 17:55Z, after `5654942925` superseded approval `5654939879`) |
-| Post-merge control reconciliation / CR-1 forward-correction authorization (**current implementation authority**) | #908 comment `5665416112` (2026-09-14) |
+| Post-merge control reconciliation / CR-1 forward-correction authorization (**implementation authority for this correction**) | #908 comment `5665416112` (2026-09-14) |
 | Programme reconciliation / downstream HOLD | #766 comment `5665419874` |
 | Sphinx producer pin invalidated pending this correction | thoth-sphinx#10 comment `5665424624` |
 | Superseded as current source approval | `5654939879` (approval), `5655029012` (post-merge reconciliation) |
@@ -883,12 +883,16 @@ unpublished state of the stood-down scratch session was used. The ledger
 should record this designation explicitly; it is reported here rather than
 assumed.
 
-### 16.16 Remaining gates
+### 16.16 Gate authority
 
-Fresh independent CRITICAL exact-head source review of the new head; separate
-exact-head CTO merge authorization; merge; fresh downstream Sphinx
-producer-contract rebind (thoth-sphinx#10); later integration, deployment and
-activation gates. Nothing here is self-approved.
+This section is correction evidence, not a gate status. It is
+repository-authoritative only for the CR-1 source correction as committed in
+`0fba1102c7f8c216675f904ab76fb0df779a1eea`. Independent exact-head source
+review, SHA-bound CTO merge authorization, merge, the downstream Sphinx
+producer-contract rebind (thoth-sphinx#10) and later integration, deployment
+and activation are separate gates. Their state is recorded only in the GitHub
+history of #908 and its pull requests; this report does not state whether any
+of them is pending, granted or complete. Nothing here is self-approved.
 
 ## 17. MET-WP2-02-CR1 follow-up: control reconciliation and changelog
 
@@ -1050,9 +1054,14 @@ head remains authoritative.
   rebind; deployment; release; production migration; provider, credential or
   service-role access; activation.
 
-### 17.9 Remaining gates
+### 17.9 Gate authority
 
-Fresh independent CRITICAL exact-head review of the new PR head, including its
-exact natural CI; separate exact-head CTO merge authorization; merge; fresh
-downstream Sphinx producer-contract rebind (thoth-sphinx#10); later
-integration, deployment and activation gates. Nothing here is self-approved.
+This section is follow-up evidence, not a gate status. It is
+repository-authoritative only for the control reconciliation and changelog
+follow-up as committed on top of `4e5337d2`. Exact-head CI, independent
+exact-head review, SHA-bound CTO merge authorization, merge, the downstream
+Sphinx producer-contract rebind (thoth-sphinx#10) and later integration,
+deployment and activation are separate gates. Their state, and any later
+post-merge correction, is recorded only in the GitHub history of #908 and its
+pull requests; this report does not state whether any of them is pending,
+granted or complete. Nothing here is self-approved.
