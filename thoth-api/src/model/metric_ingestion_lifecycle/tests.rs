@@ -33,13 +33,30 @@ use super::{
     MANAGED_IMPORT_MANIFEST_SCHEMA,
 };
 use crate::db::PgPool;
+use crate::model::distribution_job::DistributionJobCreation;
 use crate::model::metric_coverage::MetricCoverageStatus;
 use crate::model::metric_import::{MetricImport, MetricImportStatus};
 use crate::model::metric_ingestion::MetricIngestionErrorCode as Code;
+use crate::model::metric_platform::crud::update_metric_platform;
 use crate::model::metric_platform::tests::{scalar_i64, setup_registry_db};
+use crate::model::metric_platform::PatchMetricPlatform;
 use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::MetricRecordProvenanceClassification as Class;
+use crate::model::metric_source::crud::update_metric_source;
+use crate::model::metric_source::PatchMetricSource;
+use crate::model::metric_source_account::crud::update_metric_source_account;
+use crate::model::metric_source_account::{
+    MetricCloudFrontLegacyS3ConfigurationInput, MetricSourceAccount,
+    MetricSourceAccountConfigurationInput, MetricSourceAccountConfigurationKind,
+    PatchMetricSourceAccount,
+};
 use crate::model::metric_source_checkpoint::MetricSourceCheckpoint;
+use crate::model::publisher::{Publisher, ThothPackage};
+use crate::model::publisher_service_configuration::crud::replace_publisher_service_configuration;
+use crate::model::publisher_service_configuration::{
+    PublisherServiceConfigurationSource, ReplacePublisherServiceConfigurationInput,
+    ServiceConfigurationWriteContext,
+};
 use crate::model::tests::db::{test_db_url, TestDbGuard};
 
 pub(crate) const SOURCE_CODE: &str = "cloudfront-driver";
@@ -1801,5 +1818,475 @@ fn a_failed_lifecycle_transaction_leaves_no_partial_state() {
         f.snapshot(),
         before,
         "the import insert rolled back with the failed write"
+    );
+}
+
+// --------------------------------------------------------------------------
+// CR-1: claim-time canonical authority races (#908 review 5654942925)
+// --------------------------------------------------------------------------
+//
+// Each race is driven by PostgreSQL lock coordination, never by a sleep. A
+// claim is frozen at an exact statement by a test-only pausing trigger that
+// waits on a transaction-level advisory lock the test holds session-level, and
+// a writer is proven to be queued by reading `pg_stat_activity` for its pinned
+// backend. Every writer below is the repository's real canonical writer for
+// that authority: the #904 source and source-account coordinators, the
+// MET-WP1-12 platform coordinator and the BE-01 service-configuration
+// coordinator, which is the only production write path for
+// `publisher.subscription_package` (`PatchPublisher` has no package field).
+
+/// The advisory key the CR-1 pause point blocks on. Distinct from the #900
+/// coordinator tests' key so the two suites never share a hold.
+const CR1_PAUSE_KEY: i64 = 987_654_321_202;
+const CR1_ADMIN: &str = "cr1-superuser";
+
+/// A deterministic pause point inside one claim transaction.
+///
+/// `BEFORE INSERT` on `metric_source_checkpoint` freezes the claim after its
+/// unlocked eligibility enumeration and before its checkpoint lock (the
+/// bootstrap insert fires the trigger for an existing row too, before
+/// `ON CONFLICT DO NOTHING` discards it). `BEFORE UPDATE` freezes it at the
+/// first lease write. The claim resumes only on `release`. The trigger, its
+/// function and the session-level hold exist only in the disposable test
+/// database and are removed on drop.
+struct ClaimPause {
+    pool: Arc<PgPool>,
+    hold: PgConnection,
+    name: String,
+}
+
+impl ClaimPause {
+    fn before(pool: &Arc<PgPool>, event: &str) -> Self {
+        let mut hold = PgConnection::establish(&test_db_url()).expect("pause session");
+        sql_query(format!("SELECT pg_advisory_lock({CR1_PAUSE_KEY})"))
+            .execute(&mut hold)
+            .expect("session-level hold");
+        let name = format!("wp2_02_cr1_pause_{}", Uuid::new_v4().simple());
+        exec(pool, &format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock({CR1_PAUSE_KEY}); RETURN NEW; END $$"));
+        exec(pool, &format!("CREATE TRIGGER {name} BEFORE {event} ON metric_source_checkpoint FOR EACH ROW EXECUTE FUNCTION {name}()"));
+        ClaimPause {
+            pool: Arc::clone(pool),
+            hold,
+            name,
+        }
+    }
+
+    fn release(&mut self) {
+        sql_query(format!("SELECT pg_advisory_unlock({CR1_PAUSE_KEY})"))
+            .execute(&mut self.hold)
+            .expect("release the hold");
+    }
+}
+
+impl Drop for ClaimPause {
+    fn drop(&mut self) {
+        if let Ok(mut connection) = self.pool.get() {
+            let _ = sql_query(format!(
+                "DROP TRIGGER IF EXISTS {} ON metric_source_checkpoint",
+                self.name
+            ))
+            .execute(&mut connection);
+            let _ = sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name))
+                .execute(&mut connection);
+        }
+        let _ = sql_query("SELECT pg_advisory_unlock_all()").execute(&mut self.hold);
+    }
+}
+
+fn backend_pid(connection: &mut PgConnection) -> i64 {
+    diesel::select(diesel::dsl::sql::<diesel::sql_types::Integer>(
+        "pg_backend_pid()",
+    ))
+    .get_result::<i32>(connection)
+    .expect("pg_backend_pid") as i64
+}
+
+/// A one-connection pool, so the backend pid a coordinator will run on is
+/// known before it runs.
+fn pinned_pool() -> (Arc<PgPool>, i64) {
+    let pool = Arc::new(
+        diesel::r2d2::Pool::builder()
+            .max_size(1)
+            .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+            .expect("Failed to build a pinned pool"),
+    );
+    let pid = backend_pid(&mut pool.get().unwrap());
+    (pool, pid)
+}
+
+/// Whether backend `pid` is waiting on a heavyweight lock, optionally of one
+/// `wait_event` kind.
+fn is_lock_waiting(f: &Fixture, pid: i64, wait_event: Option<&str>) -> bool {
+    let event = wait_event
+        .map(|event| format!(" AND wait_event = '{event}'"))
+        .unwrap_or_default();
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND wait_event_type = 'Lock'{event})"),
+    ) == 1
+}
+
+/// Block until the claim on backend `pid` is frozen at the pause point. The
+/// deadline is a hang guard only; nothing is decided by elapsed time.
+fn wait_until_paused(f: &Fixture, pid: i64) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !is_lock_waiting(f, pid, Some("advisory")) {
+        assert!(
+            Instant::now() < deadline,
+            "the claim never reached its pause point"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum WriterOutcome {
+    /// The writer is queued on a row lock the claim holds.
+    Blocked,
+    /// The writer committed while the claim was still inside its transaction.
+    Finished,
+}
+
+/// Which of the two outcomes the writer on backend `pid` reaches first.
+fn blocked_or_finished<T>(f: &Fixture, pid: i64, writer: &thread::JoinHandle<T>) -> WriterOutcome {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        if writer.is_finished() {
+            return WriterOutcome::Finished;
+        }
+        if is_lock_waiting(f, pid, None) {
+            return WriterOutcome::Blocked;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the writer neither blocked nor finished"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Run one full-limit claim on its own pinned connection, frozen at `event`,
+/// execute `during` while it is frozen, then let it finish.
+fn claim_while_paused<R>(
+    f: &Fixture,
+    event: &str,
+    during: impl FnOnce(&Fixture) -> R,
+) -> (Result<Vec<MetricSourceUnitClaim>, E>, R) {
+    let mut pause = ClaimPause::before(&f.pool, event);
+    let (pool, pid) = pinned_pool();
+    let claim =
+        thread::spawn(move || claim_metric_source_units(&pool, &claim_input(Some(10), None)));
+    wait_until_paused(f, pid);
+    let during_result = during(f);
+    pause.release();
+    let result = claim.join().expect("claim thread");
+    drop(pause);
+    (result, during_result)
+}
+
+/// Start `writer` on a pinned connection while the claim is frozen at its
+/// first lease write, and report whether it queues behind the claim or
+/// commits inside the claim's window.
+fn writer_against_frozen_lease_write(
+    f: &Fixture,
+    writer: impl FnOnce(&PgPool) + Send + 'static,
+) -> (Result<Vec<MetricSourceUnitClaim>, E>, WriterOutcome) {
+    let (claims, (handle, outcome)) = claim_while_paused(f, "UPDATE", |f| {
+        let (pool, pid) = pinned_pool();
+        let handle = thread::spawn(move || writer(&pool));
+        let outcome = blocked_or_finished(f, pid, &handle);
+        (handle, outcome)
+    });
+    handle.join().expect("writer thread");
+    (claims, outcome)
+}
+
+fn account_codes(claims: &[MetricSourceUnitClaim]) -> Vec<String> {
+    claims
+        .iter()
+        .map(|claim| claim.source_account.code.clone())
+        .collect()
+}
+
+fn reset_leases(f: &Fixture) {
+    f.sql("UPDATE metric_source_checkpoint SET lease_owner = NULL, lease_expires_at = NULL");
+}
+
+fn account_row(f: &Fixture, account: Uuid) -> MetricSourceAccount {
+    use diesel::QueryDsl;
+    let mut connection = f.pool.get().unwrap();
+    crate::schema::metric_source_account::table
+        .find(account)
+        .first(&mut connection)
+        .expect("account row")
+}
+
+fn account_a_patch(bucket: &str, enabled: bool) -> PatchMetricSourceAccount {
+    PatchMetricSourceAccount {
+        code: ACCOUNT_A.into(),
+        configuration: MetricSourceAccountConfigurationInput {
+            kind: MetricSourceAccountConfigurationKind::CloudfrontLegacyS3V1,
+            cloudfront_legacy_s3: Some(MetricCloudFrontLegacyS3ConfigurationInput {
+                hostname: "dist-a".into(),
+                bucket: bucket.into(),
+                prefix: "cf/".into(),
+            }),
+        },
+        enabled,
+    }
+}
+
+/// #904 source-account writer: `FOR UPDATE` on the account row.
+fn disable_account_a(pool: &PgPool) {
+    update_metric_source_account(pool, CR1_ADMIN, &account_a_patch("logs", false))
+        .expect("the #904 account writer must commit");
+}
+
+/// #904 source-account writer: replace the configuration, keeping A enabled.
+fn replace_account_a_bucket(pool: &PgPool, bucket: &str) {
+    update_metric_source_account(pool, CR1_ADMIN, &account_a_patch(bucket, true))
+        .expect("the #904 account writer must commit");
+}
+
+/// #904 source writer: `FOR UPDATE` on the source row.
+fn disable_source(pool: &PgPool) {
+    update_metric_source(
+        pool,
+        CR1_ADMIN,
+        &PatchMetricSource {
+            code: SOURCE_CODE.into(),
+            enabled: false,
+            default_lookback_days: None,
+            default_finalization_delay_days: None,
+        },
+    )
+    .expect("the #904 source writer must commit");
+}
+
+/// MET-WP1-12 platform writer: `FOR UPDATE` on the platform row.
+fn disable_platform(pool: &PgPool) {
+    update_metric_platform(
+        pool,
+        CR1_ADMIN,
+        &PatchMetricPlatform {
+            code: "cf".into(),
+            display_name: "CloudFront".into(),
+            enabled: false,
+            public_description: None,
+        },
+    )
+    .expect("the platform writer must commit");
+}
+
+/// BE-01 service-configuration writer, the only production path that changes
+/// `publisher.subscription_package`: `FOR UPDATE` on the publisher row first.
+fn revoke_metrics_collect(pool: &PgPool, publisher_id: Uuid) {
+    use crate::model::Crud;
+    let token = Publisher::from_id(pool, &publisher_id)
+        .expect("publisher row")
+        .service_configuration_updated_at;
+    replace_publisher_service_configuration(
+        pool,
+        &ServiceConfigurationWriteContext {
+            source: PublisherServiceConfigurationSource::SuperuserApi,
+            actor: CR1_ADMIN,
+            job_creation: DistributionJobCreation::Off,
+        },
+        &ReplacePublisherServiceConfigurationInput {
+            publisher_id,
+            subscription_package: ThothPackage::Oasis,
+            enabled_distribution_platforms: vec![],
+            expected_updated_at: token,
+        },
+    )
+    .expect("the BE-01 package writer must commit");
+}
+
+#[test]
+fn cr1_source_account_authority_cannot_go_stale_between_eligibility_and_lease_grant() {
+    let (_guard, f) = setup();
+
+    // Direction 1: the account writer commits inside the claim's window. The
+    // lease for A may not be granted from the authority read before it.
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| disable_account_a(&f.pool));
+    let claims = claims.expect("claim");
+    assert_eq!(
+        account_codes(&claims),
+        vec![ACCOUNT_B.to_string()],
+        "account A was disabled before its lease could be granted"
+    );
+    assert_eq!(
+        f.checkpoint(f.account_a).lease_owner,
+        None,
+        "A's bootstrapped checkpoint stays unleased"
+    );
+    assert!(!account_row(&f, f.account_a).enabled);
+
+    // A configuration replacement committed inside the window is what the
+    // fresh claim must carry: never the pre-replacement configuration.
+    reset_leases(&f);
+    f.sql("UPDATE metric_source_account SET enabled = TRUE WHERE code = 'acct-a'");
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| {
+        replace_account_a_bucket(&f.pool, "logs-replaced")
+    });
+    let claims = claims.expect("claim");
+    let a = claims
+        .iter()
+        .find(|claim| claim.source_account.code == ACCOUNT_A)
+        .expect("A stays eligible after a configuration replacement");
+    assert_eq!(
+        a.source_account.configuration,
+        serde_json::json!({
+            "schemaVersion": "cloudfront-source-account/1",
+            "hostname": "dist-a",
+            "logging": {"mode": "LEGACY_S3", "bucket": "logs-replaced", "prefix": "cf/"},
+        }),
+        "the claim carries the configuration committed before the lease grant"
+    );
+    assert_eq!(a.source_account, account_row(&f, f.account_a));
+
+    // Direction 2: the claim holds A's authority first, so the writer queues
+    // behind the claim's commit and the lease is granted from valid state.
+    reset_leases(&f);
+    let (claims, outcome) = writer_against_frozen_lease_write(&f, disable_account_a);
+    assert_eq!(
+        outcome,
+        WriterOutcome::Blocked,
+        "the account writer must wait for the claim's authority lock"
+    );
+    let claims = claims.expect("claim");
+    let a = claims
+        .iter()
+        .find(|claim| claim.source_account.code == ACCOUNT_A)
+        .expect("A was eligible for the whole claim transaction");
+    assert!(a.source_account.enabled);
+    assert_eq!(
+        f.checkpoint(f.account_a).lease_owner,
+        Some(a.lease_token.to_string())
+    );
+    assert!(
+        !account_row(&f, f.account_a).enabled,
+        "the disable committed after the claim"
+    );
+    // The post-grant change is caught by begin's existing revalidation.
+    assert_eq!(
+        f.begin(a.lease_token, "report-1", day(1)),
+        Err(E::SourceNotEligible)
+    );
+}
+
+#[test]
+fn cr1_source_authority_cannot_go_stale_between_eligibility_and_lease_grant() {
+    let (_guard, f) = setup();
+
+    // Direction 1: the source writer commits inside the window. The claim
+    // fails closed for the whole source and leases nothing.
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| disable_source(&f.pool));
+    assert_eq!(
+        claims,
+        Err(E::SourceNotEligible),
+        "a source disabled before the lease grant yields no fresh claim"
+    );
+    assert_eq!(
+        f.count("metric_source_checkpoint", "lease_owner IS NOT NULL"),
+        0
+    );
+
+    // Direction 2: the claim holds the source row first.
+    f.sql("UPDATE metric_source SET enabled = TRUE");
+    reset_leases(&f);
+    let (claims, outcome) = writer_against_frozen_lease_write(&f, disable_source);
+    assert_eq!(outcome, WriterOutcome::Blocked);
+    let claims = claims.expect("claim");
+    assert_eq!(
+        account_codes(&claims),
+        vec![ACCOUNT_A.to_string(), ACCOUNT_B.to_string()]
+    );
+    assert!(claims.iter().all(|claim| claim.source.enabled));
+    assert_eq!(f.count("metric_source", "enabled = FALSE"), 1);
+    assert_eq!(
+        f.checkpoint(f.account_a).lease_owner,
+        Some(claims[0].lease_token.to_string())
+    );
+    assert_eq!(
+        f.begin(claims[0].lease_token, "report-1", day(1)),
+        Err(E::SourceNotEligible)
+    );
+}
+
+#[test]
+fn cr1_platform_authority_cannot_go_stale_between_eligibility_and_lease_grant() {
+    let (_guard, f) = setup();
+
+    // Direction 1: the platform is disabled inside the window; every account
+    // on it is skipped and no lease is written.
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| disable_platform(&f.pool));
+    assert_eq!(
+        claims.expect("claim"),
+        vec![],
+        "a platform disabled before the lease grant yields no fresh claim"
+    );
+    assert_eq!(
+        f.count("metric_source_checkpoint", "lease_owner IS NOT NULL"),
+        0
+    );
+
+    // Direction 2: the claim holds the platform row first.
+    f.sql("UPDATE metric_platform SET enabled = TRUE");
+    reset_leases(&f);
+    let (claims, outcome) = writer_against_frozen_lease_write(&f, disable_platform);
+    assert_eq!(outcome, WriterOutcome::Blocked);
+    let claims = claims.expect("claim");
+    assert_eq!(
+        account_codes(&claims),
+        vec![ACCOUNT_A.to_string(), ACCOUNT_B.to_string()]
+    );
+    assert_eq!(f.count("metric_platform", "enabled = FALSE"), 1);
+    assert_eq!(
+        f.begin(claims[0].lease_token, "report-1", day(1)),
+        Err(E::SourceNotEligible)
+    );
+}
+
+#[test]
+fn cr1_publisher_capability_cannot_go_stale_between_eligibility_and_lease_grant() {
+    let (_guard, f) = setup();
+    let publisher_id = f.publisher_id;
+
+    // Direction 1: METRICS_COLLECT is revoked inside the window (OBELISK ->
+    // OASIS through the BE-01 coordinator); nothing is leased.
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| {
+        revoke_metrics_collect(&f.pool, publisher_id)
+    });
+    assert_eq!(
+        claims.expect("claim"),
+        vec![],
+        "a publisher that lost METRICS_COLLECT before the lease grant yields no fresh claim"
+    );
+    assert_eq!(
+        f.count("metric_source_checkpoint", "lease_owner IS NOT NULL"),
+        0
+    );
+
+    // Direction 2: the claim holds the publisher row first.
+    f.sql("UPDATE publisher SET subscription_package = 'OBELISK'");
+    reset_leases(&f);
+    let (claims, outcome) = writer_against_frozen_lease_write(&f, move |pool| {
+        revoke_metrics_collect(pool, publisher_id)
+    });
+    assert_eq!(outcome, WriterOutcome::Blocked);
+    let claims = claims.expect("claim");
+    assert_eq!(
+        account_codes(&claims),
+        vec![ACCOUNT_A.to_string(), ACCOUNT_B.to_string()]
+    );
+    assert_eq!(
+        f.count("publisher", "subscription_package = 'OASIS'"),
+        1,
+        "the revocation committed after the claim"
+    );
+    assert_eq!(
+        f.begin(claims[0].lease_token, "report-1", day(1)),
+        Err(E::MetricsCollectNotEntitled)
     );
 }

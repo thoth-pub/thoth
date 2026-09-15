@@ -538,3 +538,521 @@ Suggested review focus:
 - interpretations I1-I3 (error mapping and expected-key set semantics);
 - claim-time eligibility by plain reads, and bootstrap of every eligible account (I5);
 - the reconciled predecessor guards in `metric_registry_tests.rs` and `metric_source_registry_tests.rs`.
+
+## 16. MET-WP2-02-CR1: claim-time canonical authority correction (post-merge)
+
+Sections 1-15 above are the historical implementation evidence of PR #920 as
+committed on `fa8e1115` / `8d0f5dea`. They are preserved unchanged. This
+section records the forward correction of the CRITICAL defect found by the
+independent exact-head review after that evidence was written.
+
+### 16.1 Incident and control references
+
+| Record | Reference |
+|---|---|
+| Independent exact-head review, CHANGES REQUIRED, defines CR-1 | #908 comment `5654942925` (2026-09-13) |
+| PR #920 merge | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2`, tree `14210f97498946740b2927419f993432977b4560` (merged 2026-09-13 17:55Z, after `5654942925` superseded approval `5654939879`) |
+| Post-merge control reconciliation / CR-1 forward-correction authorization (**current implementation authority**) | #908 comment `5665416112` (2026-09-14) |
+| Programme reconciliation / downstream HOLD | #766 comment `5665419874` |
+| Sphinx producer pin invalidated pending this correction | thoth-sphinx#10 comment `5665424624` |
+| Superseded as current source approval | `5654939879` (approval), `5655029012` (post-merge reconciliation) |
+
+The functional contract is unchanged: the approved final #908 specification
+with Amendments 1-3. The five-operation GraphQL design is not reopened.
+
+### 16.2 Correction binding
+
+| Item | Value |
+|---|---|
+| Stage | `MET-WP2-02-CR1` (owned by #908, CRITICAL) |
+| Authorized base | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2` |
+| Authorized base tree | `14210f97498946740b2927419f993432977b4560` |
+| Defective source tree | `14210f97498946740b2927419f993432977b4560` (the merged #920 tree) |
+| Correction branch | `feature/metrics--wp2-02-cr1-claim-authority`, created from exactly `3db0699c` after preflight |
+| PR target | `feature/metrics` |
+| Source correction commit | `0fba1102c7f8c216675f904ab76fb0df779a1eea` (parent `3db0699c`, tree `b8b596a17795c9aec8969f7baed28882bc21abeb`) |
+| Report commit | the following documentation-only commit; the PR head is visible on the DRAFT PR |
+| Database migration | NONE |
+| Public GraphQL contract change | NONE (section 16.13) |
+| Implementing session | CCD session `local_009f4622-9a55-4ea5-9626-2aa2ef31648c`, designated in the CTO's correction prompt; it is not the original #920 session `local_dd82a4d5` (section 16.15) |
+
+Preflight (all read-only, before any mutation): `origin/feature/metrics` was
+`3db0699c` with tree `14210f97`; no remote branch
+`feature/metrics--wp2-02-cr1-claim-authority` existed; no PR existed for that
+head; the workspace was clean; no other running session owned #908 work; the
+historical #920 branch was not reused or rewritten (it remains at `8d0f5dea` in
+its old worktree, untouched).
+
+### 16.3 Exact changed paths (write budget: three existing paths, maximum)
+
+| Path | Changed | Effect |
+|---|---|---|
+| `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` | yes | claim-time lock/revalidation (`revalidate_claim_authority`, `SelectedCheckpoint`), documentation of the claim lock order |
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | yes | four deterministic PostgreSQL authority-race tests and their helpers |
+| `docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md` | yes | this section |
+
+`git diff --name-status 3db0699c...HEAD` lists exactly those three paths, all
+`M`. No file was added, deleted, renamed or moved. `#904`, `#900`, `policy.rs`,
+ZITADEL, `thoth-errors`, Cargo, migrations, `schema.rs`, GraphQL resolvers and
+Sphinx are untouched. Nothing was copied from the stood-down scratch
+implementation.
+
+### 16.4 Root cause
+
+At `14210f97`, `claim_metric_source_units` decided eligibility with plain reads
+(`check_eligibility(..., false)`), then ensured and locked checkpoints
+`FOR UPDATE SKIP LOCKED`, wrote the lease and returned `source` /
+`source_account` objects loaded *before* the checkpoint lock. No lock was held
+on any authority row, so a canonical writer could commit between the
+eligibility decision and the lease grant:
+
+```text
+claim                                  admin
+-----                                  -----
+read source/account/platform/publisher
+(all eligible, no lock)
+                                       lock authority row FOR UPDATE
+                                       disable / reconfigure / revoke
+                                       commit
+insert/lock checkpoint
+write lease
+return claim built from the stale objects
+```
+
+The mutable eligibility set is `metric_source.enabled` (and the immutable
+acquisition type), `metric_source_account.enabled` and `configuration`,
+`metric_platform.enabled`, the account's `expected_publisher_id` pin and
+`publisher.subscription_package` (the `METRICS_COLLECT` entitlement).
+`beginMetricImport`'s later revalidation does not close the boundary: the
+claim payload is Sphinx's route for the configuration used for external
+collection before `beginMetricImport`.
+
+One incidental partial protection existed and explains why a naive
+first-claim probe can look safe: a *bootstrap* insert of a checkpoint takes an
+FK `KEY SHARE` on the account row, which blocks the #904 account writer's
+`FOR UPDATE` until the claim commits. It covers only the account row, only on
+the first claim of that account, and nothing on the reclaim path. It is not a
+correction and was not relied on.
+
+### 16.5 Live lock topology and the final total order
+
+Production lock sites at `3db0699c` (only what is relevant to claim
+eligibility):
+
+| Operation | Locks, in acquisition order |
+|---|---|
+| claim (corrected) | checkpoints `FOR UPDATE SKIP LOCKED` (never waits) -> per locked checkpoint, in account-code order: account `FOR SHARE` -> source `FOR SHARE` -> platform `FOR SHARE` -> publisher `FOR SHARE` -> `UPDATE` of the already-locked checkpoint |
+| beginMetricImport | checkpoint `FOR UPDATE` -> account `S` -> source `S` -> platform `S` -> publisher `S` -> insert `metric_import` -> update checkpoint |
+| ingestMetricBatch guard (connection 1) | checkpoint `FOR UPDATE`, held across the coordinator call; `metric_import` read without lock |
+| #900 coordinator (connection 2) | `metric_import` `FOR UPDATE` -> account `S` -> source `S` -> platform `S` -> publisher `S` -> measures / mappings `S` -> imprint, publication, institution `S` -> work `FOR UPDATE` -> advisory cell locks -> `metric_record` `FOR UPDATE` |
+| completeMetricImport | checkpoint `FOR UPDATE` -> `metric_import` `FOR UPDATE` |
+| updateMetricSourceCheckpoint | checkpoint `FOR UPDATE` -> `metric_import` `FOR SHARE` |
+| #904 `update_metric_source` | `metric_source` `FOR UPDATE` (by code) -> `UPDATE` same row -> insert history. One locked row. |
+| #904 `update_metric_source_account` | `metric_source_account` `FOR UPDATE` (by code) -> plain read of source -> `UPDATE` same row -> insert history. One locked row. `code`, `source_id`, `platform_id`, `external_key`, `expected_publisher_id` are not writable here. |
+| MET-WP1-12 `update_metric_platform` | `metric_platform` `FOR UPDATE` (by code) -> `UPDATE` same row -> insert history. One locked row. |
+| BE-01 `replace_publisher_service_configuration` (the only production writer of `publisher.subscription_package`; `PatchPublisher` has no package field) | `publisher` `FOR UPDATE` (`lock_publisher`, first statement) -> `publisher_distribution_platform` rows -> `distribution_job` rows -> `UPDATE publisher` (its `AFTER UPDATE` trigger locks the publisher's `work` rows) -> insert history |
+| generic `updatePublisher` | plain `UPDATE publisher` (`FOR NO KEY UPDATE` tuple lock, `FOR UPDATE` if `publisher_name` changes) -> insert `publisher_history`. Cannot change the package. |
+
+Final total order used by every lifecycle operation (each uses a prefix or a
+subset):
+
+```text
+metric_source_checkpoint (FOR UPDATE / FOR UPDATE SKIP LOCKED)
+  < metric_source_account (FOR SHARE)
+  < metric_source (FOR SHARE)
+  < metric_platform (FOR SHARE)
+  < publisher (FOR SHARE)
+  < [coordinator tail: metric_import*, measures, mappings, imprint, publication,
+     institution, work, cell advisory locks, metric_record]
+```
+
+`*` The coordinator takes `metric_import FOR UPDATE` before the authority
+shares, and completion/update take it after the checkpoint; the claim never
+touches `metric_import`, so it adds no edge there.
+
+### 16.6 Lock modes and writer conflicts
+
+The correction takes `FOR SHARE` on the account, source, platform and
+publisher rows of every locked checkpoint, after the checkpoint lock and
+before the lease write, and builds the returned claim from those locked rows.
+
+| Lock | Serializes against | Why that writer conflicts | Why weaker would not suffice |
+|---|---|---|---|
+| account `FOR SHARE` | #904 `update_metric_source_account` (`FOR UPDATE` on the account row, then `UPDATE`) | `FOR UPDATE` conflicts with `FOR SHARE`; the row's `enabled`/`configuration` cannot change until the claim commits | `FOR KEY SHARE` conflicts with `FOR UPDATE` but not with a plain `UPDATE` (`FOR NO KEY UPDATE`); `FOR SHARE` conflicts with every `UPDATE` of the row regardless of how the writer locked it |
+| source `FOR SHARE` | #904 `update_metric_source` (`FOR UPDATE`, then `UPDATE`) | same | same |
+| platform `FOR SHARE` | MET-WP1-12 `update_metric_platform` (`FOR UPDATE`, then `UPDATE`) | same | same |
+| publisher `FOR SHARE` | BE-01 `replace_publisher_service_configuration` (`FOR UPDATE` first) and generic `updatePublisher` (`FOR NO KEY UPDATE`/`FOR UPDATE`) | both conflict with `FOR SHARE` | `FOR KEY SHARE` would not conflict with `updatePublisher`'s `FOR NO KEY UPDATE` |
+| not stronger than `FOR SHARE` | | | `FOR NO KEY UPDATE`/`FOR UPDATE` would make concurrent claims of one source mutually exclusive on the shared source/platform/publisher rows, would block begin's and the coordinator's `FOR SHARE` on the same rows, and would block the FK `KEY SHARE` of `create_metric_source_account`, for no additional protection |
+
+`FOR SHARE` is also the mode begin and the #900 coordinator already take on
+exactly these rows, so the corrected claim is share-compatible with both.
+
+The checkpoint lock keeps its `FOR UPDATE SKIP LOCKED` semantics; the lease
+write, bounds, token, expiry/reclaim, stale/foreign rejection, released-token
+retry, bootstrap and the #900 two-connection guard are unchanged.
+
+### 16.7 Deadlock analysis
+
+A cycle needs two transactions that each hold something the other waits for.
+
+| Pair | Analysis |
+|---|---|
+| claim <-> claim | Checkpoints are taken `SKIP LOCKED`: a claim never waits on a checkpoint. Authority locks are `FOR SHARE` on both sides: share never waits for share. Two claims can wait only on a concurrent uncommitted bootstrap insert of the same `(account, default)` row (unique index), and that inserter waits only on single-row writers (below). No cycle. |
+| claim <-> source admin (#904) | The writer holds exactly one row (`metric_source`) and waits on nothing while holding it (its `UPDATE` is on the row it already locked; its history insert locks nothing shared). A single-lock transaction cannot close a cycle. Either it commits first and the claim's locked reload sees the change, or it queues behind the claim's share until commit. |
+| claim <-> source-account admin (#904) | Same: one row (`metric_source_account`). The claim may also wait on this writer at a bootstrap insert (FK `KEY SHARE`); the writer still waits on nothing. |
+| claim <-> platform admin | Same: one row (`metric_platform`). |
+| claim <-> publisher/package admin (BE-01) | Holds `publisher` first, then assignment, job and `work` rows. The claim takes none of those later rows, so the writer can only wait on the claim's publisher share, which the claim releases at commit without waiting on anything the writer holds. The #900 coordinator takes publisher `S` before `work U`, the same direction as BE-01 (`publisher` -> `work`), so that pre-existing pair is unchanged. |
+| claim <-> beginMetricImport | begin: checkpoint `U` then shares; claim: checkpoint (skip) then shares. Same direction; begin may wait on a checkpoint the claim holds, and the claim then waits only on single-row writers. The shares are compatible. |
+| claim <-> ingestMetricBatch guard | Guard holds checkpoint `U` only; the claim skips it. Coordinator holds `metric_import U` and shares; the claim takes no import lock and only shares. |
+| claim <-> completeMetricImport | checkpoint `U` then `metric_import U`: the claim skips the checkpoint and never touches the import. |
+| claim <-> updateMetricSourceCheckpoint | checkpoint `U` then `metric_import S`: same. |
+
+No operation acquires the relevant rows in the reverse order of the total
+order in 16.5: every lifecycle operation takes the checkpoint before any
+authority row, and the authority rows in the same account -> source ->
+platform -> publisher sequence; every admin writer takes exactly one authority
+row (BE-01 continues only into rows the lifecycle takes after publisher or not
+at all). Operations that use a subset (guard, completion, update: checkpoint
+and import only; admin writers: one row) are noted as such. A liveness note,
+pre-existing and unchanged: PostgreSQL does not queue a compatible `FOR SHARE`
+behind a waiting `FOR UPDATE`, so a continuous stream of claims/begins/batches
+on one account could delay (not deadlock) an administrative write.
+
+### 16.8 Red concurrency evidence (pre-correction tree `14210f97` + the new tests)
+
+Synchronization mechanism (no sleeps decide anything): a test-only trigger on
+`metric_source_checkpoint` executes `pg_advisory_xact_lock(987654321202)`
+while the test holds the same key session-level, freezing the claim at an
+exact statement. `BEFORE INSERT` freezes it after the unlocked eligibility
+enumeration and before its checkpoint lock (the bootstrap insert fires the
+trigger even when `ON CONFLICT DO NOTHING` then discards the row; verified on
+PostgreSQL 17.10). `BEFORE UPDATE` freezes it at the first lease write. The
+claim runs on a one-connection pool whose backend pid is known, and
+`pg_stat_activity` (`wait_event_type = 'Lock'`, `wait_event = 'advisory'`) is
+polled to know it is frozen. A writer's queueing is proven the same way on its
+own pinned backend (`wait_event_type = 'Lock'`), or its completion by
+`JoinHandle::is_finished`. Deadlines exist only as hang guards. Every writer is
+the repository's real coordinator: `update_metric_source_account`,
+`update_metric_source`, `update_metric_platform`,
+`replace_publisher_service_configuration` (OBELISK -> OASIS, the only
+production path that changes `subscription_package`).
+
+Direction 1 ("writer commits inside the claim window"), all four tests, base
+code, `cargo test ... cr1_ -- --test-threads=1`: `0 passed; 4 failed`.
+
+| Test | Pre-fix result | Expected invariant |
+|---|---|---|
+| `cr1_source_account_authority_cannot_go_stale_between_eligibility_and_lease_grant` | `left: ["acct-a", "acct-b"]`, `right: ["acct-b"]`: A was leased although its disable had committed before the lease | no fresh claim carries an account whose disable committed before the grant; a configuration replacement committed before the grant is what the claim carries |
+| `cr1_source_authority_cannot_go_stale_between_eligibility_and_lease_grant` | `Ok([A, B])` with `source.enabled: true` although the source was disabled | `Err(SourceNotEligible)`, nothing leased |
+| `cr1_platform_authority_cannot_go_stale_between_eligibility_and_lease_grant` | `[A, B]` leased although the platform was disabled | empty claim, no lease |
+| `cr1_publisher_capability_cannot_go_stale_between_eligibility_and_lease_grant` | `[A, B]` leased although the publisher had become OASIS | empty claim, no lease |
+
+Direction 2 ("claim at the lease write, writer arrives"), a temporary
+uncommitted probe on the base code over existing (reclaim-path) checkpoints:
+every writer reported `Finished` inside the claim window (account, source,
+platform, publisher), and the claim then returned `[acct-a, acct-b]` from the
+pre-mutation state. On the first-claim (bootstrap) path the account writer
+alone reported `Blocked`, which is the incidental FK `KEY SHARE` of 16.4, not a
+protection of source, platform or publisher. The probe was removed before the
+correction; the committed tests assert `Blocked` for all four.
+
+### 16.9 Green concurrency evidence (corrected tree)
+
+`cargo test -p thoth-api --features backend --lib model::metric_ingestion_lifecycle::tests::cr1_ -- --test-threads=1`:
+`4 passed; 0 failed`.
+
+| Authority | Direction 1: writer commits first | Direction 2: claim locks first |
+|---|---|---|
+| source account | A's disable committed inside the window: claim returns only B; A's bootstrapped checkpoint stays unleased. A configuration replacement inside the window: the claim carries the replaced canonical configuration, equal to the committed row. | `WriterOutcome::Blocked`; claim returns A with `enabled: true`; the disable commits after the claim; `lease_owner` is the claim's token; `beginMetricImport` then fails closed `SourceNotEligible` |
+| source | `Err(SourceNotEligible)`, zero leases, the whole transaction rolled back | `Blocked`; claim returns A and B with `source.enabled: true`; source disabled afterwards; begin fails closed |
+| platform | empty claim, zero leases | `Blocked`; claim returns A and B; platform disabled afterwards; begin fails closed |
+| publisher `METRICS_COLLECT` | empty claim, zero leases | `Blocked`; claim returns A and B; package OASIS afterwards; begin fails closed `MetricsCollectNotEntitled` |
+
+The forbidden interleaving (authority mutation commits -> lease granted from
+pre-mutation state -> stale claim returned) no longer occurs in any of the
+four.
+
+### 16.10 Non-vacuity
+
+Temporary uncommitted mutation of `mod.rs`: the
+`revalidate_claim_authority(...)` call in the claim loop was replaced by the
+pre-fix behaviour (clone the enumeration-time `source`, look the account up in
+the enumeration-time `eligible` vector, no lock). Result of the four CR-1
+tests: `0 passed; 4 failed`, each on its direction-1 assertion (A leased
+although disabled; `Ok([A, B])` instead of `SourceNotEligible`; `[A, B]`
+instead of empty for platform and publisher). The authorized `mod.rs` was then
+restored from a copy taken before the mutation and verified with
+`shasum -a 256 -c` and `cmp` (byte-identical); `git diff --name-only` showed
+only the two authorized source paths.
+
+### 16.11 Existing lifecycle regression results
+
+From the complete `cargo test -p thoth-api --features backend` run on the
+corrected tree (section 16.12):
+
+```text
+model::metric_ingestion_lifecycle::tests      30 passed, 0 failed   (26 historical + 4 CR-1 races)
+graphql::metric_ingestion_lifecycle_tests      7 passed, 0 failed
+model::metric_ingestion::tests                78 passed, 0 failed   (#900 coordinator, unchanged)
+graphql::metric_registry_tests                12 passed, 0 failed
+graphql::metric_source_registry_tests         11 passed, 0 failed
+model::metric_source_checkpoint::tests         9 passed, 0 failed
+model::metric_import::tests                   25 passed, 0 failed
+model::metric_import_batch::tests             15 passed, 0 failed
+model::metric_coverage::tests                 15 passed, 0 failed
+model::metric_source::tests                   27 passed, 0 failed   (#904, unchanged)
+model::metric_source_account::tests           29 passed, 0 failed   (#904, unchanged)
+model::metric_platform::tests                 21 passed, 0 failed
+model::publisher_service_configuration::tests 45 passed, 0 failed   (BE-01, unchanged)
+focused: cargo test -p thoth-api --features backend --lib model::metric_ingestion_lifecycle::tests::cr1_ -- --test-threads=1
+         4 passed, 0 failed
+```
+
+Every pre-existing lifecycle test is unchanged and green: two-worker (8-thread)
+first claim and bootstrap, `SKIP LOCKED` during the guard, six-thread reclaim
+of one expired unit, expiry/reclaim with old and foreign tokens, checkpoint
+monotonicity, released-token read-only retry, begin idempotency and mismatch,
+batch replay/idempotency, concurrent completions, and the coverage rules for
+successful-period progress.
+
+### 16.12 Full validation (corrected tree, fresh)
+
+Environment: isolated git worktree outside the repository with no `.env`;
+`THOTH_EXPORT_API`, `TEST_DATABASE_URL` and `TEST_REDIS_URL` exported as CI
+sets them; a dedicated Homebrew PostgreSQL 17.10 cluster on its own port and
+data directory (`thoth_test` created UTF8, `C` collation); the machine's local
+Redis on 6379; a task-isolated `CARGO_TARGET_DIR` built from scratch for this
+correction.
+
+```text
+cargo fmt --all -- --check                                      exit 0
+cargo test -p thoth-api --features backend                      exit 0; lib: 1887 passed, 0 failed, 1 ignored
+                                                                (pre-existing MET-WP4-02 query-plan test);
+                                                                tests/graphql_permissions.rs: 13 passed; doctests: 8 ignored
+cargo test --workspace                                          exit 0; thoth-api lib 1887 passed / 0 failed;
+                                                                thoth bin 31, graphql_permissions 13, thoth-api-server 3,
+                                                                thoth-client 4 (+6 doctests), thoth-errors 13,
+                                                                thoth-export-server 144 (+2 doctests); 0 failed anywhere
+cargo check --workspace                                         exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings  exit 0
+cargo build                                                     exit 0
+git diff --check 3db0699cdc9d5a212b0f48ec9fa674e499776cc2 HEAD  exit 0
+(the only compiler output is cargo's pre-existing future-incompatibility note for proc-macro-error2 v2.0.1)
+```
+
+### 16.13 SDL: base vs head
+
+Both generated by `thoth-client/build.rs` during `cargo build --workspace`,
+the head after `cargo clean -p thoth-api -p thoth-client` in the same target
+directory so the build script re-ran against the corrected `thoth-api`:
+
+```text
+base 3db0699c  sha256 bd33dc1b370ff9e5aa35de28b0d1fc0f30e6a90e75f0e767260d3f3001a406af  222,582 bytes  5,384 lines
+head 0fba1102  sha256 bd33dc1b370ff9e5aa35de28b0d1fc0f30e6a90e75f0e767260d3f3001a406af  222,582 bytes  5,384 lines
+semantic diff: NONE (the two files are byte-identical: cmp exit 0)
+```
+
+### 16.14 Effects
+
+- Migration / schema / index: NONE. `schema.rs` unchanged.
+- Auth / security: no authorization path, role, policy or resolver changed.
+  The correction narrows what a fresh claim can return: only authority that is
+  valid at lease grant and cannot change before the claim commits. Error
+  vocabulary and messages are unchanged.
+- Data: no new write. The claim still writes only `lease_owner` /
+  `lease_expires_at` on selected checkpoints. A checkpoint lazily bootstrapped
+  for an account that becomes ineligible before revalidation is left unleased
+  (a state the limit-bounded claim already produced). A source that becomes
+  ineligible before revalidation fails the claim closed and rolls back the
+  bootstrap inserts. Lock footprint: four additional `FOR SHARE` row locks per
+  leased unit, held until the claim commits.
+- External effects: none beyond the authorized push, the DRAFT PR and its
+  normal PR-triggered CI (including the already-approved automatic
+  `ghcr.io/thoth-pub/thoth:staging-pr-<PR>` image). No manual CI action, no
+  issue comment, no provider, credential, deployment, release or activation.
+
+### 16.15 Ownership note
+
+Record `5665416112` names the original PR #920 implementation session as sole
+owner and requires a HOLD for explicit ownership transfer if it is
+unavailable. This correction was implemented by CCD session
+`local_009f4622-9a55-4ea5-9626-2aa2ef31648c` under the CTO's direct correction
+prompt naming it the sole designated implementation owner (2026-09-14); the
+original session `local_dd82a4d5` was not running. No source, commit or
+unpublished state of the stood-down scratch session was used. The ledger
+should record this designation explicitly; it is reported here rather than
+assumed.
+
+### 16.16 Remaining gates
+
+Fresh independent CRITICAL exact-head source review of the new head; separate
+exact-head CTO merge authorization; merge; fresh downstream Sphinx
+producer-contract rebind (thoth-sphinx#10); later integration, deployment and
+activation gates. Nothing here is self-approved.
+
+## 17. MET-WP2-02-CR1 follow-up: control reconciliation and changelog
+
+Sections 1-16 above are preserved unchanged. Sections 1-15 are the PR #920
+evidence. Section 16 is the CR-1 correction evidence written at PR #921 head
+`4e5337d2`, including its ownership note (16.15) as written at the time. This
+section records the bounded follow-up that reconciles control on PR #921 and
+adds the mandatory changelog entry. It does not reopen, redesign or re-validate
+the CR-1 source correction.
+
+### 17.1 Control references
+
+| Record | Reference |
+|---|---|
+| CR-1 forward-correction authorization; sole owner = the original #920 session, HOLD if unavailable | #908 comment `5665416112` (2026-09-14) |
+| Control reconciliation, adoption of PR #921, footprint amendment (three to four paths), changelog requirement | #908 comment `5667624555` (2026-09-14 16:58:45Z) |
+| Remaining-work ownership transfer; `5667624555` stays authoritative except for its sole-owner designation | #908 comment `5678927229` (2026-09-15 10:47:05Z) |
+
+### 17.2 Reconciliation outcome
+
+- **Historical deviation, not retroactively authorized.** PR #921 was produced
+  by CCD session `local_009f4622-9a55-4ea5-9626-2aa2ef31648c`, not by the owner
+  named in `5665416112`. That session's branch creation, source writes, commits,
+  push and DRAFT PR creation are **not** retroactively authorized by
+  `5667624555` or `5678927229`. They remain a recorded control deviation.
+- **Adoption.** `5667624555` adopted the existing PR #921 artifact at exact
+  head `4e5337d2ac42b07792544a6031bbba5575f51e3a` (tree
+  `c57e1463b3caab184d83a1d093e412396d3b1128`) prospectively as the candidate
+  correction artifact. PR #921 remains that artifact. Adoption is neither source
+  approval nor merge approval.
+- **Review state at the pre-follow-up head.** Per `5667624555`, the independent
+  CRITICAL exact-head review of `4e5337d2` found no blocking source defect in
+  the CR-1 correction itself. Its decision was BLOCKED on two control
+  requirements: the implementing session did not match the owner named in
+  `5665416112`, and the three-path footprint omitted the mandatory
+  `CHANGELOG.md`, which left exact-head CI red. The follow-up commit creates a
+  new PR head and so invalidates that exact-head review.
+- **Ownership.** `5667624555` named `local_009f4622` as sole owner of the
+  remaining work. That session was archived and did not perform this follow-up.
+  On 2026-09-14 a follow-up prompt reached a different session,
+  `local_0ba55677-ce1d-43d3-98cd-23e488bee658`. It HELD with no mutation because
+  the designation did not name it. `5678927229` then transferred sole ownership
+  of the remaining bounded work prospectively to
+  `local_0ba55677-ce1d-43d3-98cd-23e488bee658`, which performed this follow-up.
+  The prior owner is no longer authorized for this stage. The transfer does not
+  retroactively authorize any historical action.
+
+### 17.3 Follow-up binding and preflight
+
+| Item | Value |
+|---|---|
+| Base | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2`, tree `14210f97498946740b2927419f993432977b4560` |
+| Pre-follow-up PR head | `4e5337d2ac42b07792544a6031bbba5575f51e3a`, tree `c57e1463b3caab184d83a1d093e412396d3b1128` |
+| Existing PR commits (not amended or rewritten) | `0fba1102c7f8c216675f904ab76fb0df779a1eea` (source, tree `b8b596a17795c9aec8969f7baed28882bc21abeb`); `4e5337d2` (report) |
+| Branch | `feature/metrics--wp2-02-cr1-claim-authority` (existing; non-force push) |
+| Follow-up commit | the documentation/changelog commit whose parent is `4e5337d2`. Its SHA and the workflow runs it triggers do not exist when this section is written; they are reported in the implementation handoff |
+| Implementing session | `local_0ba55677-ce1d-43d3-98cd-23e488bee658` (under `5678927229`) |
+
+Preflight (read-only, re-run on 2026-09-15 before any write):
+
+- `git fetch origin`, then `origin/feature/metrics` = `3db0699c`, tree
+  `14210f97`. `git ls-remote` agrees.
+- PR #921 is OPEN, DRAFT and unmerged, with head `4e5337d2` (tree `c57e1463`),
+  base `feature/metrics`, no labels and no review requests.
+- The remote branch head is `4e5337d2`. #908 has no comment newer than
+  `5678927229`, and PR #921 has no comments or reviews.
+- The session worked in a fresh detached worktree at `4e5337d2` in its own
+  scratch directory, clean at creation. The previous owner's worktree was not
+  used and nothing was copied from any other implementation tree.
+
+### 17.4 Footprint
+
+Final permitted PR #921 footprint (`5667624555` section 4, restated by
+`5678927229` section 3): exactly four existing paths, all modifications, with no
+addition, deletion, move or rename.
+
+| Path | Final footprint | Writable in this follow-up | Edited in this follow-up |
+|---|---|---|---|
+| `CHANGELOG.md` | yes | yes | yes (section 17.5) |
+| `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` | yes | **no, frozen at `4e5337d2`** | no (section 17.6) |
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | yes | **no, frozen at `4e5337d2`** | no (section 17.6) |
+| `docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md` | yes | yes | yes (this section only) |
+
+### 17.5 Changelog requirement and correction
+
+Repository-root `AGENTS.md` section 13: "Every PR must update `CHANGELOG.md`
+under `## [Unreleased]`." It also requires the appropriate heading, the PR
+number when available, and no duplicate headings in the same Unreleased
+section. The `check-changelog` workflow (`tarides/changelog-check-action@v4`, on
+`pull_request`) failed at `4e5337d2` (run `34862028300`) because the three-path
+footprint did not touch `CHANGELOG.md`. The `no changelog` label was not used.
+
+Correction: one bullet was added as the first entry under the existing
+`### Fixed` heading of the existing `## [Unreleased]` section. No heading was
+added or duplicated.
+
+```text
+  - `MET-WP2-02-CR1`: fix the `MET-WP2-02` managed-DRIVER claim lifecycle on the `feature/metrics` programme integration branch so a fresh source claim is granted only from canonical source, source-account, platform and publisher authority revalidated under lock at lease grant (PR [921](https://github.com/thoth-pub/thoth/pull/921), issue [908](https://github.com/thoth-pub/thoth/issues/908)).
+```
+
+### 17.6 Frozen Rust verification
+
+Blob IDs were checked before any edit and again after both edits, immediately
+before commit:
+
+| Path | Blob at `4e5337d2` (`git rev-parse 4e5337d2:<path>`) | Index (`git ls-files -s`) | Working tree (`git hash-object`) |
+|---|---|---|---|
+| `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` |
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | `393261f6b23e14115f5d2503c1ba86ead311e43a` | `393261f6b23e14115f5d2503c1ba86ead311e43a` | `393261f6b23e14115f5d2503c1ba86ead311e43a` |
+
+The pre-commit checks `git diff --quiet 4e5337d2 -- <both paths>` (working
+tree) and `git diff --cached --quiet 4e5337d2 -- <both paths>` (index) both
+exit 0. The post-commit exact-blob comparison against the new head is reported
+in the implementation handoff.
+
+### 17.7 Local validation for this follow-up
+
+Pre-commit, in the follow-up worktree (HEAD `4e5337d2`, both edits staged):
+
+```text
+git diff --cached --check                                             exit 0 (no output)
+git diff --check 3db0699cdc9d5a212b0f48ec9fa674e499776cc2             exit 0 (no output)
+git diff --cached --name-status 4e5337d2                              exit 0; exactly:
+                                                                        M CHANGELOG.md
+                                                                        M docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md
+git diff --cached --name-status 3db0699cdc9d5a212b0f48ec9fa674e499776cc2
+                                                                      exit 0; exactly four paths, all M:
+                                                                        M CHANGELOG.md
+                                                                        M docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md
+                                                                        M thoth-api/src/model/metric_ingestion_lifecycle/mod.rs
+                                                                        M thoth-api/src/model/metric_ingestion_lifecycle/tests.rs
+git diff --cached --numstat 4e5337d2 -- CHANGELOG.md                  exit 0; 1 insertion, 0 deletions
+git diff --cached 4e5337d2 -- <report>                                exit 0; additions only, all after the last line of section 16.16
+git status --porcelain (untracked/unstaged)                           nothing outside the two staged paths
+frozen Rust blob / diff --quiet checks                                exit 0 (section 17.6)
+```
+
+Post-commit, `git diff --check 3db0699c...HEAD` and
+`git diff --name-status 3db0699c...HEAD` are re-run against the new head, and
+their results are reported in the implementation handoff.
+
+Rust build, tests, Clippy and SDL generation were not re-run for this
+follow-up, as scoped by `5667624555` and `5678927229`. The Rust paths are
+byte-identical to `4e5337d2`, whose full local validation is in sections 16.12
+and 16.13 and whose exact-head `build-test-and-check` (run `34862028270`) and
+`run-migrations` (run `34862028367`) succeeded. Natural exact-head CI on the new
+head remains authoritative.
+
+### 17.8 Effects
+
+- Rust source, tests, migrations, `schema.rs`, GraphQL SDL, authorization and
+  runtime behaviour: unchanged by this follow-up.
+- External effects are limited to the non-force push to the existing PR #921
+  branch and the normal PR `synchronize` workflows, including any
+  already-approved automatic `ghcr.io/thoth-pub/thoth:staging-pr-921` image.
+- None of the following: manual CI dispatch, rerun or cancel; issue or comment
+  mutation; `no changelog` label; ready-for-review transition; reviewer
+  request; merge; change to `feature/metrics`; Sphinx change or producer
+  rebind; deployment; release; production migration; provider, credential or
+  service-role access; activation.
+
+### 17.9 Remaining gates
+
+Fresh independent CRITICAL exact-head review of the new PR head, including its
+exact natural CI; separate exact-head CTO merge authorization; merge; fresh
+downstream Sphinx producer-contract rebind (thoth-sphinx#10); later
+integration, deployment and activation gates. Nothing here is self-approved.

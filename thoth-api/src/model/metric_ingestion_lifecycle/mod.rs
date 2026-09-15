@@ -42,6 +42,23 @@
 //! operation on one account queues on that one row first, begin, batch,
 //! completion and checkpoint progress for one account are serialized.
 //!
+//! The claim follows the same order with one difference: it takes its
+//! checkpoint rows `FOR UPDATE SKIP LOCKED`, so it never waits on a checkpoint.
+//! It enumerates candidate accounts with plain reads, ensures and locks their
+//! checkpoints, and only then, per locked checkpoint, locks the account,
+//! source, platform and publisher rows `FOR SHARE` and decides eligibility from
+//! those locked rows (CR-1, #908). `FOR SHARE` is the weakest row lock that
+//! conflicts with every canonical writer of that authority: the #904 source and
+//! source-account coordinators and the platform coordinator lock their one row
+//! `FOR UPDATE`, and the BE-01 service-configuration coordinator, the only
+//! writer of `publisher.subscription_package`, locks the publisher row
+//! `FOR UPDATE` first. A writer that committed before the claim's lock is seen
+//! by the locked reload, and the unit is skipped or the claim fails closed; a
+//! writer that arrives after it waits until the claim has committed. The
+//! shares are compatible with the shares begin and the coordinator take on the
+//! same rows, and each writer above holds exactly one authority row and waits
+//! on nothing the lifecycle holds, so no lock cycle is introduced.
+//!
 //! The batch uses the bounded two-connection guard fixed by Specification
 //! Amendment 2: a short guard transaction locks and validates the checkpoint
 //! row, checks the batch key, and **while holding that lock** calls the
@@ -605,8 +622,10 @@ fn to_coordinator_batch(input: &IngestMetricBatchInput) -> LifecycleResult<Metri
 /// source, returning its pinned publisher.
 ///
 /// `lock` reads the platform and publisher `FOR SHARE`, the order the
-/// canonical coordinator uses; the claim path reads them without locks, since
-/// every later operation revalidates under locks.
+/// canonical coordinator uses. The claim's candidate enumeration reads them
+/// without locks; the claim then revalidates every locked checkpoint's unit
+/// under locks before it grants a lease, and every later operation revalidates
+/// under locks again.
 fn check_eligibility(
     connection: &mut PgConnection,
     source: &MetricSource,
@@ -712,10 +731,54 @@ fn find_import(connection: &mut PgConnection, import_id: Uuid) -> LifecycleResul
 // Operations
 // --------------------------------------------------------------------------
 
+/// One checkpoint the claim has locked `FOR UPDATE SKIP LOCKED`.
 #[derive(diesel::QueryableByName)]
-struct CheckpointId {
+struct SelectedCheckpoint {
     #[diesel(sql_type = SqlUuid)]
     source_checkpoint_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    source_account_id: Uuid,
+}
+
+/// Reload and lock `FOR SHARE`, in the lifecycle's lock order, every mutable
+/// canonical authority row behind one locked checkpoint, and decide the unit's
+/// eligibility from those rows alone.
+///
+/// This is the CR-1 claim-time revalidation: the rows it returns are the ones
+/// the lease is granted from, and their shares are held until the claim
+/// commits, so no canonical writer can commit a conflicting change in between.
+/// A source that is no longer an enabled `DRIVER` source fails the whole claim
+/// closed, exactly as it does before enumeration. A unit whose account,
+/// platform, publisher pin, configuration or entitlement is no longer eligible
+/// is skipped: `None` grants nothing and leaves the checkpoint unleased.
+fn revalidate_claim_authority(
+    connection: &mut PgConnection,
+    source_id: Uuid,
+    source_account_id: Uuid,
+) -> LifecycleResult<Option<(MetricSource, MetricSourceAccount)>> {
+    let account: Option<MetricSourceAccount> = metric_source_account::table
+        .find(source_account_id)
+        .for_share()
+        .first(connection)
+        .optional()?;
+    let Some(account) = account else {
+        return Ok(None);
+    };
+    let source: MetricSource = metric_source::table
+        .find(source_id)
+        .for_share()
+        .first(connection)?;
+    if source.acquisition_type != MetricSourceAcquisitionType::Driver || !source.enabled {
+        return Err(MetricLifecycleError::SourceNotEligible);
+    }
+    match check_eligibility(connection, &source, &account, true) {
+        Ok(_) => Ok(Some((source, account))),
+        Err(
+            MetricLifecycleError::SourceNotEligible
+            | MetricLifecycleError::MetricsCollectNotEntitled,
+        ) => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 /// Claim up to `limit` units of one managed-DRIVER source.
@@ -723,9 +786,13 @@ struct CheckpointId {
 /// One transaction: resolve the source, select the eligible enabled accounts in
 /// ascending stable-code order, ensure each has its `default` checkpoint with a
 /// conflict-safe insert, lock the unleased or expired checkpoints
-/// `FOR UPDATE SKIP LOCKED` in the same order, and lease each under a fresh
-/// token. A row another claimer holds locked is skipped, never waited on. An
-/// ineligible account is skipped and gains no checkpoint.
+/// `FOR UPDATE SKIP LOCKED` in the same order, then, for each locked
+/// checkpoint, lock and revalidate its account, source, platform and publisher
+/// `FOR SHARE` and lease it under a fresh token from that locked state only. A
+/// row another claimer holds locked is skipped, never waited on. An account
+/// that is ineligible at enumeration is skipped and gains no checkpoint; one
+/// that became ineligible by revalidation is skipped and its checkpoint stays
+/// unleased; a source that became ineligible fails the claim closed.
 pub fn claim_metric_source_units(
     db: &PgPool,
     input: &ClaimMetricSourceUnitsInput,
@@ -786,8 +853,8 @@ pub fn claim_metric_source_units(
         }
 
         let account_ids: Vec<Uuid> = eligible.iter().map(|a| a.source_account_id).collect();
-        let selected: Vec<CheckpointId> = sql_query(
-            "SELECT c.source_checkpoint_id \
+        let selected: Vec<SelectedCheckpoint> = sql_query(
+            "SELECT c.source_checkpoint_id, c.source_account_id \
                FROM metric_source_checkpoint c \
                JOIN metric_source_account a ON a.source_account_id = c.source_account_id \
               WHERE c.source_account_id = ANY($1) \
@@ -805,6 +872,11 @@ pub fn claim_metric_source_units(
 
         let mut claims = Vec::with_capacity(selected.len());
         for row in selected {
+            let Some((locked_source, locked_account)) =
+                revalidate_claim_authority(connection, source.source_id, row.source_account_id)?
+            else {
+                continue;
+            };
             let lease_token = Uuid::new_v4();
             sql_query(
                 "UPDATE metric_source_checkpoint \
@@ -822,14 +894,9 @@ pub fn claim_metric_source_units(
             let lease_expires_at = checkpoint
                 .lease_expires_at
                 .ok_or(MetricIngestionErrorCode::InternalStateInconsistency)?;
-            let source_account = eligible
-                .iter()
-                .find(|account| account.source_account_id == checkpoint.source_account_id)
-                .cloned()
-                .ok_or(MetricIngestionErrorCode::InternalStateInconsistency)?;
             claims.push(MetricSourceUnitClaim {
-                source: source.clone(),
-                source_account,
+                source: locked_source,
+                source_account: locked_account,
                 checkpoint,
                 lease_token,
                 lease_expires_at,
