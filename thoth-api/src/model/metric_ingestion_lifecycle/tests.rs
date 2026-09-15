@@ -1880,6 +1880,10 @@ impl ClaimPause {
 
 impl Drop for ClaimPause {
     fn drop(&mut self) {
+        // Release the hold first. On unwind the claim may still be frozen on
+        // it while holding the table lock the `DROP`s below need, so dropping
+        // first would wait on a claim that can never resume.
+        let _ = sql_query("SELECT pg_advisory_unlock_all()").execute(&mut self.hold);
         if let Ok(mut connection) = self.pool.get() {
             let _ = sql_query(format!(
                 "DROP TRIGGER IF EXISTS {} ON metric_source_checkpoint",
@@ -1889,7 +1893,6 @@ impl Drop for ClaimPause {
             let _ = sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name))
                 .execute(&mut connection);
         }
-        let _ = sql_query("SELECT pg_advisory_unlock_all()").execute(&mut self.hold);
     }
 }
 
@@ -2289,4 +2292,82 @@ fn cr1_publisher_capability_cannot_go_stale_between_eligibility_and_lease_grant(
         f.begin(claims[0].lease_token, "report-1", day(1)),
         Err(E::MetricsCollectNotEntitled)
     );
+}
+
+/// Whether a cleanup `DROP` of pause `name` is queued on a heavyweight lock.
+fn pause_cleanup_is_lock_waiting(f: &Fixture, name: &str) -> bool {
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND wait_event_type = 'Lock' AND query LIKE 'DROP % {name}%')"),
+    ) > 0
+}
+
+/// Whether backend `pid` still holds a session-level advisory lock.
+fn holds_advisory_lock(f: &Fixture, pid: i64) -> bool {
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM pg_locks WHERE locktype = 'advisory' AND granted AND pid = {pid})"),
+    ) > 0
+}
+
+#[test]
+fn cr1_pause_cleanup_on_unwind_releases_its_hold_before_dropping_the_trigger() {
+    let (_guard, f) = setup();
+    let mut pause = ClaimPause::before(&f.pool, "INSERT");
+    let name = pause.name.clone();
+    let hold_pid = backend_pid(&mut pause.hold);
+    let (pool, pid) = pinned_pool();
+    let claim =
+        thread::spawn(move || claim_metric_source_units(&pool, &claim_input(Some(10), None)));
+    wait_until_paused(&f, pid);
+
+    // A failure while the claim is frozen unwinds through the pause without
+    // `release`, so its `Drop` is the only cleanup that runs.
+    let unwind = thread::spawn(move || {
+        let _pause = pause;
+        panic!("simulated failure while the claim is paused");
+    });
+
+    // The frozen claim holds a table lock the cleanup `DROP` needs, and waits on
+    // the pause hold. The queued `DROP` is read before the hold, so a hold still
+    // granted afterwards was retained while cleanup DDL was already waiting.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let retained_hold_during_cleanup = loop {
+        if unwind.is_finished() {
+            break false;
+        }
+        if pause_cleanup_is_lock_waiting(&f, &name) && holds_advisory_lock(&f, hold_pid) {
+            break true;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the pause cleanup neither finished nor queued"
+        );
+        thread::sleep(Duration::from_millis(10));
+    };
+    if retained_hold_during_cleanup {
+        // Break the cycle so the defect reports as a failure rather than a hang.
+        scalar_i64(
+            &f.pool,
+            &format!(
+                "(SELECT COUNT(*) FROM (SELECT pg_terminate_backend({hold_pid})) AS terminated)"
+            ),
+        );
+    }
+    assert!(
+        unwind.join().is_err(),
+        "the simulated failure unwound through the pause"
+    );
+    let claims = claim.join().expect("claim thread");
+    assert!(
+        !retained_hold_during_cleanup,
+        "pause cleanup attempted DDL while retaining its own session advisory hold"
+    );
+    assert_eq!(
+        account_codes(&claims.expect("claim")),
+        vec![ACCOUNT_A.to_string(), ACCOUNT_B.to_string()],
+        "the released claim completes"
+    );
+    assert_eq!(f.count("pg_trigger", &format!("tgname = '{name}'")), 0);
+    assert_eq!(f.count("pg_proc", &format!("proname = '{name}'")), 0);
 }
