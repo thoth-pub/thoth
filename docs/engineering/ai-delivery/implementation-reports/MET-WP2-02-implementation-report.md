@@ -889,3 +889,170 @@ Fresh independent CRITICAL exact-head source review of the new head; separate
 exact-head CTO merge authorization; merge; fresh downstream Sphinx
 producer-contract rebind (thoth-sphinx#10); later integration, deployment and
 activation gates. Nothing here is self-approved.
+
+## 17. MET-WP2-02-CR1 follow-up: control reconciliation and changelog
+
+Sections 1-16 above are preserved unchanged. Sections 1-15 are the PR #920
+evidence. Section 16 is the CR-1 correction evidence written at PR #921 head
+`4e5337d2`, including its ownership note (16.15) as written at the time. This
+section records the bounded follow-up that reconciles control on PR #921 and
+adds the mandatory changelog entry. It does not reopen, redesign or re-validate
+the CR-1 source correction.
+
+### 17.1 Control references
+
+| Record | Reference |
+|---|---|
+| CR-1 forward-correction authorization; sole owner = the original #920 session, HOLD if unavailable | #908 comment `5665416112` (2026-09-14) |
+| Control reconciliation, adoption of PR #921, footprint amendment (three to four paths), changelog requirement | #908 comment `5667624555` (2026-09-14 16:58:45Z) |
+| Remaining-work ownership transfer; `5667624555` stays authoritative except for its sole-owner designation | #908 comment `5678927229` (2026-09-15 10:47:05Z) |
+
+### 17.2 Reconciliation outcome
+
+- **Historical deviation, not retroactively authorized.** PR #921 was produced
+  by CCD session `local_009f4622-9a55-4ea5-9626-2aa2ef31648c`, not by the owner
+  named in `5665416112`. That session's branch creation, source writes, commits,
+  push and DRAFT PR creation are **not** retroactively authorized by
+  `5667624555` or `5678927229`. They remain a recorded control deviation.
+- **Adoption.** `5667624555` adopted the existing PR #921 artifact at exact
+  head `4e5337d2ac42b07792544a6031bbba5575f51e3a` (tree
+  `c57e1463b3caab184d83a1d093e412396d3b1128`) prospectively as the candidate
+  correction artifact. PR #921 remains that artifact. Adoption is neither source
+  approval nor merge approval.
+- **Review state at the pre-follow-up head.** Per `5667624555`, the independent
+  CRITICAL exact-head review of `4e5337d2` found no blocking source defect in
+  the CR-1 correction itself. Its decision was BLOCKED on two control
+  requirements: the implementing session did not match the owner named in
+  `5665416112`, and the three-path footprint omitted the mandatory
+  `CHANGELOG.md`, which left exact-head CI red. The follow-up commit creates a
+  new PR head and so invalidates that exact-head review.
+- **Ownership.** `5667624555` named `local_009f4622` as sole owner of the
+  remaining work. That session was archived and did not perform this follow-up.
+  On 2026-09-14 a follow-up prompt reached a different session,
+  `local_0ba55677-ce1d-43d3-98cd-23e488bee658`. It HELD with no mutation because
+  the designation did not name it. `5678927229` then transferred sole ownership
+  of the remaining bounded work prospectively to
+  `local_0ba55677-ce1d-43d3-98cd-23e488bee658`, which performed this follow-up.
+  The prior owner is no longer authorized for this stage. The transfer does not
+  retroactively authorize any historical action.
+
+### 17.3 Follow-up binding and preflight
+
+| Item | Value |
+|---|---|
+| Base | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2`, tree `14210f97498946740b2927419f993432977b4560` |
+| Pre-follow-up PR head | `4e5337d2ac42b07792544a6031bbba5575f51e3a`, tree `c57e1463b3caab184d83a1d093e412396d3b1128` |
+| Existing PR commits (not amended or rewritten) | `0fba1102c7f8c216675f904ab76fb0df779a1eea` (source, tree `b8b596a17795c9aec8969f7baed28882bc21abeb`); `4e5337d2` (report) |
+| Branch | `feature/metrics--wp2-02-cr1-claim-authority` (existing; non-force push) |
+| Follow-up commit | the documentation/changelog commit whose parent is `4e5337d2`. Its SHA and the workflow runs it triggers do not exist when this section is written; they are reported in the implementation handoff |
+| Implementing session | `local_0ba55677-ce1d-43d3-98cd-23e488bee658` (under `5678927229`) |
+
+Preflight (read-only, re-run on 2026-09-15 before any write):
+
+- `git fetch origin`, then `origin/feature/metrics` = `3db0699c`, tree
+  `14210f97`. `git ls-remote` agrees.
+- PR #921 is OPEN, DRAFT and unmerged, with head `4e5337d2` (tree `c57e1463`),
+  base `feature/metrics`, no labels and no review requests.
+- The remote branch head is `4e5337d2`. #908 has no comment newer than
+  `5678927229`, and PR #921 has no comments or reviews.
+- The session worked in a fresh detached worktree at `4e5337d2` in its own
+  scratch directory, clean at creation. The previous owner's worktree was not
+  used and nothing was copied from any other implementation tree.
+
+### 17.4 Footprint
+
+Final permitted PR #921 footprint (`5667624555` section 4, restated by
+`5678927229` section 3): exactly four existing paths, all modifications, with no
+addition, deletion, move or rename.
+
+| Path | Final footprint | Writable in this follow-up | Edited in this follow-up |
+|---|---|---|---|
+| `CHANGELOG.md` | yes | yes | yes (section 17.5) |
+| `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` | yes | **no, frozen at `4e5337d2`** | no (section 17.6) |
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | yes | **no, frozen at `4e5337d2`** | no (section 17.6) |
+| `docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md` | yes | yes | yes (this section only) |
+
+### 17.5 Changelog requirement and correction
+
+Repository-root `AGENTS.md` section 13: "Every PR must update `CHANGELOG.md`
+under `## [Unreleased]`." It also requires the appropriate heading, the PR
+number when available, and no duplicate headings in the same Unreleased
+section. The `check-changelog` workflow (`tarides/changelog-check-action@v4`, on
+`pull_request`) failed at `4e5337d2` (run `34862028300`) because the three-path
+footprint did not touch `CHANGELOG.md`. The `no changelog` label was not used.
+
+Correction: one bullet was added as the first entry under the existing
+`### Fixed` heading of the existing `## [Unreleased]` section. No heading was
+added or duplicated.
+
+```text
+  - `MET-WP2-02-CR1`: fix the `MET-WP2-02` managed-DRIVER claim lifecycle on the `feature/metrics` programme integration branch so a fresh source claim is granted only from canonical source, source-account, platform and publisher authority revalidated under lock at lease grant (PR [921](https://github.com/thoth-pub/thoth/pull/921), issue [908](https://github.com/thoth-pub/thoth/issues/908)).
+```
+
+### 17.6 Frozen Rust verification
+
+Blob IDs were checked before any edit and again after both edits, immediately
+before commit:
+
+| Path | Blob at `4e5337d2` (`git rev-parse 4e5337d2:<path>`) | Index (`git ls-files -s`) | Working tree (`git hash-object`) |
+|---|---|---|---|
+| `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` | `3028cf8003856fc877ec4e9093555c9eb759e0fb` |
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | `393261f6b23e14115f5d2503c1ba86ead311e43a` | `393261f6b23e14115f5d2503c1ba86ead311e43a` | `393261f6b23e14115f5d2503c1ba86ead311e43a` |
+
+The pre-commit checks `git diff --quiet 4e5337d2 -- <both paths>` (working
+tree) and `git diff --cached --quiet 4e5337d2 -- <both paths>` (index) both
+exit 0. The post-commit exact-blob comparison against the new head is reported
+in the implementation handoff.
+
+### 17.7 Local validation for this follow-up
+
+Pre-commit, in the follow-up worktree (HEAD `4e5337d2`, both edits staged):
+
+```text
+git diff --cached --check                                             exit 0 (no output)
+git diff --check 3db0699cdc9d5a212b0f48ec9fa674e499776cc2             exit 0 (no output)
+git diff --cached --name-status 4e5337d2                              exit 0; exactly:
+                                                                        M CHANGELOG.md
+                                                                        M docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md
+git diff --cached --name-status 3db0699cdc9d5a212b0f48ec9fa674e499776cc2
+                                                                      exit 0; exactly four paths, all M:
+                                                                        M CHANGELOG.md
+                                                                        M docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md
+                                                                        M thoth-api/src/model/metric_ingestion_lifecycle/mod.rs
+                                                                        M thoth-api/src/model/metric_ingestion_lifecycle/tests.rs
+git diff --cached --numstat 4e5337d2 -- CHANGELOG.md                  exit 0; 1 insertion, 0 deletions
+git diff --cached 4e5337d2 -- <report>                                exit 0; additions only, all after the last line of section 16.16
+git status --porcelain (untracked/unstaged)                           nothing outside the two staged paths
+frozen Rust blob / diff --quiet checks                                exit 0 (section 17.6)
+```
+
+Post-commit, `git diff --check 3db0699c...HEAD` and
+`git diff --name-status 3db0699c...HEAD` are re-run against the new head, and
+their results are reported in the implementation handoff.
+
+Rust build, tests, Clippy and SDL generation were not re-run for this
+follow-up, as scoped by `5667624555` and `5678927229`. The Rust paths are
+byte-identical to `4e5337d2`, whose full local validation is in sections 16.12
+and 16.13 and whose exact-head `build-test-and-check` (run `34862028270`) and
+`run-migrations` (run `34862028367`) succeeded. Natural exact-head CI on the new
+head remains authoritative.
+
+### 17.8 Effects
+
+- Rust source, tests, migrations, `schema.rs`, GraphQL SDL, authorization and
+  runtime behaviour: unchanged by this follow-up.
+- External effects are limited to the non-force push to the existing PR #921
+  branch and the normal PR `synchronize` workflows, including any
+  already-approved automatic `ghcr.io/thoth-pub/thoth:staging-pr-921` image.
+- None of the following: manual CI dispatch, rerun or cancel; issue or comment
+  mutation; `no changelog` label; ready-for-review transition; reviewer
+  request; merge; change to `feature/metrics`; Sphinx change or producer
+  rebind; deployment; release; production migration; provider, credential or
+  service-role access; activation.
+
+### 17.9 Remaining gates
+
+Fresh independent CRITICAL exact-head review of the new PR head, including its
+exact natural CI; separate exact-head CTO merge authorization; merge; fresh
+downstream Sphinx producer-contract rebind (thoth-sphinx#10); later
+integration, deployment and activation gates. Nothing here is self-approved.
