@@ -40,6 +40,63 @@ pub struct WorkUpsertControl {
     pub execution_enabled: bool,
 }
 
+/// A Crossref eligibility clause of R52B section 14.2, as the residue report
+/// names the first one a Work fails.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "A Crossref work-level eligibility clause")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkUpsertEligibilityClause {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "E1-E3: the publisher has an enabled automatic-push Crossref assignment"
+        )
+    )]
+    PublisherCoverage,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E4: the Work or a child Work has a DOI")
+    )]
+    DepositableIdentity,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E5: the Work status is depositable")
+    )]
+    WorkStatus,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E6: the Work has a publication date")
+    )]
+    PublicationDate,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E6: the Work has a publication with an ISBN")
+    )]
+    Isbn,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E6: a Work with a DOI has a landing page")
+    )]
+    LandingPage,
+    #[cfg_attr(feature = "backend", graphql(description = "E6: the Work has a title"))]
+    Title,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "E6: every emitted child has a landing page, a title and no edition"
+        )
+    )]
+    EmittedChildren,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "E6: every emitted abstract normalises for Crossref")
+    )]
+    AbstractNormalisation,
+}
+
 /// How one seed unit ended (Amendment 3 section 9.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeedUnitOutcome {

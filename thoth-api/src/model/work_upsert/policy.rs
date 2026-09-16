@@ -71,6 +71,49 @@ pub(crate) const CROSSREF_PUBLISHER_COVERAGE_SQL: &str =
     "EXISTS (SELECT 1 FROM public.publisher_distribution_platform a \
       WHERE a.publisher_id = {publisher} AND a.platform = 'CROSSREF' AND a.enabled)";
 
+macro_rules! crossref_e4_sql {
+    () => {
+        "(w.doi IS NOT NULL OR EXISTS (SELECT 1 FROM public.work_relation r \
+            JOIN public.work c ON c.work_id = r.related_work_id \
+            WHERE r.relator_work_id = w.work_id AND r.relation_type = 'has-child' AND c.doi IS NOT NULL))"
+    };
+}
+macro_rules! crossref_e5_sql {
+    () => {
+        "(w.work_status IN ('active', 'withdrawn') \
+             OR (w.work_status = 'forthcoming' AND w.publication_date IS NOT NULL))"
+    };
+}
+macro_rules! crossref_e6_publication_date_sql {
+    () => {
+        "(w.publication_date IS NOT NULL)"
+    };
+}
+macro_rules! crossref_e6_isbn_sql {
+    () => {
+        "(EXISTS (SELECT 1 FROM public.publication p WHERE p.work_id = w.work_id AND p.isbn IS NOT NULL))"
+    };
+}
+macro_rules! crossref_e6_landing_page_sql {
+    () => {
+        "(w.doi IS NULL OR w.landing_page IS NOT NULL)"
+    };
+}
+macro_rules! crossref_e6_title_sql {
+    () => {
+        "(EXISTS (SELECT 1 FROM public.title t WHERE t.work_id = w.work_id))"
+    };
+}
+macro_rules! crossref_e6_emitted_children_sql {
+    () => {
+        "(NOT EXISTS (SELECT 1 FROM public.work_relation r \
+            JOIN public.work c ON c.work_id = r.related_work_id \
+            WHERE r.relator_work_id = w.work_id AND r.relation_type = 'has-child' AND c.doi IS NOT NULL \
+              AND (c.landing_page IS NULL OR c.edition IS NOT NULL \
+                   OR NOT EXISTS (SELECT 1 FROM public.title ct WHERE ct.work_id = c.work_id))))"
+    };
+}
+
 /// The SQL-evaluable Crossref eligibility clauses of R52B section 14.2 over the
 /// Work alias `w`: E4, E5 and every row-level clause of E6.
 ///
@@ -78,22 +121,58 @@ pub(crate) const CROSSREF_PUBLISHER_COVERAGE_SQL: &str =
 /// the drain selector and the materialization unit's step 10 all use
 /// (Amendment 3 sections 9.2-9.4, M15). The only E6 clause it cannot evaluate,
 /// abstract normalisation, is [`crossref_abstracts_normalise`] over
-/// [`CROSSREF_EVALUATED_ABSTRACTS_SQL`].
-pub(crate) const CROSSREF_SQL_ELIGIBILITY: &str = "(\
-    (w.doi IS NOT NULL OR EXISTS (SELECT 1 FROM public.work_relation r \
-        JOIN public.work c ON c.work_id = r.related_work_id \
-        WHERE r.relator_work_id = w.work_id AND r.relation_type = 'has-child' AND c.doi IS NOT NULL)) \
-    AND (w.work_status IN ('active', 'withdrawn') \
-         OR (w.work_status = 'forthcoming' AND w.publication_date IS NOT NULL)) \
-    AND w.publication_date IS NOT NULL \
-    AND EXISTS (SELECT 1 FROM public.publication p WHERE p.work_id = w.work_id AND p.isbn IS NOT NULL) \
-    AND (w.doi IS NULL OR w.landing_page IS NOT NULL) \
-    AND EXISTS (SELECT 1 FROM public.title t WHERE t.work_id = w.work_id) \
-    AND NOT EXISTS (SELECT 1 FROM public.work_relation r \
-        JOIN public.work c ON c.work_id = r.related_work_id \
-        WHERE r.relator_work_id = w.work_id AND r.relation_type = 'has-child' AND c.doi IS NOT NULL \
-          AND (c.landing_page IS NULL OR c.edition IS NOT NULL \
-               OR NOT EXISTS (SELECT 1 FROM public.title ct WHERE ct.work_id = c.work_id))))";
+/// [`CROSSREF_EVALUATED_ABSTRACTS_SQL`]. It is the conjunction of
+/// [`CROSSREF_SQL_CLAUSES`], built from the same literals.
+pub(crate) const CROSSREF_SQL_ELIGIBILITY: &str = concat!(
+    "(",
+    crossref_e4_sql!(),
+    " AND ",
+    crossref_e5_sql!(),
+    " AND ",
+    crossref_e6_publication_date_sql!(),
+    " AND ",
+    crossref_e6_isbn_sql!(),
+    " AND ",
+    crossref_e6_landing_page_sql!(),
+    " AND ",
+    crossref_e6_title_sql!(),
+    " AND ",
+    crossref_e6_emitted_children_sql!(),
+    ")"
+);
+
+/// Each SQL-evaluable clause of [`CROSSREF_SQL_ELIGIBILITY`], in order, for the
+/// residue report's failing clause.
+pub(crate) const CROSSREF_SQL_CLAUSES: [(super::WorkUpsertEligibilityClause, &str); 7] = [
+    (
+        super::WorkUpsertEligibilityClause::DepositableIdentity,
+        crossref_e4_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::WorkStatus,
+        crossref_e5_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::PublicationDate,
+        crossref_e6_publication_date_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::Isbn,
+        crossref_e6_isbn_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::LandingPage,
+        crossref_e6_landing_page_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::Title,
+        crossref_e6_title_sql!(),
+    ),
+    (
+        super::WorkUpsertEligibilityClause::EmittedChildren,
+        crossref_e6_emitted_children_sql!(),
+    ),
+];
 
 /// The stored content of every abstract the released Crossref serializer can
 /// emit for the Work alias `w`, as a `text[]`.

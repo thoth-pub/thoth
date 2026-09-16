@@ -4832,3 +4832,16 @@ fn x4_every_be06_statement_in_the_deletion_units_uses_the_scoped_conversion() {
         assert!(body.matches(".work_upsert()").count() >= calls, "{name}");
     }
 }
+
+#[test]
+fn the_named_clauses_are_exactly_the_one_eligibility_expression() {
+    let joined = format!(
+        "({})",
+        policy::CROSSREF_SQL_CLAUSES
+            .iter()
+            .map(|(_, sql)| *sql)
+            .collect::<Vec<_>>()
+            .join(" AND ")
+    );
+    assert_eq!(joined, policy::CROSSREF_SQL_ELIGIBILITY);
+}
