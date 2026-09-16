@@ -64,6 +64,25 @@ pub struct SeedCrossrefWorkUpsertResult {
     pub remaining_uncovered: i32,
 }
 
+/// One admission row (R52B section 18.5; Amendment 3 section 9.3).
+///
+/// `activation_id` is internal: it is never part of any public type
+/// (Amendment 3 section 6).
+#[cfg_attr(
+    feature = "backend",
+    derive(diesel::Queryable, diesel::QueryableByName)
+)]
+#[cfg_attr(feature = "backend", diesel(table_name = crate::schema::work_upsert_admission))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertAdmission {
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub publisher_id: uuid::Uuid,
+    pub activation_id: uuid::Uuid,
+    pub evidence_reference: String,
+    pub actor: String,
+    pub admitted_at: crate::model::Timestamp,
+}
+
 /// The advisory-lock namespace of the execution gates `Q` (R52B section 21.1),
 /// distinct from the DOI keys' `1948572001`.
 #[cfg(feature = "backend")]

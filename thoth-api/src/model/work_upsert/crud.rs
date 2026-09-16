@@ -434,3 +434,134 @@ pub fn seed_crossref_work_upsert(
     result.remaining_uncovered = as_int(remaining)?;
     Ok(result)
 }
+
+/// The activation of the publisher's enabled `CROSSREF` assignment, by MVCC.
+fn crossref_activation(
+    connection: &mut PgConnection,
+    publisher_id: uuid::Uuid,
+) -> QueryResult<Option<uuid::Uuid>> {
+    use crate::schema::publisher_distribution_platform as assignment;
+    assignment::table
+        .filter(assignment::publisher_id.eq(publisher_id))
+        .filter(assignment::platform.eq(DistributionPlatform::Crossref))
+        .filter(assignment::enabled.eq(true))
+        .select(assignment::activation_id)
+        .first::<uuid::Uuid>(connection)
+        .optional()
+}
+
+/// The admission row of an exact binding, if any.
+fn admission_row(
+    connection: &mut PgConnection,
+    publisher_id: uuid::Uuid,
+    activation_id: uuid::Uuid,
+) -> QueryResult<Option<super::WorkUpsertAdmission>> {
+    use crate::schema::work_upsert_admission as admission;
+    admission::table
+        .filter(admission::execution_profile.eq(DistributionPlatform::Crossref))
+        .filter(admission::publisher_id.eq(publisher_id))
+        .filter(admission::activation_id.eq(activation_id))
+        .select((
+            admission::execution_profile,
+            admission::publisher_id,
+            admission::activation_id,
+            admission::evidence_reference,
+            admission::actor,
+            admission::admitted_at,
+        ))
+        .first::<super::WorkUpsertAdmission>(connection)
+        .optional()
+}
+
+/// `admitCrossrefWorkUpsert` (Amendment 3 section 9.3): census and admission of
+/// the exact `('CROSSREF', publisher, activation)` binding in one `READ
+/// COMMITTED` transaction. `actor` is the request principal's user id. No job,
+/// target or attempt is created.
+pub fn admit_crossref_work_upsert(
+    db: &PgPool,
+    publisher_id: uuid::Uuid,
+    evidence_reference: &str,
+    actor: &str,
+) -> ThothResult<super::WorkUpsertAdmission> {
+    use diesel::sql_types::{Text, Uuid as SqlUuid};
+
+    if super::policy::is_blank(evidence_reference) {
+        return Err(ThothError::WorkUpsertAdmissionRequiresEvidenceReference);
+    }
+    work_upsert_transaction(db, |connection| {
+        {
+            use crate::schema::publisher;
+            let held = publisher::table
+                .filter(publisher::publisher_id.eq(publisher_id))
+                .select(publisher::publisher_id)
+                .for_share()
+                .first::<uuid::Uuid>(connection)
+                .optional()?;
+            if held.is_none() {
+                return Err(ThothError::EntityNotFound.into());
+            }
+        }
+        let activation = match crossref_activation(connection, publisher_id)? {
+            Some(activation) if super::policy::crossref_route_is_automatic_push() => activation,
+            _ => return Err(ThothError::CrossrefPublisherNotCovered.into()),
+        };
+        if let Some(existing) = admission_row(connection, publisher_id, activation)? {
+            return Ok(existing);
+        }
+        let population = crossref_eligible_population(connection, publisher_id)?;
+        if crossref_census_uncovered(connection, publisher_id, &population)? > 0 {
+            return Err(ThothError::WorkUpsertAdmissionCensusNotEmpty.into());
+        }
+        let inserted = diesel::sql_query(
+            "INSERT INTO public.work_upsert_admission (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+             VALUES ('CROSSREF', $1, $2, $3, $4) \
+             ON CONFLICT (execution_profile, publisher_id, activation_id) DO NOTHING \
+             RETURNING execution_profile, publisher_id, activation_id, evidence_reference, actor, admitted_at",
+        )
+        .bind::<SqlUuid, _>(publisher_id)
+        .bind::<SqlUuid, _>(activation)
+        .bind::<Text, _>(evidence_reference)
+        .bind::<Text, _>(actor)
+        .get_result::<super::WorkUpsertAdmission>(connection)
+        .optional()?;
+        if let Some(inserted) = inserted {
+            return Ok(inserted);
+        }
+        admission_row(connection, publisher_id, activation)?.ok_or(WorkUpsertTxError::Thoth(
+            ThothError::WorkUpsertDatabaseFailure,
+        ))
+    })
+}
+
+/// Report 9, `workUpsertAdmissions` (Amendment 3 section 4.4): the admission
+/// rows of a profile whose activation is the publisher's currently enabled
+/// assignment's, ascending by publisher.
+pub fn work_upsert_admissions(
+    db: &PgPool,
+    platform: DistributionPlatform,
+) -> ThothResult<Vec<super::WorkUpsertAdmission>> {
+    use crate::schema::publisher_distribution_platform as assignment;
+    use crate::schema::work_upsert_admission as admission;
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        Ok(admission::table
+            .inner_join(
+                assignment::table.on(assignment::publisher_id
+                    .eq(admission::publisher_id)
+                    .and(assignment::platform.eq(admission::execution_profile))
+                    .and(assignment::activation_id.eq(admission::activation_id))
+                    .and(assignment::enabled.eq(true))),
+            )
+            .filter(admission::execution_profile.eq(profile.key))
+            .select((
+                admission::execution_profile,
+                admission::publisher_id,
+                admission::activation_id,
+                admission::evidence_reference,
+                admission::actor,
+                admission::admitted_at,
+            ))
+            .order(admission::publisher_id.asc())
+            .load::<super::WorkUpsertAdmission>(connection)?)
+    })
+}

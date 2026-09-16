@@ -2987,3 +2987,342 @@ fn d8_the_preconditions_refuse_before_any_lock() {
         "nothing written"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 9.3: admission (A2-A7, X8)
+// ---------------------------------------------------------------------------
+
+/// A covered, capture-enabled publisher with `n` generation-covered eligible
+/// Works; returns `(publisher_id, imprint_id, activation_id, work_ids)`.
+fn admissible_publisher(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+    n: usize,
+) -> (Uuid, Uuid, Uuid, Vec<Uuid>) {
+    let (publisher, imprint) = publisher_and_imprint(pool);
+    let activation = cover_crossref(connection, publisher);
+    enable_capture(connection);
+    let works = ascending_ids(n)
+        .into_iter()
+        .map(|id| insert_eligible_work(connection, imprint, id))
+        .collect();
+    (publisher, imprint, activation, works)
+}
+
+fn admission_rows(connection: &mut PgConnection) -> Vec<String> {
+    texts(
+        connection,
+        "SELECT execution_profile::text || '|' || publisher_id::text || '|' || activation_id::text \
+             || '|' || evidence_reference || '|' || actor AS value \
+         FROM work_upsert_admission ORDER BY admitted_at, activation_id",
+    )
+}
+
+#[test]
+fn a2_admission_inserts_exactly_one_row_for_the_exact_binding_and_nothing_else() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, _imprint, activation, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 2);
+    let generations_before = texts(&mut connection, "SELECT count(*)::text || '|' || coalesce(sum(source_generation), 0)::text AS value FROM work_upsert_generation");
+
+    let admission =
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-1", "user-a2")
+            .expect("admitted");
+    assert_eq!(admission.execution_profile, DistributionPlatform::Crossref);
+    assert_eq!(admission.publisher_id, publisher);
+    assert_eq!(admission.activation_id, activation);
+    assert_eq!(admission.evidence_reference, "EV-1");
+    assert_eq!(admission.actor, "user-a2");
+    assert_eq!(
+        admission_rows(&mut connection),
+        vec![format!("CROSSREF|{publisher}|{activation}|EV-1|user-a2")]
+    );
+    assert_eq!(job_row_counts(&mut connection), "0|0|0");
+    assert_eq!(
+        texts(&mut connection, "SELECT count(*)::text || '|' || coalesce(sum(source_generation), 0)::text AS value FROM work_upsert_generation"),
+        generations_before,
+        "no other table written"
+    );
+
+    // A5: a repeated exact admission returns the row unchanged and writes nothing.
+    let fingerprint = texts(
+        &mut connection,
+        "SELECT xmin::text || admitted_at::text AS value FROM work_upsert_admission",
+    );
+    let again = work_upsert_crud::admit_crossref_work_upsert(
+        pool.as_ref(),
+        publisher,
+        "EV-OTHER",
+        "user-b",
+    )
+    .expect("idempotent");
+    assert_eq!(again, admission);
+    assert_eq!(
+        texts(
+            &mut connection,
+            "SELECT xmin::text || admitted_at::text AS value FROM work_upsert_admission"
+        ),
+        fingerprint
+    );
+}
+
+#[test]
+fn a3_an_uncovered_eligible_work_refuses_admission_until_the_seed_covers_it() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, _imprint, _activation, works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 2);
+    uncover(&mut connection, works[1]);
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-1", "user")
+            .map(|a| a.actor),
+        Err(ThothError::WorkUpsertAdmissionCensusNotEmpty)
+    );
+    assert!(admission_rows(&mut connection).is_empty());
+    // A reservation's 0 row is still uncovered.
+    set_generation(&mut connection, works[1], 0);
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-1", "user")
+            .map(|a| a.actor),
+        Err(ThothError::WorkUpsertAdmissionCensusNotEmpty)
+    );
+    work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-1", "user")
+            .is_ok()
+    );
+    assert_eq!(job_row_counts(&mut connection), "0|0|0");
+}
+
+#[test]
+fn a4_blank_evidence_references_are_refused_without_database_access() {
+    let failing = test_db::failing_pool();
+    for blank in [
+        "", " ", "\t\n\r", "\u{00A0}", "\u{2003}", "\u{3000}", "\u{0085}", "\u{001C}", "\u{0001}",
+    ] {
+        assert_eq!(
+            work_upsert_crud::admit_crossref_work_upsert(&failing, Uuid::new_v4(), blank, "user")
+                .map(|a| a.actor),
+            Err(ThothError::WorkUpsertAdmissionRequiresEvidenceReference),
+            "{blank:?}"
+        );
+    }
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    for accepted in ["\u{200B}", " EV-1 "] {
+        let (publisher, _imprint, _activation, _works) =
+            admissible_publisher(pool.as_ref(), &mut connection, 1);
+        let admission = work_upsert_crud::admit_crossref_work_upsert(
+            pool.as_ref(),
+            publisher,
+            accepted,
+            "user",
+        )
+        .expect("accepted");
+        assert_eq!(admission.evidence_reference, accepted, "stored verbatim");
+    }
+}
+
+#[test]
+fn a6_a7_activation_drift_and_missing_bindings() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), Uuid::new_v4(), "EV", "user")
+            .map(|a| a.actor),
+        Err(ThothError::EntityNotFound)
+    );
+    let (uncovered, _imprint) = publisher_and_imprint(pool.as_ref());
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), uncovered, "EV", "user")
+            .map(|a| a.actor),
+        Err(ThothError::CrossrefPublisherNotCovered)
+    );
+
+    let (publisher, _imprint, first, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 1);
+    // An activation change committed before admission is the one admitted.
+    let second = cover_crossref(&mut connection, publisher);
+    assert_ne!(first, second);
+    let admitted =
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-2", "user")
+            .expect("admit");
+    assert_eq!(admitted.activation_id, second);
+    // One committed after admission leaves the row naming the old activation; the
+    // new activation needs its own admission, and the report lists only it.
+    let third = cover_crossref(&mut connection, publisher);
+    let listed =
+        work_upsert_crud::work_upsert_admissions(pool.as_ref(), DistributionPlatform::Crossref)
+            .expect("report");
+    assert!(
+        listed.iter().all(|row| row.publisher_id != publisher),
+        "a superseded activation is not listed"
+    );
+    let readmitted =
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-3", "user")
+            .expect("admit");
+    assert_eq!(readmitted.activation_id, third);
+    assert_eq!(
+        admission_rows(&mut connection).len(),
+        2,
+        "both rows persist"
+    );
+    let listed =
+        work_upsert_crud::work_upsert_admissions(pool.as_ref(), DistributionPlatform::Crossref)
+            .expect("report");
+    assert_eq!(
+        listed
+            .iter()
+            .filter(|row| row.publisher_id == publisher)
+            .count(),
+        1
+    );
+    assert_eq!(
+        listed
+            .iter()
+            .find(|row| row.publisher_id == publisher)
+            .map(|row| row.activation_id),
+        Some(third)
+    );
+    assert_eq!(
+        work_upsert_crud::work_upsert_admissions(pool.as_ref(), DistributionPlatform::Zenodo)
+            .map(|rows| rows.len()),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+}
+
+fn wait_event_of(observer: &mut PgConnection, application: &str) -> String {
+    texts(
+        observer,
+        &format!(
+            "SELECT coalesce(wait_event, '') || '|' || state AS value FROM pg_stat_activity \
+             WHERE application_name = '{application}'"
+        ),
+    )
+    .into_iter()
+    .next()
+    .unwrap_or_default()
+}
+
+#[test]
+fn x8_a5_concurrent_exact_admissions_share_one_row_without_a_unique_violation() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, _imprint, activation, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 1);
+    let mut observer = pool.get().expect("observer");
+
+    for first_commits in [true, false] {
+        execute(&mut connection, "SET session_replication_role = replica; DELETE FROM work_upsert_admission; SET session_replication_role = origin");
+        // The first admission holds P FOR SHARE and has inserted, uncommitted.
+        let mut first = pool.get().expect("first");
+        execute(
+            &mut first,
+            &format!(
+                "BEGIN; SELECT 1 FROM publisher WHERE publisher_id = '{publisher}' FOR SHARE; \
+                 INSERT INTO work_upsert_admission (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+                 VALUES ('CROSSREF', '{publisher}', '{activation}', 'EV-A', 'first') \
+                 ON CONFLICT (execution_profile, publisher_id, activation_id) DO NOTHING"
+            ),
+        );
+        // The second, through the implementation, meets the uncommitted row and waits.
+        let second_pool = pool.clone();
+        let second = std::thread::spawn(move || {
+            work_upsert_crud::admit_crossref_work_upsert(
+                second_pool.as_ref(),
+                publisher,
+                "EV-B",
+                "second",
+            )
+        });
+        wait_until(|| {
+            count(
+                &mut observer,
+                "SELECT count(*) AS count FROM pg_stat_activity \
+                 WHERE wait_event = 'transactionid' AND query LIKE 'INSERT INTO public.work_upsert_admission%'",
+            ) == 1
+        });
+        // A coordinator's P FOR UPDATE waits behind both share locks.
+        let coordinator_pool = pool.clone();
+        let coordinator = std::thread::spawn(move || {
+            let mut connection = coordinator_pool.get().expect("coordinator");
+            execute(
+                &mut connection,
+                &format!("BEGIN; SELECT 1 FROM publisher WHERE publisher_id = '{publisher}' FOR UPDATE; COMMIT"),
+            );
+        });
+        wait_until(|| {
+            count(
+                &mut observer,
+                "SELECT count(*) AS count FROM pg_stat_activity \
+                 WHERE wait_event = 'tuple' OR (wait_event = 'transactionid' AND query LIKE 'BEGIN; SELECT 1 FROM publisher%')",
+            ) >= 1
+        });
+        let _ = wait_event_of;
+        execute(
+            &mut first,
+            if first_commits { "COMMIT" } else { "ROLLBACK" },
+        );
+        let admission = second
+            .join()
+            .expect("second")
+            .expect("no database error reaches the caller");
+        coordinator
+            .join()
+            .expect("coordinator waited and then committed");
+        let expected = if first_commits {
+            ("EV-A", "first")
+        } else {
+            ("EV-B", "second")
+        };
+        assert_eq!(
+            (
+                admission.evidence_reference.as_str(),
+                admission.actor.as_str()
+            ),
+            expected,
+            "first commits: {first_commits}"
+        );
+        assert_eq!(admission.activation_id, activation);
+        assert_eq!(admission_rows(&mut connection).len(), 1, "exactly one row");
+    }
+
+    // Two implementation calls racing: one row, both callers receive it.
+    execute(&mut connection, "SET session_replication_role = replica; DELETE FROM work_upsert_admission; SET session_replication_role = origin");
+    let calls: Vec<_> = ["EV-X", "EV-Y"]
+        .into_iter()
+        .map(|evidence| {
+            let pool = pool.clone();
+            std::thread::spawn(move || {
+                work_upsert_crud::admit_crossref_work_upsert(
+                    pool.as_ref(),
+                    publisher,
+                    evidence,
+                    evidence,
+                )
+            })
+        })
+        .collect();
+    let results: Vec<_> = calls
+        .into_iter()
+        .map(|call| call.join().expect("call").expect("admitted"))
+        .collect();
+    assert_eq!(results[0], results[1]);
+    assert_eq!(admission_rows(&mut connection).len(), 1);
+
+    // No non-test source names the admission primary key.
+    for path in [
+        "src/model/work_upsert/mod.rs",
+        "src/model/work_upsert/crud.rs",
+        "src/model/work_upsert/policy.rs",
+    ] {
+        assert!(
+            !source(path).contains("work_upsert_admission_pkey"),
+            "{path}"
+        );
+    }
+    assert!(
+        !include_str!("../../../../thoth-errors/src/lib.rs").contains("work_upsert_admission_pkey")
+    );
+}
