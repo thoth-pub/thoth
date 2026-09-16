@@ -1664,3 +1664,340 @@ fn x7_multi_purpose_and_unmapped_provocations_are_the_fixed_internal_failure() {
         0
     );
 }
+
+// ---------------------------------------------------------------------------
+// R52B section 7: the work-level execution profile registry
+// ---------------------------------------------------------------------------
+
+use crate::model::publisher_distribution_platform::DistributionPlatform;
+use crate::model::work_upsert::policy;
+use crate::model::work_upsert::registry::{self, FencedRecovery, CROSSREF_PROFILE};
+use crate::model::Generation;
+
+fn platform_position(platform: DistributionPlatform) -> usize {
+    DistributionPlatform::ALL
+        .iter()
+        .position(|candidate| *candidate == platform)
+        .expect("every platform is in ALL")
+}
+
+#[test]
+fn the_registry_satisfies_the_section_7_4_invariants() {
+    let registered: Vec<_> = DistributionPlatform::ALL
+        .into_iter()
+        .filter_map(registry::execution_profile)
+        .collect();
+    assert_eq!(
+        registered.len(),
+        1,
+        "Crossref is the only implemented profile"
+    );
+    let mut owned = BTreeSet::new();
+    for profile in &registered {
+        // 1: non-empty, sorted, duplicate-free, contains its key.
+        assert!(!profile.targets.is_empty());
+        assert!(profile.targets.contains(&profile.key));
+        let positions: Vec<usize> = profile
+            .targets
+            .iter()
+            .copied()
+            .map(platform_position)
+            .collect();
+        assert!(
+            positions.windows(2).all(|pair| pair[0] < pair[1]),
+            "sorted and deduplicated"
+        );
+        // 2: pairwise disjoint.
+        for position in positions {
+            assert!(owned.insert(position), "target sets are pairwise disjoint");
+        }
+        // 3: a recovery class and a proof reference.
+        assert!(!profile.recovery_proof_reference.trim().is_empty());
+        // The registry returns the profile under its own key only.
+        assert_eq!(
+            registry::execution_profile(profile.key).map(|found| found.key),
+            Some(profile.key)
+        );
+    }
+    for platform in DistributionPlatform::ALL {
+        assert_eq!(
+            registry::execution_profile(platform).is_some(),
+            platform == DistributionPlatform::Crossref,
+            "{platform}"
+        );
+    }
+}
+
+#[test]
+fn the_crossref_profile_is_exactly_the_section_7_3_instance() {
+    assert_eq!(CROSSREF_PROFILE.key, DistributionPlatform::Crossref);
+    assert_eq!(CROSSREF_PROFILE.targets, &[DistributionPlatform::Crossref]);
+    assert_eq!(
+        CROSSREF_PROFILE.fenced_recovery,
+        FencedRecovery::ReplayBlocked
+    );
+    assert_eq!(CROSSREF_PROFILE.recovery_proof_reference, "R52B §11.7");
+}
+
+#[test]
+fn the_registry_match_is_exhaustive_with_no_wildcard_arm() {
+    // Invariant 4 is a compile-time property; this pins the source shape that
+    // provides it.
+    let source = include_str!("registry.rs");
+    let body = source
+        .split_once("pub fn execution_profile(")
+        .expect("the registry function")
+        .1
+        .split_once("\n}\n")
+        .expect("the end of the registry function")
+        .0;
+    for platform in DistributionPlatform::ALL {
+        let arm = format!("DistributionPlatform::{platform:?} =>");
+        assert_eq!(body.matches(&arm).count(), 1, "one arm for {platform:?}");
+    }
+    assert!(!body.contains("_ =>"), "no wildcard arm");
+    assert_eq!(body.matches("=>").count(), 17);
+}
+
+#[test]
+fn the_registry_and_the_database_target_set_arms_agree() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(pool.as_ref());
+    let imprint = test_db::create_imprint(pool.as_ref(), &publisher);
+    let work = test_db::create_work(pool.as_ref(), &imprint);
+    let mut connection = pool.get().expect("connection");
+
+    let job = |profile: DistributionPlatform, targets: &[&str]| -> String {
+        let activation = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        let mut sql = format!(
+            "INSERT INTO distribution_job \
+                 (distribution_job_id, kind, publisher_id, work_id, activation_id, status, \
+                  cancellation_reason, completed_at, deduplication_key, execution_profile, \
+                  work_identity, created_generation, job_ordinal) \
+             VALUES ('{job_id}', 'WORK_UPSERT', '{p}', '{w}', '{activation}', 'CANCELLED', \
+                     'ADMINISTRATIVE', now(), 'WORK_UPSERT:{p}:{w}:{profile}:{activation}:1:1', \
+                     '{profile}', '{w}', 1, 1);",
+            p = publisher.publisher_id,
+            w = work.work_id,
+        );
+        for target in targets {
+            sql.push_str(&format!(
+                "INSERT INTO distribution_job_target (distribution_job_id, platform) \
+                 VALUES ('{job_id}', '{target}');"
+            ));
+        }
+        sql
+    };
+    let commit_for_real = |connection: &mut PgConnection, sql: &str| {
+        connection
+            .transaction::<(), diesel::result::Error, _>(|connection| connection.batch_execute(sql))
+            .map_err(|error| error_message(&error))
+    };
+
+    // The registered profile with exactly its declared target set commits.
+    let declared: Vec<String> = CROSSREF_PROFILE
+        .targets
+        .iter()
+        .map(|t| t.to_string())
+        .collect();
+    let declared: Vec<&str> = declared.iter().map(String::as_str).collect();
+    assert_eq!(
+        commit_for_real(
+            &mut connection,
+            &job(DistributionPlatform::Crossref, &declared)
+        ),
+        Ok(())
+    );
+    // Missing and extra targets are refused at COMMIT.
+    for targets in [vec![], vec!["CROSSREF", "ZENODO"], vec!["ZENODO"]] {
+        let refused = commit_for_real(
+            &mut connection,
+            &job(DistributionPlatform::Crossref, &targets),
+        )
+        .expect_err("refused at COMMIT");
+        assert_eq!(refused, "WORK_UPSERT_TARGET_SET_MISMATCH", "{targets:?}");
+    }
+    // A duplicate target cannot even be written.
+    assert!(commit_for_real(
+        &mut connection,
+        &job(DistributionPlatform::Crossref, &["CROSSREF", "CROSSREF"])
+    )
+    .is_err());
+    // Every unregistered key is refused at COMMIT.
+    for platform in DistributionPlatform::ALL {
+        if registry::execution_profile(platform).is_some() {
+            continue;
+        }
+        let name = platform.to_string();
+        let refused = commit_for_real(&mut connection, &job(platform, &[name.as_str()]))
+            .expect_err("an unregistered profile is refused");
+        assert_eq!(refused, "WORK_UPSERT_PROFILE_NOT_IMPLEMENTED", "{platform}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 7: input validation, code-owned
+// ---------------------------------------------------------------------------
+
+#[test]
+fn n3_the_blank_rule_is_exactly_the_84_code_points_of_section_7_1() {
+    let blank: Vec<u32> = (0..=0x10FFFFu32)
+        .filter_map(char::from_u32)
+        .filter(|c| policy::is_blank(&c.to_string()))
+        .map(u32::from)
+        .collect();
+    let mut expected: Vec<u32> = (0x00..=0x1F).chain(0x7F..=0x9F).collect();
+    expected.extend([0x20, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]);
+    expected.extend(0x2000..=0x200A);
+    expected.sort_unstable();
+    expected.dedup();
+    assert_eq!(expected.len(), 84);
+    assert_eq!(blank, expected);
+}
+
+#[test]
+fn n1_n2_n4_blank_and_non_blank_strings_follow_the_rule() {
+    for blank in [
+        "",
+        " ",
+        "\t\n\r\u{0b}\u{0c}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2003}",
+        "\u{2028}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{001C}",
+        "\u{001F}",
+        "\u{0001}",
+        "\u{007F}",
+        "\u{009F}",
+        "\u{00A0}\u{2003}\u{3000}",
+    ] {
+        assert!(policy::is_blank(blank), "{blank:?} is blank");
+    }
+    for content in [
+        "x",
+        " x ",
+        "\u{00A0}x",
+        "\u{200B}",
+        "\u{FEFF}",
+        "\u{180E}",
+        " G7-AUTH-1 ",
+    ] {
+        assert!(!policy::is_blank(content), "{content:?} is content");
+    }
+}
+
+#[test]
+fn the_sha256_hex_shape_accepts_only_64_lower_case_hex_bytes() {
+    let valid_a = "0123456789abcdef".repeat(4);
+    let valid_b = "f".repeat(64);
+    for valid in [&valid_a, &valid_b] {
+        assert!(policy::is_sha256_lower_hex(valid), "{valid}");
+    }
+    let mut invalid = vec![
+        String::new(),
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(64),
+        format!("{}g", "a".repeat(63)),
+        format!("{} ", "a".repeat(63)),
+        format!("{}\u{FF11}", "a".repeat(63)),
+        format!("{}é", "a".repeat(62)),
+        format!("{}F", "a".repeat(63)),
+    ];
+    invalid.push(format!(" {}", "a".repeat(63)));
+    for value in invalid {
+        assert!(!policy::is_sha256_lower_hex(&value), "{value:?}");
+    }
+}
+
+#[test]
+fn execution_profile_lists_are_validated_without_database_access() {
+    use thoth_errors::ThothError;
+    assert_eq!(
+        policy::registered_profiles(&[]).map(|profiles| profiles.len()),
+        Err(ThothError::WorkUpsertExecutionProfilesRequired)
+    );
+    assert_eq!(
+        policy::registered_profiles(&[
+            DistributionPlatform::Crossref,
+            DistributionPlatform::Zenodo
+        ])
+        .map(|profiles| profiles.len()),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+    let profiles = policy::registered_profiles(&[
+        DistributionPlatform::Crossref,
+        DistributionPlatform::Crossref,
+    ])
+    .expect("registered");
+    assert_eq!(profiles.len(), 1, "deduplicated");
+    assert_eq!(profiles[0].key, DistributionPlatform::Crossref);
+}
+
+#[test]
+fn limits_follow_the_released_clamp_convention() {
+    assert_eq!(policy::clamp_limit(None, 100, 500), 100);
+    assert_eq!(policy::clamp_limit(Some(0), 100, 500), 0);
+    assert_eq!(policy::clamp_limit(Some(-5), 100, 500), 0);
+    assert_eq!(policy::clamp_limit(Some(1), 100, 500), 1);
+    assert_eq!(policy::clamp_limit(Some(501), 100, 500), 500);
+    assert_eq!(policy::clamp_limit(Some(10_000), 100, 500), 500);
+}
+
+// ---------------------------------------------------------------------------
+// R52B section 19.3: the Generation wire type
+// ---------------------------------------------------------------------------
+
+#[test]
+fn generation_is_exactly_the_lossless_decimal_grammar() {
+    use std::str::FromStr;
+    for (text, value) in [
+        ("0", 0i64),
+        ("1", 1),
+        ("99999999999999", 99_999_999_999_999),
+        ("20260914120000000", 20_260_914_120_000_000),
+        ("9223372036854775807", i64::MAX),
+    ] {
+        let generation = Generation::from_str(text).expect(text);
+        assert_eq!(generation.value(), value);
+        assert_eq!(generation.to_string(), text);
+        assert_eq!(Generation::from_i64(value), Some(generation));
+    }
+    for text in [
+        "",
+        "-1",
+        "+1",
+        "01",
+        "00",
+        " 1",
+        "1 ",
+        "1.0",
+        "1e3",
+        "abc",
+        "0x1",
+        "９",
+        "9223372036854775808",
+        "99999999999999999999",
+    ] {
+        assert!(Generation::from_str(text).is_err(), "{text:?}");
+    }
+    assert_eq!(Generation::from_i64(-1), None);
+
+    use juniper::{DefaultScalarValue, FromInputValue, InputValue};
+    let parse = |value: InputValue<DefaultScalarValue>| Generation::from_input_value(&value);
+    assert_eq!(
+        parse(InputValue::scalar("99999999999999")).map(|g| g.value()),
+        Ok(99_999_999_999_999)
+    );
+    assert!(parse(InputValue::scalar("01")).is_err());
+    assert!(parse(InputValue::scalar(1)).is_err(), "never an Int");
+    let output: InputValue<DefaultScalarValue> =
+        juniper::ToInputValue::to_input_value(&Generation::from_i64(7).expect("7"));
+    assert_eq!(output, InputValue::scalar("7"), "a string on the wire");
+}

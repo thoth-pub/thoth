@@ -9,5 +9,8 @@
 //! Everything here is Publisher-Services-specific. There is no generic
 //! cross-programme queue, scheduler or job framework (frozen rule 1, R52B §5).
 
+pub mod policy;
+pub mod registry;
+
 #[cfg(all(test, feature = "backend"))]
 mod tests;
