@@ -5497,3 +5497,418 @@ fn s7_s8_s9_b2_no_leakage_token_boundary_or_removed_vocabulary() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// GraphQL: the authorization matrix and the refusal order (T257; Amendment 3
+// sections 10.1 and 11: C6, F4, F6, F17, M7, N1, P4, X9)
+// ---------------------------------------------------------------------------
+
+mod graphql_contract {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use serde_json::{json, Value as JsonValue};
+    use uuid::Uuid;
+    use zitadel::actix::introspection::IntrospectedUser;
+
+    use super::*;
+    use crate::graphql::{create_schema, GraphQLRequest, Schema};
+    use crate::model::distribution_job::DistributionJobCreation;
+    use crate::policy::Role;
+
+    fn user(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
+        let mut project_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        for (role, org) in roles {
+            project_roles
+                .entry(role.as_ref().to_string())
+                .or_default()
+                .insert((*org).to_string(), "role".to_string());
+        }
+        IntrospectedUser {
+            user_id: user_id.to_string(),
+            username: None,
+            name: None,
+            given_name: None,
+            family_name: None,
+            preferred_username: None,
+            email: None,
+            email_verified: None,
+            locale: None,
+            project_roles: Some(project_roles),
+            metadata: None,
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum Principal {
+        Anonymous,
+        WorkerOnly,
+        SuperuserOnly,
+        Both,
+        PublisherScoped,
+    }
+
+    const PRINCIPALS: [Principal; 5] = [
+        Principal::Anonymous,
+        Principal::WorkerOnly,
+        Principal::SuperuserOnly,
+        Principal::Both,
+        Principal::PublisherScoped,
+    ];
+
+    fn context(pool: &Arc<crate::db::PgPool>, principal: Principal) -> crate::graphql::Context {
+        let user = match principal {
+            Principal::Anonymous => None,
+            Principal::WorkerOnly => Some(user("worker", &[(Role::DisseminationWorker, "org")])),
+            Principal::SuperuserOnly => Some(user("superuser", &[(Role::Superuser, "org")])),
+            Principal::Both => Some(user(
+                "both",
+                &[(Role::Superuser, "org"), (Role::DisseminationWorker, "org")],
+            )),
+            Principal::PublisherScoped => Some(user(
+                "publisher",
+                &[(Role::PublisherUser, "org"), (Role::PublisherAdmin, "org")],
+            )),
+        };
+        test_db::test_context_with_job_creation(
+            Arc::clone(pool),
+            user,
+            DistributionJobCreation::default(),
+        )
+    }
+
+    async fn run(schema: &Schema, context: &crate::graphql::Context, query: &str) -> JsonValue {
+        let request: GraphQLRequest =
+            serde_json::from_value(json!({ "query": query })).expect("request");
+        serde_json::to_value(request.execute(schema, context).await).expect("response")
+    }
+
+    fn error_type(response: &JsonValue) -> Option<String> {
+        response["errors"]
+            .as_array()
+            .and_then(|errors| errors.first())
+            .and_then(|error| error["extensions"]["type"].as_str())
+            .map(str::to_string)
+    }
+
+    fn error_message(response: &JsonValue) -> Option<String> {
+        response["errors"]
+            .as_array()
+            .and_then(|errors| errors.first())
+            .and_then(|error| error["message"].as_str())
+            .map(str::to_string)
+    }
+
+    fn refused(response: &JsonValue) -> bool {
+        error_type(response).as_deref() == Some("NO_ACCESS")
+    }
+
+    /// A permit on every route, with its token: `(route, permit, token)`.
+    fn permits_on_every_route(
+        pool: &Arc<crate::db::PgPool>,
+        connection: &mut PgConnection,
+    ) -> Vec<(&'static str, Uuid, Uuid)> {
+        let (_publisher, imprint, work, job, token) = claimed(pool.as_ref(), connection);
+        let work_upsert =
+            permit_crud::reserve_work_upsert_crossref_write(pool.as_ref(), job, token)
+                .expect("work upsert");
+        let legacy_work = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        let legacy =
+            permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), legacy_work)
+                .expect("legacy");
+        let manual_work = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        let manual = permit_crud::reserve_manual_recovery_crossref_write(
+            pool.as_ref(),
+            manual_work,
+            "INC-1",
+        )
+        .expect("manual");
+        let _ = work;
+        vec![
+            (
+                "WORK_UPSERT",
+                work_upsert.permit_id,
+                work_upsert.reservation_token,
+            ),
+            (
+                "LEGACY_SCHEDULED",
+                legacy.permit_id,
+                legacy.reservation_token,
+            ),
+            (
+                "MANUAL_RECOVERY",
+                manual.permit_id,
+                manual.reservation_token,
+            ),
+        ]
+    }
+
+    const BAD_DIGEST: &str = "NOT-A-DIGEST";
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn t257_every_mutation_admits_exactly_its_roles() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let random = Uuid::new_v4();
+        let worker_mutations = [
+            "mutation { materializeWorkUpsertJobs(data: {executionProfiles: [CROSSREF], limit: 0}) { examined } }".to_string(),
+            "mutation { claimWorkUpsertJobs(data: {executionProfiles: [CROSSREF], limit: 0}) { claimToken } }".to_string(),
+            format!("mutation {{ reserveWorkUpsertCrossrefWrite(data: {{distributionJobId: \"{random}\", claimToken: \"{random}\"}}) {{ permitId }} }}"),
+            format!("mutation {{ reserveBackCatalogueCrossrefWrite(data: {{distributionJobId: \"{random}\", claimToken: \"{random}\", rootWorkId: \"{random}\"}}) {{ permitId }} }}"),
+            format!("mutation {{ reserveLegacyScheduledCrossrefWrite(data: {{rootWorkId: \"{random}\"}}) {{ permitId }} }}"),
+        ];
+        let superuser_mutations = [
+            format!("mutation {{ reserveManualRecoveryCrossrefWrite(data: {{rootWorkId: \"{random}\", operatorAuthorizationReference: \"INC\"}}) {{ permitId }} }}"),
+            format!("mutation {{ voidCrossrefWriteReservationAsSuperuser(data: {{permitId: \"{random}\", detail: \"d\", authorizationReference: \"R\"}}) {{ permitId }} }}"),
+            format!("mutation {{ reconcileCrossrefWritePermit(data: {{permitId: \"{random}\", outcome: ACCEPTED, reconciliationState: RECONCILED, authorizationReference: \"R\"}}) {{ permitId }} }}"),
+            "mutation { enableWorkUpsertCapture(executionProfile: ZENODO) { captureEnabled } }".to_string(),
+            "mutation { setWorkUpsertExecution(executionProfile: ZENODO, enabled: true) { executionEnabled } }".to_string(),
+            format!("mutation {{ seedCrossrefWorkUpsert(data: {{publisherId: \"{random}\"}}) {{ examined }} }}"),
+            format!("mutation {{ admitCrossrefWorkUpsert(data: {{publisherId: \"{random}\", evidenceReference: \" \"}}) {{ actor }} }}"),
+            format!("mutation {{ advanceCrossrefVersionFloor(data: {{targetValue: \"1\", g6AttemptId: \"{random}\", observationId: \"{random}\", authorizationReference: \"\", authorizationRegisterDigest: \"\"}}) {{ auditId }} }}"),
+            format!("mutation {{ materializeWorkUpsertJob(data: {{workId: \"{random}\", executionProfile: ZENODO}}) {{ outcome }} }}"),
+        ];
+        for principal in PRINCIPALS {
+            let context = context(&pool, principal);
+            for query in &worker_mutations {
+                let response = run(&schema, &context, query).await;
+                let expected = matches!(principal, Principal::WorkerOnly | Principal::Both);
+                assert_eq!(
+                    !refused(&response),
+                    expected,
+                    "{principal:?}: {query}: {response}"
+                );
+            }
+            for query in &superuser_mutations {
+                let response = run(&schema, &context, query).await;
+                let expected = matches!(principal, Principal::SuperuserOnly | Principal::Both);
+                assert_eq!(
+                    !refused(&response),
+                    expected,
+                    "{principal:?}: {query}: {response}"
+                );
+            }
+            // Every report is superuser-only.
+            for query in [
+                "{ workUpsertControl { captureEnabled } }",
+                "{ crossrefDrained }",
+                "{ crossrefBlockingWritePermitCount }",
+                "{ crossrefUnresolvedPermits { permitId } }",
+                "{ crossrefVersionFloor { floorValue } }",
+                "{ workUpsertAdmissions(executionProfile: CROSSREF) { actor } }",
+            ] {
+                let response = run(&schema, &context, query).await;
+                let expected = matches!(principal, Principal::SuperuserOnly | Principal::Both);
+                assert_eq!(
+                    !refused(&response),
+                    expected,
+                    "{principal:?}: {query}: {response}"
+                );
+            }
+        }
+
+        // The route-derived operations, on each route.
+        let mut connection = pool.get().expect("connection");
+        let permits = permits_on_every_route(&pool, &mut connection);
+        for (route, permit, token) in &permits {
+            for principal in PRINCIPALS {
+                let context = context(&pool, principal);
+                let role_holds = match (*route, principal) {
+                    (_, Principal::Both) => true,
+                    ("MANUAL_RECOVERY", Principal::SuperuserOnly) => true,
+                    ("MANUAL_RECOVERY", _) => false,
+                    (_, Principal::WorkerOnly) => true,
+                    _ => false,
+                };
+                // P4: a malformed digest — NO_ACCESS without the role, the digest refusal with it.
+                let finalise = format!(
+                    "mutation {{ finaliseCrossrefWrite(data: {{permitId: \"{permit}\", reservationToken: \"{token}\", observedDois: [], observedDoiBatchId: \"x\", observedCrossrefTimestamp: \"1\", payloadDigest: \"{BAD_DIGEST}\"}}) {{ outcome }} }}"
+                );
+                let response = run(&schema, &context, &finalise).await;
+                if role_holds {
+                    assert_eq!(
+                        error_type(&response).as_deref(),
+                        Some("CROSSREF_PAYLOAD_DIGEST_INVALID"),
+                        "{route} {principal:?}: {response}"
+                    );
+                } else {
+                    assert!(refused(&response), "{route} {principal:?}: {response}");
+                }
+                // N1: a blank detail — NO_ACCESS without the role, the detail refusal with it.
+                let void = format!(
+                    "mutation {{ voidCrossrefWriteReservation(data: {{permitId: \"{permit}\", reservationToken: \"{token}\", detail: \" \"}}) {{ permitId }} }}"
+                );
+                let response = run(&schema, &context, &void).await;
+                if role_holds {
+                    assert_eq!(
+                        error_type(&response).as_deref(),
+                        Some("CROSSREF_PERMIT_VOID_REQUIRES_DETAIL"),
+                        "{route} {principal:?}: {response}"
+                    );
+                } else {
+                    assert!(refused(&response), "{route} {principal:?}: {response}");
+                }
+                // The report on a RESERVED permit: an illegal transition with the role.
+                let report = format!(
+                    "mutation {{ reportCrossrefWrite(data: {{permitId: \"{permit}\", reservationToken: \"{token}\", outcome: ACCEPTED}}) {{ permitId }} }}"
+                );
+                let response = run(&schema, &context, &report).await;
+                if role_holds {
+                    assert_eq!(
+                        error_type(&response).as_deref(),
+                        Some("CROSSREF_PERMIT_ILLEGAL_TRANSITION"),
+                        "{route} {principal:?}: {response}"
+                    );
+                } else {
+                    assert!(refused(&response), "{route} {principal:?}: {response}");
+                }
+            }
+        }
+        // P4: a nonexistent permit is NOT_FOUND for a principal holding a permit role.
+        let context = context(&pool, Principal::WorkerOnly);
+        let missing = format!(
+            "mutation {{ finaliseCrossrefWrite(data: {{permitId: \"{random}\", reservationToken: \"{random}\", observedDois: [], observedDoiBatchId: \"x\", observedCrossrefTimestamp: \"1\", payloadDigest: \"{BAD_DIGEST}\"}}) {{ outcome }} }}"
+        );
+        assert_eq!(
+            error_type(&run(&schema, &context, &missing).await).as_deref(),
+            Some("CROSSREF_PERMIT_NOT_FOUND")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn f4_f6_f17_c6_m7_x9_refusals_through_graphql() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let schema = create_schema();
+        let superuser = context(&pool, Principal::SuperuserOnly);
+        let worker = context(&pool, Principal::WorkerOnly);
+        let attempt = Uuid::new_v4();
+        let advance = |target: &str, attempt: &str| {
+            format!(
+                "mutation {{ advanceCrossrefVersionFloor(data: {{targetValue: \"{target}\", g6AttemptId: \"{attempt}\", observationId: \"{}\", authorizationReference: \"G7-AUTH-1\", authorizationRegisterDigest: \"{}\"}}) {{ auditId afterValue actor }} }}",
+                Uuid::new_v4(),
+                "a".repeat(64)
+            )
+        };
+        // F6: grammar failures are GraphQL input errors, with no resolver run.
+        for target in ["-1", "01", "", "abc", "9223372036854775808"] {
+            let response = run(&schema, &superuser, &advance(target, &attempt.to_string())).await;
+            assert!(response["data"].is_null(), "{target}: {response}");
+            assert_eq!(
+                error_type(&response),
+                None,
+                "{target}: an input error carries no BE-06 type: {response}"
+            );
+        }
+        // F17: roles are checked before arguments.
+        for principal in [
+            Principal::Anonymous,
+            Principal::WorkerOnly,
+            Principal::PublisherScoped,
+        ] {
+            let response = run(
+                &schema,
+                &context(&pool, principal),
+                &advance("1", &attempt.to_string()),
+            )
+            .await;
+            assert!(refused(&response), "{principal:?}: {response}");
+        }
+        // F1/F2 through GraphQL, then F4: respelled attempts are the same attempt.
+        let response = run(
+            &schema,
+            &superuser,
+            &advance("99999999999999", &attempt.to_string()),
+        )
+        .await;
+        assert_eq!(
+            response["data"]["advanceCrossrefVersionFloor"]["afterValue"],
+            json!("99999999999999"),
+            "{response}"
+        );
+        assert_eq!(
+            response["data"]["advanceCrossrefVersionFloor"]["actor"],
+            json!("superuser")
+        );
+        for respelled in [
+            attempt.to_string().to_uppercase(),
+            attempt.simple().to_string(),
+        ] {
+            let response = run(&schema, &superuser, &advance("99999999999999", &respelled)).await;
+            assert_eq!(
+                error_type(&response).as_deref(),
+                Some("CROSSREF_VERSION_FLOOR_ALREADY_ADVANCED"),
+                "{respelled}: {response}"
+            );
+            assert_eq!(
+                error_message(&response).as_deref(),
+                Some("This G-6 attempt has already advanced the version floor.")
+            );
+        }
+
+        // C6: an unregistered profile, with no database access.
+        let response = run(&schema, &superuser, "mutation { setWorkUpsertExecution(executionProfile: FIGSHARE, enabled: true) { executionEnabled } }").await;
+        assert_eq!(
+            error_type(&response).as_deref(),
+            Some("WORK_UPSERT_PROFILE_NOT_IMPLEMENTED")
+        );
+        // C1 through GraphQL, and X9: the constraint never surfaces.
+        let response = run(&schema, &superuser, "mutation { setWorkUpsertExecution(executionProfile: CROSSREF, enabled: true) { executionEnabled } }").await;
+        assert_eq!(
+            error_type(&response).as_deref(),
+            Some("WORK_UPSERT_CAPTURE_NOT_ENABLED")
+        );
+        // M7.
+        let response = run(
+            &schema,
+            &worker,
+            "mutation { materializeWorkUpsertJobs(data: {executionProfiles: []}) { examined } }",
+        )
+        .await;
+        assert_eq!(
+            error_type(&response).as_deref(),
+            Some("WORK_UPSERT_EXECUTION_PROFILES_REQUIRED")
+        );
+        let response = run(
+            &schema,
+            &worker,
+            "mutation { claimWorkUpsertJobs(data: {executionProfiles: [JSTOR]}) { claimToken } }",
+        )
+        .await;
+        assert_eq!(
+            error_type(&response).as_deref(),
+            Some("WORK_UPSERT_PROFILE_NOT_IMPLEMENTED")
+        );
+
+        // X9: no refusal leaks SQL, constraint, relation or driver text.
+        let mut connection = pool.get().expect("connection");
+        let (_publisher, imprint, work, job, token) = claimed(pool.as_ref(), &mut connection);
+        let _ = (imprint, work);
+        let reservation =
+            permit_crud::reserve_work_upsert_crossref_write(pool.as_ref(), job, token)
+                .expect("reserve");
+        let responses = vec![
+            run(&schema, &worker, &format!("mutation {{ reserveWorkUpsertCrossrefWrite(data: {{distributionJobId: \"{job}\", claimToken: \"{token}\"}}) {{ permitId }} }}")).await,
+            run(&schema, &worker, &format!("mutation {{ reserveLegacyScheduledCrossrefWrite(data: {{rootWorkId: \"{work}\"}}) {{ permitId }} }}")).await,
+            run(&schema, &superuser, &format!("mutation {{ admitCrossrefWorkUpsert(data: {{publisherId: \"{}\", evidenceReference: \"EV\"}}) {{ actor }} }}", Uuid::new_v4())).await,
+            run(&schema, &worker, &format!("mutation {{ reportCrossrefWrite(data: {{permitId: \"{}\", reservationToken: \"{}\", outcome: ACCEPTED}}) {{ permitId }} }}", reservation.permit_id, reservation.reservation_token)).await,
+        ];
+        for response in responses {
+            let text = response.to_string().to_lowercase();
+            assert!(response["errors"].is_array(), "{response}");
+            for leak in [
+                "violates",
+                "duplicate key",
+                "constraint",
+                "relation",
+                "sqlstate",
+                "postgres",
+                "diesel",
+                "localhost",
+                "work_upsert_control",
+                "crossref_write_permit_one",
+            ] {
+                assert!(!text.contains(leak), "{leak} in {response}");
+            }
+        }
+    }
+}
