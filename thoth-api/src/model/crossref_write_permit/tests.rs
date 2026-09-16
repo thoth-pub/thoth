@@ -5699,3 +5699,170 @@ fn t203_no_generic_path_writes_a_permit_and_the_only_referential_actions_are_set
         "nothing cascades into or out of the permit tables"
     );
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// R52B section 17.2 T248: Rust/PostgreSQL timestamp-validity parity. The export server's test records the Rust
+// validator's verdict over a deterministic corpus; this test regenerates the identical corpus, checks it against the
+// recorded corpus digest, and requires PostgreSQL's verdict to equal the recorded Rust verdict string for string.
+// ---------------------------------------------------------------------------------------------------------------------
+
+fn t248_fnv1a(strings: impl Iterator<Item = String>) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for string in strings {
+        for byte in string.bytes().chain(std::iter::once(b'\n')) {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    hash
+}
+
+/// Byte-for-byte the generator of `thoth-export-server/src/xml/doideposit_crossref.rs` `t248_corpus`.
+fn t248_corpus() -> Vec<String> {
+    use chrono::{Duration, NaiveDate};
+    let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut next = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let mut corpus: Vec<String> = [
+        "10000101000000000",
+        "99991231235959999",
+        "99991231235959998",
+        "20240229235959999",
+        "20250228235959999",
+        "20241231235959999",
+        "20260904120000000",
+        "20260904120059999",
+        "20260904120060000",
+        "20260904240000000",
+        "20261304120000000",
+        "20260932120000000",
+        "20250229120000000",
+        "20260431120000000",
+        "02026090412000000",
+        "09991231235959999",
+        "99999999999999",
+        "2026090412000000",
+        "202609041200000000",
+        "2026090412000000a",
+        " 20260904120000000",
+        "+2026090412000000",
+        "",
+        "20000229120000000",
+        "21000229120000000",
+        "19000228235959999",
+        "20001231235959999",
+        "20260101000000000",
+        "20260100000000000",
+        "20260001000000000",
+        "20260904126000000",
+        "20260904125959999",
+        "20260630235959999",
+        "20260631000000000",
+        "20261131000000000",
+        "20260228000000000",
+        "20260229000000000",
+        "99991231240000000",
+        "99991231235960000",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    for _ in 0..100_000 {
+        corpus.push(format!("{:017}", next() % 100_000_000_000_000_000));
+    }
+    let mut instants = Vec::new();
+    for _ in 0..100_000 {
+        let year = 1000 + (next() % 9000) as i32;
+        let month = 1 + (next() % 12) as u32;
+        let day = 1 + (next() % 31) as u32;
+        let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else {
+            continue;
+        };
+        let at = date
+            .and_hms_milli_opt(
+                (next() % 24) as u32,
+                (next() % 60) as u32,
+                (next() % 60) as u32,
+                (next() % 1000) as u32,
+            )
+            .expect("valid");
+        instants.push(at);
+        corpus.push(at.format("%Y%m%d%H%M%S%3f").to_string());
+        let successor = at + Duration::milliseconds(1);
+        corpus.push(successor.format("%Y%m%d%H%M%S%3f").to_string());
+    }
+    for (index, at) in instants.iter().take(60_000).enumerate() {
+        let text = at.format("%Y%m%d%H%M%S%3f").to_string();
+        let corrupted = match index % 3 {
+            0 => format!("{}60{}", &text[..12], &text[14..]),
+            1 => format!("{}24{}", &text[..8], &text[10..]),
+            _ => format!("{}32{}", &text[..6], &text[8..]),
+        };
+        corpus.push(corrupted);
+    }
+    corpus
+}
+
+#[test]
+fn t248_postgresql_and_rust_timestamp_validity_agree_over_the_parity_corpus() {
+    let source = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../thoth-export-server/src/xml/doideposit_crossref.rs"
+    ))
+    .expect("the export server source");
+    let recorded = |name: &str| -> u64 {
+        regex::Regex::new(&format!(r"const {name}: (?:usize|u64) = (\d+);"))
+            .expect("regex")
+            .captures(&source)
+            .unwrap_or_else(|| panic!("{name} is recorded"))[1]
+            .parse()
+            .expect("number")
+    };
+    // The generators are identical: the corpus digest matches the export server's.
+    let corpus = t248_corpus();
+    assert_eq!(corpus.len() as u64, recorded("T248_CORPUS_LEN"));
+    assert_eq!(
+        t248_fnv1a(corpus.iter().cloned()),
+        recorded("T248_CORPUS_DIGEST")
+    );
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    #[derive(QueryableByName)]
+    struct Verdict {
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        valid: bool,
+    }
+    let mut valid = Vec::new();
+    for chunk in corpus.chunks(20_000) {
+        let verdicts = diesel::sql_query(
+            "SELECT CASE WHEN s ~ '^[1-9][0-9]{16}$' THEN public.crossref_ts_decode(s::bigint) IS NOT NULL ELSE false END AS valid \
+             FROM unnest($1::text[]) WITH ORDINALITY AS c(s, n) ORDER BY n",
+        )
+        .bind::<diesel::sql_types::Array<Text>, _>(chunk)
+        .load::<Verdict>(&mut connection)
+        .expect("verdicts");
+        assert_eq!(verdicts.len(), chunk.len());
+        valid.extend(
+            chunk
+                .iter()
+                .zip(verdicts)
+                .filter(|(_, verdict)| verdict.valid)
+                .map(|(s, _)| s.clone()),
+        );
+    }
+    assert_eq!(
+        valid.len() as u64,
+        recorded("T248_VALID_LEN"),
+        "the valid count"
+    );
+    assert_eq!(
+        t248_fnv1a(valid.into_iter()),
+        recorded("T248_VALID_DIGEST"),
+        "PostgreSQL's valid set is the Rust validator's, string for string"
+    );
+}
