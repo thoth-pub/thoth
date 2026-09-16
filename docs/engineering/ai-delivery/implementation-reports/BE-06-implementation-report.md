@@ -5,6 +5,10 @@ Work-level Crossref upsert and Crossref write permits.
 The implementation agent does not approve its own work. This report records what was implemented and what was
 executed. It is evidence for the independent exact-head CRITICAL review, not a substitute for it.
 
+> **T166 correction.** Sections 1-16 are the original report for head `bfef2daa`, preserved as written. That head
+> was not approved on independent review. Section 17 records the correction authorized by #848 comment `5701857879`
+> under CTO specification correction `5701572954`, which supersedes section 5.4 item 1.
+
 ## 1. Repository state
 
 | Item | Value |
@@ -250,6 +254,7 @@ and T221 confirm this in both orders.
    the frozen section 9.3 contract; adding a refusal would change a frozen API semantic. The T166 test asserts that
    released paths and every gated entry point create no BE-06 state, and records that admission remains an explicit
    superuser act. **Not implementation-blocking. Reviewer decision requested.**
+   *Superseded by section 17: the CTO resolved this conflict in favour of T166 (#848 comment `5701572954`).*
 2. **N5 and the non-blank CHECKs.** The database CHECKs that back the non-blank rule are weaker than the Rust rule.
    For example, the admission CHECK accepts U+0001. They also differ between ICU and C collation on inputs the code
    already refuses, such as U+00A0 and U+2000-U+200A under `[[:space:]]`. API results are identical under both
@@ -647,3 +652,123 @@ and pull-request workflows need a PR, which is not authorized. No workflow was d
 3. The observations of section 5.4, especially T166 and admission while inert.
 4. The EB1/EB2 boundary in the five model files and the three deletion units.
 5. The race harness's pause-point technique, and whether its wait transcripts are sufficient evidence.
+
+## 17. T166 correction
+
+### 17.1 Finding and authority
+
+- Head `bfef2daa0369a6cb8b45d8f610949bda865cef72` (tree `3146c97dc2d78504130c278e14ec66fd365f33af`) failed
+  independent review because T166 had been weakened: it asserted that explicit admission succeeds while the control
+  row is `(false, false)`, as section 5.4 item 1 describes.
+- The defect was a conflict between specification authorities, retained R52B T166 against Amendment 3 section 9.3's
+  frozen admission precedence, not merely an editorial test problem. Section 5.4 item 1 chose section 9.3; the
+  implementation agent had no authority to resolve that conflict either way.
+- CTO specification correction #848 comment `5701572954` resolved it: `admitCrossrefWorkUpsert` requires
+  `capture_enabled = true`, checked after the publisher `P FOR SHARE` lock and existence proof and before activation
+  resolution, the existing-admission return and the census, refusing with the existing `WORK_UPSERT_CAPTURE_NOT_ENABLED`.
+  It placed `5687443066` on HOLD for further writes.
+- The correction authority is #848 comment `5701857879`, bound to base `bfef2daa…` and four paths.
+- No approval of `bfef2daa` or of any later head exists.
+
+### 17.2 Preflight
+
+`git fetch origin --prune`; local `HEAD` and `origin/feature/publisher-services-v1-10--be-06` both `bfef2daa…`, tree
+`3146c97d…`; clean worktree; no PR for the branch; the #848 comment list ended with `5701572954` and `5701857879`.
+
+### 17.3 RED
+
+T166 was rewritten before any production change. While `(false, false)` it requires admission to be refused with
+`WORK_UPSERT_CAPTURE_NOT_ENABLED`, and zero admission, permit, audit, `WORK_UPSERT` job, target and attempt rows, with
+generation rows the only BE-06 state. It then enables capture through `enable_work_upsert_capture` and requires one
+admission (`EV`, `admin`) and no job.
+
+```text
+cargo test -p thoth-api --features backend --lib work_upsert::tests::t166
+panicked at thoth-api/src/model/work_upsert/tests.rs:7234:5:
+assertion `left == right` failed
+  left: Ok("admin")
+ right: Err(WorkUpsertCaptureNotEnabled)
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1436 filtered out
+```
+
+The failure is the approved defect: admission succeeded while inert.
+
+### 17.4 GREEN and the exact diff
+
+`admit_crossref_work_upsert` gained one check, after the publisher block and before `crossref_activation`:
+
+```rust
+if !capture_enabled(connection, DistributionPlatform::Crossref)? {
+    return Err(ThothError::WorkUpsertCaptureNotEnabled.into());
+}
+```
+
+It reuses the helper the seed already uses. The rerun of the same command gave `1 passed; 0 failed`.
+
+The first full workspace run then failed exactly one test, A6/A7 (`a6_a7_activation_drift_and_missing_bindings`):
+`left: Err(WorkUpsertCaptureNotEnabled)`, `right: Err(CrossrefPublisherNotCovered)`. Its uncovered-publisher
+refusal ran with capture disabled, so it met the corrected precedence. A6/A7 now asserts
+`WORK_UPSERT_CAPTURE_NOT_ENABLED` for that publisher, enables capture, and keeps its original
+`CROSSREF_PUBLISHER_NOT_COVERED` assertion and the rest of the test unchanged.
+
+Correction commit `23c7be6180aa13cde7a036ac1d1abb0181ab9399` (tree `68f1cc7231349b9508d7f40340f66f925ee10d58`):
+
+```text
+git show --numstat 23c7be61
+5   0  thoth-api/src/model/work_upsert/crud.rs   (the check and a two-line comment)
+30  7  thoth-api/src/model/work_upsert/tests.rs  (T166 and A6/A7)
+```
+
+The documentation commit that adds this section changes only this file and `tasks/BE-06.md`; its SHA is the pushed
+head.
+
+### 17.5 Validation on the correction commit
+
+```text
+cargo fmt --all -- --check                                           exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings       exit 0 (proc-macro-error2 notice only)
+cargo test --workspace --no-fail-fast                                exit 0
+thoth (bin)                                   31 passed
+thoth-api lib                               1437 passed, 0 failed, 0 ignored
+thoth-api tests/crossref_permit_concurrency    3 passed
+thoth-api tests/crossref_serializer_dependency_guard 4 passed
+thoth-api tests/graphql_permissions           13 passed
+thoth-api tests/work_upsert_capture           31 passed
+thoth-api tests/work_upsert_deletion           4 passed
+thoth-api tests/work_upsert_lifecycle          7 passed
+thoth-api-server lib 3; thoth-client lib 4; thoth-errors lib 11; thoth-export-server lib 152
+doc-tests: thoth_client 6; thoth_export_server 2; thoth_api 0 passed, 8 ignored
+```
+
+Within that run, each passed:
+
+- T166; admission A2, A3, A4, A6/A7, X8/A5 (concurrent exact admissions), S4/A8 (frozen types), T257 (A9 roles);
+  D10/T290, D11, T291, T292 (admission against a concurrent activation change and capture), T273;
+- control and precedence: C1, C2/C3, C4, D8, the GraphQL refusal order `f4_f6_f17_c6_m7_x9_refusals_through_graphql`;
+- error mapping: X2, X6, `the_boundary_commits_rolls_back_and_converts_exactly`, `thoth-errors` 11/11;
+- static containment: S1 (43-path allowlist, evaluated), X1 (both), X3, A1, D9, T203;
+- the integration lifecycle, capture and permit-concurrency suites.
+
+### 17.6 Semantics
+
+- Capture disabled: admission returns `WORK_UPSERT_CAPTURE_NOT_ENABLED` inside the transaction before any activation
+  read, admission lookup, census or insert; the transaction writes nothing.
+- Capture enabled: the rest of section 9.3 is unchanged: exact-binding activation, idempotent return of the existing
+  row, the census refusal, `ON CONFLICT DO NOTHING` with the later read, and no job creation.
+- The evidence-reference refusal and `SUPERUSER` authorization still precede the transaction. Unknown publishers
+  still give `ENTITY_NOT_FOUND` before the capture read.
+- No lock class, GraphQL shape, result field, error code or mapping, schema, migration or other path changed.
+
+### 17.7 Side effects and remaining gate
+
+- **Repository writes:** the four authorized paths only; `git diff --name-status bfef2daa..HEAD` lists
+  `crud.rs`, `tests.rs`, `tasks/BE-06.md` and this report.
+- **Commits:** the correction commit and this documentation commit, as Javier Arias, without AI attribution. No
+  earlier commit was amended, rebased or rewritten.
+- **Push:** the task branch only, without force, fast-forward from `bfef2daa`. Push-triggered workflows still trigger
+  only on `master` and `develop`, re-inspected immediately before the push.
+- **No** PR, issue or comment mutation, CI dispatch, provider access, Crossref traffic, production access, G-6, G-7,
+  #919 operation or BE-07 work. Tests ran only against the disposable local PostgreSQL 17 and Redis.
+- **Gate:** the implementation agent does not approve its own work. `bfef2daa` remains unapproved. The pushed head
+  requires a fresh independent exact-head CRITICAL source, migration, authorization and concurrency review. PR
+  creation remains unauthorized.
