@@ -2091,3 +2091,361 @@ fn f12_f22_a_blocking_permit_refuses_not_drained_before_binding_mismatch() {
         1
     );
 }
+
+// ---------------------------------------------------------------------------
+// R52B sections 10.8, 11.5, 12.3, 14.4 and 18.10: completion, failure and
+// cancellation guards and the T2 successor (Amendment 3 section 10.3, EB2)
+// ---------------------------------------------------------------------------
+
+fn job_state(connection: &mut PgConnection, job: Uuid) -> String {
+    fx::texts(
+        connection,
+        &format!(
+            "SELECT j.status::text || '|' || coalesce(j.cancellation_reason::text, '-') || '|' \
+                 || coalesce((SELECT string_agg(coalesce(a.result::text, 'OPEN'), ',' ORDER BY a.attempt_number) \
+                                FROM distribution_job_attempt a WHERE a.distribution_job_id = j.distribution_job_id), '-') AS value \
+             FROM distribution_job j WHERE j.distribution_job_id = '{job}'"
+        ),
+    )
+    .remove(0)
+}
+
+#[test]
+fn completion_requires_the_fence_and_an_accepted_permit_at_the_claimed_generation() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::WorkUpsertCompletionRequiresFence)
+    );
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert_eq!(
+        job_crud::fail_distribution_job(
+            pool.as_ref(),
+            job,
+            token,
+            "CROSSREF_ARTIFACT_REFUSED",
+            None,
+            true
+        )
+        .map(|j| j.status),
+        Err(ThothError::AttemptHasOpenReservation)
+    );
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::WorkUpsertCompletionRequiresAcceptedPermit)
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(
+            pool.as_ref(),
+            job,
+            token,
+            "CROSSREF_PROVIDER_INDETERMINATE",
+            None,
+            false
+        )
+        .map(|j| j.status),
+        Err(ThothError::AttemptHasAuthorizedPermit)
+    );
+    // Administrative cancellation of a fenced attempt is refused and writes nothing.
+    let before = fingerprint(&mut connection);
+    assert_eq!(
+        job_crud::cancel_distribution_job(pool.as_ref(), job).map(|j| j.status),
+        Err(ThothError::WorkUpsertCancellationRefusedFencedAttempt)
+    );
+    assert_eq!(fingerprint(&mut connection), before);
+    assert_eq!(job_state(&mut connection, job), "RUNNING|-|OPEN");
+
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::Accepted,
+        &allow,
+    )
+    .expect("report");
+    let completed =
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).expect("completed");
+    assert_eq!(completed.status, DistributionJobStatus::Succeeded);
+    assert_eq!(job_state(&mut connection, job), "SUCCEEDED|-|SUCCEEDED");
+    assert_eq!(
+        fx::job_summary(&mut connection, work).len(),
+        1,
+        "no successor without newer residue"
+    );
+}
+
+#[test]
+fn t2_creates_a_successor_only_under_the_held_publisher() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    let deposit = |pool: &crate::db::PgPool, connection: &mut PgConnection| {
+        let (publisher, imprint, activation, work, job, token) =
+            claimed_work_upsert(pool, connection);
+        let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+        finalise(pool, &presentation(&reservation, Some(token))).expect("finalise");
+        permit_crud::report_crossref_write(
+            pool,
+            reservation.permit_id,
+            reservation.reservation_token,
+            Outcome::Accepted,
+            &allow,
+        )
+        .expect("report");
+        (publisher, imprint, activation, work, job, token)
+    };
+
+    // An edit after the claim: the successor is created at the current generation.
+    let (_publisher, _imprint, _activation, work, job, token) =
+        deposit(pool.as_ref(), &mut connection);
+    fx::execute(
+        &mut connection,
+        &format!("UPDATE work SET place = 'Leeds' WHERE work_id = '{work}'"),
+    );
+    job_crud::complete_distribution_job(pool.as_ref(), job, token).expect("completed");
+    assert_eq!(
+        fx::job_summary(&mut connection, work),
+        vec![
+            "SUCCEEDED|-|1|1|false|true|CROSSREF",
+            "PENDING|-|2|2|true|false|CROSSREF"
+        ]
+    );
+
+    // A move to another publisher: no successor; the residue is the drain's.
+    let (_publisher, _imprint, _activation, work, job, token) =
+        deposit(pool.as_ref(), &mut connection);
+    let (_other, other_imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"),
+    );
+    job_crud::complete_distribution_job(pool.as_ref(), job, token).expect("completed");
+    assert_eq!(
+        fx::job_summary(&mut connection, work),
+        vec!["SUCCEEDED|-|1|1|false|false|CROSSREF"]
+    );
+
+    // Execution paused: T2 still creates the successor (it takes no gate).
+    let (_publisher, _imprint, _activation, work, job, token) =
+        deposit(pool.as_ref(), &mut connection);
+    work_upsert_crud::set_work_upsert_execution(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        false,
+    )
+    .expect("pause");
+    fx::execute(
+        &mut connection,
+        &format!("UPDATE work SET place = 'York' WHERE work_id = '{work}'"),
+    );
+    job_crud::complete_distribution_job(pool.as_ref(), job, token).expect("completed while paused");
+    assert_eq!(fx::job_summary(&mut connection, work).len(), 2);
+}
+
+#[test]
+fn an_unfenced_cancellation_touches_no_permit_and_the_retry_projects_the_current_generation() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // C2/T197: cancelling a job whose attempt holds only a RESERVED permit.
+    let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let permit_before = permit_row(&mut connection, reservation.permit_id);
+    let cancelled = job_crud::cancel_distribution_job(pool.as_ref(), job).expect("cancelled");
+    assert_eq!(cancelled.status, DistributionJobStatus::Cancelled);
+    assert_eq!(
+        permit_row(&mut connection, reservation.permit_id),
+        permit_before
+    );
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked)
+    );
+
+    // T224: VOIDED_RETRYABLE, then a retryable failure, then the next claim.
+    let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    fx::execute(
+        &mut connection,
+        &format!("UPDATE work SET place = 'Bath' WHERE work_id = '{work}'"),
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+        Ok(Finalised::VoidedRetryable)
+    );
+    let failed = job_crud::fail_distribution_job(
+        pool.as_ref(),
+        job,
+        token,
+        "CROSSREF_PERMIT_VOIDED_RETRYABLE",
+        None,
+        true,
+    )
+    .expect("failed");
+    assert_eq!(failed.status, DistributionJobStatus::Pending);
+    fx::execute(
+        &mut connection,
+        &format!(
+            "UPDATE distribution_job SET available_at = now() WHERE distribution_job_id = '{job}'"
+        ),
+    );
+    let claimed = fx::claim(pool.as_ref());
+    let again = claimed
+        .iter()
+        .find(|c| c.job.job.distribution_job_id == job)
+        .expect("reclaimed");
+    // The released payload orders attempts newest first.
+    let attempts = again.job.preloaded_attempts.clone().expect("attempts");
+    assert_eq!(attempts.first().map(|a| a.attempt_number), Some(2));
+    assert_eq!(
+        attempts.first().and_then(|a| a.claimed_generation),
+        fx::generation_of(&mut connection, work)
+    );
+    assert_eq!(attempts.first().and_then(|a| a.claimed_generation), Some(2));
+}
+
+#[test]
+fn an_outer_back_catalogue_attempt_cannot_close_over_an_open_unit_permit() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    let activation = fx::cover_crossref(&mut connection, publisher);
+    let units: Vec<Uuid> = (0..3)
+        .map(|_| fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4()))
+        .collect();
+    fx::execute(&mut connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{publisher}', '{activation}', 'PUBLISHER_BACK_CATALOGUE:{publisher}:{activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE kind = 'PUBLISHER_BACK_CATALOGUE'"
+    ));
+    let outer =
+        job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]).expect("claim");
+    let (job, token) = (outer[0].job.job.distribution_job_id, outer[0].claim_token);
+
+    // RESERVED.
+    let reserved =
+        permit_crud::reserve_back_catalogue_crossref_write(pool.as_ref(), job, token, units[0])
+            .expect("unit");
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::AttemptHasOpenReservation)
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(pool.as_ref(), job, token, "X", None, false)
+            .map(|j| j.status),
+        Err(ThothError::AttemptHasOpenReservation)
+    );
+    // AUTHORIZED.
+    finalise(pool.as_ref(), &presentation(&reserved, Some(token))).expect("finalise");
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::AttemptHasAuthorizedPermit)
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(pool.as_ref(), job, token, "X", None, true)
+            .map(|j| j.status),
+        Err(ThothError::AttemptHasAuthorizedPermit)
+    );
+    // INDETERMINATE: the outer attempt cannot terminally close, but may retry.
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reserved.permit_id,
+        reserved.reservation_token,
+        Outcome::Indeterminate,
+        &allow,
+    )
+    .expect("report");
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::OuterAttemptHasOpenPermits)
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(pool.as_ref(), job, token, "X", None, false)
+            .map(|j| j.status),
+        Err(ThothError::OuterAttemptHasOpenPermits)
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(pool.as_ref(), job, token, "X", None, true)
+            .map(|j| j.status),
+        Ok(DistributionJobStatus::Pending)
+    );
+
+    // Outer cancellation touches no unit permit.
+    let outer = job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]);
+    let _ = outer;
+    fx::execute(
+        &mut connection,
+        &format!(
+            "UPDATE distribution_job SET available_at = now() WHERE distribution_job_id = '{job}'"
+        ),
+    );
+    let outer =
+        job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]).expect("reclaim");
+    let token = outer[0].claim_token;
+    let second =
+        permit_crud::reserve_back_catalogue_crossref_write(pool.as_ref(), job, token, units[1])
+            .expect("unit");
+    let before = permit_row(&mut connection, second.permit_id);
+    job_crud::cancel_distribution_job(pool.as_ref(), job).expect("cancel");
+    assert_eq!(permit_row(&mut connection, second.permit_id), before);
+}
+
+#[test]
+fn x4_every_be06_statement_in_the_shared_job_operations_uses_the_scoped_conversion() {
+    let crud = include_str!("../distribution_job/crud.rs");
+    let functions = [
+        "work_upsert_completion_guard",
+        "complete_work_upsert_successor",
+        "attempt_permit_guard",
+        "work_upsert_cancellation_guard",
+    ];
+    for name in functions {
+        let body = crud
+            .split_once(&format!("fn {name}("))
+            .unwrap_or_else(|| panic!("{name}"))
+            .1
+            .split_once("\n}\n")
+            .expect("end")
+            .0;
+        // Every call that takes the connection is a statement or a substrate
+        // helper; the helpers that already convert return ThothResult.
+        let self_converting = ["work_upsert_create_job(", "attempt_permit_guard("];
+        let calls = body.matches("(connection").count()
+            - self_converting
+                .iter()
+                .map(|helper| body.matches(helper).count())
+                .sum::<usize>();
+        assert!(calls > 0, "{name} runs statements");
+        let converted = body.matches(".work_upsert()").count();
+        assert!(
+            converted >= calls,
+            "{name}: {calls} statement calls but {converted} conversions"
+        );
+        assert!(!body.contains("map_err(Into::into)"), "{name}");
+    }
+    for released in [
+        "pub(crate) fn complete_distribution_job(",
+        "pub(crate) fn fail_distribution_job(",
+        "pub(crate) fn cancel_distribution_job(",
+    ] {
+        let body = crud
+            .split_once(released)
+            .expect(released)
+            .1
+            .split_once("\n}\n")
+            .expect("end")
+            .0;
+        assert!(
+            functions
+                .iter()
+                .any(|name| body.contains(&format!("{name}("))),
+            "{released} calls its BE-06 guard"
+        );
+    }
+}
