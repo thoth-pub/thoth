@@ -12,7 +12,7 @@ use diesel::sql_types::{Array, BigInt, Integer, Nullable, Text, Uuid as SqlUuid}
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
-use super::{CrossrefWriteReservation, CrossrefWriteRoute};
+use super::{CrossrefWritePermitState, CrossrefWriteReservation, CrossrefWriteRoute};
 use crate::db::PgPool;
 use crate::model::distribution_job::{DistributionJobKind, DistributionJobStatus};
 use crate::model::work_upsert::crud as substrate;
@@ -491,4 +491,516 @@ pub fn reserve_manual_recovery_crossref_write(
         root_work_id,
         Some(operator_authorization_reference),
     )
+}
+
+/// One `finaliseCrossrefWrite` presentation (R52B section 16.6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinaliseCrossrefWrite {
+    pub permit_id: Uuid,
+    pub reservation_token: Uuid,
+    pub claim_token: Option<Uuid>,
+    pub observed_dois: Vec<String>,
+    pub observed_doi_batch_id: String,
+    pub observed_crossref_timestamp: i64,
+    pub payload_digest: String,
+}
+
+/// A permit's immutable routing metadata, read by MVCC before any lock.
+#[derive(Queryable)]
+struct PermitMetadata {
+    route: CrossrefWriteRoute,
+    publisher_identity: Uuid,
+    root_work_identity: Uuid,
+    job_identity: Option<Uuid>,
+    attempt_identity: Option<Uuid>,
+}
+
+fn permit_metadata(
+    connection: &mut PgConnection,
+    permit_id: Uuid,
+) -> QueryResult<Option<PermitMetadata>> {
+    use crate::schema::crossref_write_permit as permit;
+    permit::table
+        .filter(permit::permit_id.eq(permit_id))
+        .select((
+            permit::route,
+            permit::publisher_identity,
+            permit::root_work_identity,
+            permit::job_identity,
+            permit::attempt_identity,
+        ))
+        .first::<PermitMetadata>(connection)
+        .optional()
+}
+
+/// The permit row and its canonical membership, ascending by code point.
+pub(crate) fn permit_with_dois(
+    connection: &mut PgConnection,
+    permit_id: Uuid,
+    lock: bool,
+) -> QueryResult<Option<super::CrossrefWritePermitWithDois>> {
+    use crate::schema::crossref_write_permit as permit;
+    let query = permit::table.filter(permit::permit_id.eq(permit_id));
+    let row = if lock {
+        query
+            .for_update()
+            .first::<super::CrossrefWritePermit>(connection)
+            .optional()?
+    } else {
+        query
+            .first::<super::CrossrefWritePermit>(connection)
+            .optional()?
+    };
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let dois = membership_of(connection, permit_id)?;
+    Ok(Some(super::CrossrefWritePermitWithDois {
+        permit: row,
+        dois,
+    }))
+}
+
+/// A permit's persisted membership, ascending by code point.
+fn membership_of(connection: &mut PgConnection, permit_id: Uuid) -> QueryResult<Vec<String>> {
+    #[derive(QueryableByName)]
+    struct Doi {
+        #[diesel(sql_type = Text)]
+        doi: String,
+    }
+    Ok(diesel::sql_query(
+        "SELECT doi FROM public.crossref_write_permit_doi WHERE permit_id = $1 ORDER BY doi COLLATE \"C\"",
+    )
+    .bind::<SqlUuid, _>(permit_id)
+    .load::<Doi>(connection)?
+    .into_iter()
+    .map(|row| row.doi)
+    .collect())
+}
+
+/// The finalisation void reasons of groups A and B (R52B section 16.7).
+fn is_finalisation_void(reason: super::CrossrefVoidReason) -> bool {
+    !matches!(
+        reason,
+        super::CrossrefVoidReason::OwnerAbandoned | super::CrossrefVoidReason::OperatorCleanup
+    )
+}
+
+/// The outcome a finalisation void recorded, recomputed from the route and the
+/// persisted reason for a replay (R52B section 16.6 C2).
+fn voided_outcome(
+    route: CrossrefWriteRoute,
+    reason: super::CrossrefVoidReason,
+) -> super::CrossrefFinalisationOutcome {
+    use super::CrossrefVoidReason as Reason;
+    match (route, reason) {
+        (
+            CrossrefWriteRoute::WorkUpsert,
+            Reason::BindingSuperseded | Reason::AssignmentDisabled,
+        ) => super::CrossrefFinalisationOutcome::VoidedJobRetired,
+        _ => super::CrossrefFinalisationOutcome::VoidedRetryable,
+    }
+}
+
+/// A finalisation voiding its own reservation (R52B section 16.7).
+fn void_own_reservation(
+    connection: &mut PgConnection,
+    permit_id: Uuid,
+    reason: super::CrossrefVoidReason,
+) -> QueryResult<()> {
+    use crate::schema::crossref_write_permit as permit;
+    diesel::update(permit::table.filter(permit::permit_id.eq(permit_id)))
+        .set((
+            permit::state.eq(super::CrossrefWritePermitState::Voided),
+            permit::void_reason.eq(reason),
+            permit::closed_at.eq(
+                diesel::dsl::sql::<Nullable<diesel::sql_types::Timestamptz>>("clock_timestamp()"),
+            ),
+        ))
+        .execute(connection)
+        .map(|_| ())
+}
+
+/// Group B's binding refusal on the `WORK_UPSERT` route (R52B section 11.5):
+/// the open attempt closes `CANCELLED`, the job becomes `CANCELLED` with the
+/// binding reason, and — only when the binding re-resolved under `W` is the held
+/// publisher and is eligible and admitted with residue above resolution — a
+/// replacement is created through the single creation helper.
+fn finalise_binding_refusal_replacement(
+    connection: &mut PgConnection,
+    job_id: Uuid,
+    attempt_id: Uuid,
+    held_publisher: Uuid,
+    root: Uuid,
+    generation: Option<i64>,
+    reason: crate::model::distribution_job::DistributionJobCancellationReason,
+) -> Tx<()> {
+    use crate::schema::{distribution_job as job, distribution_job_attempt as attempt};
+    diesel::update(attempt::table.filter(attempt::distribution_job_attempt_id.eq(attempt_id)))
+        .filter(attempt::finished_at.is_null())
+        .set((
+            attempt::finished_at.eq(diesel::dsl::now),
+            attempt::result
+                .eq(crate::model::distribution_job::DistributionJobAttemptResult::Cancelled),
+        ))
+        .execute(connection)?;
+    diesel::update(job::table.filter(job::distribution_job_id.eq(job_id)))
+        .set((
+            job::status.eq(DistributionJobStatus::Cancelled),
+            job::cancellation_reason.eq(reason),
+            job::completed_at.eq(diesel::dsl::now),
+            job::claim_token.eq(None::<Uuid>),
+            job::claimed_by.eq(None::<String>),
+            job::claimed_at.eq(None::<crate::model::Timestamp>),
+            job::lease_expires_at.eq(None::<crate::model::Timestamp>),
+        ))
+        .execute(connection)?;
+
+    let Some(generation) = generation else {
+        return Ok(());
+    };
+    if substrate::current_publisher(connection, root)? != Some(held_publisher) {
+        return Ok(());
+    }
+    if !substrate::profile_eligible(connection, root, &CROSSREF_PROFILE)? {
+        return Ok(());
+    }
+    let Some(activation) = substrate::crossref_activation(connection, held_publisher)? else {
+        return Ok(());
+    };
+    if substrate::admission_row(connection, held_publisher, activation)?.is_none() {
+        return Ok(());
+    }
+    if generation <= substrate::resolution(connection, root, CROSSREF_PROFILE.key)? {
+        return Ok(());
+    }
+    substrate::work_upsert_create_job(
+        connection,
+        held_publisher,
+        root,
+        activation,
+        CROSSREF_PROFILE.key,
+        generation,
+        Some(job_id),
+    )?;
+    Ok(())
+}
+
+/// `finaliseCrossrefWrite` (R52B section 16.6; Amendment 3 section 9.7).
+///
+/// `authorize_route` is the request's route-derived role check (C0). It runs
+/// after the MVCC read of the permit's route and before the digest rule, any
+/// lock and any credential, state or replay check.
+pub fn finalise_crossref_write(
+    db: &PgPool,
+    input: &FinaliseCrossrefWrite,
+    authorize_route: &dyn Fn(CrossrefWriteRoute) -> ThothResult<()>,
+) -> ThothResult<super::CrossrefFinalisationResult> {
+    use super::{
+        CrossrefFinalisationOutcome as Outcome, CrossrefVoidReason as Reason,
+        CrossrefWritePermitState as State,
+    };
+    use crate::model::distribution_job::DistributionJobCancellationReason as Cancel;
+
+    work_upsert_transaction(db, |connection| {
+        // 1-2: the route, by MVCC; C0; then the operation's own input rule.
+        let Some(metadata) = permit_metadata(connection, input.permit_id)? else {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        };
+        authorize_route(metadata.route)?;
+        if !policy::is_sha256_lower_hex(&input.payload_digest) {
+            return refuse(ThothError::CrossrefPayloadDigestInvalid);
+        }
+        let job_linked = matches!(
+            metadata.route,
+            CrossrefWriteRoute::WorkUpsert | CrossrefWriteRoute::PublisherBackCatalogue
+        );
+
+        // 3: locks, in TLO order, from the permit's own publisher.
+        let root = metadata.root_work_identity;
+        substrate::share_publisher(connection, metadata.publisher_identity)?;
+        let work_exists = substrate::share_work(connection, root)?;
+        let bound_publisher = if work_exists {
+            substrate::current_publisher(connection, root)?
+        } else {
+            None
+        };
+        let generation = if work_exists {
+            Some(substrate::lock_generation(
+                connection,
+                root,
+                CROSSREF_PROFILE.key,
+            )?)
+        } else {
+            None
+        };
+        if job_linked {
+            use crate::schema::{distribution_job as job, distribution_job_attempt as attempt};
+            if let Some(job_id) = metadata.job_identity {
+                job::table
+                    .filter(job::distribution_job_id.eq(job_id))
+                    .select(job::distribution_job_id)
+                    .for_update()
+                    .first::<Uuid>(connection)
+                    .optional()?;
+            }
+            if let Some(attempt_id) = metadata.attempt_identity {
+                attempt::table
+                    .filter(attempt::distribution_job_attempt_id.eq(attempt_id))
+                    .select(attempt::distribution_job_attempt_id)
+                    .for_update()
+                    .first::<Uuid>(connection)
+                    .optional()?;
+            }
+        }
+        if metadata.route == CrossrefWriteRoute::WorkUpsert {
+            take_execution_gate(connection, CROSSREF_PROFILE.key, false)?;
+        }
+        let Some(current) = permit_with_dois(connection, input.permit_id, true)? else {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        };
+        let permit = &current.permit;
+
+        // Group C.
+        if permit.reservation_token != input.reservation_token {
+            return refuse(ThothError::CrossrefPermitRequiresReservationToken);
+        }
+        match (permit.state, permit.void_reason) {
+            (State::Authorized, _)
+                if permit.payload_digest.as_deref() == Some(input.payload_digest.as_str()) =>
+            {
+                return Ok(super::CrossrefFinalisationResult {
+                    outcome: Outcome::Authorized,
+                    void_reason: None,
+                    permit: current,
+                });
+            }
+            (State::Voided, Some(reason)) if is_finalisation_void(reason) => {
+                return Ok(super::CrossrefFinalisationResult {
+                    outcome: voided_outcome(metadata.route, reason),
+                    void_reason: Some(reason),
+                    permit: current,
+                });
+            }
+            (State::Reserved, _) => {}
+            _ => return refuse(ThothError::CrossrefPermitIllegalTransition),
+        }
+        #[derive(Queryable)]
+        struct Claim {
+            status: DistributionJobStatus,
+            claim_token: Option<Uuid>,
+            publisher_id: Uuid,
+            activation_id: Uuid,
+        }
+        let mut claim: Option<(Claim, Uuid, Uuid)> = None;
+        if job_linked {
+            use crate::schema::{distribution_job as job, distribution_job_attempt as attempt};
+            let (Some(job_id), Some(attempt_id), Some(claim_token)) = (
+                permit.distribution_job_id,
+                permit.distribution_job_attempt_id,
+                input.claim_token,
+            ) else {
+                return refuse(ThothError::CrossrefPermitClaimStale);
+            };
+            let row = job::table
+                .filter(job::distribution_job_id.eq(job_id))
+                .select((
+                    job::status,
+                    job::claim_token,
+                    job::publisher_id,
+                    job::activation_id,
+                ))
+                .first::<Claim>(connection)
+                .optional()?;
+            let open_attempt = attempt::table
+                .filter(attempt::distribution_job_attempt_id.eq(attempt_id))
+                .filter(attempt::claim_token.eq(claim_token))
+                .filter(attempt::finished_at.is_null())
+                .select(attempt::distribution_job_attempt_id)
+                .first::<Uuid>(connection)
+                .optional()?;
+            match (row, open_attempt) {
+                (Some(row), Some(_))
+                    if row.status == DistributionJobStatus::Running
+                        && row.claim_token == Some(claim_token) =>
+                {
+                    claim = Some((row, job_id, attempt_id));
+                }
+                _ => return refuse(ThothError::CrossrefPermitClaimStale),
+            }
+        } else if input.claim_token.is_some() {
+            return refuse(ThothError::CrossrefPermitClaimStale);
+        }
+
+        // Group B: binding, against the held publisher.
+        let binding_refusal = if !work_exists {
+            Some(Reason::NoWork)
+        } else if bound_publisher != Some(metadata.publisher_identity) {
+            Some(Reason::BindingSuperseded)
+        } else {
+            let enabled_activation =
+                substrate::crossref_activation(connection, metadata.publisher_identity)?;
+            match (&claim, metadata.route) {
+                (Some((row, job_id, _)), CrossrefWriteRoute::WorkUpsert) => {
+                    if substrate::job_targets_enabled(
+                        connection,
+                        *job_id,
+                        row.publisher_id,
+                        row.activation_id,
+                    )? {
+                        None
+                    } else if enabled_activation.is_some() {
+                        Some(Reason::BindingSuperseded)
+                    } else {
+                        Some(Reason::AssignmentDisabled)
+                    }
+                }
+                _ if enabled_activation.is_none() => Some(Reason::AssignmentDisabled),
+                _ => None,
+            }
+        };
+        if let Some(reason) = binding_refusal {
+            let mut outcome = Outcome::VoidedRetryable;
+            if let (
+                Some((_, job_id, attempt_id)),
+                CrossrefWriteRoute::WorkUpsert,
+                Reason::BindingSuperseded | Reason::AssignmentDisabled,
+            ) = (&claim, metadata.route, reason)
+            {
+                let cancel = if reason == Reason::AssignmentDisabled {
+                    Cancel::AssignmentDisabled
+                } else {
+                    Cancel::BindingSuperseded
+                };
+                finalise_binding_refusal_replacement(
+                    connection,
+                    *job_id,
+                    *attempt_id,
+                    metadata.publisher_identity,
+                    root,
+                    generation,
+                    cancel,
+                )?;
+                outcome = Outcome::VoidedJobRetired;
+            }
+            void_own_reservation(connection, input.permit_id, reason)?;
+            let permit = permit_with_dois(connection, input.permit_id, false)?.ok_or(
+                WorkUpsertTxError::Thoth(ThothError::WorkUpsertDatabaseFailure),
+            )?;
+            return Ok(super::CrossrefFinalisationResult {
+                outcome,
+                void_reason: Some(reason),
+                permit,
+            });
+        }
+
+        // Group A: retryable invalidation.
+        let mut invalidation = None;
+        if let Some((row, _, _)) = &claim {
+            if metadata.route == CrossrefWriteRoute::WorkUpsert {
+                let execution_enabled = {
+                    use crate::schema::work_upsert_control as control;
+                    control::table
+                        .filter(control::execution_profile.eq(CROSSREF_PROFILE.key))
+                        .select(control::execution_enabled)
+                        .first::<bool>(connection)
+                        .optional()?
+                        .unwrap_or(false)
+                };
+                invalidation =
+                    if substrate::admission_row(connection, row.publisher_id, row.activation_id)?
+                        .is_none()
+                    {
+                        Some(Reason::ProfileNotAdmitted)
+                    } else if !execution_enabled {
+                        Some(Reason::ExecutionNotPermitted)
+                    } else if !substrate::profile_eligible(connection, root, &CROSSREF_PROFILE)? {
+                        Some(Reason::Ineligible)
+                    } else {
+                        None
+                    };
+            }
+        }
+        if invalidation.is_none() && generation != Some(permit.source_generation_witness) {
+            invalidation = Some(Reason::SourceChangedDuringPreparation);
+        }
+        if invalidation.is_none() {
+            #[derive(QueryableByName)]
+            struct Dois {
+                #[diesel(sql_type = Array<Text>)]
+                derived: Vec<String>,
+                #[diesel(sql_type = Array<Nullable<Text>>)]
+                observed: Vec<Option<String>>,
+            }
+            let dois = diesel::sql_query(
+                "SELECT public.crossref_deposit_membership($1) AS derived, \
+                        coalesce((SELECT array_agg(DISTINCT public.crossref_canonical_doi(o)) \
+                                    FROM unnest($2::text[]) AS o), ARRAY[]::text[]) AS observed",
+            )
+            .bind::<SqlUuid, _>(root)
+            .bind::<Array<Text>, _>(&input.observed_dois)
+            .get_result::<Dois>(connection)?;
+            let reserved: std::collections::BTreeSet<&str> =
+                current.dois.iter().map(String::as_str).collect();
+            let derived: std::collections::BTreeSet<&str> =
+                dois.derived.iter().map(String::as_str).collect();
+            let observed: Option<std::collections::BTreeSet<&str>> =
+                dois.observed.iter().map(|doi| doi.as_deref()).collect();
+            invalidation = if derived != reserved {
+                Some(Reason::DoiMembershipChanged)
+            } else if observed.as_ref() != Some(&reserved) {
+                Some(Reason::ArtifactDoiSetMismatch)
+            } else if input.observed_doi_batch_id != permit.doi_batch_id {
+                Some(Reason::ArtifactBatchIdMismatch)
+            } else if input.observed_crossref_timestamp != permit.crossref_timestamp {
+                Some(Reason::ArtifactTimestampMismatch)
+            } else {
+                None
+            };
+        }
+        if let Some(reason) = invalidation {
+            void_own_reservation(connection, input.permit_id, reason)?;
+            let permit = permit_with_dois(connection, input.permit_id, false)?.ok_or(
+                WorkUpsertTxError::Thoth(ThothError::WorkUpsertDatabaseFailure),
+            )?;
+            return Ok(super::CrossrefFinalisationResult {
+                outcome: Outcome::VoidedRetryable,
+                void_reason: Some(reason),
+                permit,
+            });
+        }
+
+        // Success: the fence, then the authorization, in one transaction.
+        if let (Some((_, _, attempt_id)), CrossrefWriteRoute::WorkUpsert) = (&claim, metadata.route)
+        {
+            use crate::schema::distribution_job_attempt as attempt;
+            diesel::update(
+                attempt::table.filter(attempt::distribution_job_attempt_id.eq(*attempt_id)),
+            )
+            .set(attempt::fenced_at.eq(
+                diesel::dsl::sql::<Nullable<diesel::sql_types::Timestamptz>>("clock_timestamp()"),
+            ))
+            .execute(connection)?;
+        }
+        {
+            use crate::schema::crossref_write_permit as permit_table;
+            diesel::update(permit_table::table.filter(permit_table::permit_id.eq(input.permit_id)))
+                .set((
+                    permit_table::state.eq(CrossrefWritePermitState::Authorized),
+                    permit_table::payload_digest.eq(&input.payload_digest),
+                    permit_table::authorized_at.eq(diesel::dsl::sql::<
+                        Nullable<diesel::sql_types::Timestamptz>,
+                    >("clock_timestamp()")),
+                ))
+                .execute(connection)?;
+        }
+        let permit = permit_with_dois(connection, input.permit_id, false)?.ok_or(
+            WorkUpsertTxError::Thoth(ThothError::WorkUpsertDatabaseFailure),
+        )?;
+        Ok(super::CrossrefFinalisationResult {
+            outcome: Outcome::Authorized,
+            void_reason: None,
+            permit,
+        })
+    })
 }
