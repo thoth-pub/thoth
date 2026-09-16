@@ -311,4 +311,4 @@ impl<T> WorkUpsertQueryResultExt<T> for QueryResult<T> {
 }
 
 #[cfg(all(test, feature = "backend"))]
-mod tests;
+pub(crate) mod tests;

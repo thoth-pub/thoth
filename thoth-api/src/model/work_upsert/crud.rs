@@ -18,7 +18,9 @@ use crate::schema::work_upsert_control;
 
 /// The registered profile of `platform`, or `WORK_UPSERT_PROFILE_NOT_IMPLEMENTED`
 /// before any database access.
-fn registered(platform: DistributionPlatform) -> ThothResult<&'static WorkLevelExecutionProfile> {
+pub(crate) fn registered(
+    platform: DistributionPlatform,
+) -> ThothResult<&'static WorkLevelExecutionProfile> {
     registry::execution_profile(platform).ok_or(ThothError::WorkUpsertProfileNotImplemented)
 }
 
@@ -151,7 +153,7 @@ fn publisher_exists(connection: &mut PgConnection, publisher_id: uuid::Uuid) -> 
 }
 
 /// Whether the publisher has an enabled `CROSSREF` assignment (E1-E3), by MVCC.
-fn crossref_publisher_covered(
+pub(crate) fn crossref_publisher_covered(
     connection: &mut PgConnection,
     publisher_id: uuid::Uuid,
 ) -> QueryResult<bool> {
@@ -174,7 +176,7 @@ fn crossref_publisher_covered(
 }
 
 /// The control row's `capture_enabled`, by MVCC.
-fn capture_enabled(
+pub(crate) fn capture_enabled(
     connection: &mut PgConnection,
     profile: DistributionPlatform,
 ) -> Result<bool, WorkUpsertTxError> {
@@ -259,7 +261,10 @@ fn crossref_remaining_uncovered(
 }
 
 /// Lock the binding publisher `FOR SHARE` (LO-5's first class).
-fn share_publisher(connection: &mut PgConnection, publisher_id: uuid::Uuid) -> QueryResult<()> {
+pub(crate) fn share_publisher(
+    connection: &mut PgConnection,
+    publisher_id: uuid::Uuid,
+) -> QueryResult<()> {
     use crate::schema::publisher;
     publisher::table
         .filter(publisher::publisher_id.eq(publisher_id))
@@ -271,7 +276,7 @@ fn share_publisher(connection: &mut PgConnection, publisher_id: uuid::Uuid) -> Q
 }
 
 /// Lock the Work `FOR SHARE`; `false` when it does not exist.
-fn share_work(connection: &mut PgConnection, work_id: uuid::Uuid) -> QueryResult<bool> {
+pub(crate) fn share_work(connection: &mut PgConnection, work_id: uuid::Uuid) -> QueryResult<bool> {
     use crate::schema::work;
     work::table
         .filter(work::work_id.eq(work_id))
@@ -284,7 +289,7 @@ fn share_work(connection: &mut PgConnection, work_id: uuid::Uuid) -> QueryResult
 
 /// The Work's current publisher, `work -> imprint -> publisher`, in a fresh
 /// statement.
-fn current_publisher(
+pub(crate) fn current_publisher(
     connection: &mut PgConnection,
     work_id: uuid::Uuid,
 ) -> QueryResult<Option<uuid::Uuid>> {
@@ -436,7 +441,7 @@ pub fn seed_crossref_work_upsert(
 }
 
 /// The activation of the publisher's enabled `CROSSREF` assignment, by MVCC.
-fn crossref_activation(
+pub(crate) fn crossref_activation(
     connection: &mut PgConnection,
     publisher_id: uuid::Uuid,
 ) -> QueryResult<Option<uuid::Uuid>> {
@@ -451,7 +456,7 @@ fn crossref_activation(
 }
 
 /// The admission row of an exact binding, if any.
-fn admission_row(
+pub(crate) fn admission_row(
     connection: &mut PgConnection,
     publisher_id: uuid::Uuid,
     activation_id: uuid::Uuid,
@@ -567,7 +572,7 @@ pub fn work_upsert_admissions(
 }
 
 /// R52B section 9.1's `resolution(w, p)`, through the migration's function.
-fn resolution(
+pub(crate) fn resolution(
     connection: &mut PgConnection,
     work_id: uuid::Uuid,
     profile: DistributionPlatform,
@@ -1019,4 +1024,26 @@ pub fn materialize_work_upsert_jobs(
     };
     result.remaining_candidates = as_int(remaining)?;
     Ok(result)
+}
+
+/// Fence clause 6 (R52B section 11.1): every target of the job is enabled in
+/// `publisher_distribution_platform` under exactly the job's activation.
+pub(crate) fn job_targets_enabled(
+    connection: &mut PgConnection,
+    distribution_job_id: uuid::Uuid,
+    publisher_id: uuid::Uuid,
+    activation_id: uuid::Uuid,
+) -> QueryResult<bool> {
+    use crate::schema::{distribution_job_target, publisher_distribution_platform as assignment};
+    let targets = distribution_job_target::table
+        .filter(distribution_job_target::distribution_job_id.eq(distribution_job_id))
+        .select(distribution_job_target::platform)
+        .load::<DistributionPlatform>(connection)?;
+    let enabled = assignment::table
+        .filter(assignment::publisher_id.eq(publisher_id))
+        .filter(assignment::activation_id.eq(activation_id))
+        .filter(assignment::enabled.eq(true))
+        .select(assignment::platform)
+        .load::<DistributionPlatform>(connection)?;
+    Ok(targets.iter().all(|target| enabled.contains(target)))
 }

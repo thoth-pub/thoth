@@ -35,7 +35,7 @@ struct CountRow {
     count: i64,
 }
 
-fn texts(connection: &mut PgConnection, sql: &str) -> Vec<String> {
+pub(crate) fn texts(connection: &mut PgConnection, sql: &str) -> Vec<String> {
     diesel::sql_query(sql)
         .load::<TextRow>(connection)
         .unwrap_or_else(|error| panic!("query `{sql}` failed: {error}"))
@@ -44,14 +44,14 @@ fn texts(connection: &mut PgConnection, sql: &str) -> Vec<String> {
         .collect()
 }
 
-fn count(connection: &mut PgConnection, sql: &str) -> i64 {
+pub(crate) fn count(connection: &mut PgConnection, sql: &str) -> i64 {
     diesel::sql_query(sql)
         .get_result::<CountRow>(connection)
         .unwrap_or_else(|error| panic!("query `{sql}` failed: {error}"))
         .count
 }
 
-fn error_message(error: &diesel::result::Error) -> String {
+pub(crate) fn error_message(error: &diesel::result::Error) -> String {
     match error {
         diesel::result::Error::DatabaseError(_, info) => info.message().to_string(),
         other => other.to_string(),
@@ -60,7 +60,7 @@ fn error_message(error: &diesel::result::Error) -> String {
 
 /// Run `sql` in a transaction that is always rolled back and return the error
 /// it raised. Panics if the statement succeeded.
-fn refusal(connection: &mut PgConnection, sql: &str) -> String {
+pub(crate) fn refusal(connection: &mut PgConnection, sql: &str) -> String {
     let outcome = connection.transaction::<(), diesel::result::Error, _>(|connection| {
         connection.batch_execute(sql)?;
         Err(diesel::result::Error::RollbackTransaction)
@@ -1478,7 +1478,7 @@ fn provoke_at_commit(connection: &mut PgConnection, statements: &str) -> ThothEr
     )
 }
 
-const PERMIT_COLUMNS: &str = "(route, scope, publisher_id, publisher_identity, root_work_identity, \
+pub(crate) const PERMIT_COLUMNS: &str = "(route, scope, publisher_id, publisher_identity, root_work_identity, \
      source_generation_witness, doi_set_digest, doi_set_cardinality, crossref_timestamp, doi_batch_id)";
 
 fn legacy_permit_values(publisher_id: Uuid, doi: &str) -> String {
@@ -2021,7 +2021,7 @@ const BE06_MODEL_FILES: [&str; 5] = [
     "src/model/crossref_write_permit/crud.rs",
 ];
 
-fn source(path: &str) -> String {
+pub(crate) fn source(path: &str) -> String {
     std::fs::read_to_string(format!("{}/{path}", env!("CARGO_MANIFEST_DIR")))
         .unwrap_or_else(|error| panic!("read {path}: {error}"))
 }
@@ -2326,14 +2326,14 @@ fn c2_c3_the_control_state_machine_through_the_model() {
 }
 
 /// The backend PID currently waiting on an advisory lock, if any.
-fn advisory_waiters(connection: &mut PgConnection) -> i64 {
+pub(crate) fn advisory_waiters(connection: &mut PgConnection) -> i64 {
     count(
         connection,
         "SELECT count(*) AS count FROM pg_locks WHERE locktype = 'advisory' AND NOT granted",
     )
 }
 
-fn wait_until<F: FnMut() -> bool>(mut condition: F) {
+pub(crate) fn wait_until<F: FnMut() -> bool>(mut condition: F) {
     for _ in 0..400 {
         if condition() {
             return;
@@ -2410,23 +2410,23 @@ fn c4_the_execution_transition_takes_the_gate_exclusively_and_waits_for_consumer
 // ---------------------------------------------------------------------------
 
 /// A non-normalising abstract: `<ol>` is not in the Crossref JATS subset.
-const NON_NORMALISING_ABSTRACT: &str = "<ol><li>unsupported</li></ol>";
+pub(crate) const NON_NORMALISING_ABSTRACT: &str = "<ol><li>unsupported</li></ol>";
 
-fn execute(connection: &mut PgConnection, sql: &str) {
+pub(crate) fn execute(connection: &mut PgConnection, sql: &str) {
     connection
         .batch_execute(sql)
         .unwrap_or_else(|error| panic!("{sql}: {error}"));
 }
 
 /// A publisher and imprint, returned as `(publisher_id, imprint_id)`.
-fn publisher_and_imprint(pool: &crate::db::PgPool) -> (Uuid, Uuid) {
+pub(crate) fn publisher_and_imprint(pool: &crate::db::PgPool) -> (Uuid, Uuid) {
     let publisher = test_db::create_publisher(pool);
     let imprint = test_db::create_imprint(pool, &publisher);
     (publisher.publisher_id, imprint.imprint_id)
 }
 
 /// Enable a `CROSSREF` assignment for the publisher; returns its activation.
-fn cover_crossref(connection: &mut PgConnection, publisher_id: Uuid) -> Uuid {
+pub(crate) fn cover_crossref(connection: &mut PgConnection, publisher_id: Uuid) -> Uuid {
     let activation = Uuid::new_v4();
     execute(
         connection,
@@ -2442,7 +2442,7 @@ fn cover_crossref(connection: &mut PgConnection, publisher_id: Uuid) -> Uuid {
     activation
 }
 
-fn disable_crossref(connection: &mut PgConnection, publisher_id: Uuid) {
+pub(crate) fn disable_crossref(connection: &mut PgConnection, publisher_id: Uuid) {
     execute(
         connection,
         &format!(
@@ -2452,7 +2452,7 @@ fn disable_crossref(connection: &mut PgConnection, publisher_id: Uuid) {
     );
 }
 
-fn enable_capture(connection: &mut PgConnection) {
+pub(crate) fn enable_capture(connection: &mut PgConnection) {
     execute(
         connection,
         "UPDATE work_upsert_control SET capture_enabled = true WHERE execution_profile = 'CROSSREF'",
@@ -2461,7 +2461,11 @@ fn enable_capture(connection: &mut PgConnection) {
 
 /// A Crossref-eligible Work with the given `work_id` under `imprint_id`: E4 (a
 /// DOI), E5 (`active`) and every row-level clause of E6 hold.
-fn insert_eligible_work(connection: &mut PgConnection, imprint_id: Uuid, work_id: Uuid) -> Uuid {
+pub(crate) fn insert_eligible_work(
+    connection: &mut PgConnection,
+    imprint_id: Uuid,
+    work_id: Uuid,
+) -> Uuid {
     let suffix = work_id.simple();
     execute(
         connection,
@@ -2479,26 +2483,28 @@ fn insert_eligible_work(connection: &mut PgConnection, imprint_id: Uuid, work_id
 }
 
 /// Relate `child` to `parent` as `has-child`, with the released inverse row.
-fn relate_child(connection: &mut PgConnection, parent: Uuid, child: Uuid, ordinal: i32) {
+pub(crate) fn relate_child(connection: &mut PgConnection, parent: Uuid, child: Uuid, ordinal: i32) {
     execute(
         connection,
         &format!(
             "INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, relation_ordinal) \
              VALUES ('{parent}', '{child}', 'has-child', {ordinal}), \
-                    ('{child}', '{parent}', 'is-child-of', {ordinal})"
+                    ('{child}', '{parent}', 'is-child-of', \
+                     (SELECT coalesce(max(relation_ordinal), 0) + 1 FROM work_relation \
+                       WHERE relator_work_id = '{child}' AND relation_type = 'is-child-of'))"
         ),
     );
 }
 
 /// Remove every generation row of the Work, as if no event had ever been counted.
-fn uncover(connection: &mut PgConnection, work_id: Uuid) {
+pub(crate) fn uncover(connection: &mut PgConnection, work_id: Uuid) {
     execute(
         connection,
         &format!("DELETE FROM work_upsert_generation WHERE work_id = '{work_id}'"),
     );
 }
 
-fn generation_of(connection: &mut PgConnection, work_id: Uuid) -> Option<i64> {
+pub(crate) fn generation_of(connection: &mut PgConnection, work_id: Uuid) -> Option<i64> {
     #[derive(QueryableByName)]
     struct Row {
         #[diesel(sql_type = BigInt)]
@@ -2515,7 +2521,7 @@ fn generation_of(connection: &mut PgConnection, work_id: Uuid) -> Option<i64> {
     .map(|row| row.source_generation)
 }
 
-fn set_generation(connection: &mut PgConnection, work_id: Uuid, value: i64) {
+pub(crate) fn set_generation(connection: &mut PgConnection, work_id: Uuid, value: i64) {
     execute(
         connection,
         &format!(
@@ -2527,7 +2533,7 @@ fn set_generation(connection: &mut PgConnection, work_id: Uuid, value: i64) {
 }
 
 /// `n` ascending, test-unique Work identifiers.
-fn ascending_ids(n: usize) -> Vec<Uuid> {
+pub(crate) fn ascending_ids(n: usize) -> Vec<Uuid> {
     let prefix = &Uuid::new_v4().simple().to_string()[..8];
     let mut ids: Vec<Uuid> = (0..n)
         .map(|i| Uuid::parse_str(&format!("{prefix}-0000-4000-8000-{:012}", i + 1)).expect("uuid"))
@@ -2536,7 +2542,7 @@ fn ascending_ids(n: usize) -> Vec<Uuid> {
     ids
 }
 
-fn job_row_counts(connection: &mut PgConnection) -> String {
+pub(crate) fn job_row_counts(connection: &mut PgConnection) -> String {
     texts(
         connection,
         "SELECT (SELECT count(*) FROM distribution_job)::text || '|' \
@@ -2994,7 +3000,7 @@ fn d8_the_preconditions_refuse_before_any_lock() {
 
 /// A covered, capture-enabled publisher with `n` generation-covered eligible
 /// Works; returns `(publisher_id, imprint_id, activation_id, work_ids)`.
-fn admissible_publisher(
+pub(crate) fn admissible_publisher(
     pool: &crate::db::PgPool,
     connection: &mut PgConnection,
     n: usize,
@@ -3337,7 +3343,7 @@ use crate::model::work_upsert::WorkUpsertMaterializationOutcome as Outcome;
 
 /// An admitted, capture-enabled publisher with one eligible Work whose
 /// generation row is `generation`; returns `(publisher, imprint, activation, work)`.
-fn drainable_work(
+pub(crate) fn drainable_work(
     pool: &crate::db::PgPool,
     connection: &mut PgConnection,
     generation: i64,
@@ -3348,7 +3354,7 @@ fn drainable_work(
     (publisher, imprint, activation, works[0])
 }
 
-fn materialize(
+pub(crate) fn materialize(
     pool: &crate::db::PgPool,
     work: Uuid,
     force: bool,
@@ -3357,7 +3363,7 @@ fn materialize(
         .expect("a unit end is an outcome, never an error")
 }
 
-fn job_summary(connection: &mut PgConnection, work: Uuid) -> Vec<String> {
+pub(crate) fn job_summary(connection: &mut PgConnection, work: Uuid) -> Vec<String> {
     texts(
         connection,
         &format!(
@@ -3803,7 +3809,7 @@ fn drain(
 
 /// An independent evaluation of D(CROSSREF), written from Amendment 3 section
 /// 9.4's definition rather than from the implementation's selector.
-fn independent_d(connection: &mut PgConnection) -> Vec<Uuid> {
+pub(crate) fn independent_d(connection: &mut PgConnection) -> Vec<Uuid> {
     #[derive(QueryableByName)]
     struct Row {
         #[diesel(sql_type = SqlUuid)]
@@ -4188,14 +4194,16 @@ fn f20_the_floor_refusals_carry_exactly_the_section_9_9_messages() {
 use crate::model::distribution_job::crud as job_crud;
 use crate::model::distribution_job::DistributionJobKind;
 
-fn enable_execution(pool: &crate::db::PgPool) {
+pub(crate) fn enable_execution(pool: &crate::db::PgPool) {
     work_upsert_crud::enable_work_upsert_capture(pool, DistributionPlatform::Crossref)
         .expect("capture");
     work_upsert_crud::set_work_upsert_execution(pool, DistributionPlatform::Crossref, true)
         .expect("execution");
 }
 
-fn claim(pool: &crate::db::PgPool) -> Vec<crate::model::distribution_job::ClaimedDistributionJob> {
+pub(crate) fn claim(
+    pool: &crate::db::PgPool,
+) -> Vec<crate::model::distribution_job::ClaimedDistributionJob> {
     job_crud::claim_work_upsert_jobs(
         pool,
         "worker-be06",
@@ -4207,7 +4215,7 @@ fn claim(pool: &crate::db::PgPool) -> Vec<crate::model::distribution_job::Claime
 }
 
 /// A claimable `WORK_UPSERT` job: admitted, eligible, execution enabled.
-fn claimable_job(
+pub(crate) fn claimable_job(
     pool: &crate::db::PgPool,
     connection: &mut PgConnection,
 ) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
