@@ -11,6 +11,7 @@ use diesel::connection::SimpleConnection;
 use diesel::sql_types::{BigInt, Text, Uuid as SqlUuid};
 use diesel::{Connection, PgConnection, QueryableByName, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
+use thoth_errors::{ThothError, WORK_UPSERT_SUFFIXED_TRIGGER_CODES, WORK_UPSERT_TRIGGER_CODES};
 use uuid::Uuid;
 
 use crate::db::MIGRATIONS;
@@ -844,5 +845,822 @@ fn u5_the_test_reset_still_truncates_the_control_and_admission_tables() {
             "SELECT capture_enabled::text || execution_enabled::text AS value FROM work_upsert_control"
         ),
         vec!["falsefalse"]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 10: the BE-06 error codes and the scoped database-error
+// conversion (X2, X5, X6, X7)
+// ---------------------------------------------------------------------------
+
+/// The 69 error codes of Amendment 3 section 10.4, each with its variant.
+fn be06_error_codes() -> Vec<(ThothError, &'static str)> {
+    vec![
+        (
+            ThothError::WorkUpsertProfileNotImplemented,
+            "WORK_UPSERT_PROFILE_NOT_IMPLEMENTED",
+        ),
+        (
+            ThothError::WorkUpsertExecutionProfilesRequired,
+            "WORK_UPSERT_EXECUTION_PROFILES_REQUIRED",
+        ),
+        (
+            ThothError::WorkUpsertProfileNotAdmitted,
+            "WORK_UPSERT_PROFILE_NOT_ADMITTED",
+        ),
+        (
+            ThothError::WorkUpsertExecutionNotPermitted,
+            "WORK_UPSERT_EXECUTION_NOT_PERMITTED",
+        ),
+        (
+            ThothError::WorkUpsertCompletionRequiresFence,
+            "WORK_UPSERT_COMPLETION_REQUIRES_FENCE",
+        ),
+        (
+            ThothError::WorkUpsertCompletionRequiresAcceptedPermit,
+            "WORK_UPSERT_COMPLETION_REQUIRES_ACCEPTED_PERMIT",
+        ),
+        (
+            ThothError::WorkUpsertCancellationRefusedFencedAttempt,
+            "WORK_UPSERT_CANCELLATION_REFUSED_FENCED_ATTEMPT",
+        ),
+        (
+            ThothError::WorkUpsertRecoveryBlocked,
+            "WORK_UPSERT_RECOVERY_BLOCKED",
+        ),
+        (
+            ThothError::WorkUpsertCaptureIsMonotone,
+            "WORK_UPSERT_CAPTURE_IS_MONOTONE",
+        ),
+        (
+            ThothError::WorkUpsertControlRowIsPermanent,
+            "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT",
+        ),
+        (
+            ThothError::WorkUpsertControlKeyImmutable,
+            "WORK_UPSERT_CONTROL_KEY_IMMUTABLE",
+        ),
+        (
+            ThothError::WorkUpsertAdmissionImmutable,
+            "WORK_UPSERT_ADMISSION_IMMUTABLE",
+        ),
+        (
+            ThothError::WorkUpsertAdmissionDeleteOnlyByPublisherCascade,
+            "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE",
+        ),
+        (
+            ThothError::WorkUpsertAdmissionCensusNotEmpty,
+            "WORK_UPSERT_ADMISSION_CENSUS_NOT_EMPTY",
+        ),
+        (
+            ThothError::WorkUpsertGenerationOverflow,
+            "WORK_UPSERT_GENERATION_OVERFLOW",
+        ),
+        (
+            ThothError::DistributionJobKindNotClaimable,
+            "DISTRIBUTION_JOB_KIND_NOT_CLAIMABLE",
+        ),
+        (
+            ThothError::DistributionJobWorkIdentityImmutable,
+            "DISTRIBUTION_JOB_WORK_IDENTITY_IMMUTABLE",
+        ),
+        (
+            ThothError::DistributionJobWorkReferenceNotRestorable,
+            "DISTRIBUTION_JOB_WORK_REFERENCE_NOT_RESTORABLE",
+        ),
+        (
+            ThothError::WorkDeleteBlockedByFencedAttempt,
+            "WORK_DELETE_BLOCKED_BY_FENCED_ATTEMPT",
+        ),
+        (
+            ThothError::WorkDeleteBindingDrift,
+            "WORK_DELETE_BINDING_DRIFT",
+        ),
+        (
+            ThothError::WorkDeleteBindingDriftUnresolved,
+            "WORK_DELETE_BINDING_DRIFT_UNRESOLVED",
+        ),
+        (
+            ThothError::CrossrefRootWorkNotFound,
+            "CROSSREF_ROOT_WORK_NOT_FOUND",
+        ),
+        (
+            ThothError::CrossrefPublisherNotCovered,
+            "CROSSREF_PUBLISHER_NOT_COVERED",
+        ),
+        (
+            ThothError::CrossrefBindingMovedRetry,
+            "CROSSREF_BINDING_MOVED_RETRY",
+        ),
+        (ThothError::CrossrefPermitBlocked, "CROSSREF_PERMIT_BLOCKED"),
+        (
+            ThothError::CrossrefPermitEmptyDoiSet,
+            "CROSSREF_PERMIT_EMPTY_DOI_SET",
+        ),
+        (
+            ThothError::CrossrefDoiNotCanonicalisable,
+            "CROSSREF_DOI_NOT_CANONICALISABLE",
+        ),
+        (
+            ThothError::CrossrefUnitAlreadyDepositedInJob,
+            "CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB",
+        ),
+        (
+            ThothError::CrossrefManualRecoveryRequiresReference,
+            "CROSSREF_MANUAL_RECOVERY_REQUIRES_REFERENCE",
+        ),
+        (
+            ThothError::CrossrefPermitClaimStale,
+            "CROSSREF_PERMIT_CLAIM_STALE",
+        ),
+        (
+            ThothError::CrossrefPermitInitialStateInvalid,
+            "CROSSREF_PERMIT_INITIAL_STATE_INVALID",
+        ),
+        (
+            ThothError::CrossrefPermitEvidenceImmutable,
+            "CROSSREF_PERMIT_EVIDENCE_IMMUTABLE",
+        ),
+        (
+            ThothError::CrossrefPermitLinkNotRestorable,
+            "CROSSREF_PERMIT_LINK_NOT_RESTORABLE",
+        ),
+        (
+            ThothError::CrossrefPermitWriteOnceField,
+            "CROSSREF_PERMIT_WRITE_ONCE_FIELD",
+        ),
+        (
+            ThothError::CrossrefPermitIllegalTransition,
+            "CROSSREF_PERMIT_ILLEGAL_TRANSITION",
+        ),
+        (
+            ThothError::CrossrefPermitAuthorizationRequiresManifest,
+            "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_MANIFEST",
+        ),
+        (
+            ThothError::CrossrefPermitAuthorizationRequiresFence,
+            "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_FENCE",
+        ),
+        (
+            ThothError::CrossrefArtifactSourceChanged,
+            "CROSSREF_ARTIFACT_SOURCE_CHANGED",
+        ),
+        (
+            ThothError::CrossrefPermitDeleteRefused,
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        ),
+        (
+            ThothError::CrossrefPermitMembershipImmutable,
+            "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE",
+        ),
+        (
+            ThothError::CrossrefPermitMembershipCardinalityMismatch,
+            "CROSSREF_PERMIT_MEMBERSHIP_CARDINALITY_MISMATCH",
+        ),
+        (
+            ThothError::CrossrefPermitNotFound,
+            "CROSSREF_PERMIT_NOT_FOUND",
+        ),
+        (
+            ThothError::CrossrefPermitRequiresReservationToken,
+            "CROSSREF_PERMIT_REQUIRES_RESERVATION_TOKEN",
+        ),
+        (
+            ThothError::CrossrefPermitVoidRequiresReserved,
+            "CROSSREF_PERMIT_VOID_REQUIRES_RESERVED",
+        ),
+        (
+            ThothError::CrossrefPermitVoidRequiresDetail,
+            "CROSSREF_PERMIT_VOID_REQUIRES_DETAIL",
+        ),
+        (
+            ThothError::CrossrefVoidRequiresAuthorizationReference,
+            "CROSSREF_VOID_REQUIRES_AUTHORIZATION_REFERENCE",
+        ),
+        (
+            ThothError::CrossrefReconciliationRequiresReference,
+            "CROSSREF_RECONCILIATION_REQUIRES_REFERENCE",
+        ),
+        (
+            ThothError::CrossrefTimestampNotIncreasing,
+            "CROSSREF_TIMESTAMP_NOT_INCREASING",
+        ),
+        (
+            ThothError::CrossrefTimestampNotDecodable,
+            "CROSSREF_TIMESTAMP_NOT_DECODABLE",
+        ),
+        (
+            ThothError::CrossrefTimestampOverflow,
+            "CROSSREF_TIMESTAMP_OVERFLOW",
+        ),
+        (
+            ThothError::CrossrefVersionFloorNotDecreasing,
+            "CROSSREF_VERSION_FLOOR_NOT_DECREASING",
+        ),
+        (
+            ThothError::CrossrefVersionFloorDomain,
+            "CROSSREF_VERSION_FLOOR_DOMAIN",
+        ),
+        (
+            ThothError::CrossrefVersionFloorNotDrained,
+            "CROSSREF_VERSION_FLOOR_NOT_DRAINED",
+        ),
+        (
+            ThothError::CrossrefVersionFloorAlreadyAdvanced,
+            "CROSSREF_VERSION_FLOOR_ALREADY_ADVANCED",
+        ),
+        (
+            ThothError::CrossrefVersionFloorPermanent,
+            "CROSSREF_VERSION_FLOOR_PERMANENT",
+        ),
+        (
+            ThothError::CrossrefVersionFloorAuditAppendOnly,
+            "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY",
+        ),
+        (
+            ThothError::AttemptHasAuthorizedPermit,
+            "ATTEMPT_HAS_AUTHORIZED_PERMIT",
+        ),
+        (
+            ThothError::AttemptHasOpenReservation,
+            "ATTEMPT_HAS_OPEN_RESERVATION",
+        ),
+        (
+            ThothError::OuterAttemptHasOpenPermits,
+            "OUTER_ATTEMPT_HAS_OPEN_PERMITS",
+        ),
+        (
+            ThothError::CrossrefVersionFloorTargetInvalid,
+            "CROSSREF_VERSION_FLOOR_TARGET_INVALID",
+        ),
+        (
+            ThothError::CrossrefVersionFloorRequiresAuthorizationReference,
+            "CROSSREF_VERSION_FLOOR_REQUIRES_AUTHORIZATION_REFERENCE",
+        ),
+        (
+            ThothError::CrossrefVersionFloorRegisterDigestInvalid,
+            "CROSSREF_VERSION_FLOOR_REGISTER_DIGEST_INVALID",
+        ),
+        (
+            ThothError::CrossrefVersionFloorBindingMismatch,
+            "CROSSREF_VERSION_FLOOR_BINDING_MISMATCH",
+        ),
+        (
+            ThothError::WorkUpsertCaptureNotEnabled,
+            "WORK_UPSERT_CAPTURE_NOT_ENABLED",
+        ),
+        (
+            ThothError::WorkUpsertAdmissionRequiresEvidenceReference,
+            "WORK_UPSERT_ADMISSION_REQUIRES_EVIDENCE_REFERENCE",
+        ),
+        (
+            ThothError::CrossrefReservationJobKindMismatch,
+            "CROSSREF_RESERVATION_JOB_KIND_MISMATCH",
+        ),
+        (
+            ThothError::CrossrefUnitPublisherMismatch,
+            "CROSSREF_UNIT_PUBLISHER_MISMATCH",
+        ),
+        (
+            ThothError::CrossrefPermitAttemptAlreadyReserved,
+            "CROSSREF_PERMIT_ATTEMPT_ALREADY_RESERVED",
+        ),
+        (
+            ThothError::CrossrefPayloadDigestInvalid,
+            "CROSSREF_PAYLOAD_DIGEST_INVALID",
+        ),
+    ]
+}
+
+#[test]
+fn x0_every_be06_code_is_a_variant_with_its_own_arm_and_a_fixed_message() {
+    use juniper::IntoFieldError;
+
+    let codes = be06_error_codes();
+    assert_eq!(codes.len(), 69, "Amendment 3 section 10.4 counts 69 codes");
+    let distinct: BTreeSet<&str> = codes.iter().map(|(_, code)| *code).collect();
+    assert_eq!(distinct.len(), 69, "no code is reused");
+    let grammar = regex::Regex::new("^[A-Z][A-Z0-9_]*$").expect("grammar");
+    let source = include_str!("../../../../thoth-errors/src/lib.rs");
+    for (error, code) in codes {
+        assert!(grammar.is_match(code) && code.len() <= 64, "{code}");
+        assert!(
+            source.contains(&format!("\"type\": \"{code}\"")),
+            "{code} has an explicit IntoFieldError arm"
+        );
+        let message = error.to_string();
+        assert!(
+            !message.is_empty() && !message.contains('{'),
+            "{code}: {message}"
+        );
+        let field_error = error.into_field_error();
+        assert_eq!(field_error.message(), message, "{code}");
+        assert_eq!(
+            field_error.extensions(),
+            &juniper::graphql_value!({ "type": code }),
+            "{code}"
+        );
+    }
+}
+
+#[test]
+fn x0_the_work_upsert_database_failure_is_internal_error_with_the_fixed_message() {
+    use juniper::IntoFieldError;
+
+    let error = ThothError::WorkUpsertDatabaseFailure;
+    assert_eq!(
+        error.to_string(),
+        "A work-level distribution database operation failed."
+    );
+    let field_error = error.into_field_error();
+    assert_eq!(
+        field_error.message(),
+        "A work-level distribution database operation failed."
+    );
+    assert_eq!(
+        field_error.extensions(),
+        &juniper::graphql_value!({ "type": "INTERNAL_ERROR" })
+    );
+}
+
+/// The codes Migration 2 raises: every `RAISE EXCEPTION` literal that is a
+/// bare code or a code with an appended value, and every `refuse_truncate`
+/// trigger argument.
+fn migration_raised_codes() -> (BTreeSet<String>, BTreeSet<String>) {
+    let sql = migration_sql(MIGRATION_2, "up.sql");
+    let bare = regex::Regex::new(r"RAISE EXCEPTION '([A-Z][A-Z0-9_]*)'").expect("bare");
+    let suffixed = regex::Regex::new(r"RAISE EXCEPTION '([A-Z][A-Z0-9_]*): %'").expect("suffixed");
+    let truncate =
+        regex::Regex::new(r"refuse_truncate\('([A-Z][A-Z0-9_]*)'\)").expect("truncate guard");
+    let mut all = BTreeSet::new();
+    for pattern in [&bare, &suffixed, &truncate] {
+        all.extend(pattern.captures_iter(&sql).map(|c| c[1].to_string()));
+    }
+    let with_suffix = suffixed
+        .captures_iter(&sql)
+        .map(|c| c[1].to_string())
+        .collect();
+    (all, with_suffix)
+}
+
+#[test]
+fn x2_the_trigger_code_constants_equal_the_migration_literals() {
+    let (raised, suffixed) = migration_raised_codes();
+    assert_eq!(raised.len(), 29, "Migration 2 raises 29 distinct codes");
+    let mut expected: BTreeSet<String> = raised.clone();
+    assert!(expected.remove("WORK_UPSERT_TARGET_SET_MISMATCH"));
+    let constant: BTreeSet<String> = WORK_UPSERT_TRIGGER_CODES
+        .iter()
+        .map(|code| code.to_string())
+        .collect();
+    assert_eq!(WORK_UPSERT_TRIGGER_CODES.len(), 28);
+    assert_eq!(constant, expected);
+    let constant_suffixed: BTreeSet<String> = WORK_UPSERT_SUFFIXED_TRIGGER_CODES
+        .iter()
+        .map(|code| code.to_string())
+        .collect();
+    assert_eq!(
+        constant_suffixed,
+        BTreeSet::from([
+            "CROSSREF_TIMESTAMP_NOT_DECODABLE".to_string(),
+            "CROSSREF_TIMESTAMP_OVERFLOW".to_string()
+        ])
+    );
+    assert_eq!(constant_suffixed, suffixed);
+
+    // Every trigger code is one of the 69 codes; the target-set invariant is not.
+    let codes: BTreeSet<&str> = be06_error_codes().iter().map(|(_, code)| *code).collect();
+    assert!(WORK_UPSERT_TRIGGER_CODES
+        .iter()
+        .all(|code| codes.contains(code)));
+    assert!(!codes.contains("WORK_UPSERT_TARGET_SET_MISMATCH"));
+
+    let sql = migration_sql(MIGRATION_2, "up.sql");
+    for (name, _) in EXACT_CONSTRAINTS {
+        assert!(sql.contains(name), "Migration 2 defines {name}");
+    }
+}
+
+/// The six exact database objects of Amendment 3 section 10.3.
+const EXACT_CONSTRAINTS: [(&str, &str); 6] = [
+    (
+        "work_upsert_control_execution_requires_capture_check",
+        "WORK_UPSERT_CAPTURE_NOT_ENABLED",
+    ),
+    (
+        "work_upsert_admission_evidence_reference_check",
+        "WORK_UPSERT_ADMISSION_REQUIRES_EVIDENCE_REFERENCE",
+    ),
+    (
+        "crossref_write_permit_payload_digest_check",
+        "CROSSREF_PAYLOAD_DIGEST_INVALID",
+    ),
+    (
+        "work_crossref_version_floor_domain_check",
+        "CROSSREF_VERSION_FLOOR_DOMAIN",
+    ),
+    (
+        "crossref_write_permit_one_per_work_upsert_attempt_idx",
+        "CROSSREF_PERMIT_ATTEMPT_ALREADY_RESERVED",
+    ),
+    (
+        "crossref_version_floor_audit_one_advance_per_g6_attempt_idx",
+        "CROSSREF_VERSION_FLOOR_ALREADY_ADVANCED",
+    ),
+];
+
+struct DatabaseErrorDouble {
+    message: &'static str,
+    constraint: Option<&'static str>,
+}
+
+impl diesel::result::DatabaseErrorInformation for DatabaseErrorDouble {
+    fn message(&self) -> &str {
+        self.message
+    }
+    fn details(&self) -> Option<&str> {
+        None
+    }
+    fn hint(&self) -> Option<&str> {
+        None
+    }
+    fn table_name(&self) -> Option<&str> {
+        None
+    }
+    fn column_name(&self) -> Option<&str> {
+        None
+    }
+    fn constraint_name(&self) -> Option<&str> {
+        self.constraint
+    }
+    fn statement_position(&self) -> Option<i32> {
+        None
+    }
+}
+
+fn database_error(
+    kind: diesel::result::DatabaseErrorKind,
+    message: &'static str,
+    constraint: Option<&'static str>,
+) -> diesel::result::Error {
+    diesel::result::Error::DatabaseError(
+        kind,
+        Box::new(DatabaseErrorDouble {
+            message,
+            constraint,
+        }),
+    )
+}
+
+fn code_of(error: ThothError) -> String {
+    use juniper::IntoFieldError;
+    let message = error.to_string();
+    let field_error = error.into_field_error();
+    let code = field_error
+        .extensions()
+        .as_object_value()
+        .and_then(|object| object.get_field_value("type"))
+        .and_then(|value| value.as_string_value())
+        .expect("a type extension")
+        .to_string();
+    assert_eq!(field_error.message(), message);
+    code
+}
+
+#[test]
+fn x5_the_scoped_conversion_maps_each_branch_exactly() {
+    use diesel::result::DatabaseErrorKind as Kind;
+    let convert = ThothError::from_work_upsert_database_error;
+
+    // Rule 1 and 2: the exact CHECKs and unique indexes, by kind and name.
+    for (name, code) in EXACT_CONSTRAINTS {
+        let kind = if name.ends_with("_idx") {
+            Kind::UniqueViolation
+        } else {
+            Kind::CheckViolation
+        };
+        assert_eq!(
+            code_of(convert(database_error(kind, "violates", Some(name)))),
+            code,
+            "{name}"
+        );
+        // The right name under the wrong kind is not the exact object.
+        let wrong = if name.ends_with("_idx") {
+            Kind::CheckViolation
+        } else {
+            Kind::UniqueViolation
+        };
+        assert_eq!(
+            convert(database_error(wrong, "violates", Some(name))),
+            ThothError::WorkUpsertDatabaseFailure,
+            "{name} under the wrong kind"
+        );
+    }
+
+    // Rule 3: a trigger code, byte-equal, with no constraint name, under any kind.
+    for code in WORK_UPSERT_TRIGGER_CODES {
+        for kind in [Kind::Unknown, Kind::CheckViolation] {
+            assert_eq!(code_of(convert(database_error(kind, code, None))), code);
+        }
+        // A named constraint is never a trigger code.
+        assert_eq!(
+            convert(database_error(Kind::Unknown, code, Some("any_constraint"))),
+            ThothError::WorkUpsertDatabaseFailure
+        );
+    }
+    // The suffix rule: accepted only for the two suffixed codes.
+    assert_eq!(
+        code_of(convert(database_error(
+            Kind::Unknown,
+            "CROSSREF_TIMESTAMP_OVERFLOW: 10000-01-01 00:00:00+00",
+            None
+        ))),
+        "CROSSREF_TIMESTAMP_OVERFLOW"
+    );
+    assert_eq!(
+        code_of(convert(database_error(
+            Kind::Unknown,
+            "CROSSREF_TIMESTAMP_NOT_DECODABLE: 20261301000000000",
+            None
+        ))),
+        "CROSSREF_TIMESTAMP_NOT_DECODABLE"
+    );
+    let overflow = convert(database_error(
+        Kind::Unknown,
+        "CROSSREF_TIMESTAMP_OVERFLOW: 10000-01-01 00:00:00+00",
+        None,
+    ));
+    assert!(!overflow.to_string().contains("10000"));
+    for refused in [
+        "CROSSREF_PERMIT_BLOCKED: x",
+        "CROSSREF_TIMESTAMP_OVERFLOWX: 1",
+        "CROSSREF_TIMESTAMP_OVERFLOW:1",
+        "CROSSREF_TIMESTAMP_OVERFLOW ",
+        " CROSSREF_PERMIT_BLOCKED",
+        "crossref_permit_blocked",
+        "WORK_UPSERT_TARGET_SET_MISMATCH",
+        "SOMETHING_ELSE",
+        "",
+    ] {
+        assert_eq!(
+            convert(database_error(Kind::Unknown, refused, None)),
+            ThothError::WorkUpsertDatabaseFailure,
+            "{refused:?}"
+        );
+    }
+
+    // Rule 4: everything else.
+    for (kind, message, constraint) in [
+        (
+            Kind::CheckViolation,
+            "violates",
+            Some("crossref_version_floor_audit_shape_check"),
+        ),
+        (
+            Kind::UniqueViolation,
+            "duplicate key",
+            Some("work_upsert_admission_pkey"),
+        ),
+        (
+            Kind::ForeignKeyViolation,
+            "violates foreign key",
+            Some("work_upsert_admission_publisher_id_fkey"),
+        ),
+        (Kind::NotNullViolation, "null value", None),
+        (Kind::SerializationFailure, "could not serialize", None),
+        (Kind::ClosedConnection, "server closed the connection", None),
+        (Kind::ReadOnlyTransaction, "read-only", None),
+        (Kind::Unknown, "syntax error", None),
+    ] {
+        assert_eq!(
+            convert(database_error(kind, message, constraint)),
+            ThothError::WorkUpsertDatabaseFailure,
+            "{message}"
+        );
+    }
+    assert_eq!(
+        convert(diesel::result::Error::NotFound),
+        ThothError::WorkUpsertDatabaseFailure
+    );
+    assert_eq!(
+        convert(diesel::result::Error::RollbackTransaction),
+        ThothError::WorkUpsertDatabaseFailure
+    );
+    assert_eq!(
+        convert(diesel::result::Error::AlreadyInTransaction),
+        ThothError::WorkUpsertDatabaseFailure
+    );
+}
+
+/// Run `statements` in a transaction that is always rolled back, and convert
+/// the first failure through the scoped conversion.
+fn provoke(connection: &mut PgConnection, statements: &str) -> ThothError {
+    let mut failure = None;
+    let _ = connection.transaction::<(), diesel::result::Error, _>(|connection| {
+        if let Err(error) = connection.batch_execute(statements) {
+            failure = Some(ThothError::from_work_upsert_database_error(error));
+        }
+        Err(diesel::result::Error::RollbackTransaction)
+    });
+    failure.unwrap_or_else(|| panic!("the provocation succeeded: {statements}"))
+}
+
+/// Run `statements` in a transaction that commits, and convert the commit's
+/// failure through the scoped conversion.
+fn provoke_at_commit(connection: &mut PgConnection, statements: &str) -> ThothError {
+    let result = connection.transaction::<(), diesel::result::Error, _>(|connection| {
+        connection.batch_execute(statements)
+    });
+    ThothError::from_work_upsert_database_error(
+        result.expect_err("the commit is refused by a deferred trigger"),
+    )
+}
+
+const PERMIT_COLUMNS: &str = "(route, scope, publisher_id, publisher_identity, root_work_identity, \
+     source_generation_witness, doi_set_digest, doi_set_cardinality, crossref_timestamp, doi_batch_id)";
+
+fn legacy_permit_values(publisher_id: Uuid, doi: &str) -> String {
+    format!(
+        "('LEGACY_SCHEDULED', 'SINGLE_ROOT_WORK', '{publisher_id}', '{publisher_id}', gen_random_uuid(), 0, \
+          public.crossref_doi_set_digest(ARRAY['{doi}']), 1, 20260904120000000, 'x6')"
+    )
+}
+
+#[test]
+fn x6_each_exact_provocation_maps_to_its_code_against_a_live_connection() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    let permit = legacy_permit_values(publisher.publisher_id, "https://doi.org/10.12345/x6");
+
+    let cases: Vec<(String, &str)> = vec![
+        (
+            "UPDATE work_upsert_control SET execution_enabled = true WHERE execution_profile = 'CROSSREF'"
+                .to_string(),
+            "WORK_UPSERT_CAPTURE_NOT_ENABLED",
+        ),
+        (
+            format!(
+                "INSERT INTO work_upsert_admission \
+                     (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+                 VALUES ('CROSSREF', '{}', gen_random_uuid(), '   ', 'x6')",
+                publisher.publisher_id
+            ),
+            "WORK_UPSERT_ADMISSION_REQUIRES_EVIDENCE_REFERENCE",
+        ),
+        (
+            format!(
+                "ALTER TABLE crossref_write_permit DISABLE TRIGGER USER; \
+                 INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES {permit}; \
+                 UPDATE crossref_write_permit SET payload_digest = 'NOT-A-DIGEST'"
+            ),
+            "CROSSREF_PAYLOAD_DIGEST_INVALID",
+        ),
+        (
+            "ALTER TABLE work_crossref_version_floor DISABLE TRIGGER USER; \
+             UPDATE work_crossref_version_floor SET floor_value = 5"
+                .to_string(),
+            "CROSSREF_VERSION_FLOOR_DOMAIN",
+        ),
+        (
+            "UPDATE work_crossref_version_floor SET floor_value = 5".to_string(),
+            "CROSSREF_VERSION_FLOOR_DOMAIN",
+        ),
+        (
+            format!(
+                "ALTER TABLE crossref_write_permit DISABLE TRIGGER USER; \
+                 INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES {permit}, {permit}; \
+                 UPDATE crossref_write_permit SET route = 'WORK_UPSERT', permit_generation = 1, \
+                        job_identity = gen_random_uuid(), \
+                        attempt_identity = '00000000-0000-0000-0000-000000000006'"
+            ),
+            "CROSSREF_PERMIT_ATTEMPT_ALREADY_RESERVED",
+        ),
+        (
+            "INSERT INTO crossref_version_floor_audit \
+                 (mutation_kind, before_value, after_value, g6_attempt_id, observation_id, \
+                  g7_authorization_reference, authorization_register_digest, actor) \
+             VALUES ('ADVANCE_VERSION_FLOOR', 0, 99999999999999, '00000000-0000-0000-0000-000000000006', \
+                     gen_random_uuid(), 'G7-X6', repeat('a', 64), 'x6'), \
+                    ('ADVANCE_VERSION_FLOOR', 0, 99999999999999, '00000000-0000-0000-0000-000000000006', \
+                     gen_random_uuid(), 'G7-X6', repeat('a', 64), 'x6')"
+                .to_string(),
+            "CROSSREF_VERSION_FLOOR_ALREADY_ADVANCED",
+        ),
+        (
+            "SELECT public.crossref_ts_next(99991231235959999)".to_string(),
+            "CROSSREF_TIMESTAMP_OVERFLOW",
+        ),
+        (
+            "DELETE FROM work_upsert_control".to_string(),
+            "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT",
+        ),
+        (
+            "TRUNCATE work_upsert_admission".to_string(),
+            "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE",
+        ),
+        (
+            "UPDATE work_crossref_version_floor SET floor_value = 99999999999999; \
+             UPDATE work_crossref_version_floor SET floor_value = 0"
+                .to_string(),
+            "CROSSREF_VERSION_FLOOR_NOT_DECREASING",
+        ),
+        (
+            format!(
+                "INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES {permit}; \
+                 DELETE FROM crossref_write_permit"
+            ),
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        ),
+    ];
+    for (statements, code) in cases {
+        let error = provoke(&mut connection, &statements);
+        let message = error.to_string();
+        assert_eq!(code_of(error), code, "{statements}");
+        assert!(!message.contains("10000"), "{message}");
+    }
+
+    // A deferred trigger at COMMIT: membership disagreeing with the digest.
+    let error = provoke_at_commit(
+        &mut connection,
+        &format!("INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES {permit}"),
+    );
+    assert_eq!(
+        code_of(error),
+        "CROSSREF_PERMIT_MEMBERSHIP_CARDINALITY_MISMATCH"
+    );
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM crossref_write_permit"
+        ),
+        0
+    );
+}
+
+#[test]
+fn x7_multi_purpose_and_unmapped_provocations_are_the_fixed_internal_failure() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(pool.as_ref());
+    let imprint = test_db::create_imprint(pool.as_ref(), &publisher);
+    let work = test_db::create_work(pool.as_ref(), &imprint);
+    let mut connection = pool.get().expect("connection");
+
+    let rolled_back = [
+        // The multi-purpose audit shape CHECK.
+        "INSERT INTO crossref_version_floor_audit \
+             (mutation_kind, before_value, after_value, g6_attempt_id, observation_id, \
+              g7_authorization_reference, authorization_register_digest, actor) \
+         VALUES ('ADVANCE_VERSION_FLOOR', 0, 99999999999999, gen_random_uuid(), gen_random_uuid(), \
+                 '   ', repeat('a', 64), 'x7')"
+            .to_string(),
+        // The multi-purpose manual-route CHECK, with triggers out of the way.
+        format!(
+            "ALTER TABLE crossref_write_permit DISABLE TRIGGER USER; \
+             INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES \
+             ('MANUAL_RECOVERY', 'SINGLE_ROOT_WORK', '{0}', '{0}', gen_random_uuid(), 0, \
+              public.crossref_doi_set_digest(ARRAY['https://doi.org/10.12345/x7']), 1, \
+              20260904120000000, 'x7')",
+            publisher.publisher_id
+        ),
+        // A foreign-key violation.
+        "INSERT INTO work_upsert_admission \
+             (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+         VALUES ('CROSSREF', gen_random_uuid(), gen_random_uuid(), 'EV-X7', 'x7')"
+            .to_string(),
+        // A statement error with no constraint name.
+        "SELECT no_such_column FROM work_upsert_control".to_string(),
+        // A RAISE outside the closed sets, bare and suffixed.
+        "DO $$ BEGIN RAISE EXCEPTION 'SOMETHING_ELSE'; END $$".to_string(),
+        "DO $$ BEGIN RAISE EXCEPTION 'CROSSREF_PERMIT_BLOCKED: x'; END $$".to_string(),
+    ];
+    for statements in rolled_back {
+        let error = provoke(&mut connection, &statements);
+        assert_eq!(error, ThothError::WorkUpsertDatabaseFailure, "{statements}");
+        assert_eq!(code_of(error), "INTERNAL_ERROR");
+    }
+
+    // The target-set invariant at COMMIT.
+    let activation = Uuid::new_v4();
+    let error = provoke_at_commit(
+        &mut connection,
+        &format!(
+            "INSERT INTO distribution_job \
+                 (kind, publisher_id, work_id, activation_id, status, deduplication_key, \
+                  execution_profile, work_identity, created_generation, job_ordinal) \
+             VALUES ('WORK_UPSERT', '{p}', '{w}', '{a}', 'PENDING', \
+                     'WORK_UPSERT:{p}:{w}:CROSSREF:{a}:1:1', 'CROSSREF', '{w}', 1, 1)",
+            p = publisher.publisher_id,
+            w = work.work_id,
+            a = activation
+        ),
+    );
+    assert_eq!(error, ThothError::WorkUpsertDatabaseFailure);
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM distribution_job"
+        ),
+        0
     );
 }

@@ -281,6 +281,161 @@ pub enum ThothError {
     /// recovery is a fresh dry run, Gate-D review and Gate-E authorization.
     #[error("MIG-01 production apply blocked by changed omission evidence: {0}")]
     MigrationBackfillOmissionMismatch(String),
+    // ---- BE-06: work-level upsert and Crossref write permits (#848; R52B section 25.1
+    // as amended by Amendment 3 section 10). Every message is fixed and echoes no
+    // caller value; each code has its own `IntoFieldError` arm.
+    #[error("The work-level execution profile is not implemented.")]
+    WorkUpsertProfileNotImplemented,
+    #[error("At least one work-level execution profile is required.")]
+    WorkUpsertExecutionProfilesRequired,
+    #[error("The work-level execution profile is not admitted for this binding.")]
+    WorkUpsertProfileNotAdmitted,
+    #[error("Work-level execution is not permitted for this work.")]
+    WorkUpsertExecutionNotPermitted,
+    #[error("The work-level job cannot be completed before its attempt passed the fence.")]
+    WorkUpsertCompletionRequiresFence,
+    #[error(
+        "The work-level job cannot be completed without an accepted write permit for its attempt."
+    )]
+    WorkUpsertCompletionRequiresAcceptedPermit,
+    #[error("The work-level job cannot be cancelled while its current attempt is fenced.")]
+    WorkUpsertCancellationRefusedFencedAttempt,
+    #[error("Work-level execution is blocked by an uncleared fenced abandonment.")]
+    WorkUpsertRecoveryBlocked,
+    #[error("Work-level capture cannot be disabled once enabled.")]
+    WorkUpsertCaptureIsMonotone,
+    #[error("A work-level control row cannot be removed.")]
+    WorkUpsertControlRowIsPermanent,
+    #[error("A work-level control row's profile cannot be changed.")]
+    WorkUpsertControlKeyImmutable,
+    #[error("A work-level admission cannot be changed.")]
+    WorkUpsertAdmissionImmutable,
+    #[error("A work-level admission is removed only with its publisher.")]
+    WorkUpsertAdmissionDeleteOnlyByPublisherCascade,
+    #[error("The work-level admission census is not empty.")]
+    WorkUpsertAdmissionCensusNotEmpty,
+    #[error("The work-level source generation cannot be advanced further.")]
+    WorkUpsertGenerationOverflow,
+    #[error("A requested distribution job kind cannot be claimed by this operation.")]
+    DistributionJobKindNotClaimable,
+    #[error("A distribution job's work identity cannot be changed.")]
+    DistributionJobWorkIdentityImmutable,
+    #[error("A distribution job's cleared work reference cannot be restored.")]
+    DistributionJobWorkReferenceNotRestorable,
+    #[error("The work cannot be deleted while a work-level attempt for it is fenced.")]
+    WorkDeleteBlockedByFencedAttempt,
+    #[error("The work's binding changed during deletion.")]
+    WorkDeleteBindingDrift,
+    #[error("The work's binding kept changing during deletion; retry later.")]
+    WorkDeleteBindingDriftUnresolved,
+    #[error("The Crossref root work does not exist.")]
+    CrossrefRootWorkNotFound,
+    #[error("The work's publisher has no enabled Crossref assignment.")]
+    CrossrefPublisherNotCovered,
+    #[error("The work's binding changed; retry later.")]
+    CrossrefBindingMovedRetry,
+    #[error("A blocking Crossref write permit overlaps this deposit.")]
+    CrossrefPermitBlocked,
+    #[error("The deposit has no DOI to register.")]
+    CrossrefPermitEmptyDoiSet,
+    #[error("A stored DOI of the deposit cannot be canonicalised.")]
+    CrossrefDoiNotCanonicalisable,
+    #[error("The work was already deposited within this job.")]
+    CrossrefUnitAlreadyDepositedInJob,
+    #[error("A manual recovery reservation requires an operator authorization reference.")]
+    CrossrefManualRecoveryRequiresReference,
+    #[error("The claim for this Crossref write is no longer valid.")]
+    CrossrefPermitClaimStale,
+    #[error("A Crossref write permit must be created reserved.")]
+    CrossrefPermitInitialStateInvalid,
+    #[error("Crossref write permit evidence cannot be changed.")]
+    CrossrefPermitEvidenceImmutable,
+    #[error("A Crossref write permit link can only be cleared.")]
+    CrossrefPermitLinkNotRestorable,
+    #[error("A write-once Crossref write permit field cannot be written here.")]
+    CrossrefPermitWriteOnceField,
+    #[error("The Crossref write permit transition is not allowed.")]
+    CrossrefPermitIllegalTransition,
+    #[error("Authorizing a Crossref write requires its payload manifest.")]
+    CrossrefPermitAuthorizationRequiresManifest,
+    #[error("Authorizing a work-level Crossref write requires a fenced open attempt.")]
+    CrossrefPermitAuthorizationRequiresFence,
+    #[error("The work changed after the Crossref deposit was prepared.")]
+    CrossrefArtifactSourceChanged,
+    #[error("Crossref write permits cannot be deleted.")]
+    CrossrefPermitDeleteRefused,
+    #[error("Crossref write permit membership cannot be changed.")]
+    CrossrefPermitMembershipImmutable,
+    #[error("Crossref write permit membership does not agree with its digest.")]
+    CrossrefPermitMembershipCardinalityMismatch,
+    #[error("The Crossref write permit does not exist.")]
+    CrossrefPermitNotFound,
+    #[error("The Crossref write permit reservation token does not match.")]
+    CrossrefPermitRequiresReservationToken,
+    #[error("Only a reserved Crossref write permit can be voided.")]
+    CrossrefPermitVoidRequiresReserved,
+    #[error("Voiding a Crossref write reservation requires a detail.")]
+    CrossrefPermitVoidRequiresDetail,
+    #[error(
+        "Voiding a Crossref write reservation as superuser requires an authorization reference."
+    )]
+    CrossrefVoidRequiresAuthorizationReference,
+    #[error("Reconciling a Crossref write permit requires an authorization reference.")]
+    CrossrefReconciliationRequiresReference,
+    #[error("The Crossref deposit timestamp is not increasing.")]
+    CrossrefTimestampNotIncreasing,
+    #[error("The Crossref deposit timestamp is not a valid encoded instant.")]
+    CrossrefTimestampNotDecodable,
+    #[error("The Crossref deposit timestamp is outside its domain.")]
+    CrossrefTimestampOverflow,
+    #[error("The Crossref version floor cannot be lowered.")]
+    CrossrefVersionFloorNotDecreasing,
+    #[error("The Crossref version floor value is outside its domain.")]
+    CrossrefVersionFloorDomain,
+    #[error("The Crossref version floor cannot be advanced while a blocking write permit exists.")]
+    CrossrefVersionFloorNotDrained,
+    #[error("The Crossref version floor was already advanced for this attempt.")]
+    CrossrefVersionFloorAlreadyAdvanced,
+    #[error("The Crossref version floor cannot be removed.")]
+    CrossrefVersionFloorPermanent,
+    #[error("The Crossref version floor audit is append-only.")]
+    CrossrefVersionFloorAuditAppendOnly,
+    #[error(
+        "The attempt holds an authorized Crossref write permit whose outcome is not reported."
+    )]
+    AttemptHasAuthorizedPermit,
+    #[error("The attempt holds an open Crossref write reservation.")]
+    AttemptHasOpenReservation,
+    #[error("The attempt holds unresolved Crossref write permits.")]
+    OuterAttemptHasOpenPermits,
+    #[error("The Crossref version floor target value is not allowed.")]
+    CrossrefVersionFloorTargetInvalid,
+    #[error("Advancing the Crossref version floor requires an authorization reference.")]
+    CrossrefVersionFloorRequiresAuthorizationReference,
+    #[error("The authorization register digest is not a lower-case SHA-256 hex digest.")]
+    CrossrefVersionFloorRegisterDigestInvalid,
+    #[error("The Crossref version floor is not in the state this advance requires.")]
+    CrossrefVersionFloorBindingMismatch,
+    #[error("Work-level capture is not enabled.")]
+    WorkUpsertCaptureNotEnabled,
+    #[error("A work-level admission requires an evidence reference.")]
+    WorkUpsertAdmissionRequiresEvidenceReference,
+    #[error("The claimed job is not of this reservation route's kind.")]
+    CrossrefReservationJobKindMismatch,
+    #[error("The work does not belong to the job's publisher.")]
+    CrossrefUnitPublisherMismatch,
+    #[error("A Crossref write permit already exists for this attempt.")]
+    CrossrefPermitAttemptAlreadyReserved,
+    #[error("The payload digest is not a lower-case SHA-256 hex digest.")]
+    CrossrefPayloadDigestInvalid,
+    /// A BE-06 database operation failed in a way no exact code describes.
+    ///
+    /// Deliberately has no `IntoFieldError` arm: it reaches GraphQL as
+    /// `INTERNAL_ERROR` with this fixed message, and nothing about the SQL, the
+    /// constraint, the driver or the pool reaches the caller (Amendment 3
+    /// section 10.3). The underlying error is recorded server-side instead.
+    #[error("A work-level distribution database operation failed.")]
+    WorkUpsertDatabaseFailure,
 }
 
 impl ThothError {
@@ -292,6 +447,162 @@ impl ThothError {
     /// Deserialise from JSON
     pub fn from_json(s: &str) -> ThothResult<ThothError> {
         serde_json::from_str(s).map_err(Into::into)
+    }
+}
+
+/// The codes BE-06 Migration 2 raises from its triggers and functions that are
+/// BE-06 error codes (Amendment 3 section 10.3). The target-set invariant
+/// message `WORK_UPSERT_TARGET_SET_MISMATCH` is deliberately not one of them.
+pub const WORK_UPSERT_TRIGGER_CODES: [&str; 28] = [
+    "CROSSREF_ARTIFACT_SOURCE_CHANGED",
+    "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_FENCE",
+    "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_MANIFEST",
+    "CROSSREF_PERMIT_BLOCKED",
+    "CROSSREF_PERMIT_DELETE_REFUSED",
+    "CROSSREF_PERMIT_EVIDENCE_IMMUTABLE",
+    "CROSSREF_PERMIT_ILLEGAL_TRANSITION",
+    "CROSSREF_PERMIT_INITIAL_STATE_INVALID",
+    "CROSSREF_PERMIT_LINK_NOT_RESTORABLE",
+    "CROSSREF_PERMIT_MEMBERSHIP_CARDINALITY_MISMATCH",
+    "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE",
+    "CROSSREF_PERMIT_WRITE_ONCE_FIELD",
+    "CROSSREF_RECONCILIATION_REQUIRES_REFERENCE",
+    "CROSSREF_TIMESTAMP_NOT_DECODABLE",
+    "CROSSREF_TIMESTAMP_NOT_INCREASING",
+    "CROSSREF_TIMESTAMP_OVERFLOW",
+    "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY",
+    "CROSSREF_VERSION_FLOOR_DOMAIN",
+    "CROSSREF_VERSION_FLOOR_NOT_DECREASING",
+    "CROSSREF_VERSION_FLOOR_PERMANENT",
+    "DISTRIBUTION_JOB_WORK_IDENTITY_IMMUTABLE",
+    "DISTRIBUTION_JOB_WORK_REFERENCE_NOT_RESTORABLE",
+    "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE",
+    "WORK_UPSERT_ADMISSION_IMMUTABLE",
+    "WORK_UPSERT_CAPTURE_IS_MONOTONE",
+    "WORK_UPSERT_CONTROL_KEY_IMMUTABLE",
+    "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT",
+    "WORK_UPSERT_PROFILE_NOT_IMPLEMENTED",
+];
+
+/// The trigger codes Migration 2 also raises with a value appended after `": "`.
+pub const WORK_UPSERT_SUFFIXED_TRIGGER_CODES: [&str; 2] = [
+    "CROSSREF_TIMESTAMP_NOT_DECODABLE",
+    "CROSSREF_TIMESTAMP_OVERFLOW",
+];
+
+impl ThothError {
+    /// The scoped conversion of a database error raised inside a BE-06
+    /// operation (Amendment 3 section 10.3).
+    ///
+    /// It is deliberately not a `From` impl, so `?` never selects it. An exact
+    /// single-purpose CHECK or unique index maps to its code; a trigger-raised
+    /// code with no constraint name maps to its variant, whose fixed message
+    /// never carries an appended value; everything else is
+    /// [`ThothError::WorkUpsertDatabaseFailure`].
+    pub fn from_work_upsert_database_error(error: diesel::result::Error) -> ThothError {
+        use diesel::result::{DatabaseErrorKind, Error};
+
+        let Error::DatabaseError(kind, info) = error else {
+            return ThothError::WorkUpsertDatabaseFailure;
+        };
+        match (kind, info.constraint_name()) {
+            (DatabaseErrorKind::CheckViolation, Some(constraint)) => match constraint {
+                "work_upsert_control_execution_requires_capture_check" => {
+                    ThothError::WorkUpsertCaptureNotEnabled
+                }
+                "work_upsert_admission_evidence_reference_check" => {
+                    ThothError::WorkUpsertAdmissionRequiresEvidenceReference
+                }
+                "crossref_write_permit_payload_digest_check" => {
+                    ThothError::CrossrefPayloadDigestInvalid
+                }
+                "work_crossref_version_floor_domain_check" => {
+                    ThothError::CrossrefVersionFloorDomain
+                }
+                _ => ThothError::WorkUpsertDatabaseFailure,
+            },
+            (DatabaseErrorKind::UniqueViolation, Some(constraint)) => match constraint {
+                "crossref_write_permit_one_per_work_upsert_attempt_idx" => {
+                    ThothError::CrossrefPermitAttemptAlreadyReserved
+                }
+                "crossref_version_floor_audit_one_advance_per_g6_attempt_idx" => {
+                    ThothError::CrossrefVersionFloorAlreadyAdvanced
+                }
+                _ => ThothError::WorkUpsertDatabaseFailure,
+            },
+            (_, Some(_)) => ThothError::WorkUpsertDatabaseFailure,
+            (_, None) => {
+                let message = info.message();
+                let code = if WORK_UPSERT_TRIGGER_CODES.contains(&message) {
+                    message
+                } else {
+                    match message.split_once(": ") {
+                        Some((prefix, _))
+                            if WORK_UPSERT_SUFFIXED_TRIGGER_CODES.contains(&prefix) =>
+                        {
+                            prefix
+                        }
+                        _ => return ThothError::WorkUpsertDatabaseFailure,
+                    }
+                };
+                Self::work_upsert_trigger_error(code)
+            }
+        }
+    }
+
+    /// The variant of one member of [`WORK_UPSERT_TRIGGER_CODES`].
+    fn work_upsert_trigger_error(code: &str) -> ThothError {
+        match code {
+            "CROSSREF_ARTIFACT_SOURCE_CHANGED" => ThothError::CrossrefArtifactSourceChanged,
+            "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_FENCE" => {
+                ThothError::CrossrefPermitAuthorizationRequiresFence
+            }
+            "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_MANIFEST" => {
+                ThothError::CrossrefPermitAuthorizationRequiresManifest
+            }
+            "CROSSREF_PERMIT_BLOCKED" => ThothError::CrossrefPermitBlocked,
+            "CROSSREF_PERMIT_DELETE_REFUSED" => ThothError::CrossrefPermitDeleteRefused,
+            "CROSSREF_PERMIT_EVIDENCE_IMMUTABLE" => ThothError::CrossrefPermitEvidenceImmutable,
+            "CROSSREF_PERMIT_ILLEGAL_TRANSITION" => ThothError::CrossrefPermitIllegalTransition,
+            "CROSSREF_PERMIT_INITIAL_STATE_INVALID" => {
+                ThothError::CrossrefPermitInitialStateInvalid
+            }
+            "CROSSREF_PERMIT_LINK_NOT_RESTORABLE" => ThothError::CrossrefPermitLinkNotRestorable,
+            "CROSSREF_PERMIT_MEMBERSHIP_CARDINALITY_MISMATCH" => {
+                ThothError::CrossrefPermitMembershipCardinalityMismatch
+            }
+            "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE" => ThothError::CrossrefPermitMembershipImmutable,
+            "CROSSREF_PERMIT_WRITE_ONCE_FIELD" => ThothError::CrossrefPermitWriteOnceField,
+            "CROSSREF_RECONCILIATION_REQUIRES_REFERENCE" => {
+                ThothError::CrossrefReconciliationRequiresReference
+            }
+            "CROSSREF_TIMESTAMP_NOT_DECODABLE" => ThothError::CrossrefTimestampNotDecodable,
+            "CROSSREF_TIMESTAMP_NOT_INCREASING" => ThothError::CrossrefTimestampNotIncreasing,
+            "CROSSREF_TIMESTAMP_OVERFLOW" => ThothError::CrossrefTimestampOverflow,
+            "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY" => {
+                ThothError::CrossrefVersionFloorAuditAppendOnly
+            }
+            "CROSSREF_VERSION_FLOOR_DOMAIN" => ThothError::CrossrefVersionFloorDomain,
+            "CROSSREF_VERSION_FLOOR_NOT_DECREASING" => {
+                ThothError::CrossrefVersionFloorNotDecreasing
+            }
+            "CROSSREF_VERSION_FLOOR_PERMANENT" => ThothError::CrossrefVersionFloorPermanent,
+            "DISTRIBUTION_JOB_WORK_IDENTITY_IMMUTABLE" => {
+                ThothError::DistributionJobWorkIdentityImmutable
+            }
+            "DISTRIBUTION_JOB_WORK_REFERENCE_NOT_RESTORABLE" => {
+                ThothError::DistributionJobWorkReferenceNotRestorable
+            }
+            "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE" => {
+                ThothError::WorkUpsertAdmissionDeleteOnlyByPublisherCascade
+            }
+            "WORK_UPSERT_ADMISSION_IMMUTABLE" => ThothError::WorkUpsertAdmissionImmutable,
+            "WORK_UPSERT_CAPTURE_IS_MONOTONE" => ThothError::WorkUpsertCaptureIsMonotone,
+            "WORK_UPSERT_CONTROL_KEY_IMMUTABLE" => ThothError::WorkUpsertControlKeyImmutable,
+            "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT" => ThothError::WorkUpsertControlRowIsPermanent,
+            "WORK_UPSERT_PROFILE_NOT_IMPLEMENTED" => ThothError::WorkUpsertProfileNotImplemented,
+            _ => ThothError::WorkUpsertDatabaseFailure,
+        }
     }
 }
 
@@ -339,6 +650,424 @@ impl juniper::IntoFieldError for ThothError {
                 self.to_string(),
                 graphql_value!({
                     "type": "INVALID_DISTRIBUTION_JOB_ERROR_CODE"
+                }),
+            ),
+            ThothError::WorkUpsertProfileNotImplemented => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_PROFILE_NOT_IMPLEMENTED"
+                }),
+            ),
+            ThothError::WorkUpsertExecutionProfilesRequired => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_EXECUTION_PROFILES_REQUIRED"
+                }),
+            ),
+            ThothError::WorkUpsertProfileNotAdmitted => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_PROFILE_NOT_ADMITTED"
+                }),
+            ),
+            ThothError::WorkUpsertExecutionNotPermitted => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_EXECUTION_NOT_PERMITTED"
+                }),
+            ),
+            ThothError::WorkUpsertCompletionRequiresFence => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_COMPLETION_REQUIRES_FENCE"
+                }),
+            ),
+            ThothError::WorkUpsertCompletionRequiresAcceptedPermit => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_COMPLETION_REQUIRES_ACCEPTED_PERMIT"
+                }),
+            ),
+            ThothError::WorkUpsertCancellationRefusedFencedAttempt => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_CANCELLATION_REFUSED_FENCED_ATTEMPT"
+                }),
+            ),
+            ThothError::WorkUpsertRecoveryBlocked => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_RECOVERY_BLOCKED"
+                }),
+            ),
+            ThothError::WorkUpsertCaptureIsMonotone => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_CAPTURE_IS_MONOTONE"
+                }),
+            ),
+            ThothError::WorkUpsertControlRowIsPermanent => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT"
+                }),
+            ),
+            ThothError::WorkUpsertControlKeyImmutable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_CONTROL_KEY_IMMUTABLE"
+                }),
+            ),
+            ThothError::WorkUpsertAdmissionImmutable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_ADMISSION_IMMUTABLE"
+                }),
+            ),
+            ThothError::WorkUpsertAdmissionDeleteOnlyByPublisherCascade => {
+                juniper::FieldError::new(
+                    self.to_string(),
+                    graphql_value!({
+                        "type": "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE"
+                    }),
+                )
+            }
+            ThothError::WorkUpsertAdmissionCensusNotEmpty => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_ADMISSION_CENSUS_NOT_EMPTY"
+                }),
+            ),
+            ThothError::WorkUpsertGenerationOverflow => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_GENERATION_OVERFLOW"
+                }),
+            ),
+            ThothError::DistributionJobKindNotClaimable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "DISTRIBUTION_JOB_KIND_NOT_CLAIMABLE"
+                }),
+            ),
+            ThothError::DistributionJobWorkIdentityImmutable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "DISTRIBUTION_JOB_WORK_IDENTITY_IMMUTABLE"
+                }),
+            ),
+            ThothError::DistributionJobWorkReferenceNotRestorable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "DISTRIBUTION_JOB_WORK_REFERENCE_NOT_RESTORABLE"
+                }),
+            ),
+            ThothError::WorkDeleteBlockedByFencedAttempt => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_DELETE_BLOCKED_BY_FENCED_ATTEMPT"
+                }),
+            ),
+            ThothError::WorkDeleteBindingDrift => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_DELETE_BINDING_DRIFT"
+                }),
+            ),
+            ThothError::WorkDeleteBindingDriftUnresolved => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_DELETE_BINDING_DRIFT_UNRESOLVED"
+                }),
+            ),
+            ThothError::CrossrefRootWorkNotFound => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_ROOT_WORK_NOT_FOUND"
+                }),
+            ),
+            ThothError::CrossrefPublisherNotCovered => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PUBLISHER_NOT_COVERED"
+                }),
+            ),
+            ThothError::CrossrefBindingMovedRetry => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_BINDING_MOVED_RETRY"
+                }),
+            ),
+            ThothError::CrossrefPermitBlocked => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_BLOCKED"
+                }),
+            ),
+            ThothError::CrossrefPermitEmptyDoiSet => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_EMPTY_DOI_SET"
+                }),
+            ),
+            ThothError::CrossrefDoiNotCanonicalisable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_DOI_NOT_CANONICALISABLE"
+                }),
+            ),
+            ThothError::CrossrefUnitAlreadyDepositedInJob => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB"
+                }),
+            ),
+            ThothError::CrossrefManualRecoveryRequiresReference => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_MANUAL_RECOVERY_REQUIRES_REFERENCE"
+                }),
+            ),
+            ThothError::CrossrefPermitClaimStale => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_CLAIM_STALE"
+                }),
+            ),
+            ThothError::CrossrefPermitInitialStateInvalid => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_INITIAL_STATE_INVALID"
+                }),
+            ),
+            ThothError::CrossrefPermitEvidenceImmutable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_EVIDENCE_IMMUTABLE"
+                }),
+            ),
+            ThothError::CrossrefPermitLinkNotRestorable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_LINK_NOT_RESTORABLE"
+                }),
+            ),
+            ThothError::CrossrefPermitWriteOnceField => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_WRITE_ONCE_FIELD"
+                }),
+            ),
+            ThothError::CrossrefPermitIllegalTransition => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_ILLEGAL_TRANSITION"
+                }),
+            ),
+            ThothError::CrossrefPermitAuthorizationRequiresManifest => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_MANIFEST"
+                }),
+            ),
+            ThothError::CrossrefPermitAuthorizationRequiresFence => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_FENCE"
+                }),
+            ),
+            ThothError::CrossrefArtifactSourceChanged => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_ARTIFACT_SOURCE_CHANGED"
+                }),
+            ),
+            ThothError::CrossrefPermitDeleteRefused => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_DELETE_REFUSED"
+                }),
+            ),
+            ThothError::CrossrefPermitMembershipImmutable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE"
+                }),
+            ),
+            ThothError::CrossrefPermitMembershipCardinalityMismatch => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_MEMBERSHIP_CARDINALITY_MISMATCH"
+                }),
+            ),
+            ThothError::CrossrefPermitNotFound => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_NOT_FOUND"
+                }),
+            ),
+            ThothError::CrossrefPermitRequiresReservationToken => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_REQUIRES_RESERVATION_TOKEN"
+                }),
+            ),
+            ThothError::CrossrefPermitVoidRequiresReserved => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_VOID_REQUIRES_RESERVED"
+                }),
+            ),
+            ThothError::CrossrefPermitVoidRequiresDetail => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_VOID_REQUIRES_DETAIL"
+                }),
+            ),
+            ThothError::CrossrefVoidRequiresAuthorizationReference => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VOID_REQUIRES_AUTHORIZATION_REFERENCE"
+                }),
+            ),
+            ThothError::CrossrefReconciliationRequiresReference => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_RECONCILIATION_REQUIRES_REFERENCE"
+                }),
+            ),
+            ThothError::CrossrefTimestampNotIncreasing => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_TIMESTAMP_NOT_INCREASING"
+                }),
+            ),
+            ThothError::CrossrefTimestampNotDecodable => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_TIMESTAMP_NOT_DECODABLE"
+                }),
+            ),
+            ThothError::CrossrefTimestampOverflow => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_TIMESTAMP_OVERFLOW"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorNotDecreasing => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_NOT_DECREASING"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorDomain => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_DOMAIN"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorNotDrained => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_NOT_DRAINED"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorAlreadyAdvanced => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_ALREADY_ADVANCED"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorPermanent => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_PERMANENT"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorAuditAppendOnly => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY"
+                }),
+            ),
+            ThothError::AttemptHasAuthorizedPermit => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ATTEMPT_HAS_AUTHORIZED_PERMIT"
+                }),
+            ),
+            ThothError::AttemptHasOpenReservation => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ATTEMPT_HAS_OPEN_RESERVATION"
+                }),
+            ),
+            ThothError::OuterAttemptHasOpenPermits => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "OUTER_ATTEMPT_HAS_OPEN_PERMITS"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorTargetInvalid => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_TARGET_INVALID"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorRequiresAuthorizationReference => {
+                juniper::FieldError::new(
+                    self.to_string(),
+                    graphql_value!({
+                        "type": "CROSSREF_VERSION_FLOOR_REQUIRES_AUTHORIZATION_REFERENCE"
+                    }),
+                )
+            }
+            ThothError::CrossrefVersionFloorRegisterDigestInvalid => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_REGISTER_DIGEST_INVALID"
+                }),
+            ),
+            ThothError::CrossrefVersionFloorBindingMismatch => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_VERSION_FLOOR_BINDING_MISMATCH"
+                }),
+            ),
+            ThothError::WorkUpsertCaptureNotEnabled => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_CAPTURE_NOT_ENABLED"
+                }),
+            ),
+            ThothError::WorkUpsertAdmissionRequiresEvidenceReference => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "WORK_UPSERT_ADMISSION_REQUIRES_EVIDENCE_REFERENCE"
+                }),
+            ),
+            ThothError::CrossrefReservationJobKindMismatch => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_RESERVATION_JOB_KIND_MISMATCH"
+                }),
+            ),
+            ThothError::CrossrefUnitPublisherMismatch => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_UNIT_PUBLISHER_MISMATCH"
+                }),
+            ),
+            ThothError::CrossrefPermitAttemptAlreadyReserved => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PERMIT_ATTEMPT_ALREADY_RESERVED"
+                }),
+            ),
+            ThothError::CrossrefPayloadDigestInvalid => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "CROSSREF_PAYLOAD_DIGEST_INVALID"
                 }),
             ),
             _ => juniper::FieldError::new(
