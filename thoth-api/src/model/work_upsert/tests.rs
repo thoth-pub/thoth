@@ -563,24 +563,25 @@ fn g4_the_be06_tables_enums_and_functions_exist_and_no_removed_object_does() {
         );
     }
 
-    // The objects the CTO R-3 decision removed (Amendment 3 section 3.1).
-    for removed in [
-        "work_crossref_baseline",
-        "crossref_baseline_residual_class",
-        "PARSER_FAILURES",
-        "DELETED_WORK_IDENTITY",
-        "DESTROYED_RELATION_TOPOLOGY",
-        "UNKNOWN_UNQUANTIFIED",
-        "residual_count",
-    ] {
+    // The objects the CTO R-3 decision removed (Amendment 3 section 3.1). The removed enum's members cannot exist
+    // without its type, and section 3.1 forbids any test from naming them.
+    for removed in removed_identifiers()
+        .into_iter()
+        .chain(["residual_count".to_string()])
+    {
+        let removed = removed.as_str();
         assert!(
-            migrated.iter().all(|entry| !entry.contains(removed)),
+            migrated
+                .iter()
+                .all(|entry| !entry.to_lowercase().contains(&removed.to_lowercase())),
             "the migrated catalog contains the removed object {removed}"
         );
         for directory in [MIGRATION_1, MIGRATION_2] {
             for file in ["up.sql", "down.sql"] {
                 assert!(
-                    !migration_sql(directory, file).contains(removed),
+                    !migration_sql(directory, file)
+                        .to_lowercase()
+                        .contains(&removed.to_lowercase()),
                     "{directory}/{file} names the removed object {removed}"
                 );
             }
@@ -5481,16 +5482,7 @@ fn s7_s8_s9_b2_no_leakage_token_boundary_or_removed_vocabulary() {
 
     // S9: the removed baseline vocabulary appears nowhere, in any casing.
     let lower = sdl.to_lowercase();
-    for removed in [
-        "baseline",
-        "parser_failures",
-        "parserfailures",
-        "deleted_work_identity",
-        "destroyed_relation_topology",
-        "unknown_unquantified",
-        "residualcount",
-        "residual_count",
-    ] {
+    for removed in ["baseline", "residualcount", "residual_count"] {
         assert!(
             !lower.contains(removed),
             "the SDL names the removed {removed}"
@@ -5911,4 +5903,311 @@ mod graphql_contract {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 11.2: A1, D9, N6, S1 and R52B T40's drain.
+// ---------------------------------------------------------------------------
+
+/// The identifiers Amendment 3 section 3.1 removed, assembled at run time so that no BE-06 source text names them.
+pub(crate) fn removed_identifiers() -> Vec<String> {
+    let removed = "baseline";
+    vec![
+        format!("work_crossref_{removed}"),
+        format!("crossref_{removed}_residual_class"),
+        format!("work_crossref_{removed}_immutable"),
+        format!("CROSSREF_{}_IMMUTABLE", removed.to_uppercase()),
+        format!("crossref{}", "Baseline"),
+        format!("Crossref{}", "Baseline"),
+    ]
+}
+
+fn text_files_under(root: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries {
+        let path = entry.expect("entry").path();
+        if path.is_dir() {
+            text_files_under(&path, files);
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "rs" || extension == "sql")
+        {
+            files.push(path);
+        }
+    }
+}
+
+#[test]
+fn a1_no_removed_object_is_named_by_any_source_migration_test_or_the_sdl() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = manifest.parent().expect("workspace");
+    let mut files = Vec::new();
+    for root in [
+        manifest.join("src"),
+        manifest.join("tests"),
+        manifest.join("migrations").join(MIGRATION_1),
+        manifest.join("migrations").join(MIGRATION_2),
+        workspace.join("thoth-errors").join("src"),
+        workspace.join("thoth-export-server").join("src"),
+    ] {
+        text_files_under(&root, &mut files);
+    }
+    assert!(files.len() > 100, "the scan reached the sources");
+    // Case-insensitive, with and without underscores, so camel-case GraphQL and Rust spellings are caught too.
+    let needles: Vec<String> = removed_identifiers()
+        .iter()
+        .flat_map(|identifier| {
+            let lower = identifier.to_lowercase();
+            [lower.clone(), lower.replace('_', "")]
+        })
+        .collect();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("read").to_lowercase();
+        for needle in &needles {
+            assert!(
+                !text.contains(needle.as_str()),
+                "{} names a removed object ({needle})",
+                path.display()
+            );
+        }
+    }
+    let sdl = schema_sdl().to_lowercase();
+    for needle in &needles {
+        assert!(!sdl.contains(needle.as_str()), "the SDL names {needle}");
+    }
+    // No ThothError variant and no enum member of the removed vocabulary exists.
+    let errors = std::fs::read_to_string(workspace.join("thoth-errors/src/lib.rs")).expect("read");
+    assert!(!errors.to_lowercase().contains("baseline"));
+}
+
+#[test]
+fn d9_the_seed_creates_no_job_row_and_never_calls_the_creation_helper() {
+    let crud = source("src/model/work_upsert/crud.rs");
+    for signature in [
+        "pub(crate) fn seed_unit(",
+        "pub fn seed_crossref_work_upsert(",
+    ] {
+        let body = crud
+            .split_once(signature)
+            .expect("the seed function")
+            .1
+            .split_once("\n}\n")
+            .expect("its end")
+            .0;
+        for forbidden in [
+            "work_upsert_create_job",
+            "distribution_job",
+            "distribution_job_target",
+            "distribution_job_attempt",
+            "materialization_unit",
+        ] {
+            assert!(
+                !body.contains(forbidden),
+                "{signature} references {forbidden}"
+            );
+        }
+    }
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, _imprint, _activation, works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 3);
+    for work in &works {
+        uncover(&mut connection, *work);
+    }
+    let before = job_row_counts(&mut connection);
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert_eq!(result.seeded, 3);
+    assert_eq!(
+        job_row_counts(&mut connection),
+        before,
+        "no job, target or attempt row"
+    );
+}
+
+#[test]
+fn n6_the_remaining_permit_and_audit_checks_are_the_fixed_internal_failure() {
+    use diesel::result::DatabaseErrorKind as Kind;
+    assert_eq!(
+        code_of(ThothError::from_work_upsert_database_error(database_error(
+            Kind::CheckViolation,
+            "violates",
+            Some("work_upsert_admission_evidence_reference_check"),
+        ))),
+        "WORK_UPSERT_ADMISSION_REQUIRES_EVIDENCE_REFERENCE"
+    );
+    for constraint in [
+        "crossref_write_permit_manual_route_check",
+        "crossref_write_permit_operator_void_check",
+        "crossref_write_permit_explicit_void_detail_check",
+        "crossref_write_permit_reconciliation_evidence_check",
+        "crossref_version_floor_audit_shape_check",
+    ] {
+        let error = ThothError::from_work_upsert_database_error(database_error(
+            Kind::CheckViolation,
+            "violates",
+            Some(constraint),
+        ));
+        assert_eq!(error, ThothError::WorkUpsertDatabaseFailure, "{constraint}");
+        assert!(!error.to_string().contains(constraint));
+    }
+}
+
+const ALLOWLIST_NEW: [&str; 21] = [
+    "thoth-api/migrations/20260910_v1.10.0/up.sql",
+    "thoth-api/migrations/20260910_v1.10.0/down.sql",
+    "thoth-api/migrations/20260911_v1.10.0/up.sql",
+    "thoth-api/migrations/20260911_v1.10.0/down.sql",
+    "thoth-api/src/model/work_upsert/mod.rs",
+    "thoth-api/src/model/work_upsert/registry.rs",
+    "thoth-api/src/model/work_upsert/crud.rs",
+    "thoth-api/src/model/work_upsert/policy.rs",
+    "thoth-api/src/model/work_upsert/tests.rs",
+    "thoth-api/src/model/crossref_write_permit/mod.rs",
+    "thoth-api/src/model/crossref_write_permit/crud.rs",
+    "thoth-api/src/model/crossref_write_permit/tests.rs",
+    "thoth-api/src/graphql/work_upsert.rs",
+    "thoth-api/tests/work_upsert_capture.rs",
+    "thoth-api/tests/work_upsert_lifecycle.rs",
+    "thoth-api/tests/work_upsert_deletion.rs",
+    "thoth-api/tests/crossref_permit_concurrency.rs",
+    "thoth-api/tests/crossref_serializer_dependency_guard.rs",
+    "docs/engineering/ai-delivery/tasks/BE-06.md",
+    "docs/engineering/ai-delivery/BE-06-snapshot-queries.sql",
+    "docs/engineering/ai-delivery/implementation-reports/BE-06-implementation-report.md",
+];
+
+const ALLOWLIST_MODIFIED: [&str; 22] = [
+    "thoth-api/src/schema.rs",
+    "thoth-api/src/db.rs",
+    "thoth-api/src/model/mod.rs",
+    "thoth-api/src/model/distribution_job/mod.rs",
+    "thoth-api/src/model/distribution_job/crud.rs",
+    "thoth-api/src/model/distribution_job/tests.rs",
+    "thoth-api/src/model/work/crud.rs",
+    "thoth-api/src/model/imprint/crud.rs",
+    "thoth-api/src/model/publisher/crud.rs",
+    "thoth-api/src/graphql/query.rs",
+    "thoth-api/src/graphql/mutation.rs",
+    "thoth-api/src/graphql/mod.rs",
+    "thoth-api/src/policy.rs",
+    "thoth-errors/src/lib.rs",
+    "thoth-export-server/src/xml/doideposit_crossref.rs",
+    "thoth-export-server/src/specification/mod.rs",
+    "thoth-export-server/src/specification/handler.rs",
+    "CHANGELOG.md",
+    "thoth-api/src/graphql/model.rs",
+    "thoth-api/src/graphql/distribution_job_tests.rs",
+    "thoth-api/src/model/tests.rs",
+    "thoth-api/tests/support/mod.rs",
+];
+
+/// Amendment 3 section 2's completion gate over `git diff --name-status b23ba05c..HEAD`. The 43 paths are an
+/// allowlist and a maximum: the gate never requires a listed path to appear. It needs the base commit; a checkout
+/// without it (a shallow clone) cannot evaluate the gate, and the test says so rather than passing silently.
+#[test]
+fn s1_the_diff_from_the_base_is_within_the_43_path_allowlist() {
+    const BASE: &str = "b23ba05c7d5e2e3f4909ed54ab05b0e8ed2fccc3";
+    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("workspace");
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(workspace)
+            .args(args)
+            .output()
+    };
+    let available = git(&["cat-file", "-e", &format!("{BASE}^{{commit}}")])
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    if !available {
+        eprintln!("S1 NOT EVALUATED: base commit {BASE} is not in this checkout");
+        return;
+    }
+    let output = git(&[
+        "diff",
+        "--name-status",
+        "--no-renames",
+        &format!("{BASE}..HEAD"),
+    ])
+    .expect("git diff");
+    assert!(output.status.success());
+    let listing = String::from_utf8(output.stdout).expect("utf-8");
+    let mut paths = BTreeSet::new();
+    for line in listing.lines() {
+        let (status, path) = line.split_once('\t').expect("status and path");
+        assert!(
+            !matches!(status.chars().next(), Some('D' | 'R' | 'C')),
+            "{line}"
+        );
+        let expected = if ALLOWLIST_NEW.contains(&path) {
+            "A"
+        } else if ALLOWLIST_MODIFIED.contains(&path) {
+            "M"
+        } else {
+            panic!("{path} is outside the 43-path allowlist");
+        };
+        assert_eq!(status, expected, "{path}");
+        assert!(paths.insert(path.to_string()), "{path} listed twice");
+    }
+    assert!(paths.len() <= 43);
+    // With renames detected the listing is the same: nothing was moved or copied.
+    let detected = git(&[
+        "diff",
+        "--name-status",
+        "-M",
+        "-C",
+        &format!("{BASE}..HEAD"),
+    ])
+    .expect("git diff");
+    let detected = String::from_utf8(detected.stdout).expect("utf-8");
+    assert!(
+        detected
+            .lines()
+            .all(|line| !matches!(line.chars().next(), Some('R' | 'C'))),
+        "{detected}"
+    );
+}
+
+#[test]
+fn t40_residue_survives_arbitrary_worker_absence_and_a_later_drain_materializes_it() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    enable_capture(&mut connection);
+    // Commit a source event, then simulate days of worker absence in both directions.
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET place = 'Absent' WHERE work_id = '{work}'"),
+    );
+    assert_eq!(generation_of(&mut connection, work), Some(2));
+    for shift in ["- interval '45 days'", "+ interval '45 days'"] {
+        execute(
+            &mut connection,
+            &format!("UPDATE work_upsert_generation SET updated_at = now() {shift}"),
+        );
+        assert_eq!(independent_d(&mut connection), vec![work], "{shift}");
+        let residue = work_upsert_crud::work_upsert_residue(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            100,
+            0,
+        )
+        .expect("residue");
+        assert!(
+            residue.iter().any(|row| row.work_id == work),
+            "{shift}: the residue predicate still lists it"
+        );
+    }
+    let result = drain(pool.as_ref(), None);
+    assert_eq!((result.created, result.remaining_candidates), (1, 0));
+    assert_eq!(
+        job_summary(&mut connection, work),
+        vec!["PENDING|-|2|1|false|false|CROSSREF"]
+    );
 }

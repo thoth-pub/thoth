@@ -2507,3 +2507,466 @@ fn reports_11_to_14_list_permits_unresolved_permits_the_floor_and_drain() {
     let floor = permit_crud::crossref_version_floor(pool.as_ref()).expect("report");
     assert_eq!((floor.floor_value, floor.advances.len()), (0, 0));
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Amendment 3 section 11.2: R5, R6, R9, R11, R12, B3, B6, P1, P2.
+// ---------------------------------------------------------------------------------------------------------------------
+
+use crate::model::crossref_write_permit::CrossrefWriteOutcome;
+use crate::model::Crud;
+
+/// A claimed outer back-catalogue job over a covered publisher: `(publisher, imprint, job, token)`.
+fn claimed_back_catalogue(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+) -> (Uuid, Uuid, Uuid, Uuid) {
+    let (publisher, imprint) = fx::publisher_and_imprint(pool);
+    let activation = fx::cover_crossref(connection, publisher);
+    fx::execute(connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{publisher}', '{activation}', 'PUBLISHER_BACK_CATALOGUE:{publisher}:{activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE kind = 'PUBLISHER_BACK_CATALOGUE' AND publisher_id = '{publisher}'"
+    ));
+    let outer = job_crud::claim_distribution_jobs(pool, "legacy", 10, 900, &[]).expect("claim");
+    let claimed = outer
+        .into_iter()
+        .find(|claimed| claimed.job.job.publisher_id == publisher)
+        .expect("the outer job");
+    (
+        publisher,
+        imprint,
+        claimed.job.job.distribution_job_id,
+        claimed.claim_token,
+    )
+}
+
+fn load_job(
+    connection: &mut PgConnection,
+    job: Uuid,
+) -> crate::model::distribution_job::DistributionJob {
+    use crate::schema::distribution_job;
+    use diesel::QueryDsl;
+    distribution_job::table
+        .find(job)
+        .first(connection)
+        .expect("job")
+}
+
+fn permit_count(connection: &mut PgConnection) -> i64 {
+    fx::count(
+        connection,
+        "SELECT count(*) AS count FROM crossref_write_permit",
+    )
+}
+
+#[test]
+fn r5_a_unit_moved_out_after_the_outer_claim_is_a_publisher_mismatch() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, imprint, job, token) = claimed_back_catalogue(pool.as_ref(), &mut connection);
+    let unit = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (_other_publisher, other_imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{unit}'"),
+    );
+    fx::uncover(&mut connection, unit);
+    assert_eq!(
+        permit_crud::reserve_back_catalogue_crossref_write(pool.as_ref(), job, token, unit)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefUnitPublisherMismatch)
+    );
+    assert_eq!(
+        fx::generation_of(&mut connection, unit),
+        None,
+        "no 0 row is written"
+    );
+    assert_eq!(permit_count(&mut connection), 0);
+}
+
+/// Bring a fresh claimed attempt's one permit to `state`; returns `(job, claim token, permit, reservation token)`.
+fn attempt_with_permit_in(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+    state: CrossrefWritePermitState,
+) -> (Uuid, Uuid, Uuid, Uuid) {
+    let (_publisher, _imprint, _activation, _work, job, token) =
+        claimed_work_upsert(pool, connection);
+    let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+    let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
+    match state {
+        CrossrefWritePermitState::Reserved => {}
+        CrossrefWritePermitState::Voided => {
+            permit_crud::void_crossref_write_reservation(
+                pool,
+                permit,
+                reservation_token,
+                "released by the worker",
+                &allow,
+            )
+            .expect("void");
+        }
+        other => {
+            finalise(pool, &presentation(&reservation, Some(token))).expect("finalise");
+            let outcome = match other {
+                CrossrefWritePermitState::Authorized => None,
+                CrossrefWritePermitState::Indeterminate => {
+                    Some(CrossrefWriteOutcome::Indeterminate)
+                }
+                CrossrefWritePermitState::Accepted => Some(CrossrefWriteOutcome::Accepted),
+                CrossrefWritePermitState::NoneAttempted => {
+                    Some(CrossrefWriteOutcome::NoneAttempted)
+                }
+                _ => unreachable!(),
+            };
+            if let Some(outcome) = outcome {
+                permit_crud::report_crossref_write(
+                    pool,
+                    permit,
+                    reservation_token,
+                    outcome,
+                    &allow,
+                )
+                .expect("report");
+            }
+        }
+    }
+    assert_eq!(
+        state_of(connection, permit)
+            .split('|')
+            .next()
+            .expect("state")
+            .to_string(),
+        format!("{state:?}")
+            .chars()
+            .fold(String::new(), |mut s, c| {
+                if c.is_uppercase() && !s.is_empty() {
+                    s.push('_');
+                }
+                s.push(c.to_ascii_uppercase());
+                s
+            }),
+        "the permit is in the state under test"
+    );
+    (job, token, permit, reservation_token)
+}
+
+const PERMIT_STATES: [CrossrefWritePermitState; 6] = [
+    CrossrefWritePermitState::Reserved,
+    CrossrefWritePermitState::Voided,
+    CrossrefWritePermitState::Authorized,
+    CrossrefWritePermitState::Indeterminate,
+    CrossrefWritePermitState::Accepted,
+    CrossrefWritePermitState::NoneAttempted,
+];
+
+#[test]
+fn r6_a_second_reservation_on_an_attempt_is_refused_in_every_permit_state() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    for state in PERMIT_STATES {
+        let (job, token, permit, reservation_token) =
+            attempt_with_permit_in(pool.as_ref(), &mut connection, state);
+        let before = fingerprint(&mut connection);
+        let refused = reserve_work_upsert(pool.as_ref(), job, token);
+        assert_eq!(
+            refused.as_ref().map(|r| r.permit_id),
+            Err(&ThothError::CrossrefPermitAttemptAlreadyReserved),
+            "{state:?}"
+        );
+        assert_eq!(
+            fingerprint(&mut connection),
+            before,
+            "{state:?}: nothing written"
+        );
+        let message = refused.expect_err("refused").to_string();
+        for disclosed in [
+            permit.to_string(),
+            reservation_token.to_string(),
+            format!("{state:?}"),
+            "RESERVED".to_string(),
+            "VOIDED".to_string(),
+            "AUTHORIZED".to_string(),
+        ] {
+            assert!(
+                !message.to_lowercase().contains(&disclosed.to_lowercase()),
+                "{state:?}: the refusal discloses {disclosed}: {message}"
+            );
+        }
+        assert_eq!(
+            fx::count(
+                &mut connection,
+                &format!("SELECT count(*) AS count FROM crossref_write_permit WHERE job_identity = '{job}'")
+            ),
+            1,
+            "{state:?}: one permit per attempt"
+        );
+    }
+}
+
+#[test]
+fn r9_a_deleted_work_makes_the_claim_stale_and_a_jobless_root_not_found() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, imprint, _activation, work, job, token) =
+        claimed_work_upsert(pool.as_ref(), &mut connection);
+    let legacy_root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let loaded = crate::model::work::Work::from_id(pool.as_ref(), &work).expect("work");
+    loaded
+        .delete(pool.as_ref())
+        .expect("the protocol retires the running unfenced job");
+    assert_eq!(
+        reserve_work_upsert(pool.as_ref(), job, token).map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitClaimStale)
+    );
+    let loaded = crate::model::work::Work::from_id(pool.as_ref(), &legacy_root).expect("work");
+    loaded.delete(pool.as_ref()).expect("delete");
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), legacy_root)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefRootWorkNotFound)
+    );
+    assert_eq!(
+        permit_crud::reserve_manual_recovery_crossref_write(pool.as_ref(), legacy_root, "INC-9")
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefRootWorkNotFound)
+    );
+    assert_eq!(permit_count(&mut connection), 0);
+}
+
+#[test]
+fn r11_no_reservation_or_finalisation_refusal_message_carries_database_text() {
+    let refusals = [
+        ThothError::CrossrefPermitClaimStale,
+        ThothError::CrossrefReservationJobKindMismatch,
+        ThothError::CrossrefBindingMovedRetry,
+        ThothError::CrossrefUnitPublisherMismatch,
+        ThothError::CrossrefPermitAttemptAlreadyReserved,
+        ThothError::CrossrefRootWorkNotFound,
+        ThothError::CrossrefPermitBlocked,
+        ThothError::CrossrefPayloadDigestInvalid,
+        ThothError::CrossrefPermitNotFound,
+        ThothError::CrossrefPermitIllegalTransition,
+        ThothError::CrossrefManualRecoveryRequiresReference,
+        ThothError::WorkUpsertDatabaseFailure,
+    ];
+    for refusal in refusals {
+        let message = refusal.to_string();
+        let lower = message.to_lowercase();
+        for forbidden in [
+            "select",
+            "insert",
+            "update ",
+            "delete ",
+            "violates",
+            "duplicate key",
+            "constraint",
+            "index",
+            "trigger",
+            "sqlstate",
+            "postgres",
+            "diesel",
+            "pq:",
+            "relation",
+            "_idx",
+            "_check",
+            "_fkey",
+            "crossref_write_permit",
+            "distribution_job",
+        ] {
+            assert!(
+                !lower.contains(forbidden),
+                "{refusal:?}: {forbidden} in {message}"
+            );
+        }
+    }
+}
+
+#[test]
+fn r12_b3_b6_the_binding_projection_on_every_route() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // WORK_UPSERT: the job's publisher and work identity.
+    let (publisher, imprint, _activation, work, job, token) =
+        claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let job_row = fx::texts(
+        &mut connection,
+        &format!("SELECT publisher_id::text || '|' || work_identity::text || '|' || coalesce(execution_profile::text, '-') AS value FROM distribution_job WHERE distribution_job_id = '{job}'"),
+    )
+    .remove(0);
+    assert_eq!(job_row, format!("{publisher}|{work}|CROSSREF"), "B6");
+    assert_eq!(reservation.publisher_identity, publisher);
+    assert_eq!(reservation.root_work_identity, work);
+    let authorized =
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    assert_eq!(authorized.permit.permit.publisher_identity, publisher, "B3");
+    let loaded_job = load_job(&mut connection, job);
+    assert_eq!(
+        loaded_job.execution_profile,
+        Some(DistributionPlatform::Crossref),
+        "B6"
+    );
+
+    // PUBLISHER_BACK_CATALOGUE: the outer job's publisher, the supplied root, no profile.
+    let (back_publisher, back_imprint, outer_job, outer_token) =
+        claimed_back_catalogue(pool.as_ref(), &mut connection);
+    let unit = fx::insert_eligible_work(&mut connection, back_imprint, Uuid::new_v4());
+    let unit_reservation = permit_crud::reserve_back_catalogue_crossref_write(
+        pool.as_ref(),
+        outer_job,
+        outer_token,
+        unit,
+    )
+    .expect("unit");
+    assert_eq!(unit_reservation.publisher_identity, back_publisher);
+    assert_eq!(unit_reservation.root_work_identity, unit);
+    let outer = load_job(&mut connection, outer_job);
+    assert_eq!(outer.execution_profile, None, "B6");
+    assert_eq!(
+        finalise(
+            pool.as_ref(),
+            &presentation(&unit_reservation, Some(outer_token))
+        )
+        .expect("finalise")
+        .permit
+        .permit
+        .publisher_identity,
+        back_publisher,
+        "B3"
+    );
+
+    // The jobless routes: the root's current publisher and the supplied root.
+    let legacy_root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let legacy = permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), legacy_root)
+        .expect("legacy");
+    let manual_root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let manual =
+        permit_crud::reserve_manual_recovery_crossref_write(pool.as_ref(), manual_root, "INC-1")
+            .expect("manual");
+    for (reservation, root) in [(&legacy, legacy_root), (&manual, manual_root)] {
+        assert_eq!(reservation.publisher_identity, publisher);
+        assert_eq!(reservation.root_work_identity, root);
+        assert_eq!(
+            finalise(pool.as_ref(), &presentation(reservation, None))
+                .expect("finalise")
+                .permit
+                .permit
+                .publisher_identity,
+            publisher,
+            "B3"
+        );
+    }
+
+    // Every permit row's publisher_identity equals the identity its reservation returned (B3).
+    assert_eq!(
+        fx::texts(
+            &mut connection,
+            "SELECT string_agg(publisher_identity::text, ',' ORDER BY publisher_identity::text) AS value FROM crossref_write_permit"
+        ),
+        vec![{
+            let mut identities = [
+                publisher.to_string(),
+                back_publisher.to_string(),
+                publisher.to_string(),
+                publisher.to_string(),
+            ];
+            identities.sort();
+            identities.join(",")
+        }]
+    );
+    // B6 over the whole table.
+    assert_eq!(
+        fx::count(
+            &mut connection,
+            "SELECT count(*) AS count FROM distribution_job WHERE (kind = 'WORK_UPSERT') <> (execution_profile IS NOT DISTINCT FROM 'CROSSREF')"
+        ),
+        0
+    );
+}
+
+#[test]
+fn p1_a_malformed_digest_is_refused_before_any_lock_and_changes_nothing() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, _work, job, token) =
+        claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let before = fingerprint(&mut connection);
+
+    // Another session holds the permit row: a refusal that took no lock returns at once.
+    let mut holder = pool.get().expect("holder");
+    fx::execute(
+        &mut holder,
+        &format!(
+            "BEGIN; SELECT 1 FROM crossref_write_permit WHERE permit_id = '{}' FOR UPDATE",
+            reservation.permit_id
+        ),
+    );
+    let hex63 = &DIGEST[..63];
+    for digest in [
+        DIGEST.to_uppercase(),
+        hex63.to_string(),
+        format!("{DIGEST}0"),
+        format!("{hex63}g"),
+        format!("{hex63} "),
+        format!("{hex63}\u{FF10}"),
+        format!("{hex63}\u{00E9}"),
+        String::new(),
+    ] {
+        let input = FinaliseCrossrefWrite {
+            payload_digest: digest.clone(),
+            ..presentation(&reservation, Some(token))
+        };
+        let pool_for_call = pool.clone();
+        let call =
+            std::thread::spawn(move || finalise(pool_for_call.as_ref(), &input).map(|r| r.outcome));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !call.is_finished() {
+            if std::time::Instant::now() > deadline {
+                fx::execute(&mut holder, "ROLLBACK");
+                panic!("{digest:?}: the refusal waited on the permit lock");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(
+            call.join().expect("call"),
+            Err(ThothError::CrossrefPayloadDigestInvalid),
+            "{digest:?}"
+        );
+    }
+    fx::execute(&mut holder, "ROLLBACK");
+    assert_eq!(fingerprint(&mut connection), before);
+}
+
+#[test]
+fn p2_the_lower_case_digest_authorises_and_an_upper_cased_replay_is_malformed() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, _work, job, token) =
+        claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    assert_eq!(
+        finalise(pool.as_ref(), &input).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+    let before = fingerprint(&mut connection);
+    assert_eq!(
+        finalise(pool.as_ref(), &input).map(|r| r.outcome),
+        Ok(Finalised::Authorized),
+        "the same digest replays"
+    );
+    let upper = FinaliseCrossrefWrite {
+        payload_digest: DIGEST.to_uppercase(),
+        ..input.clone()
+    };
+    assert_eq!(
+        finalise(pool.as_ref(), &upper).map(|r| r.outcome),
+        Err(ThothError::CrossrefPayloadDigestInvalid),
+        "not CROSSREF_PERMIT_ILLEGAL_TRANSITION"
+    );
+    assert_eq!(fingerprint(&mut connection), before);
+}
