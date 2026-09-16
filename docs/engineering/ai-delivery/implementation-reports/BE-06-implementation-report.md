@@ -1,0 +1,649 @@
+# BE-06 Implementation Report
+
+Work-level Crossref upsert and Crossref write permits.
+
+The implementation agent does not approve its own work. This report records what was implemented and what was
+executed. It is evidence for the independent exact-head CRITICAL review, not a substitute for it.
+
+## 1. Repository state
+
+| Item | Value |
+|---|---|
+| Owning GitHub issue | [thoth-pub/thoth#848](https://github.com/thoth-pub/thoth/issues/848) |
+| Repository | `thoth-pub/thoth` |
+| Workflow | PROGRAMME_INTEGRATION |
+| Authorized base branch | `feature/publisher-services-v1-10` |
+| Authorized base commit | `b23ba05c7d5e2e3f4909ed54ab05b0e8ed2fccc3` (tree `1058e80091a3cca93f5775778e0bfae47695c2e6`) |
+| Actual base commit | the same; re-verified at completion: `origin/feature/publisher-services-v1-10` = `b23ba05c…`, tree `1058e800…` |
+| Task branch | `feature/publisher-services-v1-10--be-06` |
+| Eventual PR target | `feature/publisher-services-v1-10` |
+| Pull request | none; PR creation is not authorized |
+| Implementation authorization | #848 comment `5687443066` (sole current authorization) |
+| Verified source head | `c4411993d8d396ba9da858d354b6e94ee2a788e9` (tree `d96ada8a03bcefa90faf65dd0a6ca901c8a52245`) |
+| Report commit | the commit that adds this file, a documentation-only child of `c4411993`; its SHA is the pushed head |
+| Implementing model | Claude Opus 5 (`claude-opus-5`) |
+
+Every test result in section 9 was executed on the source at `c4411993`. The commit adding this report changes only
+this file. The diff-dependent gates (S1, the allowlist gate, `cargo fmt --check`) were re-run on the report commit
+before the push.
+
+## 2. Scope confirmation
+
+Approved specification: `docs/publisher-services/specifications/BE-06-R52B.md` (SHA-256
+`584683ca02611afb064335db83d1fb22685fc3dae87f4eeeee2e1490b320f3ce`, blob `cabeddb8`, 699,166 bytes, 5,107 lines), as
+modified by #848 Amendments 1-3. The Amendment 3 artifact used has SHA-256
+`d9c04dec84945f3e1ff13a9101372cd65b964b466e5c02ca34da25982e4b0831` (242,281 bytes, 1,121 lines), verified before use.
+The CTO R-3 decision is #848 comment `5686341130`, and the Amendment 3 approval is `5686347512`. The persisted R52B
+file is unchanged.
+
+Implemented objective: R52B as modified by Amendments 1-3. That is:
+- Alternative A commit-time capture with one ascending flush per transaction;
+- the scheduler-independent durable residue;
+- `seed -> exact generation-coverage census -> exact-binding admission -> drain`;
+- the three generic creation sites and one creation helper;
+- the `P -> W -> G -> J -> A` lock order with the execution gate `Q`;
+- the fence, deletion and recovery invariants;
+- the Crossref permit state machine, with its four routes, finalisation, report, voids, reconciliation and clearance;
+- the database-local version floor;
+- the 17 mutations and 16 query fields;
+- the scoped database-error boundary EB1-EB4;
+- the export server's prepared deposit route.
+
+Out-of-scope changes made: NONE. No `thoth-dissemination`, `thoth-app` or `thoth-client` change, no Metrics path,
+and no G-6, G-7, #919 or BE-07 work.
+
+## 3. Commits
+
+All commits are authored and committed as Javier Arias `<javier@jarias.org>`, with no AI attribution trailer.
+
+| # | SHA | Message |
+|---|---|---|
+| 1 | `e155c192` | docs: add BE-06 implementation task record |
+| 2 | `05826bdb` | feat(api): add BE-06 migrations, schema and protected test reset |
+| 3 | `0c79ca5e` | feat(errors): add BE-06 error codes and scoped database-error conversion |
+| 4 | `52719fb7` | feat(api): add BE-06 profile registry, input policy and Generation scalar |
+| 5 | `24dd146f` | feat(api): add the BE-06 work-level transaction error boundary |
+| 6 | `344aff8e` | feat(api): add BE-06 work-level control transitions |
+| 7 | `c862fe3c` | feat(api): add Crossref eligibility, census and the bounded seed |
+| 8 | `d0decdeb` | feat(api): add BE-06 Crossref admission and the admissions report |
+| 9 | `f3839328` | feat(api): add the BE-06 materialization unit and single creation helper |
+| 10 | `73b2d52f` | feat(api): add the BE-06 materialization drain |
+| 11 | `79f08e36` | fix(errors): use the fixed BE-06 version-floor refusal messages |
+| 12 | `6c821504` | feat(api): bind the legacy claim to its kinds and add the work-level claim |
+| 13 | `bce7d772` | feat(api): add the four BE-06 Crossref write reservations |
+| 14 | `9b71265e` | feat(api): add BE-06 Crossref write finalisation |
+| 15 | `aa48fc38` | feat(api): add BE-06 Crossref outcome reports, voids and reconciliation |
+| 16 | `9bf95ecf` | feat(api): add the BE-06 Crossref version floor advance |
+| 17 | `12a091d2` | feat(api): add BE-06 completion, failure and cancellation guards and T2 |
+| 18 | `6f7a2c34` | feat(api): add the BE-06 Work, Imprint and Publisher deletion units |
+| 19 | `de261371` | refactor(api): name the BE-06 Crossref eligibility clauses |
+| 20 | `53abe9fb` | feat(api): add the BE-06 work-level and Crossref report model |
+| 21 | `e95dc5f1` | feat(api): add the BE-06 GraphQL surface |
+| 22 | `1a67d75b` | test(api): satisfy clippy in the BE-06 tests |
+| 23 | `09635151` | test(api): add the BE-06 GraphQL authorization matrix and refusal order |
+| 24 | `9d5b8ad9` | feat(export): add the prepared Crossref deposit route |
+| 25 | `95b227e1` | BE-06 U9a: capture matrix, flush properties and section 10.5 drift guards |
+| 26 | `2633632e` | BE-06 U9b: reservation, digest, projection and allowlist tests |
+| 27 | `814083fa` | BE-06 U9c: race harness, T205-T208, and the fenced-cancellation snapshot fix |
+| 28 | `a6431729` | BE-06 U9d: race rows T209-T223 against the implementation |
+| 29 | `a17e5452` | BE-06 U9e: the permit state machine against the migration (T237-T240, T269) |
+| 30 | `8f580e37` | BE-06 U9f: held-publisher and execution-gate schedules (T270-T275, T280-T289) |
+| 31 | `d2c59fe3` | BE-06 U9g: drain, seed and admission races (M5, M6, M10, M12, M14, D10/T290, D11, T291, T292, R7) |
+| 32 | `9a514580` | BE-06 U9h: X12 released error behaviour, F16/T167 and T203 containment |
+| 33 | `a06d7305` | BE-06 U9i: the section 16.11 extractor (T242, T243) and timestamp parity (T248) |
+| 34 | `dce4604f` | BE-06 U9j: serializer dependency guard (T38), membership parity (T244) and order (T245) |
+| 35 | `2c424035` | BE-06 U9k: the conformance transcript (T258) with R13, R14, R15 and B4 |
+| 36 | `b164b061` | BE-06 U9l: floor advance concurrency (F13) and live error-boundary leakage (X9) |
+| 37 | `159dfcf3` | BE-06 U9m: deletion and capture schedules on the Alternative A schema (T325-T328) |
+| 38 | `81885b31` | BE-06 U9n: timestamp and allocation rows (T249, T250, T252, T254, T255, T265) |
+| 39 | `8c550ed4` | BE-06 U9o: the non-blank rule under ICU and C collation (N5) |
+| 40 | `90e5771e` | BE-06 U9p: the inert state (T166) |
+| 41 | `c4411993` | docs: BE-06 changelog entry, snapshot queries and task execution log |
+| 42 | (report commit) | docs: BE-06 implementation report |
+
+Two commits were amended before any push to fix a clippy finding: `09635151` replaced `b9fb22d1`, and `81885b31`
+replaced a first `U9n` commit. No commit was ever pushed before the final push, and no force-push occurred.
+
+## 4. Files changed
+
+### 4.1 The diff
+
+`git diff --name-status b23ba05c7d5e2e3f4909ed54ab05b0e8ed2fccc3..c4411993` (40 paths), and `git diff --numstat`:
+
+| Status | Path | + | - |
+|---|---|---|---|
+| M | `CHANGELOG.md` | 1 | 0 |
+| A | `docs/engineering/ai-delivery/BE-06-snapshot-queries.sql` | 198 | 0 |
+| A | `docs/engineering/ai-delivery/tasks/BE-06.md` | 169 | 0 |
+| A | `thoth-api/migrations/20260910_v1.10.0/down.sql` | 6 | 0 |
+| A | `thoth-api/migrations/20260910_v1.10.0/up.sql` | 8 | 0 |
+| A | `thoth-api/migrations/20260911_v1.10.0/down.sql` | 77 | 0 |
+| A | `thoth-api/migrations/20260911_v1.10.0/up.sql` | 1001 | 0 |
+| M | `thoth-api/src/graphql/distribution_job_tests.rs` | 145 | 21 |
+| M | `thoth-api/src/graphql/mod.rs` | 1 | 0 |
+| M | `thoth-api/src/graphql/model.rs` | 52 | 1 |
+| M | `thoth-api/src/graphql/mutation.rs` | 167 | 0 |
+| M | `thoth-api/src/graphql/query.rs` | 240 | 0 |
+| A | `thoth-api/src/graphql/work_upsert.rs` | 849 | 0 |
+| A | `thoth-api/src/model/crossref_write_permit/crud.rs` | 1571 | 0 |
+| A | `thoth-api/src/model/crossref_write_permit/mod.rs` | 261 | 0 |
+| A | `thoth-api/src/model/crossref_write_permit/tests.rs` | 6186 | 0 |
+| M | `thoth-api/src/model/distribution_job/crud.rs` | 478 | 2 |
+| M | `thoth-api/src/model/distribution_job/mod.rs` | 49 | 4 |
+| M | `thoth-api/src/model/distribution_job/tests.rs` | 255 | 27 |
+| M | `thoth-api/src/model/imprint/crud.rs` | 70 | 2 |
+| M | `thoth-api/src/model/mod.rs` | 87 | 10 |
+| M | `thoth-api/src/model/publisher/crud.rs` | 70 | 2 |
+| M | `thoth-api/src/model/tests.rs` | 618 | 4 |
+| M | `thoth-api/src/model/work/crud.rs` | 208 | 3 |
+| A | `thoth-api/src/model/work_upsert/crud.rs` | 1456 | 0 |
+| A | `thoth-api/src/model/work_upsert/mod.rs` | 461 | 0 |
+| A | `thoth-api/src/model/work_upsert/policy.rs` | 204 | 0 |
+| A | `thoth-api/src/model/work_upsert/registry.rs` | 69 | 0 |
+| A | `thoth-api/src/model/work_upsert/tests.rs` | 7261 | 0 |
+| M | `thoth-api/src/schema.rs` | 177 | 0 |
+| A | `thoth-api/tests/crossref_permit_concurrency.rs` | 499 | 0 |
+| A | `thoth-api/tests/crossref_serializer_dependency_guard.rs` | 511 | 0 |
+| M | `thoth-api/tests/support/mod.rs` | 44 | 0 |
+| A | `thoth-api/tests/work_upsert_capture.rs` | 1727 | 0 |
+| A | `thoth-api/tests/work_upsert_deletion.rs` | 851 | 0 |
+| A | `thoth-api/tests/work_upsert_lifecycle.rs` | 1629 | 0 |
+| M | `thoth-errors/src/lib.rs` | 729 | 0 |
+| M | `thoth-export-server/src/specification/handler.rs` | 129 | 1 |
+| M | `thoth-export-server/src/specification/mod.rs` | 5 | 1 |
+| M | `thoth-export-server/src/xml/doideposit_crossref.rs` | 899 | 33 |
+| | **total** | **29,418** | **111** |
+
+With this report the diff has **41** paths: this file is added with status `A`.
+
+### 4.2 Write-budget compliance: PASS
+
+- Every changed path is in the 43-path allowlist of Amendment 3 section 2, with the status its list permits: new paths
+  `A` and modified paths `M`. This was checked mechanically at `c4411993`: 40 paths, 0 violations. The test `S1` also
+  checks it on every run.
+- There is no `D`, `R` or `C` status, with or without rename and copy detection (`-M -C --find-copies-harder`).
+- No prohibited path changed. These were checked by path with `git diff --name-only` and returned 0 paths:
+  `thoth-errors/src/database_errors.rs`, `thoth-errors/Cargo.toml`, `thoth-api/src/graphql/dataloader.rs`,
+  `thoth-export-server/src/xml/mod.rs`, `thoth-export-server/src/record.rs`, `thoth-dissemination`, `thoth-app`,
+  `thoth-client`, `.github`, `docs/superpowers` and `diesel.toml`.
+- No migration directory other than BE-06's two changed.
+- Authorized but unused paths: `thoth-api/src/db.rs` and `thoth-api/src/policy.rs`. Neither was needed; no change
+  was made merely to make a path appear.
+- Scoped paths were inspected in the diff:
+  - `graphql/model.rs` adds only the six `DistributionJob` and three `DistributionJobAttempt` field resolvers and
+    the `Generation` import.
+  - `graphql/distribution_job_tests.rs` changes only the leakage loop (S5) and adds its negative controls (S6).
+  - `model/tests.rs` changes only the reset statement, exposed as a constant, and adds the H1-H7 and H9 module.
+  - `tests/support/mod.rs` changes only the reset statement, which is byte-identical (H6).
+
+### 4.3 Authorized actions actually used
+
+| Action | Used |
+|---|---|
+| repository inspection | yes |
+| source edit, new files | yes, within the allowlist |
+| file deletion, move or rename | no |
+| branch creation | no; the local task branch already existed at the base with no commits. A local scratch branch was created and deleted during an S1 red check (section 5.3) and was never pushed. |
+| commit | yes (section 3) |
+| push | the task branch only, after this report is committed (section 14) |
+| PR creation or update | no |
+| issue or comment mutation | no |
+| manual CI dispatch or rerun | no |
+| provider or runtime read or write | no |
+| migration execution | disposable local PostgreSQL 17 databases only |
+| release, tag, publication, merge, deployment, production activation | no |
+
+Unauthorized actions performed: NONE committed or pushed. Two self-caught local incidents are recorded in section 5.3.
+
+## 5. Implementation decisions and deviations
+
+### 5.1 Decisions within the approved design
+
+1. **X3 wording.** Rule X3 forbids the literal `impl From<diesel` in the five model files, while Amendment 3 needs
+   `WorkUpsertTxError::Database` to convert from Diesel's error. The files alias the type
+   (`use diesel::result::Error as DatabaseError`). The intent is preserved: no released conversion is used, as X3's
+   own static test asserts.
+2. **The abstract clause fails closed.** The released query orders canonical abstracts with no tie-break, so the
+   evaluated abstract set is a superset of what the serializer can emit: the root's canonical abstracts, plus every
+   non-canonical one when fewer than two are canonical. A Work is excluded if any abstract that could be emitted
+   fails to normalise.
+3. **Group B on `WORK_UPSERT`** follows R52B section 11.5: an activation that differs gives `BINDING_SUPERSEDED`; an
+   assignment that is not enabled gives `ASSIGNMENT_DISABLED`.
+4. **C2 replay** of a finalisation-voided permit returns its recorded outcome, as R52B states, without comparing the
+   new observation.
+5. **Back-catalogue outer cancellation** keeps released behaviour: the cancellation proceeds and the unit permits are
+   untouched (T222).
+6. **Failure while `RESERVED` or `AUTHORIZED`** is refused for both kinds. `INDETERMINATE` refuses only a terminal
+   close of a back-catalogue outer attempt.
+7. **The EB1 and X4 static rules** are implemented as tests over source text.
+8. **Over-capture of `affiliation.position` and `reference.retrieval_date`.** Both tables take whole-table triggers,
+   as R52B section 8.1 permits, so these non-dependency columns advance their owners. The capture tests record this.
+
+### 5.2 Defect found and fixed during implementation
+
+T207 showed an administrative cancellation cancelling a job whose attempt had been fenced. The cancellation had
+waited on the job row while finalisation fenced the attempt. Its single `SELECT … FOR UPDATE OF j` statement read the
+attempt's `fenced_at` with the snapshot it started with. Under READ COMMITTED it therefore missed the fence committed
+while it waited, and `WORK_UPSERT_CANCELLATION_REFUSED_FENCED_ATTEMPT` was not raised.
+
+The guard in `distribution_job/crud.rs` now locks the job in one statement and reads the fence in a later statement.
+The failing test was recorded first, then the fix, then green, in commit `814083fa`. The deletion unit's retirement
+statement has the same shape, but it always waits at `W` in an earlier statement, so it reads a fresh snapshot. T208
+and T221 confirm this in both orders.
+
+### 5.3 Incidents, self-caught, never committed or pushed
+
+1. **U8 prohibited path.** During U8, `thoth-export-server/src/xml/mod.rs`, a prohibited path, was edited in the
+   working tree to add a re-export. The edit was reverted with `git checkout` before any commit. The need was met
+   instead with an associated function in the allowlisted serializer file. The prohibited path is unchanged in
+   every commit.
+2. **S1 red-check probe.** During S1's red check, a local scratch branch was created and a probe commit made with
+   `commit -a`. That swept uncommitted test edits into the probe commit, and deleting the branch removed them from
+   the working tree. Both test files were restored from the probe commit through the reflog, and the probe's
+   `README.md` change was discarded. Nothing was pushed, and the scratch branch no longer exists.
+
+### 5.4 Deviations and specification observations requiring the reviewer's attention
+
+1. **T166 and admission while inert.** R52B T166 lists admission among the rows that cannot exist while the control
+   row is `(false, false)`. Amendment 3 section 9.3's frozen admission precedence (and R52B section 21.3) contains no
+   capture condition. An explicit superuser admission therefore succeeds while inert. The implementation follows
+   the frozen section 9.3 contract; adding a refusal would change a frozen API semantic. The T166 test asserts that
+   released paths and every gated entry point create no BE-06 state, and records that admission remains an explicit
+   superuser act. **Not implementation-blocking. Reviewer decision requested.**
+2. **N5 and the non-blank CHECKs.** The database CHECKs that back the non-blank rule are weaker than the Rust rule.
+   For example, the admission CHECK accepts U+0001. They also differ between ICU and C collation on inputs the code
+   already refuses, such as U+00A0 and U+2000-U+200A under `[[:space:]]`. API results are identical under both
+   providers, and no CHECK refuses a value the code accepts, which is what N5 requires. The CHECKs are defence in
+   depth.
+3. **T302, the candidate `thoth migrate --revert`.** Over a migrated database it exited 0 and reverted every
+   migration, leaving one table. R52B recorded exit 1 at the first migration's `down.sql`, with 55 tables, against a
+   different base. The released-binary result matches R52B exactly (exit 1, ledger and 68 tables unchanged). Both
+   confirm R52B section 23.5: `--revert` is revert-all and never a BE-06 rollback.
+4. **S1 on shallow checkouts.** S1 needs the base commit. The repository's CI test job checks out without
+   `fetch-depth: 0`, so there S1 prints `S1 NOT EVALUATED` and asserts nothing. It evaluated fully locally. The
+   completion allowlist gate was also run separately (section 4.2).
+
+## 6. Database and migration effects
+
+Migrations added: YES, created only by `make DATE=20260910 MAJOR=1 MINOR=9 migration` and
+`make DATE=20260911 MAJOR=1 MINOR=9 migration`, which produced exactly `thoth-api/migrations/20260910_v1.10.0/` and
+`thoth-api/migrations/20260911_v1.10.0/`. `schema.rs` is maintained by hand. No `diesel print-schema`,
+`diesel_cli` or `diesel.toml` was used; `schema_rs_matches_the_migration_for_all_three_relations` and the lib suite
+verify it.
+
+- **Diesel-version collision evidence.** Before creation, `git ls-remote` over all live heads showed `20260910` and
+  `20260911` unused, with no within-head duplicates. At completion the census was re-run over 86 live remote heads
+  (`git fetch origin --prune`, then `git ls-tree` of `thoth-api/migrations` per head, with the version derived as the
+  text before the first `_`, hyphens removed): `20260910` unused, `20260911` unused, no within-head duplicate
+  version, no missing objects. G6 asserts the exact directories and distinct derived versions in the tree.
+- **Migration 1** (`20260910`): the enum labels `WORK_UPSERT`, `BINDING_SUPERSEDED` and `WORK_DELETED`. Its down
+  migration is documented as label-preserving.
+- **Migration 2** (`20260911`):
+  - 8 tables: 4 generic, `work_upsert_generation`, `work_upsert_capture_queue`, `work_upsert_control` and
+    `work_upsert_admission`; and 4 Crossref, `crossref_write_permit`, `crossref_write_permit_doi`,
+    `work_crossref_version_floor` and `crossref_version_floor_audit`;
+  - 5 enum types;
+  - 6 `distribution_job` columns and 4 `distribution_job_attempt` columns;
+  - 27 functions and 35 triggers: 16 capture triggers, the flush, and the guards, the state machine and the
+    target-set triggers;
+  - the replacement of `distribution_job_work_id_fkey`;
+  - the seed rows: control `('CROSSREF', false, false)` and floor `0`;
+  - migration-time assertions: the 40-value DOI corpus and the 13 timestamp vectors.
+- **Inventory.** G2 asserts it; green on the final source:
+  - released: 60 tables, 57 user triggers, 173 indexes, 30 functions, 28 enum types;
+  - migrated: 68, 92, 191, 57, 33.
+  - G3 asserts the 35-name trigger manifest and the reset's 15-member subset, and G4 asserts the five enums, eight
+    tables and 27 functions, with no removed object.
+- **Up, down, up.** G1 runs `up M1 → up M2 → down M2 → up M2 → down M2` on the released schema. After each `down M2`
+  the catalog equals the released one by name in every object class except Migration 1's three labels, and
+  `distribution_job_work_id_fkey` is `ON DELETE CASCADE` again. G5 shows that both migrations in one transaction fail
+  with `unsafe use of new value`. G1-G6 are green on the final source.
+- **Rollback.** A BE-06 rollback is `down M2` only. `thoth migrate --revert` is revert-all (section 5.4 item 3).
+- **Existing data and locking.** Migration 2 adds columns and tables and replaces one foreign key. The compatibility
+  window (section 9.9) ran the released suite and `thoth migrate` against the migrated schema.
+- **Inert on migration.** No job, target, attempt, admission, permit or audit row is created. Only capture advances
+  generation rows (T166, T296).
+
+## 7. API and compatibility effects
+
+### 7.1 GraphQL
+
+The built SDL gains:
+- **17 mutations** (`MutationRoot` 98 → 115; S3): `materializeWorkUpsertJobs`, `claimWorkUpsertJobs`,
+  `reserveWorkUpsertCrossrefWrite`, `reserveBackCatalogueCrossrefWrite`, `reserveLegacyScheduledCrossrefWrite`,
+  `reserveManualRecoveryCrossrefWrite`, `finaliseCrossrefWrite`, `reportCrossrefWrite`,
+  `voidCrossrefWriteReservation`, `voidCrossrefWriteReservationAsSuperuser`, `reconcileCrossrefWritePermit`,
+  `enableWorkUpsertCapture`, `setWorkUpsertExecution`, `seedCrossrefWorkUpsert`, `admitCrossrefWorkUpsert`,
+  `advanceCrossrefVersionFloor`, `materializeWorkUpsertJob`.
+- **16 query fields** (`QueryRoot` 88 → 104; S3): `workUpsertResolution`, `workUpsertResolutionCount`,
+  `workUpsertResidue`, `workUpsertStaleBindings`, `workUpsertJobs`, `workUpsertJob`, `workUpsertAttempts`,
+  `workUpsertBlockedByRecovery`, `workUpsertCaptureLag`, `workUpsertAdmissions`, `workUpsertControl`,
+  `crossrefWritePermits`, `crossrefUnresolvedPermits`, `crossrefVersionFloor`, `crossrefBlockingWritePermitCount`,
+  `crossrefDrained`.
+- **Fields on released types:** six on `DistributionJob` and three on `DistributionJobAttempt` (S2).
+- **New types and enums:** exactly those Amendment 3 section 4.3 freezes, with no placeholder (S4, B1, B5, D1, A8).
+
+The SDL has no removed baseline vocabulary (S9, A1). The only leakage exemption is `executionProfile` on
+`DistributionJob` (S5, S6). `reservationToken` is an output of `CrossrefWriteReservation` only, and an input of the
+finalise, report and route-owner-void inputs only (S7, S8/T170).
+
+### 7.2 OpenAPI
+
+The export server's generated `openapi.json` was captured from the local `v1.8.0` and candidate binaries, bound to
+`127.0.0.1` with the GraphQL endpoint pointed at an unreachable local port. Added paths:
+`/specifications/{specification_id}/work/{work_id}/prepared/{crossref_timestamp}` (`GET`, tag `Specifications`, three
+path parameters). Removed paths: none. Changed paths: none.
+
+### 7.3 Compatibility
+
+- The released `claimDistributionJobs` refuses `WORK_UPSERT` and binds an empty kind list to the legacy kinds
+  (T163-T164).
+- The released back-catalogue coordinator, claim, completion and cancellation behave as released (the full lib
+  suite and T296).
+- The released public export route keeps its 14-digit timestamp, and its cache is unchanged.
+- **Cross-repository.** `thoth-dissemination` #106 (DIS-04) consumes the contract. The job-call table and the
+  protocol-stop set are fixed in the conformance client (R15). No downstream repository was changed. `thoth-client`
+  is unchanged; its query document is read by the serializer guard only.
+
+## 8. Authorization and security
+
+- **Authorization order.** Every BE-06 mutation checks, in order: the coarse role, route metadata read by MVCC, the
+  route-derived role, the operation's own input, then protected state (Amendment 3 section 10.1). T257 covers five
+  principals (anonymous, worker-only, superuser-only, both roles, publisher-scoped) across the 17 mutations, the
+  superuser-only reports and the route-derived operations on three routes. P4, N1, F17, C6 and the replay, repeat
+  and role-removal cases are covered too.
+- **Information disclosure.**
+  - No refusal carries SQL, constraint, index, trigger, SQLSTATE, driver, host, port or role text. This is shown for
+    every live provocation through the scoped conversion and GraphQL (X9), for a pool that cannot connect and for a
+    held pool (X10), and by static message scans (R11, F20).
+  - `CROSSREF_PERMIT_ATTEMPT_ALREADY_RESERVED` discloses nothing about the permit in any of the six states (R6).
+  - No query returns a reservation token (T170, R14).
+- **Crossref replay and fence.** Finalisation fences in the same transaction. Completion requires the fence and an
+  `ACCEPTED` permit at the claimed generation. A fenced attempt refuses cancellation and deletion. Fenced abandonment
+  blocks the claim until reconciliation truth clears it. The profile is `ReplayBlocked`. The T205-T289 schedules
+  exercise all of these.
+- **Provider traffic.** None. No BE-06 source or test file carries an HTTP client or a provider endpoint (F16,
+  T167). The conformance provider is an in-file function.
+- **Secrets and personal data:** none handled.
+- **#919 boundary.** `advanceCrossrefVersionFloor` is database-local, with no GitHub client or configuration (F16).
+  G-6 and G-7 are not executed.
+- **Metrics isolation:** no Metrics path in the diff.
+
+## 9. Tests and checks
+
+All commands below ran on the final source `c4411993` unless marked as an earlier execution. Environment:
+- PostgreSQL 17 disposable local cluster, `127.0.0.1:54411`;
+- `TEST_DATABASE_URL=postgres://thoth@127.0.0.1:54411/thoth_test`;
+- Redis `127.0.0.1:6391`;
+- `CARGO_INCREMENTAL=0`.
+
+### 9.1 Formatting
+
+```text
+cargo fmt --all -- --check
+exit 0
+```
+
+### 9.2 Lint
+
+```text
+cargo clippy --all --all-targets --all-features -- -D warnings
+exit 0 (one dependency future-incompatibility notice: proc-macro-error2 v2.0.1)
+```
+
+### 9.3 The full workspace suite
+
+```text
+cargo test --workspace --no-fail-fast
+exit 0
+thoth (bin)                                   31 passed
+thoth-api lib                               1437 passed, 0 failed, 0 ignored (139.27 s)
+thoth-api tests/crossref_permit_concurrency    3 passed
+thoth-api tests/crossref_serializer_dependency_guard 4 passed
+thoth-api tests/graphql_permissions           13 passed
+thoth-api tests/work_upsert_capture           31 passed
+thoth-api tests/work_upsert_deletion           4 passed
+thoth-api tests/work_upsert_lifecycle          7 passed
+thoth-api-server lib                           3 passed
+thoth-client lib                               4 passed
+thoth-errors lib                              11 passed
+thoth-export-server lib                      152 passed
+doc-tests                                      thoth_client 6 passed; thoth_export_server 2 passed;
+                                               thoth_api 0 passed, 8 ignored (released ignores); others 0
+```
+
+The baseline at `b23ba05c`, before any change, was: `thoth-api` lib 1242/1242; `graphql_permissions` 13/13; bin 31;
+api-server 3; client 4; errors 11; export server 144; exit 0.
+
+### 9.4 By family (all within the run in 9.3)
+
+| Family | Tests |
+|---|---|
+| Budget and SDL | S1 (evaluated against the base), S2, S3, S4/B1/B5/D1/A8, S5 and S6 (`graphql::distribution_job_tests`), S7/S8/S9/B2, A1 |
+| Harness and reset | H1-H7, H9 (`model::tests::be06_reset`), H8 (`crossref_permit_concurrency`), U1-U5 |
+| Migration and inventory | G1-G6, the DOI canonicalisation corpus and the 13 timestamp boundary vectors, T171-T174 by G1/G5/G6 |
+| Version floor | F1-F3, F5-F12, F14, F15, F18, F19, F20, F21, F22 (lib); F4, F6, F17 through GraphQL; F13 (integration, two sessions); F16/T167 (static) |
+| Control | C1-C4 (C4 two sessions), C5 by X5, C6 |
+| Seed and census | D1-D9, D10 = T290 (four schedules), D11, D12 by T257, D13, D14, T291 |
+| Admission | A1-A8, A9 by T257, X8, T292 |
+| Drain and materialization | M1-M4, M5 with M10, M6, M7, M8, M9, M11, M12 (both variants), M13, M14, M15, T40, T41-T53 |
+| Reservations | R1-R6, R7, R8 by X5, R9, R10 by T257 and R1/R2, R11, R12 with B3/B6, R13, R14, R15 |
+| Payload digest | P1 (with a held permit lock), P2, P3 by X5, P4 |
+| Non-blank inputs | N1, N2, N3 (84 code points), N4, N5 (ICU and C databases), N6 |
+| Error boundary | X0, X1-X5, X6/X7 (live), X8, X9 (lib and integration), X10, X11, X12 |
+| Binding projection | B1-B6 |
+| Capture and flush | T1-T37, T39, T317-T322, T324, drift guards 1 and 2 (section 10.5) |
+| Deletion | T98-T102, T105, T325-T328 |
+| Permit state machine | T237, T238, T239/T269 (30 ordered pairs: exactly 7 permitted), T240 |
+| Timestamps and allocation | T249, T250, T252, T253, T254, T255, T259 (domain maximum), T260 (boundary vectors), T265, T248 parity |
+| Extraction and serializer | T38, T242, T243, T244, T245, T246, T111, T109 |
+| Races | T205-T223, T270, T272-T275, T280-T289 |
+| Conformance | T258 over the four routes, with B4 |
+| Inert state | T166 |
+| Authorization | T257, T170 |
+| Containment | T53, T203, D9, X3, X4, X11, H7 |
+
+### 9.5 Concurrency method and transcripts
+
+Every race test uses real sessions. A test-only pause point holds one transaction inside its open transaction: a
+trigger in schema `be06_test` that blocks on an advisory lock the controller holds, armed once through
+`FOR UPDATE SKIP LOCKED`, optionally conditioned on a row, and removed on drop. An `AFTER` trigger pauses while
+holding the row it wrote. Each test reads the second session's wait from `pg_locks` (`locktype:mode` of the
+ungranted lock), then releases the pause and asserts both results. No test observed `40P01`. Transcripts:
+- the reservation, finalisation, void, report and cancellation waits in T205-T216 and T222 are
+  `transactionid:ShareLock`;
+- the overlapping-reservation wait in T217 is `advisory:ExclusiveLock`;
+- T218 is a real `hashtext` collision (`10.12345/t218-206394` and `10.12345/t218-363313` share one key). Both
+  reservations acquire the smaller key first, observed as two `advisory:ExclusiveLock` waits, and the second is
+  refused `CROSSREF_PERMIT_BLOCKED`;
+- the gate waits in T280-T289 are `advisory:ExclusiveLock` for the pause behind a holder and `advisory:ShareLock` for
+  a consumer behind the pause, and T284 shows `pg_blocking_pids` naming both the holder and the queued pause;
+- in T327 (S01-S13) both sides commit in every schedule. Waits observed while the first was held:
+  `transactionid:ShareLock` in S07, S08, S09, S11, S12 and S13, and none in S01-S06 and S10.
+
+The race suites passed twice in succession before commit (lib permit tests 74/74 twice; work_upsert and permit
+172/172 twice; deletion 4/4 twice; capture 31/31 three times).
+
+### 9.6 Flush properties with negative controls
+
+The negative controls replace the migration's flush function with a variant missing exactly one element and restore
+the original on drop.
+- **T318.** With the immediacy defence present, all four forcing shapes write no generation row before completion:
+  0 written and 1 arming row queued, then both edits applied at commit. With the defence removed, the forcing fires
+  the queued arming row at once (1 written, 0 arming rows queued) in the between-edits, twice and named shapes.
+  In the before-any-edit shape the arming row fires inside its own `INSERT` before the armed flag is set, so no early
+  write is observed; the test does not assert one there.
+- **T319.** With the defence present, both commit, no generation row is locked while the first waits, and the second
+  never waits. With the defence removed, the early flush holds the generation rows, the second waits, and exactly one
+  transaction aborts with `deadlock detected`.
+- **T321.** The deleter is paused after its flush, inside its commit, by a deferred constraint trigger. The writer
+  records the root as an owner directly, exactly as capture does, and so reaches its own flush for that root.
+  Released editorial statements lock every capture owner before capture fires (drift guard 2), so an editorial
+  writer would wait at the Work row and resolve no owner. The writer waits (`transactionid:ShareLock`), and no orphan
+  remains. With the vanished-root cleanup removed, exactly one orphan remains. A direct `INSERT` of a generation row
+  for a missing Work is accepted, while a supported deletion still removes its row.
+
+### 9.7 Extraction and timestamp parity
+
+- **T242.** Six synthetic fixtures, each carrying every excluded DOI class, return exactly the registration set; the
+  naive collection over-collects at least 3 foreign DOIs in each. Three malformed artifacts are refused: a DTD,
+  whitespace inside a registration `doi`, and the wrong namespace.
+- **T243.** Nine real serializer documents (released and prepared) return exactly their registration sets, and the
+  naive collection over-collects on at least 3. A document that registers nothing is refused. A chapter without a
+  landing page cannot be serialized at all (`Missing chapter Landing Page`), so that shape has no document.
+- **T244.** `crossref_deposit_membership` equals the registration set on six shapes.
+- **T245.** Code-point order equals Rust `sort`: `a-b a.b a_b ab`. ICU `en-US-x-icu` orders `a_b a-b a.b ab`. The
+  function pins `COLLATE "C"`.
+- **T248.** The export server's test records the Rust validator's verdict over a deterministic corpus of 356,483
+  strings: 39 targeted, 100,000 random 17-digit strings, random valid instants with their successors, and 60,000
+  corruptions (second 60, hour 24, day 32). It records 196,763 valid, digest `7442931097035189911`. The `thoth-api`
+  test regenerates the identical corpus (corpus digest checked against the recorded one) and requires PostgreSQL's
+  `crossref_ts_decode` verdict to give the same valid set, string for string. It does. The naive `parse_from_str`
+  round trip is shown not equivalent. The corpus size differs from R52B's 360,039 because the generator is
+  deterministic and skips invalid random dates.
+
+### 9.8 Conformance transcript (T258)
+
+A scripted GraphQL client drives each route through every branch of R52B section 28.7 that the API can observe:
+- **`WORK_UPSERT`:**
+  - success, then complete;
+  - `VOIDED_RETRYABLE`, then a retryable fail;
+  - `VOIDED_JOB_RETIRED`, with no job call;
+  - group C `CROSSREF_PERMIT_CLAIM_STALE`: void with the token, stop, no job call;
+  - extraction refused: void, then `CROSSREF_ARTIFACT_REFUSED`;
+  - digest-recheck failure: `NONE_ATTEMPTED`, then `CROSSREF_PROVIDER_NONE_ATTEMPTED`;
+  - POST timeout: `INDETERMINATE`, then `CROSSREF_PROVIDER_INDETERMINATE` non-retryable, then superuser
+    reconciliation;
+  - a crash before finalisation, cleaned up by the owner void and, separately, by the superuser void found through
+    `crossrefWritePermits` by job identity, after which the next attempt reserves;
+  - a crash after `AUTHORIZED`: fenced abandonment, reconciliation clearance observed, and a strictly later timestamp;
+  - a lost finalisation response that replays.
+- **`LEGACY_SCHEDULED` and `MANUAL_RECOVERY`:** every applicable branch.
+- **`PUBLISHER_BACK_CATALOGUE`:** an accepted unit, `CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB`, a voided unit, a refused
+  artifact, an `INDETERMINATE` unit blocking the outer completion with `OUTER_ATTEMPT_HAS_OPEN_PERMITS` until
+  reconciled, then completion, and a stale claim afterwards.
+- **R13:** all six permit states after the protocol-stop, with no job call.
+- **R14:** a lost response recovered without the token. In its variant, a first reservation that failed inside its
+  transaction through a one-shot test trigger surfaces as `INTERNAL_ERROR` and the repeat reserves.
+- **R15:** the job-call table is disjoint from the protocol-stop set.
+
+The client works only from the reservation, the finalisation result and its run state (B4). The prepared artifact is
+a stand-in built from the reservation's timestamp, batch id and DOIs in the serializer's structure; the export
+server's prepared route is exercised by that crate's own tests (T109, T111, T246).
+
+### 9.9 Compatibility window (R52B section 23.6; T294-T302)
+
+These ran in scratch copies only. `v1.8.0` (`9ae1e567`, the release in production) was extracted with `git archive`
+and built with its own target directory. Its test reset was adapted as R52B section 25.21 describes (truncate under
+a transaction-local replica mode, and re-seed the two permanent rows where they exist) and run identically over both
+schemas. All databases were disposable, on the local cluster.
+- **T294 and T295.**
+  - The released `thoth migrate` gives 9 migrations and 60 tables. The candidate `thoth migrate` gives 11 migrations
+    (`20260910`, `20260911`) and 68 tables, the control row `CROSSREF:false/false` and floor `0`.
+  - The released `thoth migrate` over the migrated schema exits 0 with the ledger unchanged.
+- **T296**, the released suite, `cargo test --workspace --no-fail-fast`:
+  - released schema: 1,398 passed, 0 failed, 8 ignored;
+  - migrated schema: 1,394 passed, 4 failed, 8 ignored.
+  - Test by test, exactly four outcomes differ, all BE-04 catalogue-shape tests:
+    `every_enum_label_exists_in_pg_enum_with_the_exact_spelling_and_order`,
+    `every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog`,
+    `only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_specified_three` and
+    `schema_rs_matches_the_migration_for_all_three_relations`.
+  - An instrumented rerun over the migrated schema gave identical outcomes. The instrumentation refused, and
+    logged, any write to the permit, membership, admission and audit tables and to the control and floor rows, and
+    any BE-06 label or column on jobs or attempts. It recorded:
+    - 0 refused writes;
+    - generation rows: 2,798 inserts and 833 advances, each for an existing Work, and 7 deletions after their Work
+      was gone;
+    - capture queue: 6,192 inserts and 6,192 matching deletes (ARM 1,279, PROBE 1,279, OWNERS 3,627, DELETED 7),
+      with no queue row left;
+    - the control row `(false, false)` and floor `0` unchanged.
+- **T302.** The released `--revert` exits 1 with `Unable to find migration version 20260911`, leaving the ledger and
+  68 tables unchanged. The candidate `--revert` is covered in section 5.4 item 3.
+- **Not executed:**
+  - T299, the end-to-end sequence with the released server in service;
+  - T300, the released read of a `WORK_UPSERT` row;
+  - T301, the candidate `init` on an unmigrated database, which needs a running server with key, Zitadel and AWS
+    configuration.
+  - R52B section 27.3 gate 9 requires these against the exact `v1.10.0` release artifact and the release then in
+    production.
+
+### 9.10 Rows not executed, and why
+
+- **Out of scope by authorization:** the G-6 and G-7 ledger and authority corpus (R52B section 25.13, T154-T161;
+  section 22.14's fixture corpus), owned by #919. These are explicitly prohibited.
+- **Negative controls and investigation rows against withdrawn topologies or candidates:** R52B marks these as
+  specification evidence. They are T218's string-sorted `40P01` control, T271, T276, T277/T278 (T257 is the
+  implementation test), T279 (withdrawn), T297/T298, T303's withdrawn-schema `40P01`, and T305-T316.
+- **Evidence obtained here by other tests:**
+  - T329 is covered by T296's instrumented run, with the same counts.
+  - T330's migration mechanics are covered by T294/T295.
+  - T331 is covered by G1-G6.
+  - T323 is a configuration fact: `max_prepared_transactions` is 0 on the local cluster (`SHOW max_prepared_transactions`), the PostgreSQL default.
+- **Partial coverage:**
+  - T106-T108, a source change reflected in the prepared artifact end to end across the export server and the
+    database, is not wired, because the two crates do not share a test harness. The API side is covered by the
+    witness tests (T219, the `SOURCE_CHANGED_DURING_PREPARATION` voids); the export side by T109, T111 and T246.
+  - T145-T153 back-catalogue combinations are covered by the T258 back-catalogue transcript, T222, T256 and the
+    outer-close guard tests, not as a separate combination matrix.
+
+## 10. Manual verification
+
+Scratch environment only; section 9.9. The `BE-06-snapshot-queries.sql` file was executed whole against the migrated
+compatibility database with `ON_ERROR_STOP=1` and completed. It opens a `READ ONLY` transaction and ends with
+`ROLLBACK`.
+
+## 11. CI
+
+CI status: NOT AVAILABLE for this branch. The repository's `push` workflows trigger only on `master` and `develop`,
+and pull-request workflows need a PR, which is not authorized. No workflow was dispatched.
+
+## 12. Rollout and rollback
+
+- **Initial state after migration and deployment:** inert. The control row is `('CROSSREF', false, false)`, the
+  floor is `0`, no work-level job can be claimed, and no Crossref traffic occurs.
+- **Activation required:** yes. It follows R52B section 27.3 gates 9-20, each separately authorized: capture enable,
+  per-publisher seed, census and admission, G-6, the dissemination release, execution enable, the G-7 floor advance,
+  and so on.
+- **Migration sequence:** Migration 1 then Migration 2, by the release artifact's own `thoth migrate`, before the
+  backend deployment (gates 9-11).
+- **Rollback:** `down M2`, per R52B section 23.5. Never `thoth migrate --revert`.
+- **Monitoring:** `BE-06-snapshot-queries.sql` and the superuser reports.
+
+## 13. Known limitations and deferred work
+
+- The items in sections 5.4, 9.9 and 9.10.
+- DIS-04 (`thoth-dissemination` #106) implements the worker. BE-06 hands over the contract and the conformance
+  transcript only.
+
+## 14. Side effects
+
+- **Repository writes:** the 41 paths of section 4, on the task branch only.
+- **Commits:** section 3.
+- **Push:** `feature/publisher-services-v1-10--be-06` only, without force, after this report is committed. The remote
+  task branch was verified absent before the push.
+- **Automatic workflow executions caused by the push:** none expected. The push-triggered workflows at the base
+  (`build_test_and_check.yml`, `run_migrations.yml`) trigger only on `master` and `develop`; the others trigger on
+  pull requests, releases or dispatch. This was re-inspected immediately before the push.
+- **Provider, network and production effects:** none. The only network use was `git fetch` and `git ls-remote`
+  against `origin`, then the push. Local servers were bound to `127.0.0.1` for the OpenAPI capture and pointed at
+  unreachable local ports.
+
+## 15. Remaining gates
+
+- The implementation agent does not approve its own work.
+- PR creation is still unauthorized.
+- The next gate is a fresh independent exact-head CRITICAL source, migration, authorization and concurrency review
+  of the pushed head.
+- After source approval, the PR, merge, release, deployment, production migration, G-6, G-7 and activation each
+  remain separate, separately authorized gates.
+
+## 16. Suggested review focus
+
+1. The two migrations against R52B section 18 and Amendment 3 section 3: the capture function and flush, the permit
+   state machine, the guards and the inventory.
+2. The cancellation-guard fix of section 5.2, and any other `FOR UPDATE` statement whose predicate reads another
+   table in the same statement.
+3. The observations of section 5.4, especially T166 and admission while inert.
+4. The EB1/EB2 boundary in the five model files and the three deletion units.
+5. The race harness's pause-point technique, and whether its wait transcripts are sufficient evidence.
