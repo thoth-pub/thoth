@@ -1259,3 +1259,134 @@ pub fn reconcile_crossref_write_permit(
         reload(connection, permit_id)
     })
 }
+
+/// The only value the version floor may be advanced to (R52B section 17.4).
+const VERSION_FLOOR_TARGET: i64 = 99_999_999_999_999;
+
+/// One `advanceCrossrefVersionFloor` presentation (Amendment 3 section 9.9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvanceCrossrefVersionFloor {
+    pub target_value: i64,
+    pub g6_attempt_id: Uuid,
+    pub observation_id: Uuid,
+    pub authorization_reference: String,
+    pub authorization_register_digest: String,
+}
+
+/// `advanceCrossrefVersionFloor` (Amendment 3 section 9.9): the argument rules
+/// in order before any database access, then one `READ COMMITTED` transaction
+/// whose statements are, in order and separately, the floor lock, the one-advance
+/// check, DRAIN, the floor binding, the update and the audit insert. `actor` is
+/// the request principal's user id.
+pub fn advance_crossref_version_floor(
+    db: &PgPool,
+    input: &AdvanceCrossrefVersionFloor,
+    actor: &str,
+) -> ThothResult<super::CrossrefVersionFloorAdvance> {
+    if input.target_value != VERSION_FLOOR_TARGET {
+        return Err(ThothError::CrossrefVersionFloorTargetInvalid);
+    }
+    if policy::is_blank(&input.authorization_reference) {
+        return Err(ThothError::CrossrefVersionFloorRequiresAuthorizationReference);
+    }
+    if !policy::is_sha256_lower_hex(&input.authorization_register_digest) {
+        return Err(ThothError::CrossrefVersionFloorRegisterDigestInvalid);
+    }
+    #[derive(QueryableByName)]
+    struct Floor {
+        #[diesel(sql_type = BigInt)]
+        floor_value: i64,
+    }
+    #[derive(QueryableByName)]
+    struct Flag {
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        flag: bool,
+    }
+    #[derive(QueryableByName)]
+    struct Audit {
+        #[diesel(sql_type = SqlUuid)]
+        audit_id: Uuid,
+        #[diesel(sql_type = Nullable<BigInt>)]
+        before_value: Option<i64>,
+        #[diesel(sql_type = Nullable<BigInt>)]
+        after_value: Option<i64>,
+        #[diesel(sql_type = Nullable<SqlUuid>)]
+        g6_attempt_id: Option<Uuid>,
+        #[diesel(sql_type = Nullable<SqlUuid>)]
+        observation_id: Option<Uuid>,
+        #[diesel(sql_type = Nullable<Text>)]
+        g7_authorization_reference: Option<String>,
+        #[diesel(sql_type = Nullable<Text>)]
+        authorization_register_digest: Option<String>,
+        #[diesel(sql_type = Text)]
+        actor: String,
+        #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+        occurred_at: crate::model::Timestamp,
+    }
+    work_upsert_transaction(db, |connection| {
+        // 3a: the floor lock, first.
+        let Some(floor) = diesel::sql_query(
+            "SELECT floor_value FROM public.work_crossref_version_floor WHERE floor_id FOR UPDATE",
+        )
+        .get_result::<Floor>(connection)
+        .optional()?
+        else {
+            return refuse(ThothError::EntityNotFound);
+        };
+        // 3b: one advance per G-6 attempt.
+        let consumed = diesel::sql_query(
+            "SELECT EXISTS (SELECT 1 FROM public.crossref_version_floor_audit \
+                             WHERE mutation_kind = 'ADVANCE_VERSION_FLOOR' AND g6_attempt_id = $1) AS flag",
+        )
+        .bind::<SqlUuid, _>(input.g6_attempt_id)
+        .get_result::<Flag>(connection)?
+        .flag;
+        if consumed {
+            return refuse(ThothError::CrossrefVersionFloorAlreadyAdvanced);
+        }
+        // 3c: DRAIN.
+        let drained = diesel::sql_query("SELECT public.crossref_is_drained() AS flag")
+            .get_result::<Flag>(connection)?
+            .flag;
+        if !drained {
+            return refuse(ThothError::CrossrefVersionFloorNotDrained);
+        }
+        // 3d: the floor binding.
+        if floor.floor_value != 0 {
+            return refuse(ThothError::CrossrefVersionFloorBindingMismatch);
+        }
+        // 3e-3f.
+        diesel::sql_query("UPDATE public.work_crossref_version_floor SET floor_value = $1, updated_at = current_timestamp WHERE floor_id")
+            .bind::<BigInt, _>(VERSION_FLOOR_TARGET)
+            .execute(connection)?;
+        let audit = diesel::sql_query(
+            "INSERT INTO public.crossref_version_floor_audit \
+                 (mutation_kind, before_value, after_value, g6_attempt_id, observation_id, \
+                  g7_authorization_reference, authorization_register_digest, actor) \
+             VALUES ('ADVANCE_VERSION_FLOOR', 0, $1, $2, $3, $4, $5, $6) \
+             RETURNING audit_id, before_value, after_value, g6_attempt_id, observation_id, \
+                       g7_authorization_reference, authorization_register_digest, actor, occurred_at",
+        )
+        .bind::<BigInt, _>(VERSION_FLOOR_TARGET)
+        .bind::<SqlUuid, _>(input.g6_attempt_id)
+        .bind::<SqlUuid, _>(input.observation_id)
+        .bind::<Text, _>(&input.authorization_reference)
+        .bind::<Text, _>(&input.authorization_register_digest)
+        .bind::<Text, _>(actor)
+        .get_result::<Audit>(connection)?;
+        let missing = || WorkUpsertTxError::Thoth(ThothError::WorkUpsertDatabaseFailure);
+        Ok(super::CrossrefVersionFloorAdvance {
+            audit_id: audit.audit_id,
+            before_value: audit.before_value.ok_or_else(missing)?,
+            after_value: audit.after_value.ok_or_else(missing)?,
+            g6_attempt_id: audit.g6_attempt_id.ok_or_else(missing)?,
+            observation_id: audit.observation_id.ok_or_else(missing)?,
+            authorization_reference: audit.g7_authorization_reference.ok_or_else(missing)?,
+            authorization_register_digest: audit
+                .authorization_register_digest
+                .ok_or_else(missing)?,
+            actor: audit.actor,
+            occurred_at: audit.occurred_at,
+        })
+    })
+}

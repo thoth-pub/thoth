@@ -232,6 +232,21 @@ pub struct CrossrefFinalisationResult {
     pub permit: CrossrefWritePermitWithDois,
 }
 
+/// One version-floor advance: the audit row it inserted (Amendment 3 section
+/// 9.9). `mutation_kind` is not carried.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrossrefVersionFloorAdvance {
+    pub audit_id: Uuid,
+    pub before_value: i64,
+    pub after_value: i64,
+    pub g6_attempt_id: Uuid,
+    pub observation_id: Uuid,
+    pub authorization_reference: String,
+    pub authorization_register_digest: String,
+    pub actor: String,
+    pub occurred_at: Timestamp,
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
 

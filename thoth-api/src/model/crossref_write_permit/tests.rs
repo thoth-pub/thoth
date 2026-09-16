@@ -1804,3 +1804,290 @@ fn a_back_catalogue_unit_is_deposited_at_most_once_per_outer_job() {
         Err(ThothError::CrossrefUnitAlreadyDepositedInJob)
     );
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 9.9: the version floor advance (F1-F3, F5-F12, F14, F15,
+// F19, F21, F22)
+// ---------------------------------------------------------------------------
+
+use crate::model::crossref_write_permit::crud::AdvanceCrossrefVersionFloor;
+
+const TARGET: i64 = 99_999_999_999_999;
+
+fn advance_input(g6_attempt_id: Uuid) -> AdvanceCrossrefVersionFloor {
+    AdvanceCrossrefVersionFloor {
+        target_value: TARGET,
+        g6_attempt_id,
+        observation_id: Uuid::new_v4(),
+        authorization_reference: " G7-AUTH-1 ".to_string(),
+        authorization_register_digest: "a".repeat(64),
+    }
+}
+
+fn floor_state(connection: &mut PgConnection) -> String {
+    fx::texts(
+        connection,
+        "SELECT (SELECT floor_value::text || '|' || xmin::text FROM work_crossref_version_floor) || '#' \
+             || coalesce((SELECT string_agg(audit_id::text || xmin::text, ',') FROM crossref_version_floor_audit), '') AS value",
+    )
+    .remove(0)
+}
+
+#[test]
+fn f1_f2_f3_f15_a_single_advance_writes_exactly_one_audit_row() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let attempt = Uuid::new_v4();
+    let input = advance_input(attempt);
+    let before = fx::texts(&mut connection, "SELECT now()::text AS value").remove(0);
+    let advance = permit_crud::advance_crossref_version_floor(pool.as_ref(), &input, "user-g7")
+        .expect("advanced");
+    assert_eq!((advance.before_value, advance.after_value), (0, TARGET));
+    assert_eq!(
+        (advance.g6_attempt_id, advance.observation_id),
+        (attempt, input.observation_id)
+    );
+    assert_eq!(
+        advance.authorization_reference, " G7-AUTH-1 ",
+        "stored verbatim"
+    );
+    assert_eq!(advance.authorization_register_digest, "a".repeat(64));
+    assert_eq!(advance.actor, "user-g7");
+    let _ = before;
+    assert_eq!(
+        fx::texts(
+            &mut connection,
+            "SELECT floor_value::text AS value FROM work_crossref_version_floor"
+        ),
+        vec![TARGET.to_string()]
+    );
+    assert_eq!(
+        fx::texts(&mut connection, &format!(
+            "SELECT audit_id::text || '|' || mutation_kind || '|' || g7_authorization_reference || '|' || actor AS value FROM crossref_version_floor_audit"
+        )),
+        vec![format!("{}|ADVANCE_VERSION_FLOOR| G7-AUTH-1 |user-g7", advance.audit_id)]
+    );
+    // F15: the audit row is append-only.
+    for statement in [
+        "UPDATE crossref_version_floor_audit SET actor = 'x'",
+        "DELETE FROM crossref_version_floor_audit",
+        "TRUNCATE crossref_version_floor_audit",
+    ] {
+        assert_eq!(
+            fx::refusal(&mut connection, statement),
+            "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY",
+            "{statement}"
+        );
+    }
+    // F3 and F5/F19.
+    let state = floor_state(&mut connection);
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &input, "user-g7")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorAlreadyAdvanced)
+    );
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(
+            pool.as_ref(),
+            &advance_input(Uuid::new_v4()),
+            "user-g7"
+        )
+        .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorBindingMismatch)
+    );
+    assert_eq!(
+        floor_state(&mut connection),
+        state,
+        "F14/F19: refusals change nothing"
+    );
+}
+
+#[test]
+fn f6_to_f11_f21_argument_refusals_precede_every_database_access() {
+    let failing = test_db::failing_pool();
+    let refused = |input: AdvanceCrossrefVersionFloor| {
+        permit_crud::advance_crossref_version_floor(&failing, &input, "user").map(|a| a.audit_id)
+    };
+    for target in [
+        0,
+        1,
+        99_999_999_999_998,
+        100_000_000_000_000,
+        20_260_914_120_000_000,
+        i64::MAX,
+    ] {
+        assert_eq!(
+            refused(AdvanceCrossrefVersionFloor {
+                target_value: target,
+                ..advance_input(Uuid::new_v4())
+            }),
+            Err(ThothError::CrossrefVersionFloorTargetInvalid),
+            "{target}"
+        );
+    }
+    for blank in [
+        "",
+        " ",
+        "\t\n\r\u{0b}\u{0c}",
+        "\u{00A0}\u{2003}\u{3000}",
+        "\u{001F}",
+        "\u{0001}",
+    ] {
+        assert_eq!(
+            refused(AdvanceCrossrefVersionFloor {
+                authorization_reference: blank.to_string(),
+                ..advance_input(Uuid::new_v4())
+            }),
+            Err(ThothError::CrossrefVersionFloorRequiresAuthorizationReference),
+            "{blank:?}"
+        );
+    }
+    for digest in [
+        String::new(),
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(64),
+        format!("{}g", "a".repeat(63)),
+        format!("{} ", "a".repeat(63)),
+        format!("{}\u{FF11}", "a".repeat(63)),
+    ] {
+        assert_eq!(
+            refused(AdvanceCrossrefVersionFloor {
+                authorization_register_digest: digest.clone(),
+                ..advance_input(Uuid::new_v4())
+            }),
+            Err(ThothError::CrossrefVersionFloorRegisterDigestInvalid),
+            "{digest:?}"
+        );
+    }
+    // All three invalid: the target first.
+    assert_eq!(
+        refused(AdvanceCrossrefVersionFloor {
+            target_value: 1,
+            authorization_reference: String::new(),
+            authorization_register_digest: String::new(),
+            ..advance_input(Uuid::new_v4())
+        }),
+        Err(ThothError::CrossrefVersionFloorTargetInvalid)
+    );
+
+    // F21: while another connection holds the floor lock, an argument refusal returns without waiting.
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut holder = pool.get().expect("holder");
+    fx::execute(
+        &mut holder,
+        "BEGIN; SELECT floor_value FROM work_crossref_version_floor FOR UPDATE",
+    );
+    let started = std::time::Instant::now();
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(
+            pool.as_ref(),
+            &AdvanceCrossrefVersionFloor {
+                authorization_register_digest: "x".into(),
+                ..advance_input(Uuid::new_v4())
+            },
+            "user"
+        )
+        .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorRegisterDigestInvalid)
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    fx::execute(&mut holder, "ROLLBACK");
+}
+
+#[test]
+fn f12_f22_a_blocking_permit_refuses_not_drained_before_binding_mismatch() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+
+    // F12: each blocking state refuses NOT_DRAINED; resolved, the advance succeeds.
+    let work = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let reserved =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work).expect("reserve");
+    let attempt = Uuid::new_v4();
+    let state = floor_state(&mut connection);
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(attempt), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorNotDrained)
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reserved, None)).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(attempt), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorNotDrained)
+    );
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reserved.permit_id,
+        reserved.reservation_token,
+        Outcome::Indeterminate,
+        &allow,
+    )
+    .expect("report");
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(attempt), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorNotDrained)
+    );
+    assert_eq!(floor_state(&mut connection), state);
+    permit_crud::reconcile_crossref_write_permit(
+        pool.as_ref(),
+        reserved.permit_id,
+        Outcome::NoneAttempted,
+        Recon::Reconciled,
+        "RES",
+    )
+    .expect("resolve");
+    permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(attempt), "user")
+        .expect("advanced");
+
+    // F22: the floor at target and a blocking permit present.
+    let work = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let blocking = permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work)
+        .expect("reserve after the advance");
+    assert!(blocking.crossref_timestamp > TARGET);
+    let state = floor_state(&mut connection);
+    let fresh = Uuid::new_v4();
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(fresh), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorNotDrained)
+    );
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(attempt), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorAlreadyAdvanced),
+        "F18"
+    );
+    permit_crud::void_crossref_write_reservation_as_superuser(
+        pool.as_ref(),
+        blocking.permit_id,
+        "cleanup",
+        "REF",
+    )
+    .expect("void");
+    assert_eq!(
+        permit_crud::advance_crossref_version_floor(pool.as_ref(), &advance_input(fresh), "user")
+            .map(|a| a.audit_id),
+        Err(ThothError::CrossrefVersionFloorBindingMismatch)
+    );
+    let after = floor_state(&mut connection);
+    assert_eq!(
+        after.split('#').next(),
+        state.split('#').next(),
+        "floor unchanged"
+    );
+    assert_eq!(
+        fx::count(
+            &mut connection,
+            "SELECT count(*) AS count FROM crossref_version_floor_audit"
+        ),
+        1
+    );
+}
