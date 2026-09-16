@@ -40,6 +40,30 @@ pub struct WorkUpsertControl {
     pub execution_enabled: bool,
 }
 
+/// How one seed unit ended (Amendment 3 section 9.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedUnitOutcome {
+    /// A `0` or absent generation row was raised to `1`.
+    Seeded,
+    /// The generation row was already positive; nothing was written.
+    Observed,
+    /// The Work no longer belongs to the publisher; nothing was written.
+    BindingMovedRetryLater,
+    /// The Work no longer exists; nothing was written.
+    NoWork,
+}
+
+/// The result of one `seedCrossrefWorkUpsert` call (Amendment 3 section 9.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SeedCrossrefWorkUpsertResult {
+    pub examined: i32,
+    pub seeded: i32,
+    pub observed: i32,
+    pub binding_moved_retry_later: i32,
+    pub no_work: i32,
+    pub remaining_uncovered: i32,
+}
+
 /// The advisory-lock namespace of the execution gates `Q` (R52B section 21.1),
 /// distinct from the DOI keys' `1948572001`.
 #[cfg(feature = "backend")]

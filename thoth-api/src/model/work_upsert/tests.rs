@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use diesel::connection::SimpleConnection;
 use diesel::sql_types::{BigInt, Text, Uuid as SqlUuid};
-use diesel::{Connection, PgConnection, QueryableByName, RunQueryDsl};
+use diesel::{Connection, OptionalExtension, PgConnection, QueryableByName, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use thoth_errors::{
     ThothError, ThothResult, WORK_UPSERT_SUFFIXED_TRIGGER_CODES, WORK_UPSERT_TRIGGER_CODES,
@@ -2402,4 +2402,588 @@ fn c4_the_execution_transition_takes_the_gate_exclusively_and_waits_for_consumer
         .batch_execute("COMMIT")
         .expect("transition commits");
     assert_eq!(reader.join().expect("reader"), vec!["true"]);
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures for the work-level operations: Crossref-eligible Works built with
+// plain SQL, so each eligibility input is explicit.
+// ---------------------------------------------------------------------------
+
+/// A non-normalising abstract: `<ol>` is not in the Crossref JATS subset.
+const NON_NORMALISING_ABSTRACT: &str = "<ol><li>unsupported</li></ol>";
+
+fn execute(connection: &mut PgConnection, sql: &str) {
+    connection
+        .batch_execute(sql)
+        .unwrap_or_else(|error| panic!("{sql}: {error}"));
+}
+
+/// A publisher and imprint, returned as `(publisher_id, imprint_id)`.
+fn publisher_and_imprint(pool: &crate::db::PgPool) -> (Uuid, Uuid) {
+    let publisher = test_db::create_publisher(pool);
+    let imprint = test_db::create_imprint(pool, &publisher);
+    (publisher.publisher_id, imprint.imprint_id)
+}
+
+/// Enable a `CROSSREF` assignment for the publisher; returns its activation.
+fn cover_crossref(connection: &mut PgConnection, publisher_id: Uuid) -> Uuid {
+    let activation = Uuid::new_v4();
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO publisher_distribution_platform \
+                 (publisher_id, platform, enabled, activation_id, enabled_at) \
+             VALUES ('{publisher_id}', 'CROSSREF', true, '{activation}', now()) \
+             ON CONFLICT (publisher_id, platform) DO UPDATE \
+                SET enabled = true, disabled_at = NULL, activation_id = EXCLUDED.activation_id, \
+                    enabled_at = now()"
+        ),
+    );
+    activation
+}
+
+fn disable_crossref(connection: &mut PgConnection, publisher_id: Uuid) {
+    execute(
+        connection,
+        &format!(
+            "UPDATE publisher_distribution_platform SET enabled = false, disabled_at = now() \
+             WHERE publisher_id = '{publisher_id}' AND platform = 'CROSSREF'"
+        ),
+    );
+}
+
+fn enable_capture(connection: &mut PgConnection) {
+    execute(
+        connection,
+        "UPDATE work_upsert_control SET capture_enabled = true WHERE execution_profile = 'CROSSREF'",
+    );
+}
+
+/// A Crossref-eligible Work with the given `work_id` under `imprint_id`: E4 (a
+/// DOI), E5 (`active`) and every row-level clause of E6 hold.
+fn insert_eligible_work(connection: &mut PgConnection, imprint_id: Uuid, work_id: Uuid) -> Uuid {
+    let suffix = work_id.simple();
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO work (work_id, work_type, work_status, edition, imprint_id, doi, publication_date, landing_page) \
+             VALUES ('{work_id}', 'monograph', 'active', 1, '{imprint_id}', \
+                     'https://doi.org/10.12345/be06-{suffix}', '2026-01-01', 'https://example.org/{suffix}'); \
+             INSERT INTO title (work_id, locale_code, full_title, title, canonical) \
+             VALUES ('{work_id}', 'en', 'Eligible {suffix}', 'Eligible {suffix}', true); \
+             INSERT INTO publication (publication_type, work_id, isbn) \
+             VALUES ('Paperback', '{work_id}', '978-3-16-148410-0');"
+        ),
+    );
+    work_id
+}
+
+/// Relate `child` to `parent` as `has-child`, with the released inverse row.
+fn relate_child(connection: &mut PgConnection, parent: Uuid, child: Uuid, ordinal: i32) {
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, relation_ordinal) \
+             VALUES ('{parent}', '{child}', 'has-child', {ordinal}), \
+                    ('{child}', '{parent}', 'is-child-of', {ordinal})"
+        ),
+    );
+}
+
+/// Remove every generation row of the Work, as if no event had ever been counted.
+fn uncover(connection: &mut PgConnection, work_id: Uuid) {
+    execute(
+        connection,
+        &format!("DELETE FROM work_upsert_generation WHERE work_id = '{work_id}'"),
+    );
+}
+
+fn generation_of(connection: &mut PgConnection, work_id: Uuid) -> Option<i64> {
+    #[derive(QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = BigInt)]
+        source_generation: i64,
+    }
+    diesel::sql_query(
+        "SELECT source_generation FROM work_upsert_generation \
+         WHERE work_id = $1 AND execution_profile = 'CROSSREF'",
+    )
+    .bind::<SqlUuid, _>(work_id)
+    .get_result::<Row>(connection)
+    .optional()
+    .expect("generation")
+    .map(|row| row.source_generation)
+}
+
+fn set_generation(connection: &mut PgConnection, work_id: Uuid, value: i64) {
+    execute(
+        connection,
+        &format!(
+            "INSERT INTO work_upsert_generation (work_id, execution_profile, source_generation) \
+             VALUES ('{work_id}', 'CROSSREF', {value}) \
+             ON CONFLICT (work_id, execution_profile) DO UPDATE SET source_generation = {value}"
+        ),
+    );
+}
+
+/// `n` ascending, test-unique Work identifiers.
+fn ascending_ids(n: usize) -> Vec<Uuid> {
+    let prefix = &Uuid::new_v4().simple().to_string()[..8];
+    let mut ids: Vec<Uuid> = (0..n)
+        .map(|i| Uuid::parse_str(&format!("{prefix}-0000-4000-8000-{:012}", i + 1)).expect("uuid"))
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn job_row_counts(connection: &mut PgConnection) -> String {
+    texts(
+        connection,
+        "SELECT (SELECT count(*) FROM distribution_job)::text || '|' \
+             || (SELECT count(*) FROM distribution_job_target)::text || '|' \
+             || (SELECT count(*) FROM distribution_job_attempt)::text AS value",
+    )
+    .remove(0)
+}
+
+// ---------------------------------------------------------------------------
+// R52B section 14.2: Crossref eligibility, one SQL expression and one Rust
+// function (Amendment 3 section 9.4, M15)
+// ---------------------------------------------------------------------------
+
+fn sql_eligible(connection: &mut PgConnection, work_id: Uuid) -> bool {
+    texts(
+        connection,
+        &format!(
+            "SELECT ({})::text AS value FROM work w WHERE w.work_id = '{work_id}'",
+            policy::CROSSREF_SQL_ELIGIBILITY
+        ),
+    )
+    .remove(0)
+        == "true"
+}
+
+#[test]
+fn the_sql_eligibility_expression_fails_closed_on_each_row_level_clause() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (_publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+
+    let defects: Vec<(&str, String)> = vec![
+        ("eligible", String::new()),
+        ("E4 no DOI and no DOI-bearing child", "UPDATE work SET doi = NULL WHERE work_id = '{w}'".into()),
+        ("E5 superseded", "UPDATE work SET work_status = 'superseded', withdrawn_date = '2026-06-01' WHERE work_id = '{w}'".into()),
+        ("E5 cancelled", "UPDATE work SET work_status = 'cancelled' WHERE work_id = '{w}'".into()),
+        ("E5 forthcoming without a date", "UPDATE work SET work_status = 'forthcoming', publication_date = NULL WHERE work_id = '{w}'".into()),
+        ("E6 no ISBN", "UPDATE publication SET isbn = NULL WHERE work_id = '{w}'".into()),
+        ("E6 DOI without landing page", "UPDATE work SET landing_page = NULL WHERE work_id = '{w}'".into()),
+        ("E6 no title", "DELETE FROM title WHERE work_id = '{w}'".into()),
+    ];
+    for (label, defect) in defects {
+        let work = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+        if !defect.is_empty() {
+            execute(&mut connection, &defect.replace("{w}", &work.to_string()));
+        }
+        assert_eq!(
+            sql_eligible(&mut connection, work),
+            label == "eligible",
+            "{label}"
+        );
+    }
+
+    // E5: forthcoming with a date and withdrawn both qualify.
+    let forthcoming = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET work_status = 'forthcoming' WHERE work_id = '{forthcoming}'"),
+    );
+    assert!(sql_eligible(&mut connection, forthcoming));
+    let withdrawn = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(&mut connection, &format!("UPDATE work SET work_status = 'withdrawn', withdrawn_date = '2026-06-01' WHERE work_id = '{withdrawn}'"));
+    assert!(sql_eligible(&mut connection, withdrawn));
+
+    // E4's second disjunct and the chapter clauses of E6.
+    let parent = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET doi = NULL, landing_page = NULL WHERE work_id = '{parent}'"),
+    );
+    assert!(!sql_eligible(&mut connection, parent));
+    let chapter = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = '{chapter}'"),
+    );
+    relate_child(&mut connection, parent, chapter, 1);
+    assert!(
+        sql_eligible(&mut connection, parent),
+        "a DOI-bearing child satisfies E4"
+    );
+    for (label, defect, restore) in [
+        ("chapter without landing page", "UPDATE work SET landing_page = NULL WHERE work_id = '{c}'", "UPDATE work SET landing_page = 'https://example.org/c' WHERE work_id = '{c}'"),
+        ("child with an edition", "UPDATE work SET work_type = 'monograph', edition = 2 WHERE work_id = '{c}'", "UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = '{c}'"),
+        ("chapter without a title", "DELETE FROM title WHERE work_id = '{c}'", "INSERT INTO title (work_id, locale_code, full_title, title, canonical) VALUES ('{c}', 'en', 'C', 'C', true)"),
+    ] {
+        execute(&mut connection, &defect.replace("{c}", &chapter.to_string()));
+        assert!(!sql_eligible(&mut connection, parent), "{label}");
+        execute(&mut connection, &restore.replace("{c}", &chapter.to_string()));
+        assert!(sql_eligible(&mut connection, parent), "{label} restored");
+    }
+    // A child without a DOI is not emitted, so its defects do not matter.
+    execute(&mut connection, &format!("UPDATE work SET doi = NULL, landing_page = NULL, work_type = 'monograph', edition = 3 WHERE work_id = '{chapter}'"));
+    assert!(
+        !sql_eligible(&mut connection, parent),
+        "no DOI anywhere fails E4 again"
+    );
+}
+
+#[test]
+fn the_abstract_clause_evaluates_every_abstract_the_serializer_can_emit() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (_publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    let abstracts_of = |connection: &mut PgConnection, work: Uuid| -> Vec<String> {
+        let mut values = texts(
+            connection,
+            &format!(
+                "SELECT unnest({}) AS value FROM work w WHERE w.work_id = '{work}'",
+                policy::CROSSREF_EVALUATED_ABSTRACTS_SQL
+            ),
+        );
+        values.sort();
+        values
+    };
+    let add_abstract =
+        |connection: &mut PgConnection, work: Uuid, kind: &str, canonical: bool, content: &str| {
+            execute(
+                connection,
+                &format!(
+                "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) \
+                 VALUES ('{work}', '{content}', '{}', '{kind}', {canonical})",
+                if canonical { "en" } else { "fr" }
+            ),
+            );
+        };
+
+    let root = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    assert!(abstracts_of(&mut connection, root).is_empty());
+    assert!(policy::crossref_abstracts_normalise(&[]));
+
+    // Fewer than two canonical abstracts: a non-canonical one can be emitted.
+    add_abstract(&mut connection, root, "long", true, "<p>long</p>");
+    add_abstract(&mut connection, root, "short", false, "<p>other</p>");
+    assert_eq!(
+        abstracts_of(&mut connection, root),
+        vec!["<p>long</p>", "<p>other</p>"]
+    );
+    // Two canonical abstracts: only they are emitted.
+    add_abstract(&mut connection, root, "short", true, "<p>short</p>");
+    assert_eq!(
+        abstracts_of(&mut connection, root),
+        vec!["<p>long</p>", "<p>short</p>"]
+    );
+
+    // An emitted chapter contributes its canonical long and short abstracts only.
+    let chapter = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = '{chapter}'"),
+    );
+    relate_child(&mut connection, root, chapter, 1);
+    add_abstract(&mut connection, chapter, "long", true, "<p>chapter</p>");
+    add_abstract(
+        &mut connection,
+        chapter,
+        "short",
+        false,
+        "<p>chapter other</p>",
+    );
+    assert_eq!(
+        abstracts_of(&mut connection, root),
+        vec!["<p>chapter</p>", "<p>long</p>", "<p>short</p>"]
+    );
+
+    let values = abstracts_of(&mut connection, root);
+    assert!(policy::crossref_abstracts_normalise(&values));
+    assert!(!policy::crossref_abstracts_normalise(&[
+        "<p>fine</p>".to_string(),
+        NON_NORMALISING_ABSTRACT.to_string()
+    ]));
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 9.2: the seed (D2-D9, D13, D14)
+// ---------------------------------------------------------------------------
+
+use crate::model::work_upsert::SeedUnitOutcome;
+
+#[test]
+fn d3_d14_bounded_seed_calls_cover_every_uncovered_eligible_work() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    cover_crossref(&mut connection, publisher);
+    enable_capture(&mut connection);
+    let ids = ascending_ids(7);
+    for id in &ids {
+        insert_eligible_work(&mut connection, imprint, *id);
+        uncover(&mut connection, *id);
+    }
+    // The lowest Work is covered by an edit.
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE work SET landing_page = 'https://example.org/edited' WHERE work_id = '{}'",
+            ids[0]
+        ),
+    );
+    assert_eq!(generation_of(&mut connection, ids[0]), Some(1));
+    // D14: a Work created after Migration 2 is covered by its own capture.
+    let captured = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    assert_eq!(generation_of(&mut connection, captured), Some(1));
+
+    let seed = |limit| {
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(limit))
+            .expect("seed")
+    };
+    let first = seed(3);
+    assert_eq!(
+        (
+            first.examined,
+            first.seeded,
+            first.observed,
+            first.remaining_uncovered
+        ),
+        (3, 3, 0, 3)
+    );
+    let second = seed(3);
+    assert_eq!(
+        (second.examined, second.seeded, second.remaining_uncovered),
+        (3, 3, 0)
+    );
+    let third = seed(3);
+    assert_eq!(
+        (third.examined, third.seeded, third.remaining_uncovered),
+        (0, 0, 0)
+    );
+    for id in &ids {
+        assert_eq!(
+            generation_of(&mut connection, *id),
+            Some(1),
+            "never bumped past 1"
+        );
+    }
+    assert_eq!(generation_of(&mut connection, captured), Some(1));
+    assert_eq!(
+        job_row_counts(&mut connection),
+        "0|0|0",
+        "D9: no job, target or attempt"
+    );
+}
+
+#[test]
+fn d2_limits_follow_the_clamp_convention_and_still_report_the_remainder() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    cover_crossref(&mut connection, publisher);
+    enable_capture(&mut connection);
+    for id in ascending_ids(3) {
+        insert_eligible_work(&mut connection, imprint, id);
+        uncover(&mut connection, id);
+    }
+    for limit in [Some(0), Some(-5)] {
+        let result = work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, limit)
+            .expect("seed");
+        assert_eq!(
+            (result.examined, result.remaining_uncovered),
+            (0, 3),
+            "{limit:?}"
+        );
+    }
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(10_000))
+            .expect("seed");
+    assert_eq!(
+        (result.examined, result.seeded, result.remaining_uncovered),
+        (3, 3, 0)
+    );
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert_eq!(result.examined, 0);
+}
+
+#[test]
+fn d4_a_call_over_a_fully_covered_publisher_writes_nothing() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    cover_crossref(&mut connection, publisher);
+    enable_capture(&mut connection);
+    for id in ascending_ids(2) {
+        insert_eligible_work(&mut connection, imprint, id);
+    }
+    let fingerprint = |connection: &mut PgConnection| {
+        texts(
+            connection,
+            "SELECT string_agg(work_id::text || source_generation::text || updated_at::text || xmin::text, ',' ORDER BY work_id) AS value FROM work_upsert_generation",
+        )
+    };
+    let before = fingerprint(&mut connection);
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert_eq!((result.examined, result.remaining_uncovered), (0, 0));
+    assert_eq!(fingerprint(&mut connection), before);
+}
+
+#[test]
+fn d5_d13_a_work_failing_only_the_abstract_clause_is_seeded_but_never_counted() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    cover_crossref(&mut connection, publisher);
+    enable_capture(&mut connection);
+    let ids = ascending_ids(3);
+    for id in &ids {
+        insert_eligible_work(&mut connection, imprint, *id);
+    }
+    execute(
+        &mut connection,
+        &format!(
+            "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) \
+             VALUES ('{}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)",
+            ids[0]
+        ),
+    );
+    for id in &ids {
+        uncover(&mut connection, *id);
+    }
+    // Before the seed the census counts only the two SQL- and abstract-eligible Works.
+    let before = work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(0))
+        .expect("seed");
+    assert_eq!(before.remaining_uncovered, 2);
+    let result = work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(3))
+        .expect("seed");
+    assert_eq!(
+        (result.examined, result.seeded, result.remaining_uncovered),
+        (3, 3, 0)
+    );
+    assert_eq!(
+        generation_of(&mut connection, ids[0]),
+        Some(1),
+        "selected and seeded"
+    );
+    uncover(&mut connection, ids[0]);
+    let after = work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(0))
+        .expect("seed");
+    assert_eq!(after.remaining_uncovered, 0, "the census never counts it");
+}
+
+#[test]
+fn d6_d7_the_unit_ends_exactly_as_section_9_2_states() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let (other_publisher, other_imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    cover_crossref(&mut connection, publisher);
+    enable_capture(&mut connection);
+
+    // D7: a reservation's 0 row becomes 1 exactly once; a positive row is observed.
+    let zero = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    set_generation(&mut connection, zero, 0);
+    assert_eq!(
+        work_upsert_crud::seed_unit(pool.as_ref(), publisher, zero),
+        Ok(SeedUnitOutcome::Seeded)
+    );
+    assert_eq!(generation_of(&mut connection, zero), Some(1));
+    assert_eq!(
+        work_upsert_crud::seed_unit(pool.as_ref(), publisher, zero),
+        Ok(SeedUnitOutcome::Observed)
+    );
+    assert_eq!(generation_of(&mut connection, zero), Some(1));
+
+    // D6: a deleted Work ends NO_WORK and writes nothing.
+    assert_eq!(
+        work_upsert_crud::seed_unit(pool.as_ref(), publisher, Uuid::new_v4()),
+        Ok(SeedUnitOutcome::NoWork)
+    );
+
+    // D6: a Work moved to another publisher ends BINDING_MOVED_RETRY_LATER, writes
+    // nothing, and leaves the next selection.
+    let moved = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{moved}'"),
+    );
+    uncover(&mut connection, moved);
+    assert_eq!(
+        work_upsert_crud::seed_unit(pool.as_ref(), publisher, moved),
+        Ok(SeedUnitOutcome::BindingMovedRetryLater)
+    );
+    assert_eq!(generation_of(&mut connection, moved), None);
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert_eq!(
+        result.examined, 0,
+        "the moved Work is not in this publisher's selection"
+    );
+
+    // D6: a Work moved in before selection is included.
+    let _ = other_publisher;
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{imprint}' WHERE work_id = '{moved}'"),
+    );
+    uncover(&mut connection, moved);
+    let result =
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+    assert_eq!((result.examined, result.seeded), (1, 1));
+    assert_eq!(job_row_counts(&mut connection), "0|0|0");
+}
+
+#[test]
+fn d8_the_preconditions_refuse_before_any_lock() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let mut connection = pool.get().expect("connection");
+    let work = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    uncover(&mut connection, work);
+
+    // Another transaction holds the publisher row exclusively throughout.
+    let mut holder = pool.get().expect("holder");
+    holder.batch_execute("BEGIN").expect("begin");
+    execute(
+        &mut holder,
+        &format!("SELECT 1 FROM publisher WHERE publisher_id = '{publisher}' FOR UPDATE"),
+    );
+
+    let seed = |publisher_id| {
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher_id, None)
+    };
+    assert_eq!(
+        seed(Uuid::new_v4()).map(|r| r.examined),
+        Err(ThothError::EntityNotFound)
+    );
+    assert_eq!(
+        seed(publisher).map(|r| r.examined),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+    enable_capture(&mut connection);
+    assert_eq!(
+        seed(publisher).map(|r| r.examined),
+        Err(ThothError::CrossrefPublisherNotCovered)
+    );
+    holder.batch_execute("ROLLBACK").expect("rollback");
+
+    cover_crossref(&mut connection, publisher);
+    disable_crossref(&mut connection, publisher);
+    assert_eq!(
+        seed(publisher).map(|r| r.examined),
+        Err(ThothError::CrossrefPublisherNotCovered)
+    );
+    assert_eq!(
+        generation_of(&mut connection, work),
+        None,
+        "nothing written"
+    );
 }
