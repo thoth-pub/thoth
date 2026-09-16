@@ -25,6 +25,51 @@ use thoth_errors::{ThothError, ThothResult};
 #[cfg(feature = "backend")]
 use crate::db::PgPool;
 
+#[cfg(feature = "backend")]
+use crate::model::publisher_distribution_platform::DistributionPlatform;
+
+/// One profile's work-level control row (R52B sections 18.4 and 21.1).
+///
+/// `updated_at` is deliberately not carried: the transitions write only their
+/// own flag and the row carries no binding (Amendment 3 section 4.5).
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkUpsertControl {
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub capture_enabled: bool,
+    pub execution_enabled: bool,
+}
+
+/// The advisory-lock namespace of the execution gates `Q` (R52B section 21.1),
+/// distinct from the DOI keys' `1948572001`.
+#[cfg(feature = "backend")]
+const EXECUTION_GATE_NAMESPACE: i32 = 1_948_572_002;
+
+/// Take the profile's execution gate `Q` for the rest of the transaction: in
+/// SHARE mode for a consumer, EXCLUSIVE for `setWorkUpsertExecution` only.
+#[cfg(feature = "backend")]
+pub(crate) fn take_execution_gate(
+    connection: &mut PgConnection,
+    profile: DistributionPlatform,
+    exclusive: bool,
+) -> QueryResult<()> {
+    use diesel::sql_types::{Integer, Text};
+    use diesel::RunQueryDsl;
+
+    let function = if exclusive {
+        "pg_advisory_xact_lock"
+    } else {
+        "pg_advisory_xact_lock_shared"
+    };
+    diesel::sql_query(format!(
+        "SELECT {function}($1, hashtext('be06:work_upsert:execution:' || $2))::text"
+    ))
+    .bind::<Integer, _>(EXECUTION_GATE_NAMESPACE)
+    .bind::<Text, _>(profile.to_string())
+    .execute(connection)
+    .map(|_| ())
+}
+
 /// The error a BE-06 transaction closure returns (Amendment 3 section 10.3).
 ///
 /// `?` on a Diesel result inside the closure produces `Database`, which the

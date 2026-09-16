@@ -2226,3 +2226,180 @@ fn the_boundary_commits_rolls_back_and_converts_exactly() {
         .work_upsert();
     assert_eq!(unmapped, Err(ThothError::WorkUpsertDatabaseFailure));
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 9.1: control transitions (C1-C4)
+// ---------------------------------------------------------------------------
+
+use crate::model::work_upsert::crud as work_upsert_crud;
+
+fn control_fingerprint(connection: &mut PgConnection) -> String {
+    texts(
+        connection,
+        "SELECT capture_enabled::text || '|' || execution_enabled::text || '|' || updated_at::text \
+             || '|' || xmin::text AS value \
+         FROM work_upsert_control WHERE execution_profile = 'CROSSREF'",
+    )
+    .remove(0)
+}
+
+#[test]
+fn c1_enabling_execution_before_capture_is_refused_and_writes_nothing() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let before = control_fingerprint(&mut connection);
+    assert_eq!(
+        work_upsert_crud::set_work_upsert_execution(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            true
+        ),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+    assert_eq!(control_fingerprint(&mut connection), before);
+}
+
+#[test]
+fn c2_c3_the_control_state_machine_through_the_model() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let crossref = DistributionPlatform::Crossref;
+
+    // C3: pausing an already paused profile writes nothing and returns the row.
+    let before = control_fingerprint(&mut connection);
+    let row = work_upsert_crud::set_work_upsert_execution(pool.as_ref(), crossref, false)
+        .expect("no-op pause");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (false, false));
+    assert_eq!(row.execution_profile, crossref);
+    assert_eq!(control_fingerprint(&mut connection), before);
+
+    // Enable capture, then again as a no-op.
+    let row =
+        work_upsert_crud::enable_work_upsert_capture(pool.as_ref(), crossref).expect("enable");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (true, false));
+    let enabled = control_fingerprint(&mut connection);
+    let row =
+        work_upsert_crud::enable_work_upsert_capture(pool.as_ref(), crossref).expect("repeat");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (true, false));
+    assert_eq!(control_fingerprint(&mut connection), enabled);
+
+    // C2: execution now enables, pauses and re-enables.
+    let row =
+        work_upsert_crud::set_work_upsert_execution(pool.as_ref(), crossref, true).expect("on");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (true, true));
+    let on = control_fingerprint(&mut connection);
+    let row =
+        work_upsert_crud::set_work_upsert_execution(pool.as_ref(), crossref, true).expect("repeat");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (true, true));
+    assert_eq!(control_fingerprint(&mut connection), on);
+    let row =
+        work_upsert_crud::set_work_upsert_execution(pool.as_ref(), crossref, false).expect("off");
+    assert_eq!((row.capture_enabled, row.execution_enabled), (true, false));
+
+    // Unregistered profiles are refused with no database access.
+    let failing = test_db::failing_pool();
+    for platform in DistributionPlatform::ALL {
+        if platform == crossref {
+            continue;
+        }
+        assert_eq!(
+            work_upsert_crud::enable_work_upsert_capture(&failing, platform),
+            Err(ThothError::WorkUpsertProfileNotImplemented)
+        );
+        assert_eq!(
+            work_upsert_crud::set_work_upsert_execution(&failing, platform, true),
+            Err(ThothError::WorkUpsertProfileNotImplemented)
+        );
+    }
+
+    // Report 10 lists the control row per profile.
+    let controls = work_upsert_crud::work_upsert_controls(pool.as_ref()).expect("report");
+    assert_eq!(controls.len(), 1);
+    assert_eq!(
+        (
+            controls[0].execution_profile,
+            controls[0].capture_enabled,
+            controls[0].execution_enabled
+        ),
+        (crossref, true, false)
+    );
+}
+
+/// The backend PID currently waiting on an advisory lock, if any.
+fn advisory_waiters(connection: &mut PgConnection) -> i64 {
+    count(
+        connection,
+        "SELECT count(*) AS count FROM pg_locks WHERE locktype = 'advisory' AND NOT granted",
+    )
+}
+
+fn wait_until<F: FnMut() -> bool>(mut condition: F) {
+    for _ in 0..400 {
+        if condition() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the expected wait was not observed");
+}
+
+#[test]
+fn c4_the_execution_transition_takes_the_gate_exclusively_and_waits_for_consumers() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut observer = pool.get().expect("observer");
+    let mut consumer = pool.get().expect("consumer");
+    let gate = "SELECT pg_advisory_xact_lock_shared(1948572002, hashtext('be06:work_upsert:execution:CROSSREF'))";
+
+    // A consumer holds Q SHARE: the refused enable waits for it, then refuses.
+    consumer.batch_execute("BEGIN").expect("begin");
+    consumer.batch_execute(gate).expect("share the gate");
+    let transition_pool = pool.clone();
+    let transition = std::thread::spawn(move || {
+        work_upsert_crud::set_work_upsert_execution(
+            transition_pool.as_ref(),
+            DistributionPlatform::Crossref,
+            true,
+        )
+    });
+    wait_until(|| advisory_waiters(&mut observer) == 1);
+    assert!(
+        !transition.is_finished(),
+        "the transition waits for the consumer"
+    );
+    consumer.batch_execute("COMMIT").expect("consumer commits");
+    assert_eq!(
+        transition.join().expect("transition thread"),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+
+    // While a transition holds Q EXCLUSIVE, a consumer waits and then reads the committed value.
+    work_upsert_crud::enable_work_upsert_capture(pool.as_ref(), DistributionPlatform::Crossref)
+        .expect("capture");
+    let mut transition = pool.get().expect("transition connection");
+    transition.batch_execute("BEGIN").expect("begin");
+    transition
+        .batch_execute("SELECT pg_advisory_xact_lock(1948572002, hashtext('be06:work_upsert:execution:CROSSREF'))")
+        .expect("exclusive gate");
+    transition
+        .batch_execute("UPDATE work_upsert_control SET execution_enabled = true WHERE execution_profile = 'CROSSREF'")
+        .expect("enable execution");
+    let consumer_pool = pool.clone();
+    let reader = std::thread::spawn(move || {
+        let mut connection = consumer_pool.get().expect("consumer");
+        connection.batch_execute("BEGIN").expect("begin");
+        connection
+            .batch_execute("SELECT pg_advisory_xact_lock_shared(1948572002, hashtext('be06:work_upsert:execution:CROSSREF'))")
+            .expect("gate");
+        let value = texts(
+            &mut connection,
+            "SELECT execution_enabled::text AS value FROM work_upsert_control",
+        );
+        connection.batch_execute("COMMIT").expect("commit");
+        value
+    });
+    wait_until(|| advisory_waiters(&mut observer) == 1);
+    transition
+        .batch_execute("COMMIT")
+        .expect("transition commits");
+    assert_eq!(reader.join().expect("reader"), vec!["true"]);
+}
