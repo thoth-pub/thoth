@@ -565,3 +565,292 @@ pub fn work_upsert_admissions(
             .load::<super::WorkUpsertAdmission>(connection)?)
     })
 }
+
+/// R52B section 9.1's `resolution(w, p)`, through the migration's function.
+fn resolution(
+    connection: &mut PgConnection,
+    work_id: uuid::Uuid,
+    profile: DistributionPlatform,
+) -> QueryResult<i64> {
+    use diesel::sql_types::{BigInt, Uuid as SqlUuid};
+    #[derive(QueryableByName)]
+    struct Resolution {
+        #[diesel(sql_type = BigInt)]
+        resolution: i64,
+    }
+    diesel::sql_query("SELECT public.work_upsert_resolution($1, $2) AS resolution")
+        .bind::<SqlUuid, _>(work_id)
+        .bind::<crate::schema::sql_types::DistributionPlatform, _>(profile)
+        .get_result::<Resolution>(connection)
+        .map(|row| row.resolution)
+}
+
+/// The profile's whole eligibility predicate for one Work on current ownership
+/// (R52B section 14.2, E1-E6): the one SQL expression and the one abstract
+/// function the drain selector also uses (Amendment 3 section 9.4, M15).
+pub(crate) fn profile_eligible(
+    connection: &mut PgConnection,
+    work_id: uuid::Uuid,
+    profile: &WorkLevelExecutionProfile,
+) -> QueryResult<bool> {
+    use diesel::sql_types::{Array, Bool, Text, Uuid as SqlUuid};
+    #[derive(QueryableByName)]
+    struct Eligibility {
+        #[diesel(sql_type = Bool)]
+        sql_eligible: bool,
+        #[diesel(sql_type = Array<Text>)]
+        abstracts: Vec<String>,
+    }
+    debug_assert_eq!(profile.key, DistributionPlatform::Crossref);
+    if !super::policy::crossref_route_is_automatic_push() {
+        return Ok(false);
+    }
+    let row = diesel::sql_query(format!(
+        "SELECT ({coverage} AND {eligibility}) AS sql_eligible, {abstracts} AS abstracts \
+           FROM public.work w JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+          WHERE w.work_id = $1",
+        coverage =
+            super::policy::CROSSREF_PUBLISHER_COVERAGE_SQL.replace("{publisher}", "i.publisher_id"),
+        eligibility = super::policy::CROSSREF_SQL_ELIGIBILITY,
+        abstracts = super::policy::CROSSREF_EVALUATED_ABSTRACTS_SQL,
+    ))
+    .bind::<SqlUuid, _>(work_id)
+    .get_result::<Eligibility>(connection)
+    .optional()?;
+    Ok(row.is_some_and(|row| {
+        row.sql_eligible && super::policy::crossref_abstracts_normalise(&row.abstracts)
+    }))
+}
+
+/// Why a `PENDING` job's binding is obsolete under the held publisher, if it is
+/// (R52B section 9.4).
+fn stale_binding_reason(
+    connection: &mut PgConnection,
+    job: &crate::model::distribution_job::DistributionJob,
+    held_publisher: uuid::Uuid,
+    profile: &WorkLevelExecutionProfile,
+) -> QueryResult<Option<crate::model::distribution_job::DistributionJobCancellationReason>> {
+    use crate::model::distribution_job::DistributionJobCancellationReason as Reason;
+    use crate::schema::{distribution_job_target, publisher_distribution_platform as assignment};
+
+    if job.publisher_id != held_publisher {
+        return Ok(Some(Reason::BindingSuperseded));
+    }
+    let targets = distribution_job_target::table
+        .filter(distribution_job_target::distribution_job_id.eq(job.distribution_job_id))
+        .select(distribution_job_target::platform)
+        .load::<DistributionPlatform>(connection)?;
+    let enabled: Vec<(DistributionPlatform, uuid::Uuid)> = assignment::table
+        .filter(assignment::publisher_id.eq(job.publisher_id))
+        .filter(assignment::enabled.eq(true))
+        .select((assignment::platform, assignment::activation_id))
+        .load(connection)?;
+    let current = targets
+        .iter()
+        .all(|target| enabled.contains(&(*target, job.activation_id)));
+    if current {
+        return Ok(None);
+    }
+    if enabled.iter().any(|(platform, _)| *platform == profile.key) {
+        Ok(Some(Reason::BindingSuperseded))
+    } else {
+        Ok(Some(Reason::AssignmentDisabled))
+    }
+}
+
+/// The single creation helper of R52B section 11.2: the only place a
+/// `WORK_UPSERT` job is created.
+///
+/// The caller holds `P FOR SHARE`, `W FOR SHARE` and `G FOR UPDATE`, which is
+/// what makes `job_ordinal` race-free. Every statement is converted by the
+/// scoped conversion, so it serves both the EB1 and EB2 creation sites.
+pub(crate) fn work_upsert_create_job(
+    connection: &mut PgConnection,
+    publisher_id: uuid::Uuid,
+    work_id: uuid::Uuid,
+    activation_id: uuid::Uuid,
+    platform: DistributionPlatform,
+    generation: i64,
+    predecessor_job_id: Option<uuid::Uuid>,
+) -> ThothResult<crate::model::distribution_job::DistributionJob> {
+    use super::WorkUpsertQueryResultExt;
+    use crate::model::distribution_job::{
+        DistributionJob, DistributionJobKind, DistributionJobStatus,
+    };
+    use crate::schema::{distribution_job, distribution_job_target};
+
+    let profile = registered(platform)?;
+    let existing = distribution_job::table
+        .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+        .filter(distribution_job::work_identity.eq(work_id))
+        .filter(distribution_job::execution_profile.eq(profile.key))
+        .count()
+        .get_result::<i64>(connection)
+        .work_upsert()?;
+    let job_ordinal =
+        i32::try_from(existing + 1).map_err(|_| ThothError::WorkUpsertDatabaseFailure)?;
+    let deduplication_key = format!(
+        "WORK_UPSERT:{publisher_id}:{work_id}:{}:{activation_id}:{generation}:{job_ordinal}",
+        profile.key
+    );
+    let job = diesel::insert_into(distribution_job::table)
+        .values((
+            distribution_job::kind.eq(DistributionJobKind::WorkUpsert),
+            distribution_job::publisher_id.eq(publisher_id),
+            distribution_job::work_id.eq(work_id),
+            distribution_job::activation_id.eq(activation_id),
+            distribution_job::status.eq(DistributionJobStatus::Pending),
+            distribution_job::deduplication_key.eq(&deduplication_key),
+            distribution_job::attempt_count.eq(0),
+            distribution_job::available_at.eq(diesel::dsl::now),
+            distribution_job::execution_profile.eq(profile.key),
+            distribution_job::work_identity.eq(work_id),
+            distribution_job::created_generation.eq(generation),
+            distribution_job::job_ordinal.eq(job_ordinal),
+            distribution_job::predecessor_job_id.eq(predecessor_job_id),
+        ))
+        .get_result::<DistributionJob>(connection)
+        .work_upsert()?;
+    if let Some(predecessor) = predecessor_job_id {
+        diesel::update(distribution_job::table)
+            .filter(distribution_job::distribution_job_id.eq(predecessor))
+            .set(distribution_job::superseded_by_job_id.eq(job.distribution_job_id))
+            .execute(connection)
+            .work_upsert()?;
+    }
+    let targets: Vec<_> = profile
+        .targets
+        .iter()
+        .map(|platform| {
+            (
+                distribution_job_target::distribution_job_id.eq(job.distribution_job_id),
+                distribution_job_target::platform.eq(*platform),
+            )
+        })
+        .collect();
+    diesel::insert_into(distribution_job_target::table)
+        .values(&targets)
+        .execute(connection)
+        .work_upsert()?;
+    Ok(job)
+}
+
+/// R52B section 9.3's materialization unit for one `(work, profile)`, on the
+/// caller's transaction, under LO-5. `force` skips step 9 only.
+pub(crate) fn materialization_unit(
+    connection: &mut PgConnection,
+    work_id: uuid::Uuid,
+    profile: &'static WorkLevelExecutionProfile,
+    force: bool,
+) -> Result<super::WorkUpsertMaterialization, WorkUpsertTxError> {
+    use super::{WorkUpsertMaterialization, WorkUpsertMaterializationOutcome as Outcome};
+    use crate::model::distribution_job::{
+        DistributionJob, DistributionJobKind, DistributionJobStatus,
+    };
+    use crate::schema::distribution_job;
+
+    let end = |outcome, rebound, job| {
+        Ok(WorkUpsertMaterialization {
+            outcome,
+            rebound,
+            job,
+        })
+    };
+
+    // 1-4: the binding, P FOR SHARE, W FOR SHARE, the binding re-read under W.
+    let Some(publisher_id) = current_publisher(connection, work_id)? else {
+        return end(Outcome::NoWork, false, None);
+    };
+    share_publisher(connection, publisher_id)?;
+    if !share_work(connection, work_id)? {
+        return end(Outcome::NoWork, false, None);
+    }
+    if current_publisher(connection, work_id)? != Some(publisher_id) {
+        return end(Outcome::BindingMovedRetryLater, false, None);
+    }
+    // 5: capture.
+    if !capture_enabled(connection, profile.key)? {
+        return end(Outcome::CaptureDisabled, false, None);
+    }
+    // 6: G FOR UPDATE.
+    let mut generation = lock_generation(connection, work_id, profile.key)?;
+    // 7: the actionable row, and section 9.4.
+    let actionable = distribution_job::table
+        .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+        .filter(distribution_job::work_id.eq(work_id))
+        .filter(distribution_job::execution_profile.eq(profile.key))
+        .filter(distribution_job::status.eq_any([
+            DistributionJobStatus::Pending,
+            DistributionJobStatus::Running,
+        ]))
+        .for_update()
+        .first::<DistributionJob>(connection)
+        .optional()?;
+    let mut rebound = false;
+    let mut predecessor = None;
+    if let Some(job) = actionable {
+        if job.status == DistributionJobStatus::Running {
+            return end(Outcome::RunningInFlight, false, Some(job));
+        }
+        match stale_binding_reason(connection, &job, publisher_id, profile)? {
+            None => return end(Outcome::PendingCurrent, false, Some(job)),
+            Some(reason) => {
+                diesel::update(distribution_job::table)
+                    .filter(distribution_job::distribution_job_id.eq(job.distribution_job_id))
+                    .filter(distribution_job::status.eq(DistributionJobStatus::Pending))
+                    .set((
+                        distribution_job::status.eq(DistributionJobStatus::Cancelled),
+                        distribution_job::cancellation_reason.eq(reason),
+                        distribution_job::completed_at.eq(diesel::dsl::now),
+                    ))
+                    .execute(connection)?;
+                rebound = true;
+                predecessor = Some(job.distribution_job_id);
+            }
+        }
+    }
+    // 8: the seed event, exactly once.
+    if generation == 0 {
+        raise_zero_generation(connection, work_id, profile.key)?;
+        generation = 1;
+    }
+    // 9: resolution.
+    if !force && generation <= resolution(connection, work_id, profile.key)? {
+        return end(Outcome::Resolved, rebound, None);
+    }
+    // 10: eligibility, then admission of the current binding.
+    if !profile_eligible(connection, work_id, profile)? {
+        return end(Outcome::Ineligible, rebound, None);
+    }
+    let Some(activation_id) = crossref_activation(connection, publisher_id)? else {
+        return end(Outcome::Ineligible, rebound, None);
+    };
+    if admission_row(connection, publisher_id, activation_id)?.is_none() {
+        return end(Outcome::ResidueNotAdmitted, rebound, None);
+    }
+    // 11: creation site 1.
+    let job = work_upsert_create_job(
+        connection,
+        publisher_id,
+        work_id,
+        activation_id,
+        profile.key,
+        generation,
+        predecessor,
+    )?;
+    end(Outcome::Created, rebound, Some(job))
+}
+
+/// `materializeWorkUpsertJob` (Amendment 3 section 9.5): R52B section 9.3's
+/// unit for one Work, whatever the drainable set says, in one transaction.
+pub fn materialize_work_upsert_job(
+    db: &PgPool,
+    work_id: uuid::Uuid,
+    platform: DistributionPlatform,
+    force: bool,
+) -> ThothResult<super::WorkUpsertMaterialization> {
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        materialization_unit(connection, work_id, profile, force)
+    })
+}

@@ -83,6 +83,73 @@ pub struct WorkUpsertAdmission {
     pub admitted_at: crate::model::Timestamp,
 }
 
+/// How one materialization unit ended (R52B section 9.3; Amendment 3 section
+/// 4.5). Every end is an outcome, never an error.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "How one work-level materialization unit ended")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkUpsertMaterializationOutcome {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "A job was created through the single creation helper")
+    )]
+    Created,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "A current PENDING job already exists; nothing was written")
+    )]
+    PendingCurrent,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "A RUNNING job exists and is never rewritten by materialization")
+    )]
+    RunningInFlight,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "The source generation is already resolved")
+    )]
+    Resolved,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "The Work is not eligible now; its residue stays durable")
+    )]
+    Ineligible,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The Work's current binding is not admitted; its residue stays durable"
+        )
+    )]
+    ResidueNotAdmitted,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Capture is not enabled for the profile")
+    )]
+    CaptureDisabled,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The Work's binding moved while the unit ran; a later drain revisits it"
+        )
+    )]
+    BindingMovedRetryLater,
+    #[cfg_attr(feature = "backend", graphql(description = "The Work does not exist"))]
+    NoWork,
+}
+
+/// The result of one materialization unit (Amendment 3 section 4.5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertMaterialization {
+    pub outcome: WorkUpsertMaterializationOutcome,
+    /// Whether step 7 retired a stale `PENDING` job.
+    pub rebound: bool,
+    /// The created job, or the actionable job step 7 found.
+    pub job: Option<crate::model::distribution_job::DistributionJob>,
+}
+
 /// The advisory-lock namespace of the execution gates `Q` (R52B section 21.1),
 /// distinct from the DOI keys' `1948572001`.
 #[cfg(feature = "backend")]

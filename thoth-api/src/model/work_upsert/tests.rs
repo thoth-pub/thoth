@@ -3326,3 +3326,464 @@ fn x8_a5_concurrent_exact_admissions_share_one_row_without_a_unique_violation() 
         !include_str!("../../../../thoth-errors/src/lib.rs").contains("work_upsert_admission_pkey")
     );
 }
+
+// ---------------------------------------------------------------------------
+// R52B sections 9.3, 9.4 and 11.2: the materialization unit and the single
+// creation helper (T41-T54; Amendment 3 section 9.5, M8)
+// ---------------------------------------------------------------------------
+
+use crate::model::distribution_job::{DistributionJobCancellationReason, DistributionJobStatus};
+use crate::model::work_upsert::WorkUpsertMaterializationOutcome as Outcome;
+
+/// An admitted, capture-enabled publisher with one eligible Work whose
+/// generation row is `generation`; returns `(publisher, imprint, activation, work)`.
+fn drainable_work(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+    generation: i64,
+) -> (Uuid, Uuid, Uuid, Uuid) {
+    let (publisher, imprint, activation, works) = admissible_publisher(pool, connection, 1);
+    work_upsert_crud::admit_crossref_work_upsert(pool, publisher, "EV", "admin").expect("admit");
+    set_generation(connection, works[0], generation);
+    (publisher, imprint, activation, works[0])
+}
+
+fn materialize(
+    pool: &crate::db::PgPool,
+    work: Uuid,
+    force: bool,
+) -> crate::model::work_upsert::WorkUpsertMaterialization {
+    work_upsert_crud::materialize_work_upsert_job(pool, work, DistributionPlatform::Crossref, force)
+        .expect("a unit end is an outcome, never an error")
+}
+
+fn job_summary(connection: &mut PgConnection, work: Uuid) -> Vec<String> {
+    texts(
+        connection,
+        &format!(
+            "SELECT j.status::text || '|' || coalesce(j.cancellation_reason::text, '-') || '|' \
+                 || j.created_generation::text || '|' || j.job_ordinal::text || '|' \
+                 || (j.predecessor_job_id IS NOT NULL)::text || '|' || (j.superseded_by_job_id IS NOT NULL)::text \
+                 || '|' || (SELECT string_agg(t.platform::text, ',') FROM distribution_job_target t \
+                             WHERE t.distribution_job_id = j.distribution_job_id) AS value \
+             FROM distribution_job j WHERE j.work_identity = '{work}' ORDER BY j.job_ordinal"
+        ),
+    )
+}
+
+#[test]
+fn t41_t42_t52_residue_becomes_one_job_through_the_helper() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // T41: a never-seeded Work (no generation row) is seeded and materialized at 1.
+    let (publisher, _imprint, activation, work) = drainable_work(pool.as_ref(), &mut connection, 1);
+    uncover(&mut connection, work);
+    let result = materialize(pool.as_ref(), work, false);
+    assert_eq!((result.outcome, result.rebound), (Outcome::Created, false));
+    let job = result.job.expect("the created job");
+    assert_eq!(generation_of(&mut connection, work), Some(1));
+    assert_eq!(job.created_generation, Some(1));
+    assert_eq!(job.job_ordinal, Some(1));
+    assert_eq!(job.work_id, Some(work));
+    assert_eq!(job.work_identity, Some(work));
+    assert_eq!(job.execution_profile, Some(DistributionPlatform::Crossref));
+    assert_eq!(job.status, DistributionJobStatus::Pending);
+    assert_eq!(job.activation_id, activation);
+    assert_eq!(job.publisher_id, publisher);
+    assert_eq!(
+        job.deduplication_key,
+        format!("WORK_UPSERT:{publisher}:{work}:CROSSREF:{activation}:1:1")
+    );
+    assert_eq!(
+        job_summary(&mut connection, work),
+        vec!["PENDING|-|1|1|false|false|CROSSREF"]
+    );
+
+    // T44: a second run with no intervening event writes nothing.
+    let fingerprint = texts(&mut connection, &format!(
+        "SELECT (SELECT string_agg(xmin::text, ',') FROM distribution_job WHERE work_identity = '{work}') || '|' \
+             || (SELECT xmin::text FROM work_upsert_generation WHERE work_id = '{work}') AS value"
+    ));
+    let again = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (again.outcome, again.rebound),
+        (Outcome::PendingCurrent, false)
+    );
+    assert_eq!(
+        again.job.map(|j| j.distribution_job_id),
+        Some(job.distribution_job_id)
+    );
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT (SELECT string_agg(xmin::text, ',') FROM distribution_job WHERE work_identity = '{work}') || '|' \
+                 || (SELECT xmin::text FROM work_upsert_generation WHERE work_id = '{work}') AS value"
+        )),
+        fingerprint
+    );
+
+    // T43 then T42/T52: a succeeded job resolves its generation; a later edit is
+    // residue that becomes the second job, with the next ordinal.
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job SET status = 'SUCCEEDED', completed_at = now() WHERE work_identity = '{work}'"
+    ));
+    let resolved = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (resolved.outcome, resolved.job.is_none()),
+        (Outcome::Resolved, true)
+    );
+    set_generation(&mut connection, work, 3);
+    let second = materialize(pool.as_ref(), work, false);
+    assert_eq!(second.outcome, Outcome::Created);
+    let second = second.job.expect("second job");
+    assert_eq!(
+        (second.created_generation, second.job_ordinal),
+        (Some(3), Some(2))
+    );
+    assert_eq!(
+        second.deduplication_key,
+        format!("WORK_UPSERT:{publisher}:{work}:CROSSREF:{activation}:3:2")
+    );
+    assert_eq!(job_row_counts(&mut connection), "2|2|0");
+}
+
+#[test]
+fn t51_forced_materialization_skips_only_the_resolution_test() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 2);
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Created
+    );
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job SET status = 'SUCCEEDED', completed_at = now() WHERE work_identity = '{work}'"
+    ));
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Resolved
+    );
+    let forced = materialize(pool.as_ref(), work, true);
+    assert_eq!(forced.outcome, Outcome::Created);
+    assert_eq!(forced.job.and_then(|j| j.created_generation), Some(2));
+    // force skips step 9 only: an ineligible Work still ends INELIGIBLE.
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job SET status = 'SUCCEEDED', completed_at = now() WHERE work_identity = '{work}' AND status = 'PENDING'; \
+         UPDATE publication SET isbn = NULL WHERE work_id = '{work}'"
+    ));
+    assert_eq!(
+        materialize(pool.as_ref(), work, true).outcome,
+        Outcome::Ineligible
+    );
+}
+
+#[test]
+fn t48_t49_t50_unit_ends_that_leave_durable_residue() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // T48: an eligible Work of an unadmitted publisher.
+    let (publisher, _imprint, _activation, works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 1);
+    let _ = publisher;
+    assert_eq!(
+        materialize(pool.as_ref(), works[0], false).outcome,
+        Outcome::ResidueNotAdmitted
+    );
+
+    // T49: an ineligible Work of an admitted publisher.
+    let (_p, _i, _a, work) = drainable_work(pool.as_ref(), &mut connection, 1);
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET landing_page = NULL WHERE work_id = '{work}'"),
+    );
+    set_generation(&mut connection, work, 2);
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Ineligible
+    );
+    // The abstract clause alone makes it ineligible too.
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE work SET landing_page = 'https://example.org/back' WHERE work_id = '{work}'; \
+         INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) \
+         VALUES ('{work}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)"
+        ),
+    );
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Ineligible
+    );
+
+    // T50: a Work that does not exist.
+    assert_eq!(
+        materialize(pool.as_ref(), Uuid::new_v4(), false).outcome,
+        Outcome::NoWork
+    );
+    assert_eq!(job_row_counts(&mut connection), "0|0|0");
+
+    // Capture disabled ends CAPTURE_DISABLED and writes nothing.
+    execute(&mut connection, "SET session_replication_role = replica; UPDATE work_upsert_control SET capture_enabled = false; SET session_replication_role = origin");
+    let before = generation_of(&mut connection, works[0]);
+    assert_eq!(
+        materialize(pool.as_ref(), works[0], false).outcome,
+        Outcome::CaptureDisabled
+    );
+    assert_eq!(generation_of(&mut connection, works[0]), before);
+
+    // Unregistered profiles are refused before any database access.
+    assert_eq!(
+        work_upsert_crud::materialize_work_upsert_job(
+            &test_db::failing_pool(),
+            work,
+            DistributionPlatform::Zenodo,
+            false
+        )
+        .map(|m| m.outcome),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+}
+
+#[test]
+fn t45_t46_t47_stale_pending_rows_are_retired_and_replaced_under_the_current_binding() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // T45: the Work moves to another admitted publisher.
+    let (_publisher, _imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Created
+    );
+    let (other, other_imprint, other_activation, _) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), other, "EV-O", "admin")
+        .expect("admit other");
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"),
+    );
+    let moved = materialize(pool.as_ref(), work, false);
+    assert_eq!((moved.outcome, moved.rebound), (Outcome::Created, true));
+    let replacement = moved.job.expect("replacement");
+    assert_eq!(
+        (replacement.publisher_id, replacement.activation_id),
+        (other, other_activation)
+    );
+    assert_eq!(
+        job_summary(&mut connection, work),
+        vec![
+            "CANCELLED|BINDING_SUPERSEDED|1|1|false|true|CROSSREF",
+            "PENDING|-|2|2|true|false|CROSSREF",
+        ]
+    );
+
+    // T46: the activation changes and the new activation is admitted.
+    let (publisher, _imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Created
+    );
+    let new_activation = cover_crossref(&mut connection, publisher);
+    let not_admitted = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (not_admitted.outcome, not_admitted.rebound),
+        (Outcome::ResidueNotAdmitted, true)
+    );
+    assert_eq!(
+        job_summary(&mut connection, work),
+        vec!["CANCELLED|BINDING_SUPERSEDED|1|1|false|false|CROSSREF"]
+    );
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV-2", "admin")
+        .expect("admit");
+    let created = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (created.outcome, created.rebound),
+        (Outcome::Created, false)
+    );
+    assert_eq!(created.job.map(|j| j.activation_id), Some(new_activation));
+
+    // T47: the destination is disabled.
+    let (publisher, _imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::Created
+    );
+    disable_crossref(&mut connection, publisher);
+    let disabled = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (disabled.outcome, disabled.rebound),
+        (Outcome::Ineligible, true)
+    );
+    assert_eq!(
+        job_summary(&mut connection, work),
+        vec!["CANCELLED|ASSIGNMENT_DISABLED|1|1|false|false|CROSSREF"]
+    );
+    let cancelled = texts(&mut connection, &format!(
+        "SELECT (completed_at IS NOT NULL)::text AS value FROM distribution_job WHERE work_identity = '{work}'"
+    ));
+    assert_eq!(cancelled, vec!["true"]);
+}
+
+#[test]
+fn a_running_job_is_never_rewritten_by_the_unit() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, other_imprint, _activation, work) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    let job = materialize(pool.as_ref(), work, false).job.expect("job");
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job SET status = 'RUNNING', claim_token = gen_random_uuid(), claimed_by = 'w', \
+             claimed_at = now(), lease_expires_at = now() + interval '15 minutes', attempt_count = 1 \
+         WHERE distribution_job_id = '{id}'; \
+         INSERT INTO distribution_job_attempt (distribution_job_id, attempt_number, claim_token, claimed_by, started_at, claimed_generation) \
+         SELECT distribution_job_id, 1, claim_token, claimed_by, claimed_at, 1 FROM distribution_job WHERE distribution_job_id = '{id}'",
+        id = job.distribution_job_id
+    ));
+    set_generation(&mut connection, work, 5);
+    let fingerprint = texts(
+        &mut connection,
+        &format!(
+            "SELECT xmin::text AS value FROM distribution_job WHERE distribution_job_id = '{}'",
+            job.distribution_job_id
+        ),
+    );
+    let running = materialize(pool.as_ref(), work, false);
+    assert_eq!(
+        (running.outcome, running.rebound),
+        (Outcome::RunningInFlight, false)
+    );
+    assert_eq!(
+        running.job.map(|j| j.distribution_job_id),
+        Some(job.distribution_job_id)
+    );
+    assert_eq!(
+        texts(
+            &mut connection,
+            &format!(
+                "SELECT xmin::text AS value FROM distribution_job WHERE distribution_job_id = '{}'",
+                job.distribution_job_id
+            )
+        ),
+        fingerprint
+    );
+    let _ = other_imprint;
+}
+
+#[test]
+fn t53_the_creation_helper_is_the_only_work_upsert_job_insert() {
+    let crud = source("src/model/work_upsert/crud.rs");
+    let helper = crud
+        .split_once("pub(crate) fn work_upsert_create_job(")
+        .expect("the helper")
+        .1
+        .split_once("\n}\n")
+        .expect("its end")
+        .0;
+    assert!(helper.contains("insert_into(distribution_job::table)"));
+    let mut files = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src"
+    ))];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory).expect("read") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if name != "tests.rs" && !name.ends_with("_tests.rs") {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    let mut helper_calls = Vec::new();
+    for path in files {
+        let text = std::fs::read_to_string(&path).expect("read");
+        let display = path.display().to_string();
+        // Inline test modules are not source; strip them.
+        let text = match text.split_once("#[cfg(test)]\nmod tests {") {
+            Some((source, _)) => source.to_string(),
+            None => text,
+        };
+        // Every job insert that names the WORK_UPSERT kind lies inside the helper.
+        for pattern in [
+            "insert_into(distribution_job::table)",
+            "INSERT INTO public.distribution_job ",
+            "INSERT INTO distribution_job ",
+        ] {
+            for (index, _) in text.match_indices(pattern) {
+                let window: String = text[index..].chars().take(1200).collect();
+                if window.contains("WorkUpsert") || window.contains("WORK_UPSERT") {
+                    assert!(
+                        display.ends_with("src/model/work_upsert/crud.rs")
+                            && helper.contains(pattern)
+                            && text[..index].rfind("fn work_upsert_create_job(")
+                                > text[..index].rfind("\n}\n"),
+                        "a WORK_UPSERT job insert outside the helper in {display}"
+                    );
+                }
+            }
+        }
+        for (index, _) in text.match_indices("work_upsert_create_job(") {
+            let before = &text[..index];
+            if before.ends_with("fn ") {
+                continue;
+            }
+            let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
+            let function = item
+                .captures_iter(before)
+                .last()
+                .map(|captures| captures[1].to_string())
+                .unwrap_or_default();
+            helper_calls.push(format!(
+                "{}::{function}",
+                path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    helper_calls.sort();
+    helper_calls.retain(|call| !call.ends_with("::work_upsert_create_job"));
+    // The three creation sites of R52B section 11.3, as they come to exist.
+    let allowed = [
+        "crud.rs::materialization_unit",
+        "crud.rs::finalise_binding_refusal_replacement",
+        "crud.rs::complete_work_upsert_successor",
+    ];
+    assert!(!helper_calls.is_empty());
+    for call in &helper_calls {
+        assert!(
+            allowed.contains(&call.as_str()),
+            "an unexpected creation site: {call}"
+        );
+    }
+    // Neither the seed, admission nor capture creates a job.
+    for forbidden in [
+        "fn seed_unit",
+        "fn admit_crossref_work_upsert",
+        "fn seed_crossref_work_upsert",
+    ] {
+        let body = crud
+            .split_once(forbidden)
+            .expect(forbidden)
+            .1
+            .split_once("\n}\n")
+            .expect("end")
+            .0;
+        assert!(!body.contains("work_upsert_create_job"), "{forbidden}");
+        assert!(!body.contains("distribution_job::table"), "{forbidden}");
+    }
+}
