@@ -4179,3 +4179,248 @@ fn f20_the_floor_refusals_carry_exactly_the_section_9_9_messages() {
         assert_eq!(error.to_string(), message);
     }
 }
+
+// ---------------------------------------------------------------------------
+// R52B sections 10.7 and 19.1-19.2: the legacy claim's kind binding and the
+// work-level claim (T163, T164; the claim clauses of section 10.7)
+// ---------------------------------------------------------------------------
+
+use crate::model::distribution_job::crud as job_crud;
+use crate::model::distribution_job::DistributionJobKind;
+
+fn enable_execution(pool: &crate::db::PgPool) {
+    work_upsert_crud::enable_work_upsert_capture(pool, DistributionPlatform::Crossref)
+        .expect("capture");
+    work_upsert_crud::set_work_upsert_execution(pool, DistributionPlatform::Crossref, true)
+        .expect("execution");
+}
+
+fn claim(pool: &crate::db::PgPool) -> Vec<crate::model::distribution_job::ClaimedDistributionJob> {
+    job_crud::claim_work_upsert_jobs(
+        pool,
+        "worker-be06",
+        &[DistributionPlatform::Crossref],
+        10,
+        900,
+    )
+    .expect("claim")
+}
+
+/// A claimable `WORK_UPSERT` job: admitted, eligible, execution enabled.
+fn claimable_job(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+    let (publisher, imprint, activation, work) = drainable_work(pool, connection, 1);
+    let job = materialize(pool, work, false)
+        .job
+        .expect("job")
+        .distribution_job_id;
+    (publisher, imprint, activation, work, job)
+}
+
+#[test]
+fn t163_t164_the_legacy_claim_is_bound_to_the_legacy_kind_set() {
+    assert_eq!(
+        job_crud::claim_distribution_jobs(
+            &test_db::failing_pool(),
+            "w",
+            10,
+            900,
+            &[DistributionJobKind::WorkUpsert]
+        )
+        .map(|claimed| claimed.len()),
+        Err(ThothError::DistributionJobKindNotClaimable)
+    );
+    assert_eq!(
+        job_crud::claim_distribution_jobs(
+            &test_db::failing_pool(),
+            "w",
+            10,
+            900,
+            &[
+                DistributionJobKind::PublisherBackCatalogue,
+                DistributionJobKind::WorkUpsert
+            ]
+        )
+        .map(|claimed| claimed.len()),
+        Err(ThothError::DistributionJobKindNotClaimable),
+        "refused as a whole, not filtered"
+    );
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work, job) =
+        claimable_job(pool.as_ref(), &mut connection);
+    enable_execution(pool.as_ref());
+    // A due back-catalogue job of another publisher.
+    let (back_publisher, _i) = publisher_and_imprint(pool.as_ref());
+    let back_activation = cover_crossref(&mut connection, back_publisher);
+    execute(&mut connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{back_publisher}', '{back_activation}', \
+                 'PUBLISHER_BACK_CATALOGUE:{back_publisher}:{back_activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE kind = 'PUBLISHER_BACK_CATALOGUE'"
+    ));
+    let legacy = job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[])
+        .expect("legacy claim");
+    assert_eq!(legacy.len(), 1);
+    assert_eq!(
+        legacy[0].job.job.kind,
+        DistributionJobKind::PublisherBackCatalogue
+    );
+    let legacy = job_crud::claim_distribution_jobs(
+        pool.as_ref(),
+        "legacy",
+        10,
+        900,
+        &[DistributionJobKind::PublisherBackCatalogue],
+    )
+    .expect("legacy claim");
+    assert!(legacy.is_empty());
+    // The work-level job is still PENDING and is claimed only by the work-level claim.
+    let claimed = claim(pool.as_ref());
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].job.job.distribution_job_id, job);
+    assert_eq!(claimed[0].job.job.work_id, Some(work));
+}
+
+#[test]
+fn the_work_level_claim_projects_the_current_generation_and_honours_every_clause() {
+    let failing = test_db::failing_pool();
+    assert_eq!(
+        job_crud::claim_work_upsert_jobs(&failing, "w", &[], 10, 900).map(|c| c.len()),
+        Err(ThothError::WorkUpsertExecutionProfilesRequired)
+    );
+    assert_eq!(
+        job_crud::claim_work_upsert_jobs(&failing, "w", &[DistributionPlatform::Zenodo], 10, 900)
+            .map(|c| c.len()),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, _imprint, _activation, work, job) =
+        claimable_job(pool.as_ref(), &mut connection);
+
+    // Clause 5: execution disabled → [] and no attempt.
+    assert!(claim(pool.as_ref()).is_empty());
+    enable_execution(pool.as_ref());
+    // limit <= 0 claims nothing.
+    assert!(job_crud::claim_work_upsert_jobs(
+        pool.as_ref(),
+        "w",
+        &[DistributionPlatform::Crossref],
+        0,
+        900
+    )
+    .expect("claim")
+    .is_empty());
+    assert_eq!(job_row_counts(&mut connection), "1|1|0");
+
+    // Clause 4: the admission row names another activation.
+    let original = texts(
+        &mut connection,
+        "SELECT activation_id::text AS value FROM work_upsert_admission",
+    )
+    .remove(0);
+    execute(&mut connection, "SET session_replication_role = replica; UPDATE work_upsert_admission SET activation_id = gen_random_uuid(); SET session_replication_role = origin");
+    assert!(claim(pool.as_ref()).is_empty());
+    execute(&mut connection, &format!("SET session_replication_role = replica; UPDATE work_upsert_admission SET activation_id = '{original}'; SET session_replication_role = origin"));
+
+    // Clause 2: the Work moved to another publisher.
+    let (_other, other_imprint) = publisher_and_imprint(pool.as_ref());
+    let home_imprint = texts(
+        &mut connection,
+        &format!("SELECT imprint_id::text AS value FROM work WHERE work_id = '{work}'"),
+    )
+    .remove(0);
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"),
+    );
+    assert!(claim(pool.as_ref()).is_empty());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{home_imprint}' WHERE work_id = '{work}'"),
+    );
+
+    // Clause 3: the target is disabled.
+    disable_crossref(&mut connection, publisher);
+    assert!(claim(pool.as_ref()).is_empty());
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE publisher_distribution_platform SET enabled = true, disabled_at = NULL \
+         WHERE publisher_id = '{publisher}' AND platform = 'CROSSREF'"
+        ),
+    );
+
+    // Clause 7: a blocking permit overlaps the Work's membership.
+    let doi = texts(
+        &mut connection,
+        &format!("SELECT lower(doi) AS value FROM work WHERE work_id = '{work}'"),
+    )
+    .remove(0);
+    execute(&mut connection, &format!(
+        "BEGIN; INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES ('LEGACY_SCHEDULED', 'SINGLE_ROOT_WORK', '{publisher}', '{publisher}', '{work}', 0, public.crossref_doi_set_digest(ARRAY['{doi}']), 1, 20260904120000000, 'blocker'); \
+         INSERT INTO crossref_write_permit_doi (permit_id, doi) SELECT permit_id, '{doi}' FROM crossref_write_permit WHERE doi_batch_id = 'blocker'; COMMIT"
+    ));
+    assert!(claim(pool.as_ref()).is_empty());
+    execute(&mut connection, "UPDATE crossref_write_permit SET state = 'VOIDED', void_reason = 'OPERATOR_CLEANUP', void_detail = 'test', void_authorization_reference = 'REF', closed_at = now() WHERE doi_batch_id = 'blocker'");
+
+    // Every clause holds: the claim projects the current generation.
+    set_generation(&mut connection, work, 7);
+    let claimed = claim(pool.as_ref());
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].job.job.distribution_job_id, job);
+    assert_eq!(claimed[0].attempt_number, 1);
+    let attempts = claimed[0]
+        .job
+        .preloaded_attempts
+        .clone()
+        .expect("preloaded attempts");
+    assert_eq!(attempts.len(), 1);
+    assert_eq!(attempts[0].claimed_generation, Some(7));
+    assert_eq!(attempts[0].claimed_by, "worker-be06");
+    assert!(
+        claim(pool.as_ref()).is_empty(),
+        "a RUNNING job is not claimed again"
+    );
+
+    // Clause 6: an uncleared fenced abandonment blocks every job of the pair.
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job_attempt SET fenced_at = now() WHERE distribution_job_id = '{job}'; \
+         UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"
+    ));
+    assert!(
+        claim(pool.as_ref()).is_empty(),
+        "recovered, then refused by the fenced abandonment"
+    );
+    assert_eq!(
+        texts(&mut connection, &format!("SELECT status::text || '|' || (SELECT result::text FROM distribution_job_attempt WHERE distribution_job_id = '{job}') AS value FROM distribution_job WHERE distribution_job_id = '{job}'")),
+        vec!["PENDING|ABANDONED"]
+    );
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job_attempt SET recovery_cleared_at = now(), recovery_clearance_reference = 'RECON-1' WHERE distribution_job_id = '{job}'"
+    ));
+    let reclaimed = claim(pool.as_ref());
+    assert_eq!(reclaimed.len(), 1);
+    assert_eq!(reclaimed[0].attempt_number, 2);
+}
+
+#[test]
+fn x1_the_work_level_claim_opens_its_transaction_through_the_boundary() {
+    let crud = source("src/model/distribution_job/crud.rs");
+    let body = crud
+        .split_once("pub(crate) fn claim_work_upsert_jobs(")
+        .expect("the work-level claim")
+        .1
+        .split_once("\n}\n")
+        .expect("its end")
+        .0;
+    assert!(body.contains("work_upsert_transaction("));
+    assert!(!body.contains("db.get()"));
+    assert!(!body.contains(".transaction("));
+}

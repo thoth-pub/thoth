@@ -192,6 +192,44 @@ pub(crate) fn take_execution_gate(
     .map(|_| ())
 }
 
+/// Take the execution gates `Q` of several profiles in SHARE mode, deduplicated
+/// and ascending by key as signed `integer` (R52B section 10.1 rule 2).
+#[cfg(feature = "backend")]
+pub(crate) fn take_execution_gates(
+    connection: &mut PgConnection,
+    profiles: &[&'static registry::WorkLevelExecutionProfile],
+) -> QueryResult<()> {
+    use diesel::sql_types::{Array, Integer, Text};
+    use diesel::RunQueryDsl;
+
+    #[derive(diesel::QueryableByName)]
+    struct Key {
+        #[diesel(sql_type = Integer)]
+        key: i32,
+    }
+    let labels: Vec<String> = profiles
+        .iter()
+        .map(|profile| profile.key.to_string())
+        .collect();
+    let mut keys: Vec<i32> = diesel::sql_query(
+        "SELECT DISTINCT hashtext('be06:work_upsert:execution:' || p) AS key FROM unnest($1::text[]) AS p",
+    )
+    .bind::<Array<Text>, _>(labels)
+    .load::<Key>(connection)?
+    .into_iter()
+    .map(|row| row.key)
+    .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    for key in keys {
+        diesel::sql_query("SELECT pg_advisory_xact_lock_shared($1, $2)::text")
+            .bind::<Integer, _>(EXECUTION_GATE_NAMESPACE)
+            .bind::<Integer, _>(key)
+            .execute(connection)?;
+    }
+    Ok(())
+}
+
 /// The error a BE-06 transaction closure returns (Amendment 3 section 10.3).
 ///
 /// `?` on a Diesel result inside the closure produces `Database`, which the

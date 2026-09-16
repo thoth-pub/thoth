@@ -226,6 +226,18 @@ pub(crate) fn claim_distribution_jobs(
     lease_seconds: i32,
     kinds: &[DistributionJobKind],
 ) -> ThothResult<Vec<ClaimedDistributionJob>> {
+    // BE-06 (R52B section 19.1): this mutation is permanently bound to the
+    // legacy-claimable kind set. A list naming `WORK_UPSERT` is refused as a
+    // whole, and an empty list means exactly the legacy set, bound into the
+    // released statement's own kind parameter.
+    if kinds.contains(&DistributionJobKind::WorkUpsert) {
+        return Err(ThothError::DistributionJobKindNotClaimable);
+    }
+    let kinds: &[DistributionJobKind] = if kinds.is_empty() {
+        &LEGACY_CLAIMABLE_KINDS
+    } else {
+        kinds
+    };
     if limit <= 0 {
         // An explicit request for nothing claims nothing, and performs no
         // database work at all.
@@ -348,6 +360,196 @@ pub(crate) fn claim_distribution_jobs(
                 })
             })
             .collect()
+    })
+}
+
+/// The kinds `claimDistributionJobs` may ever claim (R52B section 19.1).
+const LEGACY_CLAIMABLE_KINDS: [DistributionJobKind; 1] =
+    [DistributionJobKind::PublisherBackCatalogue];
+
+/// `claimWorkUpsertJobs` (R52B sections 10.7 and 19.2): the work-level claim.
+///
+/// One transaction, through the BE-06 boundary: the released lease recovery;
+/// the execution gate `Q` in SHARE mode for each requested registered profile,
+/// deduplicated and ascending by key; then the released claim statement with
+/// `kind` hard-bound to `WORK_UPSERT`, the added clauses 1-7 and the
+/// `claimed_generation` projection; then the released payload reads. Released
+/// helpers' errors pass through unchanged (Amendment 3 section 10.3, EB1's
+/// enumerated exception); every BE-06 statement is converted by the scoped
+/// conversion.
+pub(crate) fn claim_work_upsert_jobs(
+    db: &PgPool,
+    worker: &str,
+    execution_profiles: &[DistributionPlatform],
+    limit: i32,
+    lease_seconds: i32,
+) -> ThothResult<Vec<ClaimedDistributionJob>> {
+    use crate::model::work_upsert::registry::FencedRecovery;
+    use crate::model::work_upsert::{policy, take_execution_gates, work_upsert_transaction};
+
+    let profiles = policy::registered_profiles(execution_profiles)?;
+    if limit <= 0 {
+        return Ok(Vec::new());
+    }
+    let batch = limit.min(DISTRIBUTION_JOB_CLAIM_MAX_BATCH);
+    let lease = lease_seconds.clamp(
+        DISTRIBUTION_JOB_LEASE_MIN_SECONDS,
+        DISTRIBUTION_JOB_LEASE_MAX_SECONDS,
+    );
+    let profile_labels: Vec<String> = profiles
+        .iter()
+        .map(|profile| profile.key.to_string())
+        .collect();
+    let replay_safe_labels: Vec<String> = profiles
+        .iter()
+        .filter(|profile| profile.fenced_recovery == FencedRecovery::ReplaySafe)
+        .map(|profile| profile.key.to_string())
+        .collect();
+    let worker = worker.to_string();
+
+    work_upsert_transaction(db, |connection| {
+        recover_expired_leases(connection)?;
+        take_execution_gates(connection, &profiles)?;
+
+        let claim_sql = format!(
+            "WITH eligible AS ( \
+                 SELECT j.distribution_job_id \
+                 FROM distribution_job j \
+                 WHERE j.status = 'PENDING' \
+                   AND j.available_at <= CURRENT_TIMESTAMP \
+                   AND j.attempt_count < $1 \
+                   AND j.kind = 'WORK_UPSERT' \
+                   AND j.execution_profile = ANY($2::text[]::public.distribution_platform[]) \
+                   AND j.work_id IS NOT NULL \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_generation g \
+                       WHERE g.work_id = j.work_id AND g.execution_profile = j.execution_profile \
+                   ) \
+                   AND ( \
+                       SELECT i.publisher_id FROM work w JOIN imprint i ON i.imprint_id = w.imprint_id \
+                       WHERE w.work_id = j.work_id \
+                   ) = j.publisher_id \
+                   AND NOT EXISTS ( \
+                       SELECT 1 \
+                       FROM distribution_job_target t \
+                       WHERE t.distribution_job_id = j.distribution_job_id \
+                         AND NOT EXISTS ( \
+                             SELECT 1 \
+                             FROM publisher_distribution_platform p \
+                             WHERE p.publisher_id = j.publisher_id \
+                               AND p.platform = t.platform \
+                               AND p.enabled \
+                               AND p.activation_id = j.activation_id \
+                         ) \
+                   ) \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_admission ad \
+                       WHERE ad.execution_profile = j.execution_profile \
+                         AND ad.publisher_id = j.publisher_id \
+                         AND ad.activation_id = j.activation_id \
+                   ) \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_control k \
+                       WHERE k.execution_profile = j.execution_profile AND k.execution_enabled \
+                   ) \
+                   AND ( \
+                       j.execution_profile = ANY($6::text[]::public.distribution_platform[]) \
+                       OR NOT EXISTS ( \
+                           SELECT 1 \
+                           FROM distribution_job oj \
+                           JOIN distribution_job_attempt oa ON oa.distribution_job_id = oj.distribution_job_id \
+                           WHERE oj.kind = 'WORK_UPSERT' \
+                             AND oj.work_identity = j.work_identity \
+                             AND oj.execution_profile = j.execution_profile \
+                             AND oa.result = 'ABANDONED' \
+                             AND oa.fenced_at IS NOT NULL \
+                             AND oa.recovery_cleared_at IS NULL \
+                       ) \
+                   ) \
+                   AND ( \
+                       j.execution_profile <> 'CROSSREF' \
+                       OR NOT EXISTS ( \
+                           SELECT 1 \
+                           FROM crossref_write_permit x \
+                           JOIN crossref_write_permit_doi d ON d.permit_id = x.permit_id \
+                           WHERE public.crossref_is_blocking_write_permit(x.state, x.reconciliation_state) \
+                             AND d.doi = ANY(public.crossref_deposit_membership(j.work_id)) \
+                       ) \
+                   ) \
+                 ORDER BY j.available_at ASC, j.distribution_job_id ASC \
+                 FOR UPDATE OF j SKIP LOCKED \
+                 LIMIT $3 \
+             ), \
+             claimed AS ( \
+                 UPDATE distribution_job j \
+                 SET status = 'RUNNING', \
+                     claim_token = public.uuid_generate_v4(), \
+                     claimed_by = $4, \
+                     claimed_at = CURRENT_TIMESTAMP, \
+                     lease_expires_at = CURRENT_TIMESTAMP + ($5 * interval '1 second'), \
+                     attempt_count = j.attempt_count + 1 \
+                 FROM eligible e \
+                 WHERE j.distribution_job_id = e.distribution_job_id \
+                 RETURNING {JOB_COLUMNS_QUALIFIED} \
+             ), \
+             inserted_attempts AS ( \
+                 INSERT INTO distribution_job_attempt \
+                     (distribution_job_id, attempt_number, claim_token, claimed_by, started_at, \
+                      claimed_generation) \
+                 SELECT c.distribution_job_id, c.attempt_count, c.claim_token, \
+                        c.claimed_by, c.claimed_at, g.source_generation \
+                 FROM claimed c \
+                 JOIN work_upsert_generation g \
+                   ON g.work_id = c.work_id AND g.execution_profile = c.execution_profile \
+                 RETURNING distribution_job_id, attempt_number \
+             ) \
+             SELECT {JOB_COLUMNS_FROM_CLAIMED}, a.attempt_number \
+             FROM claimed c \
+             JOIN inserted_attempts a ON a.distribution_job_id = c.distribution_job_id \
+             ORDER BY c.available_at ASC, c.distribution_job_id ASC"
+        );
+
+        let rows: Vec<ClaimRow> = diesel::sql_query(claim_sql)
+            .bind::<Integer, _>(DISTRIBUTION_JOB_MAX_ATTEMPTS)
+            .bind::<Array<Text>, _>(&profile_labels)
+            .bind::<BigInt, _>(i64::from(batch))
+            .bind::<Text, _>(&worker)
+            .bind::<Integer, _>(lease)
+            .bind::<Array<Text>, _>(&replay_safe_labels)
+            .load(connection)?;
+
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let job_ids: Vec<Uuid> = rows.iter().map(|row| row.job.distribution_job_id).collect();
+        let mut targets = partition_by_job(targets_for_jobs(connection, &job_ids)?, |target| {
+            target.distribution_job_id
+        });
+        let mut attempts = partition_by_job(attempts_for_jobs(connection, &job_ids)?, |attempt| {
+            attempt.distribution_job_id
+        });
+
+        let mut claimed = Vec::with_capacity(rows.len());
+        for row in rows {
+            let (Some(claim_token), Some(lease_expires_at)) =
+                (row.job.claim_token, row.job.lease_expires_at)
+            else {
+                return Err(ThothError::WorkUpsertDatabaseFailure.into());
+            };
+            let job_id = row.job.distribution_job_id;
+            claimed.push(ClaimedDistributionJob {
+                job: DistributionJobPayload::preloaded(
+                    row.job,
+                    targets.remove(&job_id).unwrap_or_default(),
+                    attempts.remove(&job_id).unwrap_or_default(),
+                ),
+                claim_token,
+                lease_expires_at,
+                attempt_number: row.attempt_number,
+            });
+        }
+        Ok(claimed)
     })
 }
 
