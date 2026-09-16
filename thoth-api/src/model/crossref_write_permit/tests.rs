@@ -1219,3 +1219,588 @@ fn only_finalisation_moves_a_permit_to_authorized() {
         .expect("authorise");
     assert!(crud.len() - finalise.len() < authorise);
 }
+
+// ---------------------------------------------------------------------------
+// R52B sections 16.7-16.8 and Amendment 3 section 9.8: outcome reports, voids,
+// reconciliation and the internal clearance
+// ---------------------------------------------------------------------------
+
+use crate::model::crossref_write_permit::{
+    CrossrefReconciliationState as Recon, CrossrefWriteOutcome as Outcome,
+};
+
+/// A legacy permit finalised to AUTHORIZED: `(reservation, publisher, work)`.
+fn authorized_legacy(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+) -> (CrossrefWriteReservation, Uuid, Uuid) {
+    let (publisher, imprint) = fx::publisher_and_imprint(pool);
+    fx::cover_crossref(connection, publisher);
+    let work = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+    let reservation =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool, work).expect("reserve");
+    assert_eq!(
+        finalise(pool, &presentation(&reservation, None)).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+    (reservation, publisher, work)
+}
+
+fn state_of(connection: &mut PgConnection, permit: Uuid) -> String {
+    fx::texts(
+        connection,
+        &format!(
+            "SELECT state::text || '|' || coalesce(reconciliation_state::text, '-') || '|' \
+                 || (provider_reported_at IS NOT NULL)::text || '|' || (closed_at IS NOT NULL)::text || '|' \
+                 || coalesce(void_reason::text, '-') || '|' || coalesce(void_detail, '-') || '|' \
+                 || coalesce(void_authorization_reference, '-') || '|' \
+                 || coalesce(reconciliation_annotation_reference, '-') || '|' \
+                 || coalesce(reconciliation_authorization_reference, '-') AS value \
+             FROM crossref_write_permit WHERE permit_id = '{permit}'"
+        ),
+    )
+    .remove(0)
+}
+
+#[test]
+fn the_outcome_report_moves_an_authorized_permit_once() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let deny = |_route: CrossrefWriteRoute| -> ThothResult<()> { Err(ThothError::Unauthorised) };
+
+    let (reservation, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    let report = |token, outcome, authorize: &dyn Fn(CrossrefWriteRoute) -> ThothResult<()>| {
+        permit_crud::report_crossref_write(
+            pool.as_ref(),
+            reservation.permit_id,
+            token,
+            outcome,
+            authorize,
+        )
+    };
+    assert_eq!(
+        report(reservation.reservation_token, Outcome::Accepted, &deny).map(|p| p.permit.state),
+        Err(ThothError::Unauthorised)
+    );
+    assert_eq!(
+        report(Uuid::new_v4(), Outcome::Accepted, &allow).map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitRequiresReservationToken)
+    );
+    let reported =
+        report(reservation.reservation_token, Outcome::Accepted, &allow).expect("reported");
+    assert_eq!(reported.permit.state, CrossrefWritePermitState::Accepted);
+    assert_eq!(
+        state_of(&mut connection, reservation.permit_id),
+        "ACCEPTED|-|true|true|-|-|-|-|-"
+    );
+    // A repeat after a lost response is refused, for the role and token holder only.
+    assert_eq!(
+        report(reservation.reservation_token, Outcome::Accepted, &allow).map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        report(reservation.reservation_token, Outcome::Accepted, &deny).map(|p| p.permit.state),
+        Err(ThothError::Unauthorised)
+    );
+    assert_eq!(
+        permit_crud::report_crossref_write(
+            pool.as_ref(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            Outcome::Accepted,
+            &allow
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitNotFound)
+    );
+
+    // INDETERMINATE is reported but not closed, and blocks.
+    let (reservation, _p, work) = authorized_legacy(pool.as_ref(), &mut connection);
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::Indeterminate,
+        &allow,
+    )
+    .expect("reported");
+    assert_eq!(
+        state_of(&mut connection, reservation.permit_id),
+        "INDETERMINATE|-|true|false|-|-|-|-|-"
+    );
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked)
+    );
+    // A RESERVED permit cannot be reported.
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let fresh = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let reserved = permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), fresh)
+        .expect("reserve");
+    assert_eq!(
+        permit_crud::report_crossref_write(
+            pool.as_ref(),
+            reserved.permit_id,
+            reserved.reservation_token,
+            Outcome::NoneAttempted,
+            &allow
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+
+    // NONE_ATTEMPTED history makes the next reservation strictly later.
+    let (reservation, _p, work) = authorized_legacy(pool.as_ref(), &mut connection);
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::NoneAttempted,
+        &allow,
+    )
+    .expect("reported");
+    let next =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work).expect("next");
+    assert!(next.crossref_timestamp > reservation.crossref_timestamp);
+}
+
+#[test]
+fn both_voids_release_only_a_reserved_permit() {
+    let failing = test_db::failing_pool();
+    for blank in [
+        "",
+        " ",
+        "\t\n\r\u{0b}\u{0c}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2003}",
+        "\u{2028}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{001C}",
+        "\u{001F}",
+        "\u{0001}",
+        "\u{007F}",
+        "\u{009F}",
+    ] {
+        assert_eq!(
+            permit_crud::void_crossref_write_reservation_as_superuser(
+                &failing,
+                Uuid::new_v4(),
+                blank,
+                "REF"
+            )
+            .map(|p| p.permit.state),
+            Err(ThothError::CrossrefPermitVoidRequiresDetail)
+        );
+        assert_eq!(
+            permit_crud::void_crossref_write_reservation_as_superuser(
+                &failing,
+                Uuid::new_v4(),
+                "detail",
+                blank
+            )
+            .map(|p| p.permit.state),
+            Err(ThothError::CrossrefVoidRequiresAuthorizationReference)
+        );
+        assert_eq!(
+            permit_crud::reconcile_crossref_write_permit(
+                &failing,
+                Uuid::new_v4(),
+                Outcome::Accepted,
+                Recon::Reconciled,
+                blank
+            )
+            .map(|p| p.permit.state),
+            Err(ThothError::CrossrefReconciliationRequiresReference)
+        );
+    }
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let work = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let reservation =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work).expect("reserve");
+    let owner = |token, detail: &str| {
+        permit_crud::void_crossref_write_reservation(
+            pool.as_ref(),
+            reservation.permit_id,
+            token,
+            detail,
+            &allow,
+        )
+    };
+    // Role, then the blank detail, then the token and the state.
+    let deny = |_route: CrossrefWriteRoute| -> ThothResult<()> { Err(ThothError::Unauthorised) };
+    assert_eq!(
+        permit_crud::void_crossref_write_reservation(
+            pool.as_ref(),
+            reservation.permit_id,
+            reservation.reservation_token,
+            " ",
+            &deny
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::Unauthorised)
+    );
+    assert_eq!(
+        owner(reservation.reservation_token, " ").map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitVoidRequiresDetail)
+    );
+    assert_eq!(
+        owner(Uuid::new_v4(), "gone").map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitRequiresReservationToken)
+    );
+    let voided = owner(reservation.reservation_token, " worker crashed ").expect("voided");
+    assert_eq!(voided.permit.state, CrossrefWritePermitState::Voided);
+    assert_eq!(
+        state_of(&mut connection, reservation.permit_id),
+        "VOIDED|-|false|true|OWNER_ABANDONED| worker crashed |-|-|-"
+    );
+    assert_eq!(
+        owner(reservation.reservation_token, "again").map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitVoidRequiresReserved)
+    );
+
+    // The superuser void needs no token and persists its reference.
+    let again = permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work)
+        .expect("an overlapping reservation succeeds after the void");
+    let cleaned = permit_crud::void_crossref_write_reservation_as_superuser(
+        pool.as_ref(),
+        again.permit_id,
+        "cleanup",
+        "INC-42",
+    )
+    .expect("cleaned");
+    assert_eq!(
+        cleaned.permit.void_authorization_reference.as_deref(),
+        Some("INC-42")
+    );
+    assert_eq!(
+        state_of(&mut connection, again.permit_id),
+        "VOIDED|-|false|true|OPERATOR_CLEANUP|cleanup|INC-42|-|-"
+    );
+    assert_eq!(
+        permit_crud::void_crossref_write_reservation_as_superuser(
+            pool.as_ref(),
+            Uuid::new_v4(),
+            "cleanup",
+            "INC-42"
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitNotFound)
+    );
+
+    // Neither void touches an AUTHORIZED permit.
+    let (authorized, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    assert_eq!(
+        permit_crud::void_crossref_write_reservation(
+            pool.as_ref(),
+            authorized.permit_id,
+            authorized.reservation_token,
+            "no",
+            &allow
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitVoidRequiresReserved)
+    );
+    assert_eq!(
+        permit_crud::void_crossref_write_reservation_as_superuser(
+            pool.as_ref(),
+            authorized.permit_id,
+            "no",
+            "REF"
+        )
+        .map(|p| p.permit.state),
+        Err(ThothError::CrossrefPermitVoidRequiresReserved)
+    );
+}
+
+#[test]
+fn reconciliation_follows_the_section_16_8_table_exactly() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let reconcile = |permit, outcome, state, reference: &str| {
+        permit_crud::reconcile_crossref_write_permit(
+            pool.as_ref(),
+            permit,
+            outcome,
+            state,
+            reference,
+        )
+        .map(|p| p.permit.state)
+    };
+
+    // AUTHORIZED -> ACCEPTED, reconciled; provider_reported_at stays NULL.
+    let (a, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    assert_eq!(
+        reconcile(a.permit_id, Outcome::Accepted, Recon::Reconciled, "R-1"),
+        Ok(CrossrefWritePermitState::Accepted)
+    );
+    assert_eq!(
+        state_of(&mut connection, a.permit_id),
+        "ACCEPTED|RECONCILED|false|true|-|-|-|-|R-1"
+    );
+    // A repeated confirmation returns the unchanged permit.
+    let before = permit_row(&mut connection, a.permit_id);
+    assert_eq!(
+        reconcile(a.permit_id, Outcome::Accepted, Recon::Reconciled, "R-2"),
+        Ok(CrossrefWritePermitState::Accepted)
+    );
+    assert_eq!(permit_row(&mut connection, a.permit_id), before);
+    assert_eq!(
+        reconcile(
+            a.permit_id,
+            Outcome::NoneAttempted,
+            Recon::Reconciled,
+            "R-2"
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+
+    // AUTHORIZED -> INDETERMINATE annotated; a second annotation refused; then resolved.
+    let (b, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    assert_eq!(
+        reconcile(
+            b.permit_id,
+            Outcome::Indeterminate,
+            Recon::ReconciliationImpossible,
+            "ANN-1"
+        ),
+        Ok(CrossrefWritePermitState::Indeterminate)
+    );
+    assert_eq!(
+        state_of(&mut connection, b.permit_id),
+        "INDETERMINATE|RECONCILIATION_IMPOSSIBLE|false|false|-|-|-|ANN-1|-"
+    );
+    assert_eq!(
+        reconcile(
+            b.permit_id,
+            Outcome::Indeterminate,
+            Recon::ReconciliationRequired,
+            "ANN-2"
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        reconcile(
+            b.permit_id,
+            Outcome::NoneAttempted,
+            Recon::Reconciled,
+            "RES-1"
+        ),
+        Ok(CrossrefWritePermitState::NoneAttempted)
+    );
+    assert_eq!(
+        state_of(&mut connection, b.permit_id),
+        "NONE_ATTEMPTED|RECONCILED|false|true|-|-|-|ANN-1|RES-1"
+    );
+
+    // A reported INDETERMINATE annotated once (S2), then resolved; the report time stays.
+    let (c, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        c.permit_id,
+        c.reservation_token,
+        Outcome::Indeterminate,
+        &allow,
+    )
+    .expect("report");
+    assert_eq!(
+        reconcile(
+            c.permit_id,
+            Outcome::Indeterminate,
+            Recon::ReconciliationRequired,
+            "ANN"
+        ),
+        Ok(CrossrefWritePermitState::Indeterminate)
+    );
+    assert_eq!(
+        reconcile(c.permit_id, Outcome::Accepted, Recon::Reconciled, "RES"),
+        Ok(CrossrefWritePermitState::Accepted)
+    );
+    assert_eq!(
+        state_of(&mut connection, c.permit_id),
+        "ACCEPTED|RECONCILED|true|true|-|-|-|ANN|RES"
+    );
+
+    // Mismatched presentations and reservations are refused.
+    let (d, _p, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    assert_eq!(
+        reconcile(
+            d.permit_id,
+            Outcome::Accepted,
+            Recon::ReconciliationRequired,
+            "X"
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        reconcile(d.permit_id, Outcome::Indeterminate, Recon::Reconciled, "X"),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let work = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let reserved =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work).expect("reserve");
+    assert_eq!(
+        reconcile(
+            reserved.permit_id,
+            Outcome::Accepted,
+            Recon::Reconciled,
+            "X"
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        reconcile(Uuid::new_v4(), Outcome::Accepted, Recon::Reconciled, "X"),
+        Err(ThothError::CrossrefPermitNotFound)
+    );
+}
+
+#[test]
+fn a_fenced_abandonment_is_cleared_only_by_reconciliation_truth() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, _work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+
+    // The worker crashes after finalisation: the lease lapses and recovery runs.
+    fx::execute(&mut connection, &format!("UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"));
+    assert!(
+        fx::claim(pool.as_ref()).is_empty(),
+        "recovered, then refused: fenced abandonment and a blocking permit"
+    );
+    let attempt = |connection: &mut PgConnection| {
+        fx::texts(connection, &format!(
+            "SELECT result::text || '|' || (fenced_at IS NOT NULL)::text || '|' || coalesce(recovery_clearance_reference, '-') AS value \
+             FROM distribution_job_attempt WHERE distribution_job_id = '{job}' ORDER BY attempt_number"
+        ))
+    };
+    assert_eq!(attempt(&mut connection), vec!["ABANDONED|true|-"]);
+
+    // An annotation clears nothing.
+    permit_crud::reconcile_crossref_write_permit(
+        pool.as_ref(),
+        reservation.permit_id,
+        Outcome::Indeterminate,
+        Recon::ReconciliationImpossible,
+        "ANN-7",
+    )
+    .expect("annotate");
+    assert_eq!(attempt(&mut connection), vec!["ABANDONED|true|-"]);
+    assert!(fx::claim(pool.as_ref()).is_empty());
+
+    // The resolution clears the attempt in the same transaction; the job is claimable.
+    permit_crud::reconcile_crossref_write_permit(
+        pool.as_ref(),
+        reservation.permit_id,
+        Outcome::NoneAttempted,
+        Recon::Reconciled,
+        "RES-7",
+    )
+    .expect("resolve");
+    assert_eq!(attempt(&mut connection), vec!["ABANDONED|true|RES-7"]);
+    let reclaimed = fx::claim(pool.as_ref());
+    assert_eq!(reclaimed.len(), 1);
+    assert_eq!(reclaimed[0].attempt_number, 2);
+
+    // No public operation other than reconciliation clears a fenced abandonment.
+    let crud = include_str!("crud.rs");
+    assert_eq!(crud.matches("clear_fenced_abandonment(").count(), 1);
+    let substrate = include_str!("../work_upsert/crud.rs");
+    assert_eq!(substrate.matches("fn clear_fenced_abandonment(").count(), 1);
+}
+
+#[test]
+fn confirmation_of_a_reported_outcome_clears_the_attempt() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, _work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::Accepted,
+        &allow,
+    )
+    .expect("report");
+    fx::execute(&mut connection, &format!("UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"));
+    assert!(
+        fx::claim(pool.as_ref()).is_empty(),
+        "the fenced abandonment blocks"
+    );
+    permit_crud::reconcile_crossref_write_permit(
+        pool.as_ref(),
+        reservation.permit_id,
+        Outcome::Accepted,
+        Recon::Reconciled,
+        "CONF-1",
+    )
+    .expect("confirm");
+    assert_eq!(
+        fx::claim(pool.as_ref()).len(),
+        1,
+        "confirmation cleared the attempt"
+    );
+}
+
+#[test]
+fn a_back_catalogue_unit_is_deposited_at_most_once_per_outer_job() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    let activation = fx::cover_crossref(&mut connection, publisher);
+    let unit = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    fx::execute(&mut connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{publisher}', '{activation}', 'PUBLISHER_BACK_CATALOGUE:{publisher}:{activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE kind = 'PUBLISHER_BACK_CATALOGUE'"
+    ));
+    let outer =
+        job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]).expect("claim");
+    let (outer_job, outer_token) = (outer[0].job.job.distribution_job_id, outer[0].claim_token);
+    let first = permit_crud::reserve_back_catalogue_crossref_write(
+        pool.as_ref(),
+        outer_job,
+        outer_token,
+        unit,
+    )
+    .expect("unit");
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&first, Some(outer_token))).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        first.permit_id,
+        first.reservation_token,
+        Outcome::Accepted,
+        &allow,
+    )
+    .expect("report");
+    assert_eq!(
+        permit_crud::reserve_back_catalogue_crossref_write(
+            pool.as_ref(),
+            outer_job,
+            outer_token,
+            unit
+        )
+        .map(|r| r.permit_id),
+        Err(ThothError::CrossrefUnitAlreadyDepositedInJob)
+    );
+}

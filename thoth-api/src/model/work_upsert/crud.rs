@@ -1047,3 +1047,30 @@ pub(crate) fn job_targets_enabled(
         .load::<DistributionPlatform>(connection)?;
     Ok(targets.iter().all(|target| enabled.contains(target)))
 }
+
+/// `work_upsert_clear_fenced_abandonment` (R52B section 11.7): the internal,
+/// profile-owned clearance of a fenced abandonment, on an attempt row the caller
+/// already holds `FOR UPDATE`. It has no GraphQL exposure and exactly one
+/// caller, `reconcileCrossrefWritePermit`, which calls it only after its own
+/// permit write. It clears only when the attempt is an uncleared fenced
+/// abandonment and no permit of the attempt still blocks.
+pub(crate) fn clear_fenced_abandonment(
+    connection: &mut PgConnection,
+    attempt_id: uuid::Uuid,
+    reference: &str,
+) -> QueryResult<bool> {
+    use diesel::sql_types::{Text, Uuid as SqlUuid};
+    diesel::sql_query(
+        "UPDATE public.distribution_job_attempt a \
+            SET recovery_cleared_at = clock_timestamp(), recovery_clearance_reference = $2 \
+          WHERE a.distribution_job_attempt_id = $1 \
+            AND a.result = 'ABANDONED' AND a.fenced_at IS NOT NULL AND a.recovery_cleared_at IS NULL \
+            AND NOT EXISTS (SELECT 1 FROM public.crossref_write_permit p \
+                             WHERE p.attempt_identity = a.distribution_job_attempt_id \
+                               AND public.crossref_is_blocking_write_permit(p.state, p.reconciliation_state))",
+    )
+    .bind::<SqlUuid, _>(attempt_id)
+    .bind::<Text, _>(reference)
+    .execute(connection)
+    .map(|cleared| cleared == 1)
+}

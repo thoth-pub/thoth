@@ -1004,3 +1004,258 @@ pub fn finalise_crossref_write(
         })
     })
 }
+
+/// Lock the permit row, check the reservation token, and return the row.
+fn lock_permit_with_token(
+    connection: &mut PgConnection,
+    permit_id: Uuid,
+    reservation_token: Option<Uuid>,
+) -> Tx<super::CrossrefWritePermitWithDois> {
+    let Some(current) = permit_with_dois(connection, permit_id, true)? else {
+        return refuse(ThothError::CrossrefPermitNotFound);
+    };
+    if let Some(token) = reservation_token {
+        if current.permit.reservation_token != token {
+            return refuse(ThothError::CrossrefPermitRequiresReservationToken);
+        }
+    }
+    Ok(current)
+}
+
+fn reload(
+    connection: &mut PgConnection,
+    permit_id: Uuid,
+) -> Tx<super::CrossrefWritePermitWithDois> {
+    permit_with_dois(connection, permit_id, false)?.ok_or(WorkUpsertTxError::Thoth(
+        ThothError::WorkUpsertDatabaseFailure,
+    ))
+}
+
+fn now() -> diesel::expression::SqlLiteral<Nullable<diesel::sql_types::Timestamptz>> {
+    diesel::dsl::sql::<Nullable<diesel::sql_types::Timestamptz>>("clock_timestamp()")
+}
+
+/// `reportCrossrefWrite` (R52B section 16.7; Amendment 3 section 9.8): moves
+/// `AUTHORIZED` to the reported outcome, writing `provider_reported_at` from the
+/// server clock and closing a terminal outcome. Takes `X` only.
+pub fn report_crossref_write(
+    db: &PgPool,
+    permit_id: Uuid,
+    reservation_token: Uuid,
+    outcome: super::CrossrefWriteOutcome,
+    authorize_route: &dyn Fn(CrossrefWriteRoute) -> ThothResult<()>,
+) -> ThothResult<super::CrossrefWritePermitWithDois> {
+    use super::CrossrefWriteOutcome as Outcome;
+    use crate::schema::crossref_write_permit as permit;
+    work_upsert_transaction(db, |connection| {
+        let Some(metadata) = permit_metadata(connection, permit_id)? else {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        };
+        authorize_route(metadata.route)?;
+        let current = lock_permit_with_token(connection, permit_id, Some(reservation_token))?;
+        if current.permit.state != CrossrefWritePermitState::Authorized {
+            return refuse(ThothError::CrossrefPermitIllegalTransition);
+        }
+        let (state, closes) = match outcome {
+            Outcome::Accepted => (CrossrefWritePermitState::Accepted, true),
+            Outcome::Indeterminate => (CrossrefWritePermitState::Indeterminate, false),
+            Outcome::NoneAttempted => (CrossrefWritePermitState::NoneAttempted, true),
+        };
+        let target = permit::table.filter(permit::permit_id.eq(permit_id));
+        if closes {
+            diesel::update(target)
+                .set((
+                    permit::state.eq(state),
+                    permit::provider_reported_at.eq(now()),
+                    permit::closed_at.eq(now()),
+                ))
+                .execute(connection)?;
+        } else {
+            diesel::update(target)
+                .set((
+                    permit::state.eq(state),
+                    permit::provider_reported_at.eq(now()),
+                ))
+                .execute(connection)?;
+        }
+        reload(connection, permit_id)
+    })
+}
+
+/// `voidCrossrefWriteReservation` (R52B section 16.7; Amendment 3 section 9.8):
+/// the route owner's void, `RESERVED` to `VOIDED` with `OWNER_ABANDONED`.
+pub fn void_crossref_write_reservation(
+    db: &PgPool,
+    permit_id: Uuid,
+    reservation_token: Uuid,
+    detail: &str,
+    authorize_route: &dyn Fn(CrossrefWriteRoute) -> ThothResult<()>,
+) -> ThothResult<super::CrossrefWritePermitWithDois> {
+    work_upsert_transaction(db, |connection| {
+        let Some(metadata) = permit_metadata(connection, permit_id)? else {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        };
+        authorize_route(metadata.route)?;
+        if policy::is_blank(detail) {
+            return refuse(ThothError::CrossrefPermitVoidRequiresDetail);
+        }
+        let current = lock_permit_with_token(connection, permit_id, Some(reservation_token))?;
+        explicit_void(
+            connection,
+            current,
+            super::CrossrefVoidReason::OwnerAbandoned,
+            detail,
+            None,
+        )
+    })
+}
+
+/// `voidCrossrefWriteReservationAsSuperuser` (R52B section 16.7; Amendment 3
+/// section 9.8): `RESERVED` to `VOIDED` with `OPERATOR_CLEANUP`, on any route,
+/// with no reservation token.
+pub fn void_crossref_write_reservation_as_superuser(
+    db: &PgPool,
+    permit_id: Uuid,
+    detail: &str,
+    authorization_reference: &str,
+) -> ThothResult<super::CrossrefWritePermitWithDois> {
+    if policy::is_blank(detail) {
+        return Err(ThothError::CrossrefPermitVoidRequiresDetail);
+    }
+    if policy::is_blank(authorization_reference) {
+        return Err(ThothError::CrossrefVoidRequiresAuthorizationReference);
+    }
+    work_upsert_transaction(db, |connection| {
+        if permit_metadata(connection, permit_id)?.is_none() {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        }
+        let current = lock_permit_with_token(connection, permit_id, None)?;
+        explicit_void(
+            connection,
+            current,
+            super::CrossrefVoidReason::OperatorCleanup,
+            detail,
+            Some(authorization_reference),
+        )
+    })
+}
+
+fn explicit_void(
+    connection: &mut PgConnection,
+    current: super::CrossrefWritePermitWithDois,
+    reason: super::CrossrefVoidReason,
+    detail: &str,
+    authorization_reference: Option<&str>,
+) -> Tx<super::CrossrefWritePermitWithDois> {
+    use crate::schema::crossref_write_permit as permit;
+    if current.permit.state != CrossrefWritePermitState::Reserved {
+        return refuse(ThothError::CrossrefPermitVoidRequiresReserved);
+    }
+    let permit_id = current.permit.permit_id;
+    diesel::update(permit::table.filter(permit::permit_id.eq(permit_id)))
+        .set((
+            permit::state.eq(CrossrefWritePermitState::Voided),
+            permit::void_reason.eq(reason),
+            permit::void_detail.eq(detail),
+            permit::void_authorization_reference.eq(authorization_reference),
+            permit::closed_at.eq(now()),
+        ))
+        .execute(connection)?;
+    reload(connection, permit_id)
+}
+
+/// `reconcileCrossrefWritePermit` (R52B section 16.8; Amendment 3 section 9.8):
+/// `A` (when the permit has an attempt), then `X`; the transition table of
+/// section 16.8; then the internal clearance of the attempt.
+pub fn reconcile_crossref_write_permit(
+    db: &PgPool,
+    permit_id: Uuid,
+    outcome: super::CrossrefWriteOutcome,
+    reconciliation_state: super::CrossrefReconciliationState,
+    authorization_reference: &str,
+) -> ThothResult<super::CrossrefWritePermitWithDois> {
+    use super::{CrossrefReconciliationState as Recon, CrossrefWriteOutcome as Outcome};
+    use crate::schema::crossref_write_permit as permit;
+    use CrossrefWritePermitState as State;
+
+    if policy::is_blank(authorization_reference) {
+        return Err(ThothError::CrossrefReconciliationRequiresReference);
+    }
+    work_upsert_transaction(db, |connection| {
+        let Some(metadata) = permit_metadata(connection, permit_id)? else {
+            return refuse(ThothError::CrossrefPermitNotFound);
+        };
+        let held_attempt = match metadata.attempt_identity {
+            Some(attempt_id) => {
+                use crate::schema::distribution_job_attempt as attempt;
+                attempt::table
+                    .filter(attempt::distribution_job_attempt_id.eq(attempt_id))
+                    .select(attempt::distribution_job_attempt_id)
+                    .for_update()
+                    .first::<Uuid>(connection)
+                    .optional()?
+            }
+            None => None,
+        };
+        let current = lock_permit_with_token(connection, permit_id, None)?;
+        let (from, recorded) = (current.permit.state, current.permit.reconciliation_state);
+        let target = permit::table.filter(permit::permit_id.eq(permit_id));
+        let resolved_state = match outcome {
+            Outcome::Accepted => Some(State::Accepted),
+            Outcome::NoneAttempted => Some(State::NoneAttempted),
+            Outcome::Indeterminate => None,
+        };
+        match (from, resolved_state, reconciliation_state) {
+            // A resolution of AUTHORIZED or INDETERMINATE.
+            (State::Authorized | State::Indeterminate, Some(to), Recon::Reconciled) => {
+                diesel::update(target)
+                    .set((
+                        permit::state.eq(to),
+                        permit::reconciliation_state.eq(Some(Recon::Reconciled)),
+                        permit::reconciliation_authorization_reference.eq(authorization_reference),
+                        permit::reconciled_at.eq(now()),
+                        permit::closed_at.eq(now()),
+                    ))
+                    .execute(connection)?;
+            }
+            // The annotation act, from AUTHORIZED or an unannotated INDETERMINATE.
+            (
+                State::Authorized,
+                None,
+                Recon::ReconciliationRequired | Recon::ReconciliationImpossible,
+            )
+            | (
+                State::Indeterminate,
+                None,
+                Recon::ReconciliationRequired | Recon::ReconciliationImpossible,
+            ) if recorded.is_none() => {
+                diesel::update(target)
+                    .set((
+                        permit::state.eq(State::Indeterminate),
+                        permit::reconciliation_state.eq(Some(reconciliation_state)),
+                        permit::reconciliation_annotation_reference.eq(authorization_reference),
+                        permit::reconciliation_annotated_at.eq(now()),
+                    ))
+                    .execute(connection)?;
+            }
+            // Confirmation of a terminal truth.
+            (State::Accepted | State::NoneAttempted, Some(to), Recon::Reconciled) if to == from => {
+                if recorded.is_none() {
+                    diesel::update(target)
+                        .set((
+                            permit::reconciliation_state.eq(Some(Recon::Reconciled)),
+                            permit::reconciliation_authorization_reference
+                                .eq(authorization_reference),
+                            permit::reconciled_at.eq(now()),
+                        ))
+                        .execute(connection)?;
+                }
+            }
+            _ => return refuse(ThothError::CrossrefPermitIllegalTransition),
+        }
+        if let Some(attempt_id) = held_attempt {
+            substrate::clear_fenced_abandonment(connection, attempt_id, authorization_reference)?;
+        }
+        reload(connection, permit_id)
+    })
+}
