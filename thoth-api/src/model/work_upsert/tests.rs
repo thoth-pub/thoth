@@ -6211,3 +6211,131 @@ fn t40_residue_survives_arbitrary_worker_absence_and_a_later_drain_materializes_
         vec!["PENDING|-|2|1|false|false|CROSSREF"]
     );
 }
+
+// ---------------------------------------------------------------------------
+// The race harness (R52B section 25.2): real sessions, a named pause point
+// inside an open transaction, and waits read from `pg_locks`, never assumed.
+// ---------------------------------------------------------------------------
+
+pub(crate) mod race {
+    use diesel::connection::SimpleConnection;
+    use diesel::{Connection, PgConnection};
+
+    use super::{count, texts};
+
+    /// The advisory namespace of the test-only pause points; it collides with no BE-06 key.
+    const PAUSE_NAMESPACE: i64 = 1_948_579_000;
+
+    pub(crate) fn dedicated() -> PgConnection {
+        PgConnection::establish(&crate::model::tests::db::test_db_url())
+            .expect("dedicated connection")
+    }
+
+    /// A pause point: the first transaction that fires `event` on `table` after installation blocks, inside its
+    /// open transaction, on an advisory lock the controller holds, until `release`. Every later transaction passes
+    /// through without pausing. The trigger is test-only, lives outside `public`'s BE-06 manifest under a
+    /// `be06_test` function, and is removed when the point is dropped.
+    pub(crate) struct PausePoint {
+        controller: PgConnection,
+        name: String,
+        table: String,
+        held: bool,
+    }
+
+    impl PausePoint {
+        pub(crate) fn install(name: &str, event: &str, table: &str) -> Self {
+            let mut controller = dedicated();
+            controller
+                .batch_execute(&format!(
+                    "CREATE SCHEMA IF NOT EXISTS be06_test;
+                     CREATE TABLE IF NOT EXISTS be06_test.pause_arm (point text PRIMARY KEY);
+                     CREATE OR REPLACE FUNCTION be06_test.pause() RETURNS trigger LANGUAGE plpgsql AS $$
+                     DECLARE armed boolean;
+                     BEGIN
+                         SELECT true INTO armed FROM be06_test.pause_arm WHERE point = TG_ARGV[0] FOR UPDATE SKIP LOCKED;
+                         IF armed THEN
+                             DELETE FROM be06_test.pause_arm WHERE point = TG_ARGV[0];
+                             PERFORM pg_advisory_xact_lock({PAUSE_NAMESPACE}, hashtext(TG_ARGV[0]));
+                         END IF;
+                         IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+                         RETURN NEW;
+                     END $$;
+                     SELECT pg_advisory_lock({PAUSE_NAMESPACE}, hashtext('{name}'));
+                     INSERT INTO be06_test.pause_arm (point) VALUES ('{name}') ON CONFLICT DO NOTHING;
+                     CREATE TRIGGER be06_test_pause_{name} BEFORE {event} ON public.{table}
+                         FOR EACH ROW EXECUTE FUNCTION be06_test.pause('{name}');"
+                ))
+                .expect("install the pause point");
+            PausePoint {
+                controller,
+                name: name.to_string(),
+                table: table.to_string(),
+                held: true,
+            }
+        }
+
+        /// Wait until a session is paused here.
+        pub(crate) fn wait_paused(&self, observer: &mut PgConnection) {
+            super::wait_until(|| paused_sessions(observer) >= 1);
+        }
+
+        pub(crate) fn release(&mut self) {
+            if self.held {
+                self.controller
+                    .batch_execute(&format!(
+                        "SELECT pg_advisory_unlock({PAUSE_NAMESPACE}, hashtext('{}'))",
+                        self.name
+                    ))
+                    .expect("release");
+                self.held = false;
+            }
+        }
+    }
+
+    impl Drop for PausePoint {
+        fn drop(&mut self) {
+            self.release();
+            let _ = self.controller.batch_execute(&format!(
+                "DROP TRIGGER IF EXISTS be06_test_pause_{name} ON public.{table};
+                 DELETE FROM be06_test.pause_arm WHERE point = '{name}';",
+                name = self.name,
+                table = self.table
+            ));
+        }
+    }
+
+    /// Sessions currently blocked at a pause point.
+    pub(crate) fn paused_sessions(observer: &mut PgConnection) -> i64 {
+        count(
+            observer,
+            &format!(
+                "SELECT count(*) AS count FROM pg_locks \
+                 WHERE locktype = 'advisory' AND NOT granted AND classid = {PAUSE_NAMESPACE}"
+            ),
+        )
+    }
+
+    /// Ungranted locks other than the pause points', as `locktype:mode`, sorted.
+    pub(crate) fn waits(observer: &mut PgConnection) -> Vec<String> {
+        texts(
+            observer,
+            &format!(
+                "SELECT locktype || ':' || mode AS value FROM pg_locks \
+                 WHERE NOT granted AND NOT (locktype = 'advisory' AND classid = {PAUSE_NAMESPACE}) \
+                 ORDER BY 1"
+            ),
+        )
+    }
+
+    /// Wait until at least `n` sessions wait on a lock that is not a pause point, and return the transcript.
+    pub(crate) fn wait_for_waits(observer: &mut PgConnection, n: usize) -> Vec<String> {
+        super::wait_until(|| waits(observer).len() >= n);
+        waits(observer)
+    }
+
+    /// Assert that the thread has not finished after a short grace period: it did not escape the wait.
+    pub(crate) fn assert_blocked<T>(handle: &std::thread::JoinHandle<T>) {
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        assert!(!handle.is_finished(), "the session was expected to wait");
+    }
+}

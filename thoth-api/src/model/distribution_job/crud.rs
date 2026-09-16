@@ -1042,14 +1042,24 @@ fn work_upsert_cancellation_guard(
         #[diesel(sql_type = Bool)]
         fenced_work_upsert: bool,
     }
+    // The lock, then the fence in a later statement: under READ COMMITTED a
+    // statement that waited for the job row still reads the attempt with the
+    // snapshot it started with, and would miss a fence committed while it waited.
+    diesel::sql_query(
+        "SELECT j.distribution_job_id FROM distribution_job j \
+          WHERE j.distribution_job_id = $1 AND j.status IN ('PENDING', 'RUNNING') \
+          FOR UPDATE OF j",
+    )
+    .bind::<SqlUuid, _>(distribution_job_id)
+    .execute(connection)
+    .work_upsert()?;
     let current = diesel::sql_query(
         "SELECT (j.kind = 'WORK_UPSERT' AND j.status = 'RUNNING' AND EXISTS ( \
                      SELECT 1 FROM distribution_job_attempt a \
                       WHERE a.claim_token = j.claim_token AND a.finished_at IS NULL \
                         AND a.fenced_at IS NOT NULL)) AS fenced_work_upsert \
            FROM distribution_job j \
-          WHERE j.distribution_job_id = $1 AND j.status IN ('PENDING', 'RUNNING') \
-          FOR UPDATE OF j",
+          WHERE j.distribution_job_id = $1 AND j.status IN ('PENDING', 'RUNNING')",
     )
     .bind::<SqlUuid, _>(distribution_job_id)
     .get_result::<Current>(connection)
