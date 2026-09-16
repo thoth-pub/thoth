@@ -4845,3 +4845,284 @@ fn the_named_clauses_are_exactly_the_one_eligibility_expression() {
     );
     assert_eq!(joined, policy::CROSSREF_SQL_ELIGIBILITY);
 }
+
+// ---------------------------------------------------------------------------
+// R52B section 20 and Amendment 3 section 4.4: the reports
+// ---------------------------------------------------------------------------
+
+use crate::model::work_upsert::{
+    WorkUpsertEligibilityClause, WorkUpsertResidueClass, WorkUpsertResolutionState,
+};
+
+#[test]
+fn reports_1_2_8_resolution_agrees_with_the_migration_function_and_lag_is_derived() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, resolved_work) = drainable_work(pool.as_ref(), &mut connection, 3);
+    let job = materialize(pool.as_ref(), resolved_work, false)
+        .job
+        .expect("job");
+    execute(&mut connection, &format!("UPDATE distribution_job SET status = 'SUCCEEDED', completed_at = now() WHERE distribution_job_id = '{}'", job.distribution_job_id));
+    set_generation(&mut connection, resolved_work, 3);
+    let (_p, _i, _a, residue_work) = drainable_work(pool.as_ref(), &mut connection, 5);
+    let (_p, _i, _a, actionable_work) = drainable_work(pool.as_ref(), &mut connection, 2);
+    materialize(pool.as_ref(), actionable_work, false);
+
+    let rows = work_upsert_crud::work_upsert_resolutions(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        100,
+        0,
+    )
+    .expect("report");
+    assert_eq!(
+        work_upsert_crud::work_upsert_resolution_count(
+            pool.as_ref(),
+            DistributionPlatform::Crossref
+        ),
+        Ok(rows.len() as i32)
+    );
+    for row in &rows {
+        let function = texts(
+            &mut connection,
+            &format!(
+                "SELECT public.work_upsert_resolution('{}', 'CROSSREF')::text AS value",
+                row.work_id
+            ),
+        )
+        .remove(0);
+        assert_eq!(row.resolution_generation.to_string(), function);
+        assert_eq!(
+            row.resolution_generation,
+            row.success_resolution_generation
+                .max(row.terminal_job_resolution_generation)
+        );
+    }
+    let find = |work: Uuid| rows.iter().find(|row| row.work_id == work).expect("row");
+    let resolved = find(resolved_work);
+    assert_eq!(
+        (
+            resolved.state,
+            resolved.success_resolution_generation,
+            resolved.outstanding_residue
+        ),
+        (WorkUpsertResolutionState::Resolved, 3, None)
+    );
+    let residue = find(residue_work);
+    assert_eq!(
+        (
+            residue.state,
+            residue.current_source_generation,
+            residue.outstanding_residue
+        ),
+        (WorkUpsertResolutionState::Residue, 5, Some((0, 5)))
+    );
+    assert_eq!(
+        find(actionable_work).state,
+        WorkUpsertResolutionState::Actionable
+    );
+    // Report 8: the largest outstanding residue among non-resolved rows.
+    assert_eq!(
+        work_upsert_crud::work_upsert_capture_lag(pool.as_ref(), DistributionPlatform::Crossref),
+        Ok(5)
+    );
+    assert_eq!(
+        work_upsert_crud::work_upsert_resolutions(
+            pool.as_ref(),
+            DistributionPlatform::Figshare,
+            10,
+            0
+        )
+        .map(|r| r.len()),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+}
+
+#[test]
+fn reports_3_4_residue_classes_and_stale_bindings() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint, _activation, materializable) =
+        drainable_work(pool.as_ref(), &mut connection, 1);
+    let ineligible = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE publication SET isbn = NULL WHERE work_id = '{ineligible}'"),
+    );
+    let abstract_only = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(&mut connection, &format!(
+        "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) VALUES ('{abstract_only}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)"
+    ));
+    let (_unadmitted, unadmitted_imprint, _a, _w) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    let not_admitted = insert_eligible_work(&mut connection, unadmitted_imprint, Uuid::new_v4());
+
+    let rows = work_upsert_crud::work_upsert_residue(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        100,
+        0,
+    )
+    .expect("report");
+    let class = |work: Uuid| {
+        rows.iter()
+            .find(|row| row.work_id == work)
+            .map(|row| (row.class, row.failing_clause))
+    };
+    assert_eq!(
+        class(materializable),
+        Some((WorkUpsertResidueClass::Materializable, None))
+    );
+    assert_eq!(
+        class(ineligible),
+        Some((
+            WorkUpsertResidueClass::Ineligible,
+            Some(WorkUpsertEligibilityClause::Isbn)
+        ))
+    );
+    assert_eq!(
+        class(abstract_only),
+        Some((
+            WorkUpsertResidueClass::Ineligible,
+            Some(WorkUpsertEligibilityClause::AbstractNormalisation)
+        ))
+    );
+    assert_eq!(
+        class(not_admitted),
+        Some((WorkUpsertResidueClass::NotAdmitted, None))
+    );
+
+    // Report 4: a PENDING job whose activation changed.
+    let job = materialize(pool.as_ref(), materializable, false)
+        .job
+        .expect("job");
+    assert!(work_upsert_crud::work_upsert_stale_bindings(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        100,
+        0
+    )
+    .expect("report")
+    .is_empty());
+    cover_crossref(&mut connection, publisher);
+    let stale = work_upsert_crud::work_upsert_stale_bindings(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        100,
+        0,
+    )
+    .expect("report");
+    assert_eq!(stale.len(), 1);
+    assert_eq!(
+        (stale[0].distribution_job_id, stale[0].work_id),
+        (job.distribution_job_id, materializable)
+    );
+    assert_eq!(
+        stale[0].reason,
+        DistributionJobCancellationReason::BindingSuperseded
+    );
+    disable_crossref(&mut connection, publisher);
+    let stale = work_upsert_crud::work_upsert_stale_bindings(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+        100,
+        0,
+    )
+    .expect("report");
+    assert_eq!(
+        stale[0].reason,
+        DistributionJobCancellationReason::AssignmentDisabled
+    );
+}
+
+#[test]
+fn reports_5_6_7_jobs_attempts_and_recovery_blocks_by_identity() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, work, job, token) = claimed(pool.as_ref(), &mut connection);
+    finalise_authorized(pool.as_ref(), job, token);
+    execute(&mut connection, &format!("UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"));
+    claim(pool.as_ref());
+
+    let blocked = work_upsert_crud::work_upsert_blocked_by_recovery(
+        pool.as_ref(),
+        DistributionPlatform::Crossref,
+    )
+    .expect("report");
+    assert_eq!(blocked.len(), 1);
+    assert_eq!(
+        (blocked[0].work_identity, blocked[0].distribution_job_id),
+        (work, job)
+    );
+
+    let jobs =
+        work_upsert_crud::work_upsert_jobs(pool.as_ref(), DistributionPlatform::Crossref, 100, 0)
+            .expect("report");
+    assert_eq!(jobs.len(), 1);
+    assert_eq!(jobs[0].job.distribution_job_id, job);
+    assert_eq!(jobs[0].preloaded_targets.as_ref().map(|t| t.len()), Some(1));
+    assert_eq!(
+        jobs[0].preloaded_attempts.as_ref().map(|a| a.len()),
+        Some(1)
+    );
+
+    // Historical identity: after the Work is deleted the report still finds it.
+    execute(&mut connection, &format!("UPDATE distribution_job_attempt SET recovery_cleared_at = now(), recovery_clearance_reference = 'R' WHERE distribution_job_id = '{job}'"));
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    let by_identity = work_upsert_crud::work_upsert_job(pool.as_ref(), work).expect("report");
+    assert_eq!(by_identity.len(), 1);
+    assert_eq!(
+        (by_identity[0].job.work_id, by_identity[0].job.work_identity),
+        (None, Some(work))
+    );
+    let attempts = work_upsert_crud::work_upsert_attempts(pool.as_ref(), work).expect("report");
+    assert_eq!(attempts.len(), 1);
+    assert!(attempts[0].fenced_at.is_some());
+}
+
+#[test]
+fn x11_only_the_claim_and_the_job_reports_reuse_released_job_helpers() {
+    let mut calls = Vec::new();
+    for path in [
+        "src/model/work_upsert/crud.rs",
+        "src/model/work_upsert/mod.rs",
+        "src/model/crossref_write_permit/crud.rs",
+        "src/model/crossref_write_permit/mod.rs",
+    ] {
+        let text = source(path);
+        let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
+        for helper in [
+            "targets_for_jobs(",
+            "attempts_for_jobs(",
+            "recover_expired_leases(",
+            "latest_back_catalogue_job",
+            "classify_worker_write_failure(",
+        ] {
+            for (index, _) in text.match_indices(helper) {
+                let function = item
+                    .captures_iter(&text[..index])
+                    .last()
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
+                calls.push(format!("{function}:{helper}"));
+            }
+        }
+    }
+    calls.sort();
+    calls.dedup();
+    assert_eq!(
+        calls,
+        vec![
+            "load_job_payloads:attempts_for_jobs(",
+            "load_job_payloads:targets_for_jobs(",
+        ]
+    );
+    let crud = source("src/model/work_upsert/crud.rs");
+    for report in [
+        "pub fn work_upsert_jobs(",
+        "pub fn work_upsert_job(",
+        "pub fn work_upsert_attempts(",
+    ] {
+        assert!(crud.contains(report), "{report}");
+    }
+}

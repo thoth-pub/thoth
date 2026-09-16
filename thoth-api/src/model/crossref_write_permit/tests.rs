@@ -2449,3 +2449,64 @@ fn x4_every_be06_statement_in_the_shared_job_operations_uses_the_scoped_conversi
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 4.4 entries 11-14: permit, floor and safety reports
+// ---------------------------------------------------------------------------
+
+#[test]
+fn reports_11_to_14_list_permits_unresolved_permits_the_floor_and_drain() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    assert_eq!(
+        permit_crud::crossref_blocking_write_permit_count(pool.as_ref()),
+        Ok(0)
+    );
+    assert_eq!(permit_crud::crossref_drained(pool.as_ref()), Ok(true));
+
+    let (_p, _i, _a, _work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let (authorized, _publisher, _w) = authorized_legacy(pool.as_ref(), &mut connection);
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        authorized.permit_id,
+        authorized.reservation_token,
+        Outcome::NoneAttempted,
+        &allow,
+    )
+    .expect("report");
+    assert_eq!(
+        permit_crud::crossref_blocking_write_permit_count(pool.as_ref()),
+        Ok(1)
+    );
+    assert_eq!(permit_crud::crossref_drained(pool.as_ref()), Ok(false));
+
+    let attempt = fx::texts(&mut connection, &format!("SELECT distribution_job_attempt_id::text AS value FROM distribution_job_attempt WHERE distribution_job_id = '{job}'")).remove(0);
+    let filter = permit_crud::CrossrefWritePermitFilter {
+        job_identity: Some(job),
+        attempt_identity: Some(Uuid::parse_str(&attempt).expect("uuid")),
+        ..Default::default()
+    };
+    let found =
+        permit_crud::crossref_write_permits(pool.as_ref(), &filter, 100, 0).expect("report");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].permit.permit_id, reservation.permit_id);
+    assert_eq!(found[0].dois, reservation.dois);
+    assert_eq!(
+        permit_crud::crossref_write_permits(pool.as_ref(), &Default::default(), 100, 0)
+            .map(|p| p.len()),
+        Ok(2)
+    );
+
+    let unresolved = permit_crud::crossref_unresolved_permits(pool.as_ref()).expect("report");
+    assert_eq!(
+        unresolved
+            .iter()
+            .map(|p| p.permit.permit_id)
+            .collect::<Vec<_>>(),
+        vec![reservation.permit_id]
+    );
+
+    let floor = permit_crud::crossref_version_floor(pool.as_ref()).expect("report");
+    assert_eq!((floor.floor_value, floor.advances.len()), (0, 0));
+}

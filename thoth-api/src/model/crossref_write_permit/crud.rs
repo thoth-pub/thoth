@@ -1390,3 +1390,182 @@ pub fn advance_crossref_version_floor(
         })
     })
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 4.4 entries 11-14: the Crossref reports. Superuser-only
+// at the resolver; the reservation token is never part of any result type.
+// ---------------------------------------------------------------------------
+
+/// The optional filters of `crossrefWritePermits`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CrossrefWritePermitFilter {
+    pub job_identity: Option<Uuid>,
+    pub attempt_identity: Option<Uuid>,
+    pub root_work_identity: Option<Uuid>,
+    pub publisher_identity: Option<Uuid>,
+    pub states: Vec<CrossrefWritePermitState>,
+}
+
+fn with_dois(
+    connection: &mut PgConnection,
+    permits: Vec<super::CrossrefWritePermit>,
+) -> QueryResult<Vec<super::CrossrefWritePermitWithDois>> {
+    permits
+        .into_iter()
+        .map(|permit| {
+            let dois = membership_of(connection, permit.permit_id)?;
+            Ok(super::CrossrefWritePermitWithDois { permit, dois })
+        })
+        .collect()
+}
+
+/// Report 11, `crossrefWritePermits`: permits in issuance order.
+pub fn crossref_write_permits(
+    db: &PgPool,
+    filter: &CrossrefWritePermitFilter,
+    limit: i32,
+    offset: i32,
+) -> ThothResult<Vec<super::CrossrefWritePermitWithDois>> {
+    use crate::schema::crossref_write_permit as permit;
+    work_upsert_transaction(db, |connection| {
+        let mut query = permit::table.into_boxed();
+        if let Some(value) = filter.job_identity {
+            query = query.filter(permit::job_identity.eq(value));
+        }
+        if let Some(value) = filter.attempt_identity {
+            query = query.filter(permit::attempt_identity.eq(value));
+        }
+        if let Some(value) = filter.root_work_identity {
+            query = query.filter(permit::root_work_identity.eq(value));
+        }
+        if let Some(value) = filter.publisher_identity {
+            query = query.filter(permit::publisher_identity.eq(value));
+        }
+        if !filter.states.is_empty() {
+            query = query.filter(permit::state.eq_any(filter.states.clone()));
+        }
+        let permits = query
+            .order((permit::issued_at.asc(), permit::permit_id.asc()))
+            .limit(i64::from(limit.max(0)))
+            .offset(i64::from(offset.max(0)))
+            .load::<super::CrossrefWritePermit>(connection)?;
+        Ok(with_dois(connection, permits)?)
+    })
+}
+
+/// Report 12, `crossrefUnresolvedPermits`: blocking permits, oldest first.
+pub fn crossref_unresolved_permits(
+    db: &PgPool,
+) -> ThothResult<Vec<super::CrossrefWritePermitWithDois>> {
+    work_upsert_transaction(db, |connection| {
+        let permits = diesel::sql_query(
+            "SELECT * FROM public.crossref_write_permit \
+              WHERE public.crossref_is_blocking_write_permit(state, reconciliation_state) \
+              ORDER BY issued_at, permit_id",
+        )
+        .load::<super::CrossrefWritePermit>(connection)?;
+        Ok(with_dois(connection, permits)?)
+    })
+}
+
+/// Report 13, `crossrefVersionFloor`.
+pub fn crossref_version_floor(db: &PgPool) -> ThothResult<super::CrossrefVersionFloorReport> {
+    use crate::schema::{
+        crossref_version_floor_audit as audit, work_crossref_version_floor as floor,
+    };
+    work_upsert_transaction(db, |connection| {
+        let floor_value = floor::table
+            .select(floor::floor_value)
+            .first::<i64>(connection)?;
+        let rows = audit::table
+            .filter(audit::mutation_kind.eq("ADVANCE_VERSION_FLOOR"))
+            .order((audit::occurred_at.asc(), audit::audit_id.asc()))
+            .select((
+                audit::audit_id,
+                audit::before_value,
+                audit::after_value,
+                audit::g6_attempt_id,
+                audit::observation_id,
+                audit::g7_authorization_reference,
+                audit::authorization_register_digest,
+                audit::actor,
+                audit::occurred_at,
+            ))
+            .load::<(
+                Uuid,
+                Option<i64>,
+                Option<i64>,
+                Option<Uuid>,
+                Option<Uuid>,
+                Option<String>,
+                Option<String>,
+                String,
+                crate::model::Timestamp,
+            )>(connection)?;
+        let advances = rows
+            .into_iter()
+            .filter_map(
+                |(
+                    audit_id,
+                    before,
+                    after,
+                    attempt,
+                    observation,
+                    reference,
+                    digest,
+                    actor,
+                    occurred_at,
+                )| {
+                    Some(super::CrossrefVersionFloorAdvance {
+                        audit_id,
+                        before_value: before?,
+                        after_value: after?,
+                        g6_attempt_id: attempt?,
+                        observation_id: observation?,
+                        authorization_reference: reference?,
+                        authorization_register_digest: digest?,
+                        actor,
+                        occurred_at,
+                    })
+                },
+            )
+            .collect();
+        Ok(super::CrossrefVersionFloorReport {
+            floor_value,
+            advances,
+        })
+    })
+}
+
+/// Report 14, `crossrefBlockingWritePermitCount`: argument-free.
+pub fn crossref_blocking_write_permit_count(db: &PgPool) -> ThothResult<i32> {
+    #[derive(QueryableByName)]
+    struct Count {
+        #[diesel(sql_type = BigInt)]
+        count: i64,
+    }
+    let count = work_upsert_transaction(db, |connection| {
+        Ok(
+            diesel::sql_query("SELECT public.crossref_blocking_write_permit_count() AS count")
+                .get_result::<Count>(connection)?
+                .count,
+        )
+    })?;
+    i32::try_from(count).map_err(|_| ThothError::InternalError(String::new()))
+}
+
+/// Report 14, `crossrefDrained`: argument-free.
+pub fn crossref_drained(db: &PgPool) -> ThothResult<bool> {
+    #[derive(QueryableByName)]
+    struct Drained {
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        drained: bool,
+    }
+    work_upsert_transaction(db, |connection| {
+        Ok(
+            diesel::sql_query("SELECT public.crossref_is_drained() AS drained")
+                .get_result::<Drained>(connection)?
+                .drained,
+        )
+    })
+}

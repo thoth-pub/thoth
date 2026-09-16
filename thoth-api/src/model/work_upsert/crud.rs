@@ -1074,3 +1074,383 @@ pub(crate) fn clear_fenced_abandonment(
     .execute(connection)
     .map(|cleared| cleared == 1)
 }
+
+// ---------------------------------------------------------------------------
+// R52B section 20 and Amendment 3 section 4.4: the work-level reports
+// (entries 1-8; 9 and 10 are above). Superuser-only at the resolver.
+// ---------------------------------------------------------------------------
+
+/// Report 1, `workUpsertResolution`: every generation row of the profile,
+/// ascending by `work_id`, with `D`, `H` and the resolution of R52B section 9.1.
+pub fn work_upsert_resolutions(
+    db: &PgPool,
+    platform: DistributionPlatform,
+    limit: i32,
+    offset: i32,
+) -> ThothResult<Vec<super::WorkUpsertResolutionRow>> {
+    use super::{WorkUpsertResolutionRow, WorkUpsertResolutionState as State};
+    use diesel::sql_types::{BigInt, Bool, Uuid as SqlUuid};
+    #[derive(QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = SqlUuid)]
+        work_id: uuid::Uuid,
+        #[diesel(sql_type = BigInt)]
+        source_generation: i64,
+        #[diesel(sql_type = BigInt)]
+        success: i64,
+        #[diesel(sql_type = BigInt)]
+        terminal: i64,
+        #[diesel(sql_type = Bool)]
+        actionable: bool,
+    }
+    let profile = registered(platform)?;
+    let rows = work_upsert_transaction(db, |connection| {
+        Ok(diesel::sql_query(
+            "WITH jobs AS ( \
+                 SELECT j.work_id, j.status, j.cancellation_reason, \
+                        COALESCE((SELECT max(a.claimed_generation) FROM public.distribution_job_attempt a \
+                                   WHERE a.distribution_job_id = j.distribution_job_id), j.created_generation) AS gen \
+                   FROM public.distribution_job j \
+                  WHERE j.kind = 'WORK_UPSERT' AND j.execution_profile = $1 AND j.work_id IS NOT NULL) \
+             SELECT g.work_id, g.source_generation, \
+                    COALESCE((SELECT max(gen) FROM jobs WHERE jobs.work_id = g.work_id AND status = 'SUCCEEDED'), 0) AS success, \
+                    COALESCE((SELECT max(gen) FROM jobs WHERE jobs.work_id = g.work_id \
+                               AND (status = 'FAILED' OR (status = 'CANCELLED' AND cancellation_reason = 'ADMINISTRATIVE'))), 0) AS terminal, \
+                    EXISTS (SELECT 1 FROM jobs WHERE jobs.work_id = g.work_id AND status IN ('PENDING', 'RUNNING')) AS actionable \
+               FROM public.work_upsert_generation g \
+              WHERE g.execution_profile = $1 \
+              ORDER BY g.work_id LIMIT $2 OFFSET $3",
+        )
+        .bind::<crate::schema::sql_types::DistributionPlatform, _>(profile.key)
+        .bind::<BigInt, _>(i64::from(limit.max(0)))
+        .bind::<BigInt, _>(i64::from(offset.max(0)))
+        .load::<Row>(connection)?)
+    })?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let resolution = row.success.max(row.terminal);
+            let outstanding = row.source_generation > resolution;
+            let state = if row.actionable {
+                State::Actionable
+            } else if row.source_generation == 0 || outstanding {
+                State::Residue
+            } else {
+                State::Resolved
+            };
+            WorkUpsertResolutionRow {
+                work_id: row.work_id,
+                execution_profile: profile.key,
+                current_source_generation: row.source_generation,
+                success_resolution_generation: row.success,
+                terminal_job_resolution_generation: row.terminal,
+                resolution_generation: resolution,
+                outstanding_residue: outstanding.then_some((resolution, row.source_generation)),
+                state,
+            }
+        })
+        .collect())
+}
+
+/// Report 2, `workUpsertResolutionCount`.
+pub fn work_upsert_resolution_count(
+    db: &PgPool,
+    platform: DistributionPlatform,
+) -> ThothResult<i32> {
+    use crate::schema::work_upsert_generation as generation;
+    let profile = registered(platform)?;
+    let count = work_upsert_transaction(db, |connection| {
+        Ok(generation::table
+            .filter(generation::execution_profile.eq(profile.key))
+            .count()
+            .get_result::<i64>(connection)?)
+    })?;
+    as_int(count)
+}
+
+/// Report 3, `workUpsertResidue`: residue candidates classified as the drain
+/// classifies them, with the first failing eligibility clause of an ineligible
+/// one, ascending by `work_id`.
+pub fn work_upsert_residue(
+    db: &PgPool,
+    platform: DistributionPlatform,
+    limit: i32,
+    offset: i32,
+) -> ThothResult<Vec<super::WorkUpsertResidueRow>> {
+    use super::{
+        WorkUpsertEligibilityClause as Clause, WorkUpsertResidueClass as Class,
+        WorkUpsertResidueRow,
+    };
+    use diesel::sql_types::{Bool, Uuid as SqlUuid};
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        let rows = candidate_rows(connection, &[profile])?;
+        let mut residue = Vec::new();
+        for row in rows
+            .into_iter()
+            .filter(|row| row.class == "RESIDUE")
+            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
+            .take(usize::try_from(limit.max(0)).unwrap_or_default())
+        {
+            let eligible = row.sql_eligible && row.abstracts_normalise();
+            let (class, failing_clause) = if !eligible {
+                #[derive(QueryableByName)]
+                struct Holds {
+                    #[diesel(sql_type = Bool)]
+                    holds: bool,
+                }
+                let mut failing = None;
+                let coverage = super::policy::crossref_route_is_automatic_push()
+                    && crossref_publisher_covered_for_work(connection, row.work_id)?;
+                if !coverage {
+                    failing = Some(Clause::PublisherCoverage);
+                }
+                for (clause, sql) in super::policy::CROSSREF_SQL_CLAUSES {
+                    if failing.is_some() {
+                        break;
+                    }
+                    let holds = diesel::sql_query(format!(
+                        "SELECT COALESCE((SELECT {sql} FROM public.work w WHERE w.work_id = $1), false) AS holds"
+                    ))
+                    .bind::<SqlUuid, _>(row.work_id)
+                    .get_result::<Holds>(connection)?
+                    .holds;
+                    if !holds {
+                        failing = Some(clause);
+                    }
+                }
+                (
+                    Class::Ineligible,
+                    Some(failing.unwrap_or(Clause::AbstractNormalisation)),
+                )
+            } else if row.admitted {
+                (Class::Materializable, None)
+            } else {
+                (Class::NotAdmitted, None)
+            };
+            residue.push(WorkUpsertResidueRow {
+                work_id: row.work_id,
+                execution_profile: row.execution_profile,
+                class,
+                failing_clause,
+            });
+        }
+        Ok(residue)
+    })
+}
+
+/// Whether the Work's current publisher is covered (E2, E3), by MVCC.
+fn crossref_publisher_covered_for_work(
+    connection: &mut PgConnection,
+    work_id: uuid::Uuid,
+) -> QueryResult<bool> {
+    match current_publisher(connection, work_id)? {
+        Some(publisher_id) => crossref_publisher_covered(connection, publisher_id),
+        None => Ok(false),
+    }
+}
+
+/// Report 4, `workUpsertStaleBindings`: `PENDING` jobs whose binding is obsolete,
+/// with the cancellation reason the drain will use.
+pub fn work_upsert_stale_bindings(
+    db: &PgPool,
+    platform: DistributionPlatform,
+    limit: i32,
+    offset: i32,
+) -> ThothResult<Vec<super::WorkUpsertStaleBindingRow>> {
+    use crate::model::distribution_job::{
+        DistributionJob, DistributionJobKind, DistributionJobStatus,
+    };
+    use crate::schema::distribution_job;
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        let rows = candidate_rows(connection, &[profile])?;
+        let mut stale = Vec::new();
+        for row in rows
+            .into_iter()
+            .filter(|row| row.class == "STALE_PENDING")
+            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
+            .take(usize::try_from(limit.max(0)).unwrap_or_default())
+        {
+            let Some(job) = distribution_job::table
+                .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+                .filter(distribution_job::work_id.eq(row.work_id))
+                .filter(distribution_job::execution_profile.eq(row.execution_profile))
+                .filter(distribution_job::status.eq(DistributionJobStatus::Pending))
+                .first::<DistributionJob>(connection)
+                .optional()?
+            else {
+                continue;
+            };
+            let Some(current) = current_publisher(connection, row.work_id)? else {
+                continue;
+            };
+            if let Some(reason) = stale_binding_reason(connection, &job, current, profile)? {
+                stale.push(super::WorkUpsertStaleBindingRow {
+                    distribution_job_id: job.distribution_job_id,
+                    work_id: row.work_id,
+                    execution_profile: row.execution_profile,
+                    reason,
+                });
+            }
+        }
+        Ok(stale)
+    })
+}
+
+/// The released job payload of `jobs`, preloaded with the released target and
+/// attempt helpers (Amendment 3 section 10.3, EB1's enumerated exception).
+fn load_job_payloads(
+    connection: &mut PgConnection,
+    jobs: Vec<crate::model::distribution_job::DistributionJob>,
+) -> Result<Vec<crate::model::distribution_job::DistributionJobPayload>, WorkUpsertTxError> {
+    use crate::model::distribution_job::crud::{
+        attempts_for_jobs, partition_by_job, targets_for_jobs,
+    };
+    use crate::model::distribution_job::DistributionJobPayload;
+    let ids: Vec<uuid::Uuid> = jobs.iter().map(|job| job.distribution_job_id).collect();
+    let mut targets = partition_by_job(targets_for_jobs(connection, &ids)?, |target| {
+        target.distribution_job_id
+    });
+    let mut attempts = partition_by_job(attempts_for_jobs(connection, &ids)?, |attempt| {
+        attempt.distribution_job_id
+    });
+    Ok(jobs
+        .into_iter()
+        .map(|job| {
+            let id = job.distribution_job_id;
+            DistributionJobPayload::preloaded(
+                job,
+                targets.remove(&id).unwrap_or_default(),
+                attempts.remove(&id).unwrap_or_default(),
+            )
+        })
+        .collect())
+}
+
+/// Report 5, `workUpsertJobs`: the profile's `WORK_UPSERT` jobs with lineage,
+/// ascending by `(work_identity, job_ordinal)`.
+pub fn work_upsert_jobs(
+    db: &PgPool,
+    platform: DistributionPlatform,
+    limit: i32,
+    offset: i32,
+) -> ThothResult<Vec<crate::model::distribution_job::DistributionJobPayload>> {
+    use crate::model::distribution_job::{DistributionJob, DistributionJobKind};
+    use crate::schema::distribution_job;
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        let jobs = distribution_job::table
+            .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+            .filter(distribution_job::execution_profile.eq(profile.key))
+            .order((
+                distribution_job::work_identity.asc(),
+                distribution_job::job_ordinal.asc(),
+            ))
+            .limit(i64::from(limit.max(0)))
+            .offset(i64::from(offset.max(0)))
+            .load::<DistributionJob>(connection)?;
+        load_job_payloads(connection, jobs)
+    })
+}
+
+/// Report 5, `workUpsertJob`: every `WORK_UPSERT` job of a Work identity, live or
+/// deleted, ascending by `job_ordinal`.
+pub fn work_upsert_job(
+    db: &PgPool,
+    work_identity: uuid::Uuid,
+) -> ThothResult<Vec<crate::model::distribution_job::DistributionJobPayload>> {
+    use crate::model::distribution_job::{DistributionJob, DistributionJobKind};
+    use crate::schema::distribution_job;
+    work_upsert_transaction(db, |connection| {
+        let jobs = distribution_job::table
+            .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+            .filter(distribution_job::work_identity.eq(work_identity))
+            .order((
+                distribution_job::execution_profile.asc(),
+                distribution_job::job_ordinal.asc(),
+            ))
+            .load::<DistributionJob>(connection)?;
+        load_job_payloads(connection, jobs)
+    })
+}
+
+/// Report 6, `workUpsertAttempts`: every attempt of every `WORK_UPSERT` job of a
+/// Work identity.
+pub fn work_upsert_attempts(
+    db: &PgPool,
+    work_identity: uuid::Uuid,
+) -> ThothResult<Vec<crate::model::distribution_job::DistributionJobAttempt>> {
+    let payloads = work_upsert_job(db, work_identity)?;
+    Ok(payloads
+        .into_iter()
+        .flat_map(|payload| payload.preloaded_attempts.unwrap_or_default())
+        .collect())
+}
+
+/// Report 7, `workUpsertBlockedByRecovery`: every uncleared fenced abandonment.
+pub fn work_upsert_blocked_by_recovery(
+    db: &PgPool,
+    platform: DistributionPlatform,
+) -> ThothResult<Vec<super::WorkUpsertBlockedByRecoveryRow>> {
+    use crate::schema::{distribution_job, distribution_job_attempt};
+    let profile = registered(platform)?;
+    let rows = work_upsert_transaction(db, |connection| {
+        Ok(distribution_job::table
+            .inner_join(distribution_job_attempt::table)
+            .filter(
+                distribution_job::kind
+                    .eq(crate::model::distribution_job::DistributionJobKind::WorkUpsert),
+            )
+            .filter(distribution_job::execution_profile.eq(profile.key))
+            .filter(
+                distribution_job_attempt::result
+                    .eq(crate::model::distribution_job::DistributionJobAttemptResult::Abandoned),
+            )
+            .filter(distribution_job_attempt::fenced_at.is_not_null())
+            .filter(distribution_job_attempt::recovery_cleared_at.is_null())
+            .select((
+                distribution_job::work_identity,
+                distribution_job::distribution_job_id,
+                distribution_job_attempt::distribution_job_attempt_id,
+            ))
+            .order((
+                distribution_job::work_identity.asc(),
+                distribution_job_attempt::distribution_job_attempt_id.asc(),
+            ))
+            .load::<(Option<uuid::Uuid>, uuid::Uuid, uuid::Uuid)>(connection)?)
+    })?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(work_identity, job, attempt)| {
+            work_identity.map(|work_identity| super::WorkUpsertBlockedByRecoveryRow {
+                work_identity,
+                execution_profile: profile.key,
+                distribution_job_id: job,
+                distribution_job_attempt_id: attempt,
+            })
+        })
+        .collect())
+}
+
+/// Report 8, `workUpsertCaptureLag`: `max(source_generation - resolution)` over
+/// rows whose source generation exceeds their resolution; `0` when none does.
+pub fn work_upsert_capture_lag(db: &PgPool, platform: DistributionPlatform) -> ThothResult<i64> {
+    use diesel::sql_types::BigInt;
+    #[derive(QueryableByName)]
+    struct Lag {
+        #[diesel(sql_type = BigInt)]
+        lag: i64,
+    }
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        Ok(diesel::sql_query(
+            "SELECT COALESCE(max(g.source_generation - public.work_upsert_resolution(g.work_id, g.execution_profile)) \
+                     FILTER (WHERE g.source_generation > public.work_upsert_resolution(g.work_id, g.execution_profile)), 0)::bigint AS lag \
+               FROM public.work_upsert_generation g WHERE g.execution_profile = $1",
+        )
+        .bind::<crate::schema::sql_types::DistributionPlatform, _>(profile.key)
+        .get_result::<Lag>(connection)?
+        .lag)
+    })
+}

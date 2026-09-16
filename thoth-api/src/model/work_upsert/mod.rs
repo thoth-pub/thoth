@@ -97,6 +97,96 @@ pub enum WorkUpsertEligibilityClause {
     AbstractNormalisation,
 }
 
+/// The resolution state of one `(work, profile)` (R52B section 20, report 1).
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(
+        description = "The resolution state of one Work under one work-level execution profile"
+    )
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkUpsertResolutionState {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "A PENDING or RUNNING job exists")
+    )]
+    Actionable,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "The source generation is resolved")
+    )]
+    Resolved,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "A generation is outstanding with nothing actionable")
+    )]
+    Residue,
+}
+
+/// One row of report 1, `workUpsertResolution`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertResolutionRow {
+    pub work_id: uuid::Uuid,
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub current_source_generation: i64,
+    pub success_resolution_generation: i64,
+    pub terminal_job_resolution_generation: i64,
+    pub resolution_generation: i64,
+    /// The half-open interval `(resolution, source]`, when non-empty.
+    pub outstanding_residue: Option<(i64, i64)>,
+    pub state: WorkUpsertResolutionState,
+}
+
+/// The class of a residue candidate (R52B section 20, report 3).
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "The class of a work-level residue candidate")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkUpsertResidueClass {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Eligible and admitted: the drain materializes it")
+    )]
+    Materializable,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Eligible, but the current binding is not admitted")
+    )]
+    NotAdmitted,
+    #[cfg_attr(feature = "backend", graphql(description = "Not eligible now"))]
+    Ineligible,
+}
+
+/// One row of report 3, `workUpsertResidue`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertResidueRow {
+    pub work_id: uuid::Uuid,
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub class: WorkUpsertResidueClass,
+    pub failing_clause: Option<WorkUpsertEligibilityClause>,
+}
+
+/// One row of report 4, `workUpsertStaleBindings`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertStaleBindingRow {
+    pub distribution_job_id: uuid::Uuid,
+    pub work_id: uuid::Uuid,
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub reason: crate::model::distribution_job::DistributionJobCancellationReason,
+}
+
+/// One row of report 7, `workUpsertBlockedByRecovery`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkUpsertBlockedByRecoveryRow {
+    pub work_identity: uuid::Uuid,
+    pub execution_profile: crate::model::publisher_distribution_platform::DistributionPlatform,
+    pub distribution_job_id: uuid::Uuid,
+    pub distribution_job_attempt_id: uuid::Uuid,
+}
+
 /// How one seed unit ended (Amendment 3 section 9.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SeedUnitOutcome {

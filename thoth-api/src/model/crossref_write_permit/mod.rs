@@ -247,6 +247,13 @@ pub struct CrossrefVersionFloorAdvance {
     pub occurred_at: Timestamp,
 }
 
+/// Report 13, `crossrefVersionFloor`: the floor value and its audit history.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrossrefVersionFloorReport {
+    pub floor_value: i64,
+    pub advances: Vec<CrossrefVersionFloorAdvance>,
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
 
