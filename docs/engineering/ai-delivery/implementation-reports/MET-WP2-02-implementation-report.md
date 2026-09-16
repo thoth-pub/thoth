@@ -552,7 +552,7 @@ independent exact-head review after that evidence was written.
 |---|---|
 | Independent exact-head review, CHANGES REQUIRED, defines CR-1 | #908 comment `5654942925` (2026-09-13) |
 | PR #920 merge | `feature/metrics @ 3db0699cdc9d5a212b0f48ec9fa674e499776cc2`, tree `14210f97498946740b2927419f993432977b4560` (merged 2026-09-13 17:55Z, after `5654942925` superseded approval `5654939879`) |
-| Post-merge control reconciliation / CR-1 forward-correction authorization (**current implementation authority**) | #908 comment `5665416112` (2026-09-14) |
+| Post-merge control reconciliation / CR-1 forward-correction authorization (**implementation authority for this correction**) | #908 comment `5665416112` (2026-09-14) |
 | Programme reconciliation / downstream HOLD | #766 comment `5665419874` |
 | Sphinx producer pin invalidated pending this correction | thoth-sphinx#10 comment `5665424624` |
 | Superseded as current source approval | `5654939879` (approval), `5655029012` (post-merge reconciliation) |
@@ -883,12 +883,16 @@ unpublished state of the stood-down scratch session was used. The ledger
 should record this designation explicitly; it is reported here rather than
 assumed.
 
-### 16.16 Remaining gates
+### 16.16 Gate authority
 
-Fresh independent CRITICAL exact-head source review of the new head; separate
-exact-head CTO merge authorization; merge; fresh downstream Sphinx
-producer-contract rebind (thoth-sphinx#10); later integration, deployment and
-activation gates. Nothing here is self-approved.
+This section is correction evidence, not a gate status. It is
+repository-authoritative only for the CR-1 source correction as committed in
+`0fba1102c7f8c216675f904ab76fb0df779a1eea`. Independent exact-head source
+review, SHA-bound CTO merge authorization, merge, the downstream Sphinx
+producer-contract rebind (thoth-sphinx#10) and later integration, deployment
+and activation are separate gates. Their state is recorded only in the GitHub
+history of #908 and its pull requests; this report does not state whether any
+of them is pending, granted or complete. Nothing here is self-approved.
 
 ## 17. MET-WP2-02-CR1 follow-up: control reconciliation and changelog
 
@@ -1050,9 +1054,316 @@ head remains authoritative.
   rebind; deployment; release; production migration; provider, credential or
   service-role access; activation.
 
-### 17.9 Remaining gates
+### 17.9 Gate authority
 
-Fresh independent CRITICAL exact-head review of the new PR head, including its
-exact natural CI; separate exact-head CTO merge authorization; merge; fresh
-downstream Sphinx producer-contract rebind (thoth-sphinx#10); later
-integration, deployment and activation gates. Nothing here is self-approved.
+This section is follow-up evidence, not a gate status. It is
+repository-authoritative only for the control reconciliation and changelog
+follow-up as committed on top of `4e5337d2`. Exact-head CI, independent
+exact-head review, SHA-bound CTO merge authorization, merge, the downstream
+Sphinx producer-contract rebind (thoth-sphinx#10) and later integration,
+deployment and activation are separate gates. Their state, and any later
+post-merge correction, is recorded only in the GitHub history of #908 and its
+pull requests; this report does not state whether any of them is pending,
+granted or complete. Nothing here is self-approved.
+
+## 18. MET-WP2-02-CR1-POSTMERGE-01: post-merge recovery correction
+
+This section is the implementation report for `MET-WP2-02-CR1-POSTMERGE-01`,
+the bounded forward correction of the two post-merge findings on PR #921. It
+was added by a report-completion commit that answers the PR #922 review finding
+that no committed POSTMERGE-01 record existed. That commit changes no text in
+sections 1-17. The only edits this task makes to sections 1-17 are the P2-2
+wording changes described in 18.5, which commit `2a809392` made. The merged
+CR-1 production claim-time serialization correction (section 16) is not
+reopened.
+
+### 18.1 Task and control references
+
+| Item | Value |
+|---|---|
+| Task | `MET-WP2-02-CR1-POSTMERGE-01` |
+| Owning issue | #908 |
+| Pull request | #922 |
+| Programme | #766 / MOM-1 |
+| Risk | CRITICAL |
+| Workflow | PROGRAMME_INTEGRATION |
+
+| Record | Reference |
+|---|---|
+| Post-merge recovery reconciliation: findings P2-1 (`ClaimPause::drop()` cleanup ordering) and P2-2 (stale committed gate wording) | #908 comment `5681750977` |
+| Ledger correction to `5681750977`: supersedes only its merge-authorization premise, and keeps both findings and the recovery path | #908 comment `5683721789` |
+| Approved bounded specification | #908 comment `5682011423` |
+| Implementation authorization | #908 comment `5682069003` |
+| Sole implementation owner for the task: `local_dd82a4d5-5fd7-4a9c-8b8f-d8aef1fa7337` | #908 comment `5683623436` |
+| Post-ready review CHANGES REQUIRED: no committed POSTMERGE-01 section. States that source approval `5683734979` and merge authorization `5684223744`, both bound to `48fc8ca1`, must not be exercised | #908 comment `5686154711` |
+| Sole owner for the report-completion follow-up only: `local_0ba55677-ce1d-43d3-98cd-23e488bee658` | #908 comment `5694515389` |
+| Source findings | PR #921 review comments `4016293651` (P2-1) and `4016293666` (P2-2) |
+| Report-completion finding | PR #922 review comment `4018103929` (P1) |
+
+Implementing model: `claude-opus-5` in both sessions: `local_dd82a4d5`
+(reasoning effort high) for commits `2a809392` and `48fc8ca1`, and
+`local_0ba55677` (reasoning effort xhigh) for the report-completion commit.
+
+### 18.2 Exact identity and history
+
+| Item | Value |
+|---|---|
+| Repository | `thoth-pub/thoth` |
+| Authorized base = actual base | `feature/metrics @ 62c8fe6694bb66ac69eb95eb178d79e138818c93`, tree `c9767b740ee178160f967969024d99ea108a26b3` |
+| Task branch | `feature/metrics--wp2-02-cr1-postmerge` (merge base with the authorized base is exactly `62c8fe66`) |
+| PR target | `feature/metrics` |
+| Pre-report-completion candidate head | `48fc8ca15eb933316480840f9ca12bda70d3dcfe`, tree `60dee9df6e8452aa00fadef2e43aaebfde86b0d0` |
+
+Task commits:
+
+| Commit | Parent | Tree | Paths | Purpose |
+|---|---|---|---|---|
+| `2a809392588047340dab3f25228f1e2d85ec4e30` | `62c8fe66` | `0a4f1e2fe5bfe489f66aeb08ca7750776134f90b` | `CHANGELOG.md`, the implementation report, `tests.rs` | P2-1 helper ordering and regression, P2-2 wording, changelog entry |
+| `48fc8ca15eb933316480840f9ca12bda70d3dcfe` | `2a809392` | `60dee9df6e8452aa00fadef2e43aaebfde86b0d0` | `CHANGELOG.md` only | adds the PR #922 reference to the existing entry |
+| report-completion commit | `48fc8ca15eb933316480840f9ca12bda70d3dcfe` | — | the implementation report only | adds this section 18 |
+
+The report-completion commit refers to itself the same way section 17.3 does.
+Its SHA and tree cannot exist until the commit containing this text is created.
+The resulting PR #922 head and its natural exact-head CI are therefore recorded
+authoritatively in the GitHub history of PR #922 and in the implementation
+handoff, not here. No further commit is made only to copy them into this file.
+
+### 18.3 Actual task footprint
+
+Authorized write paths (`5682011423` section 3, `5682069003`): exactly three
+existing files. The task authorizes no new-file paths.
+
+| Path | Reason | Behavioural effect | Within budget |
+|---|---|---|---|
+| `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` | P2-1 | test-helper cleanup ordering plus one deterministic regression test; test-only | YES |
+| `docs/engineering/ai-delivery/implementation-reports/MET-WP2-02-implementation-report.md` | P2-2 and the P1 report finding | durable gate-authority wording (18.5) plus this complete POSTMERGE-01 evidence; documentation only | YES |
+| `CHANGELOG.md` | repository changelog rule | one bounded `### Fixed` entry under `## [Unreleased]` for this task, referencing PR 922 and issue 908 | YES |
+
+```text
+New files:                 NONE
+Deleted files:             NONE
+Moved/renamed files:       NONE (also checked with git diff -M -C)
+Write-budget compliance:   PASS
+```
+
+Before the report-completion commit, `git diff --name-status 62c8fe66...48fc8ca1`
+listed exactly those three paths, all `M`, and `git diff --stat` reported
+`3 files changed, 104 insertions(+), 13 deletions(-)`. The report-completion
+commit modifies only the implementation report and only appends lines after
+section 17.9. `CHANGELOG.md` stays at blob
+`085edb6688a8d1a682bad7a17340f7ce739551b5` and `tests.rs` at blob
+`4807e2f4f511e699368807d3fe6da2ab777b1596`, exactly as at `48fc8ca1`.
+`thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` stays at blob
+`3028cf8003856fc877ec4e9093555c9eb759e0fb`, as at the authorized base.
+
+### 18.4 P2-1 correction evidence: `ClaimPause::drop()` cleanup ordering
+
+- **Fix.** `impl Drop for ClaimPause` now runs `SELECT pg_advisory_unlock_all()`
+  on `self.hold` first. Only after that does it take a cleanup connection with
+  `self.pool.get()` and run `DROP TRIGGER IF EXISTS` and `DROP FUNCTION IF EXISTS`.
+  Before the fix, the unlock came after the two `DROP`s. On unwind, a claim frozen
+  at the pause holds a table lock the `DROP` needs while it waits on that hold,
+  so cleanup could wait forever.
+- **Unchanged.** The explicit normal path `ClaimPause::release()` is unchanged.
+  Cleanup is still best-effort (errors are ignored) and test-only. No production
+  lifecycle source changed, and no dependency, file or synchronization mechanism
+  was added.
+- **Regression test:**
+  `cr1_pause_cleanup_on_unwind_releases_its_hold_before_dropping_the_trigger`.
+  1. It freezes a real `claim_metric_source_units` call at the `BEFORE INSERT`
+     pause point.
+  2. It moves the pause into a thread that panics, so `Drop` is the only cleanup
+     that runs.
+  3. The observer first checks `pg_stat_activity` for a queued `DROP … <pause name>`
+     waiting on a heavyweight lock. Only then does it check `pg_locks` for an
+     advisory lock still granted to the hold backend. Seeing both, in that order,
+     means cleanup DDL was waiting while the hold was still held. The corrected
+     ordering cannot produce that state.
+  4. On detection, the test runs `pg_terminate_backend` on the hold, so the
+     defect shows up as a failure rather than a hang. The 20-second deadline
+     only guards against a hang and plays no part in detecting the defect.
+  5. Finally it asserts that the released claim completes with both test
+     accounts, and that the pause trigger and function no longer exist.
+- **RED evidence** (recorded by `local_dd82a4d5` in the PR #922 description):
+  with the test added and the helper unchanged, 3/3 targeted runs of
+  `cargo test -p thoth-api --features backend --lib -- cr1_pause_cleanup_on_unwind_releases_its_hold_before_dropping_the_trigger`
+  exited 101 with
+  `pause cleanup attempted DDL while retaining its own session advisory hold`.
+- **GREEN evidence** (same source): after the ordering correction, 3/3 targeted
+  runs of the same command exited 0 with the test reported `ok`. After the RED
+  runs, `cargo fmt` only re-wrapped one `format!` call in the new test.
+- The report-completion session did not repeat the RED runs, because they need
+  the frozen `tests.rs` helper reverted. The regression runs GREEN inside the
+  fresh `cargo test -p thoth-api --features backend` in 18.7.
+
+### 18.5 P2-2 correction evidence: durable gate wording
+
+Commit `2a809392` made these changes:
+
+- **16.16 and 17.9.** These were titled "Remaining gates" and listed review,
+  merge authorization and merge as outstanding. They are now "Gate authority".
+  Each states which committed evidence the section is repository-authoritative
+  for, lists the separate gates, and says their state is recorded only in the
+  GitHub history of #908 and its pull requests.
+- **16.1.** The table label "current implementation authority" became
+  "implementation authority for this correction".
+
+All other historical implementation evidence in sections 1-17 is unchanged.
+Under `docs/engineering/AGENTS.md` section 1.1, live review, authorization, CI
+and merge state belongs to GitHub, not to this file. This section 18 follows
+the same rule.
+
+### 18.6 Authorization and action compliance
+
+| Action | Authority | Used |
+|---|---|---|
+| Repository/GitHub read inspection | `5682069003`, `5694515389` | yes |
+| Source edits within the three authorized paths | `5682069003` (report-completion: report path only, `5694515389`) | yes |
+| New file, deletion, move or rename | not authorized | no |
+| Task-branch creation from the exact authorized base | `5682069003` | yes |
+| Local non-production validation | `5682069003`, `5694515389` | yes |
+| Commit | `5682069003`, `5694515389` | yes |
+| Non-force push to the task branch | `5682069003`, `5694515389` | yes |
+| Creation of DRAFT PR #922 and its update by pushes | `5682069003`, `5694515389` | yes |
+| Natural PR CI and the existing automatic staging-image workflow | `5682069003`, `5694515389` | yes (observed effects only) |
+
+`5686154711` records PR #922's draft-to-ready transition as CTO-authorized.
+Implementation authorization `5682069003` does not cover it.
+
+The PR #922 description records, for `local_dd82a4d5`, and this session
+records, for `local_0ba55677`, that neither implementation session did any of
+the following: issue or comment mutation; PR review reply or thread resolution;
+reviewer request; manual CI dispatch, rerun or cancel; merge; provider/runtime
+read or write; migration execution; release, tag or publication; deployment;
+production activation; Sphinx mutation or producer rebind. Every natural CI run
+listed in 18.8 is attempt 1.
+
+Unauthorized actions performed: NONE.
+
+Ownership: `local_dd82a4d5` implemented commits `2a809392` and `48fc8ca1` as the
+owner named in `5683623436`. `local_0ba55677` made only the report-completion
+commit, as the owner named in `5694515389`. Before those designations,
+`local_0ba55677` held twice without mutation: once because another session was
+already implementing the task, and once because `5683623436` named a different
+owner.
+
+### 18.7 Validation
+
+Code-bearing candidate (`2a809392`; validation recorded by `local_dd82a4d5` in
+the PR #922 description), local PostgreSQL 17 (UTF8, `C` collation) and Redis:
+
+```text
+cargo fmt --all -- --check                                      EXIT 0
+cargo test -p thoth-api --features backend                      EXIT 0  lib 1888 passed / 0 failed / 1 ignored; graphql_permissions 13 passed
+cargo test --workspace                                          EXIT 0  2104 passed / 0 failed / 9 ignored
+cargo check --workspace                                         EXIT 0
+cargo clippy --all --all-targets --all-features -- -D warnings  EXIT 0
+cargo build                                                     EXIT 0
+git diff --check                                                EXIT 0
+git diff --check 62c8fe66...48fc8ca1                            EXIT 0
+```
+
+After `48fc8ca1` (changelog-only), `git diff --check 62c8fe66...HEAD` again
+exited 0, and the scope check listed the same three paths.
+
+Report-completion tree, fresh, before commit, by `local_0ba55677`. Environment:
+a detached worktree outside the repository with no `.env`; a disposable
+PostgreSQL 17.10 cluster on its own port with `thoth_test` created UTF8 with
+`C` collation; a dedicated Redis on its own port; the variables CI exports
+(`TEST_DATABASE_URL`, `TEST_REDIS_URL`, and `THOTH_EXPORT_API` set to a local
+placeholder URL); no production or provider-connected service.
+
+```text
+cargo fmt --all -- --check                                              EXIT 0
+cargo test -p thoth-api --features backend                              EXIT 0  lib 1888 passed / 0 failed / 1 ignored;
+                                                                                graphql_permissions 13 passed; doctests 8 ignored;
+                                                                                includes cr1_pause_cleanup_on_unwind_releases_its_hold_before_dropping_the_trigger ... ok
+cargo test --workspace                                                  EXIT 0  2104 passed / 0 failed / 9 ignored
+                                                                                (thoth bin 31, thoth-api lib 1888 + 1 ignored, graphql_permissions 13,
+                                                                                thoth-api-server 3, thoth-client 4 + 6 doctests, thoth-errors 13,
+                                                                                thoth-export-server 144 + 2 doctests, thoth-api doctests 8 ignored)
+cargo check --workspace                                                 EXIT 0
+cargo clippy --all --all-targets --all-features -- -D warnings          EXIT 0
+cargo build                                                             EXIT 0
+git diff --check                                                        EXIT 0
+git diff --check 62c8fe6694bb66ac69eb95eb178d79e138818c93               EXIT 0
+git diff --check 62c8fe6694bb66ac69eb95eb178d79e138818c93...HEAD        EXIT 0  (HEAD = 48fc8ca1 before commit)
+(the only compiler warning is the existing future-incompatibility notice for proc-macro-error2 v2.0.1)
+```
+
+`git diff --check 62c8fe66` also covers the uncommitted report edit. The same
+range check against the report-completion commit is reported in the
+implementation handoff.
+
+### 18.8 CI authority
+
+Natural PR CI on the two task commits, all `pull_request` events, attempt 1:
+
+| Workflow | `2a809392` run | `48fc8ca1` run | Conclusion (both) |
+|---|---|---|---|
+| `build-test-and-check` | `34987083650` | `34987120049` | success |
+| `check-changelog` | `34987083652` | `34987120132` | success |
+| `run-migrations` | `34987083711` | `34987120398` | success; its `run_migrations` job is skipped by the workflow's own classifier |
+| `publish-to-dockerhub` | `34987083715` | `34987120088` | success; `build_and_push_staging_docker_image` pushed the automatic `ghcr.io/thoth-pub/thoth:staging-pr-922` image |
+
+Pushing the report-completion commit creates a new PR head and new natural CI
+runs. Their state is GitHub-authoritative and is reported in the implementation
+handoff. No CI was dispatched, rerun or cancelled manually.
+
+### 18.9 Runtime, compatibility and external effects
+
+```text
+Production lifecycle behaviour:  unchanged (metric_ingestion_lifecycle/mod.rs untouched)
+Database/migration/schema:       none
+GraphQL/API/SDL:                 none
+Auth/security/ZITADEL:           none
+Dependencies/Cargo:              none
+Workflows:                       none
+Provider/runtime configuration:  none
+Release/deployment/activation:   none
+Cross-repository contract:       unchanged
+```
+
+The report-completion commit adds only documentation. Its only external
+effects are the natural PR workflows triggered by the non-force push, including
+the existing automatic staging image. Downstream thoth-sphinx#10 / MET-WP6-01
+is not rebound by this task.
+
+### 18.10 Rollout and rollback
+
+- This test-harness, documentation and changelog task has no runtime rollout,
+  activation, production migration or feature flag.
+- A merge, if separately authorized, only brings the reviewed task commits into
+  `feature/metrics`.
+- No runtime rollback exists or is needed. Before merge, incorrect report
+  evidence is corrected forward on the task branch under valid authorization.
+  After merge, it is corrected by an ordinary bounded forward correction.
+- A SHA-bound review or merge authorization never carries over to a new commit.
+
+### 18.11 Known limitations and gate authority
+
+- The RED evidence in 18.4 was recorded by the implementing session for
+  `2a809392`. The report-completion session did not repeat it, because that
+  would require changing the frozen `tests.rs`.
+- The regression's detection depends on PostgreSQL's `pg_stat_activity`
+  (`wait_event_type = 'Lock'` and query text `DROP % <pause name>%`) and
+  `pg_locks` views, observed in a fixed order. Its 20-second deadline is only a
+  hang guard.
+- Local validation used a placeholder `THOTH_EXPORT_API` and a shared local
+  build cache. CI remains the exact-head authority.
+- Unresolved issues known to the implementing sessions: NONE. The state of
+  review threads is recorded in GitHub.
+- Suggested review focus: the unlock-before-cleanup order in
+  `impl Drop for ClaimPause`; whether the regression's observation order proves
+  what 18.4 claims; that sections 1-17 and 18 contain no transient status prose;
+  and that the frozen blobs in 18.3 hold at the reviewed head.
+
+Gate authority: this section is implementation evidence, not a gate status. It
+is repository-authoritative only for `MET-WP2-02-CR1-POSTMERGE-01` as committed
+on `feature/metrics--wp2-02-cr1-postmerge`. Implementation reports do not
+self-approve, and GitHub owns live lifecycle state. Each final task head needs
+an independent CRITICAL exact-head review. A merge needs a fresh CTO merge
+authorization bound to that reviewed head. The downstream Sphinx
+producer-contract rebind (thoth-sphinx#10) is a separate later gate after valid
+upstream merge and reconciliation. The GitHub history of #908 and its pull
+requests records the state of all of these; this report does not.
