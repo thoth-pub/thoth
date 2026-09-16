@@ -5866,3 +5866,321 @@ fn t248_postgresql_and_rust_timestamp_validity_agree_over_the_parity_corpus() {
         "PostgreSQL's valid set is the Rust validator's, string for string"
     );
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// R52B section 17.3 against the implementation: T249 (UTC and truncation), T250 (controlled-clock vectors), T252
+// (order isomorphism), T254 (history excludes only VOIDED), T255 (legacy cutover) and T265 (the authorization-time
+// history reproof).
+// ---------------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn t249_the_encoding_is_utc_and_truncates_to_the_millisecond() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    fx::execute(&mut connection, "SET TimeZone = 'Pacific/Chatham'");
+    assert_eq!(
+        fx::texts(&mut connection,
+            "SELECT public.crossref_ts_encode(TIMESTAMPTZ '2026-09-04 12:00:00.999999+00')::text || '|' \
+                 || public.crossref_ts_encode(TIMESTAMPTZ '2026-12-31 23:59:59.9999+00')::text || '|' \
+                 || to_char(TIMESTAMPTZ '2026-09-04 12:00:00+00', 'YYYYMMDDHH24MISS') AS value"),
+        vec!["20260904120000999|20261231235959999|20260905004500"],
+        "UTC whatever the session time zone, truncated, never rounded into the next year"
+    );
+    fx::execute(&mut connection, "RESET TimeZone");
+    // The clock primitive is the only VOLATILE one, and it advances inside a transaction while CURRENT_TIMESTAMP does not.
+    assert_eq!(
+        fx::texts(&mut connection,
+            "SELECT string_agg(proname || ':' || provolatile::text, ',' ORDER BY proname) AS value FROM pg_proc \
+             WHERE pronamespace = 'public'::regnamespace AND proname LIKE 'crossref_ts_%'"),
+        vec!["crossref_ts_decode:i,crossref_ts_encode:i,crossref_ts_next:i,crossref_ts_now:v"]
+    );
+    fx::execute(&mut connection, "BEGIN; CREATE TEMP TABLE t249 AS SELECT current_timestamp AS frozen, public.crossref_ts_now() AS first; SELECT pg_sleep(0.35);");
+    assert_eq!(
+        fx::texts(
+            &mut connection,
+            "SELECT ((SELECT frozen FROM t249) = current_timestamp)::text || '|' \
+                 || (public.crossref_ts_now() - (SELECT first FROM t249) >= 350)::text AS value"
+        ),
+        vec!["true|true"]
+    );
+    fx::execute(&mut connection, "ROLLBACK");
+}
+
+#[test]
+fn t250_the_controlled_clock_vectors() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    for (history, clock, allocated) in [
+        (
+            Some(20260904120000500_i64),
+            20260904120000400_i64,
+            20260904120000501_i64,
+        ),
+        (
+            Some(20260904120000500),
+            20260904120000500,
+            20260904120000501,
+        ),
+        (
+            Some(20260904120000500),
+            20260904120000600,
+            20260904120000600,
+        ),
+        (
+            Some(20260904120000999),
+            20260904120000100,
+            20260904120001000,
+        ),
+        (
+            Some(20260904235959999),
+            20260904235959000,
+            20260905000000000,
+        ),
+        (
+            Some(20260930235959999),
+            20260930000000000,
+            20261001000000000,
+        ),
+        (
+            Some(20261231235959999),
+            20261231235959999,
+            20270101000000000,
+        ),
+        (
+            Some(20240229235959999),
+            20240229000000000,
+            20240301000000000,
+        ),
+        (None, 20260904120000123, 20260904120000123),
+    ] {
+        let history = history.map_or("NULL".to_string(), |h| h.to_string());
+        assert_eq!(
+            fx::texts(&mut connection, &format!(
+                "SELECT public.crossref_allocate_timestamp({history}, 99999999999999, {clock})::text AS value"
+            )),
+            vec![allocated.to_string()],
+            "history {history}, clock {clock}"
+        );
+    }
+    // Equality with the floor fails before any write.
+    let refused = attempt_rolled_back(
+        &mut connection,
+        "SELECT public.crossref_allocate_timestamp(NULL, 99999999999999, 99999999999999)",
+    )
+    .expect_err("not increasing");
+    assert!(
+        refused.contains("CROSSREF_TIMESTAMP_NOT_DECODABLE")
+            || refused.contains("CROSSREF_TIMESTAMP_NOT_INCREASING"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn t252_numeric_order_is_chronological_order() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    assert_eq!(
+        fx::texts(&mut connection,
+            "WITH instants AS ( \
+                 SELECT n, TIMESTAMPTZ '1000-01-01 00:00:00+00' + (random() * (TIMESTAMPTZ '9999-12-31 23:59:59+00' - TIMESTAMPTZ '1000-01-01 00:00:00+00')) AS t \
+                   FROM generate_series(1, 50000) n), \
+             encoded AS (SELECT n, date_trunc('milliseconds', t) AS t, public.crossref_ts_encode(t) AS v FROM instants) \
+             SELECT count(*)::text || '|' || count(*) FILTER (WHERE sign(b.v - a.v) <> sign(extract(epoch FROM b.t - a.t)))::text AS value \
+               FROM encoded a JOIN encoded b ON b.n = a.n + 1"),
+        vec!["49999|0"]
+    );
+}
+
+/// A legacy permit in `state` on a fresh root whose `crossref_timestamp` is moved to `timestamp` with triggers
+/// bypassed, so a later reservation of the same root sees it as history with the clock behind.
+fn permit_with_future_timestamp(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+    state: CrossrefWritePermitState,
+    timestamp: i64,
+) -> (CrossrefWriteReservation, Uuid) {
+    let reservation = legacy_permit_in(pool, connection, state);
+    let root = Uuid::parse_str(
+        &fx::texts(connection, &format!("SELECT root_work_identity::text AS value FROM crossref_write_permit WHERE permit_id = '{}'", reservation.permit_id)).remove(0),
+    )
+    .expect("uuid");
+    fx::execute(connection, &format!(
+        "BEGIN; SET LOCAL session_replication_role = replica; \
+         UPDATE crossref_write_permit SET crossref_timestamp = {timestamp} WHERE permit_id = '{}'; COMMIT;",
+        reservation.permit_id
+    ));
+    (reservation, root)
+}
+
+#[test]
+fn t254_history_excludes_only_voided_permits() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let future = 20990904120000999_i64;
+    // After a NONE_ATTEMPTED permit ahead of the clock: its successor.
+    let (_none, root) = permit_with_future_timestamp(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::NoneAttempted,
+        future,
+    );
+    let next =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), root).expect("reserve");
+    assert_eq!(next.crossref_timestamp, 20990904120001000);
+    // After a VOIDED permit ahead of the clock: not constrained; the clock value, below it, is used.
+    let (_voided, root) = permit_with_future_timestamp(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Voided,
+        future,
+    );
+    let next =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), root).expect("reserve");
+    assert!(
+        next.crossref_timestamp < future,
+        "a VOIDED reservation authorised nothing"
+    );
+    // ACCEPTED constrains the next value too; an unresolved INDETERMINATE one blocks.
+    let (_p, root) = permit_with_future_timestamp(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Accepted,
+        future,
+    );
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), root)
+            .expect("reserve")
+            .crossref_timestamp,
+        20990904120001000
+    );
+    let (_p, root) = permit_with_future_timestamp(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Indeterminate,
+        future,
+    );
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), root)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked),
+        "an unresolved INDETERMINATE permit blocks rather than merely constraining"
+    );
+}
+
+#[test]
+fn t255_legacy_cutover_compatibility() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work, job, token) =
+        claimed_work_upsert(pool.as_ref(), &mut connection);
+    // A legacy permit carries a 17-digit timestamp.
+    let legacy =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work).expect("legacy");
+    assert_eq!(legacy.crossref_timestamp.to_string().len(), 17);
+    finalise(pool.as_ref(), &presentation(&legacy, None)).expect("authorise");
+    // A WORK_UPSERT reservation for the same root is refused while the legacy permit is AUTHORIZED.
+    assert_eq!(
+        reserve_work_upsert(pool.as_ref(), job, token).map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked)
+    );
+    // After ACCEPTED, with the clock behind the legacy deposit, the WORK_UPSERT reservation receives a strictly greater,
+    // calendar-valid timestamp.
+    report(
+        pool.as_ref(),
+        legacy.permit_id,
+        legacy.reservation_token,
+        Outcome::Accepted,
+    )
+    .expect("accepted");
+    let ahead = 20990101235959999_i64;
+    fx::execute(&mut connection, &format!(
+        "BEGIN; SET LOCAL session_replication_role = replica; \
+         UPDATE crossref_write_permit SET crossref_timestamp = {ahead} WHERE permit_id = '{}'; COMMIT;",
+        legacy.permit_id
+    ));
+    let work_upsert = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert_eq!(work_upsert.crossref_timestamp, 20990102000000000);
+    assert_eq!(
+        fx::texts(
+            &mut connection,
+            &format!(
+                "SELECT (public.crossref_ts_decode({}) IS NOT NULL)::text AS value",
+                work_upsert.crossref_timestamp
+            )
+        ),
+        vec!["true"]
+    );
+}
+
+#[test]
+fn t265_the_authorization_time_history_reproof() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    // A candidate RESERVED legacy permit, and an older overlapping permit in `state` with `timestamp`, both on one root;
+    // the older one is written with triggers bypassed, so only the authorization-time reproof decides.
+    let candidate_with_older = |connection: &mut PgConnection,
+                                state: &str,
+                                relative: i64|
+     -> (CrossrefWriteReservation, String) {
+        let candidate = legacy_permit_in(
+            pool.as_ref(),
+            connection,
+            CrossrefWritePermitState::Reserved,
+        );
+        let older = Uuid::new_v4();
+        let columns = match state {
+            "VOIDED" => "'void_reason', 'OWNER_ABANDONED', 'void_detail', 'x', 'closed_at', now()".to_string(),
+            "AUTHORIZED" => format!("'payload_digest', '{DIGEST}', 'authorized_at', now()"),
+            _ => format!(
+                "'payload_digest', '{DIGEST}', 'authorized_at', now(), 'provider_reported_at', now(), 'closed_at', now()"
+            ),
+        };
+        fx::execute(connection, &format!(
+            "BEGIN; SET LOCAL session_replication_role = replica; \
+             INSERT INTO crossref_write_permit \
+             SELECT (json_populate_record(p, json_build_object( \
+                        'permit_id', '{older}', 'reservation_token', gen_random_uuid(), 'state', '{state}', \
+                        'crossref_timestamp', p.crossref_timestamp + ({relative}), 'doi_batch_id', 'older-{older}', \
+                        'issued_at', now() - interval '1 day', {columns}))).* \
+               FROM crossref_write_permit p WHERE p.permit_id = '{c}'; \
+             INSERT INTO crossref_write_permit_doi (permit_id, doi) SELECT '{older}', doi FROM crossref_write_permit_doi WHERE permit_id = '{c}'; \
+             COMMIT;",
+            c = candidate.permit_id
+        ));
+        (candidate, older.to_string())
+    };
+    let authorize = |connection: &mut PgConnection, permit: Uuid| {
+        attempt_rolled_back(connection, &format!(
+            "UPDATE crossref_write_permit SET state = 'AUTHORIZED', payload_digest = '{DIGEST}', authorized_at = now() WHERE permit_id = '{permit}'"
+        ))
+    };
+    // A clean RESERVED permit authorises; the reproof excludes the permit itself.
+    let clean = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Reserved,
+    );
+    assert_eq!(authorize(&mut connection, clean.permit_id), Ok(()));
+    for (state, relative, expected) in [
+        ("ACCEPTED", 0, Some("CROSSREF_TIMESTAMP_NOT_INCREASING")),
+        ("ACCEPTED", 5, Some("CROSSREF_TIMESTAMP_NOT_INCREASING")),
+        (
+            "NONE_ATTEMPTED",
+            0,
+            Some("CROSSREF_TIMESTAMP_NOT_INCREASING"),
+        ),
+        ("ACCEPTED", -5, None),
+        ("VOIDED", 5, None),
+        ("AUTHORIZED", -5, Some("CROSSREF_PERMIT_BLOCKED")),
+    ] {
+        let (candidate, _older) = candidate_with_older(&mut connection, state, relative);
+        let result = authorize(&mut connection, candidate.permit_id);
+        match expected {
+            None => assert_eq!(result, Ok(()), "older {state} at {relative:+}"),
+            Some(code) => assert!(
+                result.as_ref().expect_err(code).contains(code),
+                "older {state} at {relative:+}: {result:?}"
+            ),
+        }
+    }
+}
