@@ -3787,3 +3787,363 @@ fn t53_the_creation_helper_is_the_only_work_upsert_job_insert() {
         assert!(!body.contains("distribution_job::table"), "{forbidden}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 9.4: the drain and remainingCandidates (M1-M4, M7, M9,
+// M11, M13, M15)
+// ---------------------------------------------------------------------------
+
+fn drain(
+    pool: &crate::db::PgPool,
+    limit: Option<i32>,
+) -> crate::model::work_upsert::MaterializeWorkUpsertJobsResult {
+    work_upsert_crud::materialize_work_upsert_jobs(pool, &[DistributionPlatform::Crossref], limit)
+        .expect("drain")
+}
+
+/// An independent evaluation of D(CROSSREF), written from Amendment 3 section
+/// 9.4's definition rather than from the implementation's selector.
+fn independent_d(connection: &mut PgConnection) -> Vec<Uuid> {
+    #[derive(QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = SqlUuid)]
+        work_id: Uuid,
+        #[diesel(sql_type = Text)]
+        class: String,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        capture: bool,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        admitted: bool,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        eligible: bool,
+        #[diesel(sql_type = diesel::sql_types::Array<Text>)]
+        abstracts: Vec<String>,
+    }
+    let rows = diesel::sql_query(format!(
+        "WITH residue AS ( \
+            SELECT g.work_id FROM work_upsert_generation g \
+             WHERE g.execution_profile = 'CROSSREF' \
+               AND NOT EXISTS (SELECT 1 FROM distribution_job j WHERE j.kind = 'WORK_UPSERT' \
+                                 AND j.work_id = g.work_id AND j.execution_profile = 'CROSSREF' \
+                                 AND j.status IN ('PENDING', 'RUNNING')) \
+               AND (g.source_generation = 0 OR g.source_generation > \
+                    GREATEST(COALESCE((SELECT max(COALESCE((SELECT max(a.claimed_generation) FROM distribution_job_attempt a WHERE a.distribution_job_id = j.distribution_job_id), j.created_generation)) \
+                                         FROM distribution_job j WHERE j.kind = 'WORK_UPSERT' AND j.work_id = g.work_id AND j.execution_profile = 'CROSSREF' AND j.status = 'SUCCEEDED'), 0), \
+                             COALESCE((SELECT max(COALESCE((SELECT max(a.claimed_generation) FROM distribution_job_attempt a WHERE a.distribution_job_id = j.distribution_job_id), j.created_generation)) \
+                                         FROM distribution_job j WHERE j.kind = 'WORK_UPSERT' AND j.work_id = g.work_id AND j.execution_profile = 'CROSSREF' \
+                                          AND (j.status = 'FAILED' OR (j.status = 'CANCELLED' AND j.cancellation_reason = 'ADMINISTRATIVE'))), 0)))), \
+         stale AS ( \
+            SELECT j.work_id FROM distribution_job j JOIN work w ON w.work_id = j.work_id JOIN imprint i ON i.imprint_id = w.imprint_id \
+             WHERE j.kind = 'WORK_UPSERT' AND j.execution_profile = 'CROSSREF' AND j.status = 'PENDING' \
+               AND (i.publisher_id <> j.publisher_id OR NOT EXISTS (SELECT 1 FROM publisher_distribution_platform p \
+                     WHERE p.publisher_id = j.publisher_id AND p.platform = 'CROSSREF' AND p.enabled AND p.activation_id = j.activation_id))) \
+         SELECT c.work_id, c.class, \
+                (SELECT capture_enabled FROM work_upsert_control WHERE execution_profile = 'CROSSREF') AS capture, \
+                EXISTS (SELECT 1 FROM work w JOIN imprint i ON i.imprint_id = w.imprint_id \
+                          JOIN publisher_distribution_platform p ON p.publisher_id = i.publisher_id AND p.platform = 'CROSSREF' AND p.enabled \
+                          JOIN work_upsert_admission ad ON ad.publisher_id = p.publisher_id AND ad.activation_id = p.activation_id AND ad.execution_profile = 'CROSSREF' \
+                         WHERE w.work_id = c.work_id) AS admitted, \
+                COALESCE((SELECT EXISTS (SELECT 1 FROM publisher_distribution_platform p WHERE p.publisher_id = i.publisher_id AND p.platform = 'CROSSREF' AND p.enabled) AND {eligibility} \
+                            FROM work w JOIN imprint i ON i.imprint_id = w.imprint_id WHERE w.work_id = c.work_id), false) AS eligible, \
+                COALESCE((SELECT {abstracts} FROM work w WHERE w.work_id = c.work_id), ARRAY[]::text[]) AS abstracts \
+           FROM (SELECT work_id, 'RESIDUE' AS class FROM residue UNION SELECT work_id, 'STALE_PENDING' FROM stale) c \
+          ORDER BY c.work_id",
+        eligibility = policy::CROSSREF_SQL_ELIGIBILITY,
+        abstracts = policy::CROSSREF_EVALUATED_ABSTRACTS_SQL,
+    ))
+    .load::<Row>(connection)
+    .expect("independent D");
+    rows.into_iter()
+        .filter(|row| {
+            row.capture
+                && (row.class == "STALE_PENDING"
+                    || (row.admitted
+                        && row.eligible
+                        && policy::crossref_abstracts_normalise(&row.abstracts)))
+        })
+        .map(|row| row.work_id)
+        .collect()
+}
+
+#[test]
+fn m1_unadmitted_residue_sorting_first_never_occupies_a_unit() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let ids = ascending_ids(8);
+    let (unadmitted, unadmitted_imprint, _a, _w) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    let (admitted, admitted_imprint, _a, _w) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    let _ = unadmitted;
+    for id in &ids[..5] {
+        insert_eligible_work(&mut connection, unadmitted_imprint, *id);
+    }
+    for id in &ids[5..] {
+        insert_eligible_work(&mut connection, admitted_imprint, *id);
+    }
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), admitted, "EV", "admin")
+        .expect("admit");
+    assert_eq!(independent_d(&mut connection), ids[5..].to_vec());
+
+    let first = drain(pool.as_ref(), Some(2));
+    assert_eq!(
+        (first.examined, first.created, first.remaining_candidates),
+        (2, 2, 1)
+    );
+    assert_eq!(independent_d(&mut connection).len(), 1);
+    let second = drain(pool.as_ref(), Some(2));
+    assert_eq!(
+        (second.examined, second.created, second.remaining_candidates),
+        (1, 1, 0)
+    );
+    let third = drain(pool.as_ref(), Some(2));
+    assert_eq!((third.examined, third.remaining_candidates), (0, 0));
+    for id in &ids[..5] {
+        assert!(job_summary(&mut connection, *id).is_empty(), "never a unit");
+    }
+    for id in &ids[5..] {
+        assert_eq!(job_summary(&mut connection, *id).len(), 1);
+    }
+}
+
+#[test]
+fn m2_m3_m4_remaining_candidates_equals_an_independent_evaluation_of_d() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint, _activation, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
+        .expect("admit");
+    let ids = ascending_ids(6);
+    for id in &ids {
+        insert_eligible_work(&mut connection, imprint, *id);
+    }
+    // ids[1]: SQL-ineligible; ids[2]: fails only the abstract clause.
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE work SET landing_page = NULL WHERE work_id = '{}'",
+            ids[1]
+        ),
+    );
+    execute(&mut connection, &format!(
+        "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) VALUES ('{}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)",
+        ids[2]
+    ));
+    // ids[3]: an actionable PENDING job (excluded); ids[4]: a RUNNING job (excluded).
+    for id in [ids[3], ids[4]] {
+        assert_eq!(
+            materialize(pool.as_ref(), id, false).outcome,
+            Outcome::Created
+        );
+    }
+    execute(&mut connection, &format!(
+        "UPDATE distribution_job SET status = 'RUNNING', claim_token = gen_random_uuid(), claimed_by = 'w', claimed_at = now(), \
+             lease_expires_at = now() + interval '1 hour', attempt_count = 1 WHERE work_identity = '{}'",
+        ids[4]
+    ));
+    let expected = independent_d(&mut connection);
+    assert_eq!(expected, vec![ids[0], ids[5]]);
+
+    // M3: limit 0 runs nothing and reports |D|.
+    let zero = drain(pool.as_ref(), Some(0));
+    assert_eq!((zero.examined, zero.remaining_candidates), (0, 2));
+    assert_eq!(job_row_counts(&mut connection), "2|2|0");
+
+    // A STALE_PENDING row is counted whatever its eligibility: ids[3]'s assignment
+    // activation changes, and the Work is made ineligible too.
+    let _new_activation = cover_crossref(&mut connection, publisher);
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE publication SET isbn = NULL WHERE work_id = '{}'",
+            ids[3]
+        ),
+    );
+    let expected = independent_d(&mut connection);
+    assert!(expected.contains(&ids[3]));
+    let counted = drain(pool.as_ref(), Some(0));
+    assert_eq!(counted.remaining_candidates as usize, expected.len());
+
+    // M4: the stale row is retired and the unit ends INELIGIBLE; rebound counts it.
+    let result = drain(pool.as_ref(), Some(600));
+    assert_eq!(
+        result.examined,
+        result.created + result.skipped_resolved + result.skipped_ineligible + result.skipped_not_admitted
+            + 0,
+        "no unit ended NO_WORK, BINDING_MOVED, CAPTURE_DISABLED, PENDING_CURRENT or RUNNING_IN_FLIGHT"
+    );
+    assert_eq!(result.rebound, 1);
+    assert_eq!(result.skipped_ineligible, 1);
+    assert_eq!(
+        result.remaining_candidates as usize,
+        independent_d(&mut connection).len()
+    );
+
+    // Capture disabled: D is empty and no unit runs.
+    execute(&mut connection, "SET session_replication_role = replica; UPDATE work_upsert_control SET capture_enabled = false; SET session_replication_role = origin");
+    set_generation(&mut connection, ids[0], 9);
+    let disabled = drain(pool.as_ref(), Some(10));
+    assert_eq!((disabled.examined, disabled.remaining_candidates), (0, 0));
+    assert!(independent_d(&mut connection).is_empty());
+}
+
+#[test]
+fn m7_profile_lists_are_refused_before_any_database_access() {
+    let failing = test_db::failing_pool();
+    assert_eq!(
+        work_upsert_crud::materialize_work_upsert_jobs(&failing, &[], None).map(|r| r.examined),
+        Err(ThothError::WorkUpsertExecutionProfilesRequired)
+    );
+    assert_eq!(
+        work_upsert_crud::materialize_work_upsert_jobs(
+            &failing,
+            &[DistributionPlatform::Figshare],
+            None
+        )
+        .map(|r| r.examined),
+        Err(ThothError::WorkUpsertProfileNotImplemented)
+    );
+}
+
+#[test]
+fn m9_m11_undrainable_residue_is_never_examined_and_updated_at_is_never_read() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint, _activation, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    let ids = ascending_ids(53);
+    for id in &ids {
+        insert_eligible_work(&mut connection, imprint, *id);
+    }
+    // The 50 lowest fail only the abstract clause.
+    for id in &ids[..50] {
+        execute(&mut connection, &format!(
+            "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) VALUES ('{id}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)"
+        ));
+    }
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
+        .expect("admit");
+    // A reservation's 0 row on an ineligible Work.
+    set_generation(&mut connection, ids[0], 0);
+
+    // M11: rewriting updated_at to any value changes nothing about D or its order.
+    let before = independent_d(&mut connection);
+    for rewrite in [
+        "now() + interval '1 day'",
+        "now() - interval '10 years'",
+        "'2026-01-01'",
+    ] {
+        execute(
+            &mut connection,
+            &format!("UPDATE work_upsert_generation SET updated_at = {rewrite}"),
+        );
+        assert_eq!(independent_d(&mut connection), before);
+    }
+    assert_eq!(before, ids[50..].to_vec());
+
+    let first = drain(pool.as_ref(), Some(2));
+    assert_eq!((first.examined, first.created), (2, 2));
+    let second = drain(pool.as_ref(), Some(2));
+    assert_eq!(
+        (second.examined, second.created, second.remaining_candidates),
+        (1, 1, 0)
+    );
+    assert_eq!(
+        generation_of(&mut connection, ids[0]),
+        Some(0),
+        "never examined, stays 0"
+    );
+
+    // An INELIGIBLE single-unit end on a row at 1 or more writes nothing.
+    let row = |connection: &mut PgConnection| {
+        texts(connection, &format!(
+        "SELECT xmin::text || '|' || source_generation::text || '|' || updated_at::text AS value FROM work_upsert_generation WHERE work_id = '{}'",
+        ids[1]
+    ))
+    };
+    let fingerprint = row(&mut connection);
+    assert_eq!(
+        materialize(pool.as_ref(), ids[1], false).outcome,
+        Outcome::Ineligible
+    );
+    assert_eq!(row(&mut connection), fingerprint);
+
+    // Static: no BE-06 selector, unit or count statement reads updated_at.
+    let crud = source("src/model/work_upsert/crud.rs");
+    for line in crud.lines().filter(|line| line.contains("updated_at")) {
+        assert!(
+            line.contains(".eq(diesel::dsl::now)") || line.trim_start().starts_with("//"),
+            "updated_at is written, never read: {line}"
+        );
+    }
+}
+
+#[test]
+fn m13_two_concurrent_drains_create_one_job_per_work() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint, _activation, _works) =
+        admissible_publisher(pool.as_ref(), &mut connection, 0);
+    let ids = ascending_ids(12);
+    for id in &ids {
+        insert_eligible_work(&mut connection, imprint, *id);
+    }
+    work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
+        .expect("admit");
+    let drains: Vec<_> = (0..2)
+        .map(|_| {
+            let pool = pool.clone();
+            std::thread::spawn(move || drain(pool.as_ref(), Some(50)))
+        })
+        .collect();
+    let results: Vec<_> = drains
+        .into_iter()
+        .map(|d| d.join().expect("no panic, no error"))
+        .collect();
+    assert_eq!(results.iter().map(|r| r.created).sum::<i32>(), 12);
+    for id in &ids {
+        assert_eq!(
+            job_summary(&mut connection, *id).len(),
+            1,
+            "one job per Work"
+        );
+    }
+}
+
+#[test]
+fn m15_the_selector_and_the_unit_share_one_eligibility_definition() {
+    let crud = source("src/model/work_upsert/crud.rs");
+    let body = |name: &str| {
+        crud.split_once(&format!("fn {name}("))
+            .unwrap_or_else(|| panic!("{name}"))
+            .1
+            .split_once("\n}\n")
+            .expect("end")
+            .0
+            .to_string()
+    };
+    // The selector path: its one statement, the row filter and the set.
+    let selector = format!(
+        "{}{}{}",
+        body("candidate_rows"),
+        body("abstracts_normalise"),
+        body("drainable_set")
+    );
+    assert!(
+        body("drainable_set").contains("candidate_rows(")
+            && body("drainable_set").contains("CandidateRow::drainable")
+    );
+    let unit_eligibility = body("profile_eligible");
+    assert!(body("materialization_unit").contains("profile_eligible("));
+    for shared in [
+        "CROSSREF_SQL_ELIGIBILITY",
+        "CROSSREF_EVALUATED_ABSTRACTS_SQL",
+        "crossref_abstracts_normalise",
+        "CROSSREF_PUBLISHER_COVERAGE_SQL",
+    ] {
+        assert!(selector.contains(shared), "the selector uses {shared}");
+        assert!(unit_eligibility.contains(shared), "the unit uses {shared}");
+    }
+    assert!(body("materialize_work_upsert_jobs").contains("drainable_set("));
+}

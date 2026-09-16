@@ -854,3 +854,169 @@ pub fn materialize_work_upsert_job(
         materialization_unit(connection, work_id, profile, force)
     })
 }
+
+/// One row of the drain selector: a member of R52B section 9.2's candidate set
+/// with the inputs of Amendment 3 section 9.4's filter.
+#[derive(QueryableByName)]
+pub(crate) struct CandidateRow {
+    #[diesel(sql_type = diesel::sql_types::Uuid)]
+    pub work_id: uuid::Uuid,
+    #[diesel(sql_type = crate::schema::sql_types::DistributionPlatform)]
+    pub execution_profile: DistributionPlatform,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub class: String,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    pub capture_enabled: bool,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    pub admitted: bool,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    pub sql_eligible: bool,
+    #[diesel(sql_type = diesel::sql_types::Array<diesel::sql_types::Text>)]
+    pub abstracts: Vec<String>,
+}
+
+impl CandidateRow {
+    /// Whether the abstract-normalisation clause holds.
+    pub(crate) fn abstracts_normalise(&self) -> bool {
+        super::policy::crossref_abstracts_normalise(&self.abstracts)
+    }
+
+    /// Membership of `D` (Amendment 3 section 9.4): capture enabled and either
+    /// `STALE_PENDING`, or admitted and wholly eligible.
+    pub(crate) fn drainable(&self) -> bool {
+        self.capture_enabled
+            && (self.class == "STALE_PENDING"
+                || (self.admitted && self.sql_eligible && self.abstracts_normalise()))
+    }
+}
+
+/// The drain selector's one statement: every member of the candidate set `C`
+/// over the requested profiles, with no `LIMIT` and no row lock, ascending by
+/// `(work_id, execution_profile)`.
+pub(crate) fn candidate_rows(
+    connection: &mut PgConnection,
+    profiles: &[&'static WorkLevelExecutionProfile],
+) -> QueryResult<Vec<CandidateRow>> {
+    use super::policy;
+    use diesel::sql_types::Array;
+    debug_assert!(profiles
+        .iter()
+        .all(|profile| profile.key == DistributionPlatform::Crossref));
+    let keys: Vec<DistributionPlatform> = profiles.iter().map(|profile| profile.key).collect();
+    let eligible_route = policy::crossref_route_is_automatic_push();
+    diesel::sql_query(format!(
+        "WITH c AS ( \
+             SELECT g.work_id, g.execution_profile, 'RESIDUE' AS class \
+               FROM public.work_upsert_generation g \
+              WHERE g.execution_profile = ANY($1) \
+                AND NOT EXISTS (SELECT 1 FROM public.distribution_job j \
+                                 WHERE j.kind = 'WORK_UPSERT' AND j.work_id = g.work_id \
+                                   AND j.execution_profile = g.execution_profile \
+                                   AND j.status IN ('PENDING', 'RUNNING')) \
+                AND (g.source_generation = 0 \
+                     OR g.source_generation > public.work_upsert_resolution(g.work_id, g.execution_profile)) \
+             UNION \
+             SELECT j.work_id, j.execution_profile, 'STALE_PENDING' \
+               FROM public.distribution_job j \
+              WHERE j.kind = 'WORK_UPSERT' AND j.execution_profile = ANY($1) \
+                AND j.status = 'PENDING' AND j.work_id IS NOT NULL \
+                AND ((SELECT i.publisher_id FROM public.work w JOIN public.imprint i USING (imprint_id) \
+                       WHERE w.work_id = j.work_id) IS DISTINCT FROM j.publisher_id \
+                     OR EXISTS (SELECT 1 FROM public.distribution_job_target t \
+                                 WHERE t.distribution_job_id = j.distribution_job_id \
+                                   AND NOT EXISTS (SELECT 1 FROM public.publisher_distribution_platform p \
+                                                    WHERE p.publisher_id = j.publisher_id \
+                                                      AND p.platform = t.platform \
+                                                      AND p.enabled AND p.activation_id = j.activation_id)))) \
+         SELECT c.work_id, c.execution_profile, c.class, \
+                COALESCE((SELECT k.capture_enabled FROM public.work_upsert_control k \
+                           WHERE k.execution_profile = c.execution_profile), false) AS capture_enabled, \
+                EXISTS (SELECT 1 FROM public.work w \
+                          JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+                          JOIN public.publisher_distribution_platform a \
+                            ON a.publisher_id = i.publisher_id AND a.platform = c.execution_profile AND a.enabled \
+                          JOIN public.work_upsert_admission ad \
+                            ON ad.execution_profile = c.execution_profile AND ad.publisher_id = a.publisher_id \
+                           AND ad.activation_id = a.activation_id \
+                         WHERE w.work_id = c.work_id) AS admitted, \
+                ($2 AND COALESCE((SELECT {coverage} AND {eligibility} \
+                                   FROM public.work w JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+                                  WHERE w.work_id = c.work_id), false)) AS sql_eligible, \
+                COALESCE((SELECT {abstracts} FROM public.work w WHERE w.work_id = c.work_id), ARRAY[]::text[]) AS abstracts \
+           FROM c \
+          ORDER BY c.work_id, c.execution_profile",
+        coverage = policy::CROSSREF_PUBLISHER_COVERAGE_SQL.replace("{publisher}", "i.publisher_id"),
+        eligibility = policy::CROSSREF_SQL_ELIGIBILITY,
+        abstracts = policy::CROSSREF_EVALUATED_ABSTRACTS_SQL,
+    ))
+    .bind::<Array<crate::schema::sql_types::DistributionPlatform>, _>(keys)
+    .bind::<diesel::sql_types::Bool, _>(eligible_route)
+    .load::<CandidateRow>(connection)
+}
+
+/// The drainable set `D` over the requested profiles, in unit order: the
+/// selector's one statement, in its own transaction, then one pure filter with
+/// no further database read. It uses the same eligibility expression and
+/// abstract function as the unit's step 10 (M15): `CROSSREF_SQL_ELIGIBILITY`,
+/// `CROSSREF_PUBLISHER_COVERAGE_SQL`, `CROSSREF_EVALUATED_ABSTRACTS_SQL` and
+/// `crossref_abstracts_normalise` through [`CandidateRow::drainable`].
+fn drainable_set(
+    db: &PgPool,
+    profiles: &[&'static WorkLevelExecutionProfile],
+) -> ThothResult<Vec<(uuid::Uuid, DistributionPlatform)>> {
+    let rows = work_upsert_transaction(db, |connection| Ok(candidate_rows(connection, profiles)?))?;
+    Ok(rows
+        .into_iter()
+        .filter(CandidateRow::drainable)
+        .map(|row| (row.work_id, row.execution_profile))
+        .collect())
+}
+
+/// `materializeWorkUpsertJobs` (Amendment 3 section 9.4): evaluate `D`, run
+/// R52B section 9.3's unit for its first `limit` members, one transaction each,
+/// then evaluate `D` again for `remainingCandidates`.
+pub fn materialize_work_upsert_jobs(
+    db: &PgPool,
+    platforms: &[DistributionPlatform],
+    limit: Option<i32>,
+) -> ThothResult<super::MaterializeWorkUpsertJobsResult> {
+    use super::WorkUpsertMaterializationOutcome as Outcome;
+
+    let profiles = super::policy::registered_profiles(platforms)?;
+    let limit = super::policy::clamp_limit(limit, 100, 500);
+    let members = drainable_set(db, &profiles)?;
+    let mut result = super::MaterializeWorkUpsertJobsResult::default();
+    let mut ran = false;
+    for (work_id, platform) in members
+        .iter()
+        .take(usize::try_from(limit).unwrap_or_default())
+    {
+        let profile = registered(*platform)?;
+        let unit = work_upsert_transaction(db, |connection| {
+            materialization_unit(connection, *work_id, profile, false)
+        })?;
+        ran = true;
+        result.examined += 1;
+        if unit.rebound {
+            result.rebound += 1;
+        }
+        match unit.outcome {
+            Outcome::Created => result.created += 1,
+            Outcome::Resolved => result.skipped_resolved += 1,
+            Outcome::Ineligible => result.skipped_ineligible += 1,
+            Outcome::ResidueNotAdmitted => result.skipped_not_admitted += 1,
+            Outcome::PendingCurrent
+            | Outcome::RunningInFlight
+            | Outcome::CaptureDisabled
+            | Outcome::BindingMovedRetryLater
+            | Outcome::NoWork => {}
+        }
+    }
+    let remaining = if ran {
+        drainable_set(db, &profiles)?.len()
+    } else {
+        members.len()
+    };
+    result.remaining_candidates = as_int(remaining)?;
+    Ok(result)
+}

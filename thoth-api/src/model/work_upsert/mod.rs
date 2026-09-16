@@ -150,6 +150,18 @@ pub struct WorkUpsertMaterialization {
     pub job: Option<crate::model::distribution_job::DistributionJob>,
 }
 
+/// The result of one `materializeWorkUpsertJobs` call (Amendment 3 section 9.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MaterializeWorkUpsertJobsResult {
+    pub examined: i32,
+    pub created: i32,
+    pub rebound: i32,
+    pub skipped_resolved: i32,
+    pub skipped_ineligible: i32,
+    pub skipped_not_admitted: i32,
+    pub remaining_candidates: i32,
+}
+
 /// The advisory-lock namespace of the execution gates `Q` (R52B section 21.1),
 /// distinct from the DOI keys' `1948572001`.
 #[cfg(feature = "backend")]
