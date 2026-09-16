@@ -392,9 +392,9 @@ pub enum ThothError {
     CrossrefVersionFloorNotDecreasing,
     #[error("The Crossref version floor value is outside its domain.")]
     CrossrefVersionFloorDomain,
-    #[error("The Crossref version floor cannot be advanced while a blocking write permit exists.")]
+    #[error("The version floor cannot advance while a blocking Crossref write permit exists.")]
     CrossrefVersionFloorNotDrained,
-    #[error("The Crossref version floor was already advanced for this attempt.")]
+    #[error("This G-6 attempt has already advanced the version floor.")]
     CrossrefVersionFloorAlreadyAdvanced,
     #[error("The Crossref version floor cannot be removed.")]
     CrossrefVersionFloorPermanent,
@@ -408,13 +408,13 @@ pub enum ThothError {
     AttemptHasOpenReservation,
     #[error("The attempt holds unresolved Crossref write permits.")]
     OuterAttemptHasOpenPermits,
-    #[error("The Crossref version floor target value is not allowed.")]
+    #[error("The requested version floor target is not the approved target.")]
     CrossrefVersionFloorTargetInvalid,
-    #[error("Advancing the Crossref version floor requires an authorization reference.")]
+    #[error("A version floor advance requires a non-blank authorization reference.")]
     CrossrefVersionFloorRequiresAuthorizationReference,
-    #[error("The authorization register digest is not a lower-case SHA-256 hex digest.")]
+    #[error("The authorization register digest must be 64 lowercase hexadecimal characters.")]
     CrossrefVersionFloorRegisterDigestInvalid,
-    #[error("The Crossref version floor is not in the state this advance requires.")]
+    #[error("The version floor is not at the value this advance is bound to.")]
     CrossrefVersionFloorBindingMismatch,
     #[error("Work-level capture is not enabled.")]
     WorkUpsertCaptureNotEnabled,

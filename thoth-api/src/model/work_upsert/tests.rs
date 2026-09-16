@@ -4147,3 +4147,35 @@ fn m15_the_selector_and_the_unit_share_one_eligibility_definition() {
     }
     assert!(body("materialize_work_upsert_jobs").contains("drainable_set("));
 }
+
+#[test]
+fn f20_the_floor_refusals_carry_exactly_the_section_9_9_messages() {
+    for (error, message) in [
+        (
+            ThothError::CrossrefVersionFloorTargetInvalid,
+            "The requested version floor target is not the approved target.",
+        ),
+        (
+            ThothError::CrossrefVersionFloorRequiresAuthorizationReference,
+            "A version floor advance requires a non-blank authorization reference.",
+        ),
+        (
+            ThothError::CrossrefVersionFloorRegisterDigestInvalid,
+            "The authorization register digest must be 64 lowercase hexadecimal characters.",
+        ),
+        (
+            ThothError::CrossrefVersionFloorAlreadyAdvanced,
+            "This G-6 attempt has already advanced the version floor.",
+        ),
+        (
+            ThothError::CrossrefVersionFloorNotDrained,
+            "The version floor cannot advance while a blocking Crossref write permit exists.",
+        ),
+        (
+            ThothError::CrossrefVersionFloorBindingMismatch,
+            "The version floor is not at the value this advance is bound to.",
+        ),
+    ] {
+        assert_eq!(error.to_string(), message);
+    }
+}
