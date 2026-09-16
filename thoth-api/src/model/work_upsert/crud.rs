@@ -506,6 +506,11 @@ pub fn admit_crossref_work_upsert(
                 return Err(ThothError::EntityNotFound.into());
             }
         }
+        // R52B T166 (#848 comment 5701572954): no admission while capture is disabled. Read before the activation,
+        // any existing admission and the census, so the refusal writes nothing and runs no census.
+        if !capture_enabled(connection, DistributionPlatform::Crossref)? {
+            return Err(ThothError::WorkUpsertCaptureNotEnabled.into());
+        }
         let activation = match crossref_activation(connection, publisher_id)? {
             Some(activation) if super::policy::crossref_route_is_automatic_push() => activation,
             _ => return Err(ThothError::CrossrefPublisherNotCovered.into()),

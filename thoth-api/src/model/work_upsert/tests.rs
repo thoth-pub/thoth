@@ -3141,6 +3141,13 @@ fn a6_a7_activation_drift_and_missing_bindings() {
         Err(ThothError::EntityNotFound)
     );
     let (uncovered, _imprint) = publisher_and_imprint(pool.as_ref());
+    // The capture condition (#848 comment 5701572954) precedes activation resolution.
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), uncovered, "EV", "user")
+            .map(|a| a.actor),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+    enable_capture(&mut connection);
     assert_eq!(
         work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), uncovered, "EV", "user")
             .map(|a| a.actor),
@@ -7174,8 +7181,9 @@ fn n5_the_non_blank_rule_is_independent_of_the_collation_provider() {
 
 /// R52B section 25.14 T166: the migration and the deployment are inert. With the control row `(false, false)`,
 /// released paths — editorial writes, the coordinator creating a back-catalogue job, its claim and completion — and
-/// every BE-06 entry point leave no work-level job, target or attempt, no admission, no permit and no audit row; the
-/// only BE-06 state is generation rows.
+/// every BE-06 entry point, explicit admission included (#848 comment `5701572954`), leave no work-level job, target
+/// or attempt, no admission, no permit and no audit row; the only BE-06 state is generation rows. Once capture is
+/// enabled through the approved control path, the approved admission flow is unchanged.
 #[test]
 fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control_row_is_off() {
     let (_guard, pool) = test_db::setup_test_db();
@@ -7229,9 +7237,16 @@ fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control
         .map(|c| c.execution_enabled),
         Err(ThothError::WorkUpsertCaptureNotEnabled)
     );
+    // Explicit admission while `(false, false)` is refused before any activation, admission lookup or census.
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
+            .map(|a| a.actor),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
     assert_eq!(
         texts(&mut connection,
             "SELECT (SELECT count(*) FROM distribution_job WHERE kind = 'WORK_UPSERT')::text || '|' \
+                 || (SELECT count(*) FROM distribution_job_target t JOIN distribution_job j USING (distribution_job_id) WHERE j.kind = 'WORK_UPSERT')::text || '|' \
                  || (SELECT count(*) FROM distribution_job_attempt a JOIN distribution_job j USING (distribution_job_id) WHERE j.kind = 'WORK_UPSERT')::text || '|' \
                  || (SELECT count(*) FROM distribution_job WHERE execution_profile IS NOT NULL OR work_identity IS NOT NULL OR created_generation IS NOT NULL)::text || '|' \
                  || (SELECT count(*) FROM distribution_job_attempt WHERE claimed_generation IS NOT NULL OR fenced_at IS NOT NULL)::text || '|' \
@@ -7241,7 +7256,7 @@ fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control
                  || (SELECT capture_enabled::text || '/' || execution_enabled::text FROM work_upsert_control) || '|' \
                  || (SELECT floor_value::text FROM work_crossref_version_floor) || '|' \
                  || (SELECT count(*) FROM work_upsert_generation WHERE NOT EXISTS (SELECT 1 FROM work w WHERE w.work_id = work_upsert_generation.work_id))::text AS value"),
-        vec!["0|0|0|0|0|0|0|false/false|0|0"]
+        vec!["0|0|0|0|0|0|0|0|false/false|0|0"]
     );
     assert_eq!(
         count(
@@ -7251,11 +7266,19 @@ fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control
         3,
         "only generation rows"
     );
-    // Admission is an explicit superuser act whose frozen precedence (Amendment 3 section 9.3) has no capture
-    // condition: it is not a released path and is outside the inert state above.
+    // Capture enabled through the approved control path: the same publisher and binding admit through the unchanged
+    // approved flow, and admission still creates no job.
+    work_upsert_crud::enable_work_upsert_capture(pool.as_ref(), DistributionPlatform::Crossref)
+        .expect("capture");
     assert_eq!(
         work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
-            .map(|a| a.actor),
-        Ok("admin".to_string())
+            .map(|a| (a.evidence_reference, a.actor)),
+        Ok(("EV".to_string(), "admin".to_string()))
+    );
+    assert_eq!(
+        texts(&mut connection,
+            "SELECT (SELECT count(*) FROM work_upsert_admission)::text || '|' \
+                 || (SELECT count(*) FROM distribution_job WHERE kind = 'WORK_UPSERT')::text AS value"),
+        vec!["1|0"]
     );
 }
