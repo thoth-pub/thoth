@@ -8,6 +8,10 @@ executed. It is evidence for the independent exact-head CRITICAL review, not a s
 > **T166 correction.** Sections 1-16 are the original report for head `bfef2daa`, preserved as written. That head
 > was not approved on independent review. Section 17 records the correction authorized by #848 comment `5701857879`
 > under CTO specification correction `5701572954`, which supersedes section 5.4 item 1.
+>
+> **Post-review correction.** Section 17's head `aabb5e0d` was not approved on independent review either; sections
+> 1-17 are preserved as written. Section 18 records the correction authorized by #848 comment `5703254463` under CTO
+> specification correction `5703204194`.
 
 ## 1. Repository state
 
@@ -772,3 +776,275 @@ Within that run, each passed:
 - **Gate:** the implementation agent does not approve its own work. `bfef2daa` remains unapproved. The pushed head
   requires a fresh independent exact-head CRITICAL source, migration, authorization and concurrency review. PR
   creation remains unauthorized.
+
+## 18. Post-review correction
+
+### 18.1 Why `aabb5e0d` was not approved
+
+Independent exact-head CRITICAL review of `aabb5e0dace9e3d613ee1a2b347496326cec5d36` (tree
+`de2dfb0dead84066914e68f12fd5a62fb955e743`), the head that carried section 17, found two blockers:
+
+1. **Finalisation replay identity.** Amendment 3 section 4.6 described replay as an identical presentation of six
+   elements: permit, reservation token, observed DOI set, observed batch id, observed timestamp and payload digest.
+   R52B section 16.6 C2 and T229, which the source follows, replay an `AUTHORIZED` permit on the persisted digest and
+   a finalisation-voided permit on its recorded outcome. A finalisation void persists no digest (the void CHECK forces
+   `payload_digest` to NULL) and no observed value, so the six-element identity cannot be evaluated for it without new
+   persisted evidence.
+2. **Failure and completion against a concurrent reservation.** `attempt_permit_guard` read the attempt's permits by
+   MVCC before its transaction held the job row.
+
+A read-only investigation on a disposable copy of `aabb5e0d`, outside the repository, reproduced blocker 2 on real
+sessions and found a third race (section 18.5). CTO specification correction #848 comment `5703204194` resolved all
+three inside the approved architecture, and #848 comment `5703254463` authorized this correction from `aabb5e0d`
+with a seven-path budget. `aabb5e0d` is not approved.
+
+### 18.2 Preflight
+
+`git fetch origin --prune`; local `HEAD`, `origin/feature/publisher-services-v1-10--be-06` and `git ls-remote` all
+`aabb5e0d…`, tree `de2dfb0d…`; zero `git status` entries; `gh pr list --head feature/publisher-services-v1-10--be-06
+--state all` empty; #848 had 32 comments, ending with `5703204194` and `5703254463`; no workflow run existed for the
+branch, and the push-triggered workflows at the base trigger only on `master` and `develop`.
+
+### 18.3 Replay: the clarification against the source
+
+Comment `5703204194` section 1 withdraws Amendment 3 section 4.6's six-element wording where it conflicts with R52B
+C2. The production finalisation path already implemented the clarified contract and is unchanged.
+`t229_replay_is_decided_by_the_reservation_token_and_the_persisted_digest` is therefore a characterization test: it
+passed against the `aabb5e0d` production files and after the correction. Every presentation in the table was also
+checked to write nothing, by a fingerprint of the permit, job and attempt rows including `xmin`.
+
+| Permit | Presentation | Result |
+|---|---|---|
+| `AUTHORIZED` (`WORK_UPSERT`) | the reservation token and the persisted digest, with the first presentation's fields, another observed DOI set, no observed DOI, another batch id, another timestamp, no claim token, another claim token, or all of these at once | `AUTHORIZED`, the persisted digest unchanged |
+| `AUTHORIZED` | each of those with another valid digest | `CROSSREF_PERMIT_ILLEGAL_TRANSITION` |
+| `VOIDED` by finalisation, group A `SOURCE_CHANGED_DURING_PREPARATION` (job still `RUNNING`) | each variation, with the first digest or another valid digest | `VOIDED_RETRYABLE`, the same reason |
+| `VOIDED` by finalisation, group A `ARTIFACT_BATCH_ID_MISMATCH` (legacy route) | the presentation that matches the reservation, which a first call would have authorised, and each variation, with either digest | `VOIDED_RETRYABLE`, the same reason |
+| `VOIDED` by finalisation, group B `BINDING_SUPERSEDED` (job `CANCELLED`) | each variation, with either digest | `VOIDED_JOB_RETIRED`, the same reason |
+| `VOIDED` by the route owner, and by the superuser | each variation, with either digest | `CROSSREF_PERMIT_ILLEGAL_TRANSITION` |
+| each permit above | a valid digest (either) and a wrong reservation token | `CROSSREF_PERMIT_REQUIRES_RESERVATION_TOKEN` |
+| each permit above | a malformed digest (upper case, or 63 characters), with the right or a wrong token | `CROSSREF_PAYLOAD_DIGEST_INVALID` |
+| each permit above | a route authorization that refuses, with a valid or a malformed digest | `Unauthorised` |
+
+No replay fingerprint, column, table, enum, trigger or migration was added.
+
+### 18.4 Terminal transitions: root cause
+
+- `fail_distribution_job` ran `attempt_permit_guard` for every job, and `complete_distribution_job` ran it for every
+  job other than `WORK_UPSERT`, before any statement of theirs locked the job row. The guard found the open attempt
+  and read its permits by MVCC.
+- A `WORK_UPSERT` or back-catalogue reservation takes `J FOR UPDATE`, then `A FOR UPDATE`, and inserts its permit
+  later in the same transaction. A guard running in that window saw no permit. The released job `UPDATE` that
+  followed waited on the reservation's row lock. When the reservation committed, READ COMMITTED re-evaluated only
+  that `UPDATE`'s own predicate against the job row, which the reservation had locked but not changed. The `UPDATE`
+  applied, the attempt closed, and the guard never ran again.
+- At `aabb5e0d` (section 18.9): a retryable `WORK_UPSERT` failure returned `PENDING` and closed the attempt `FAILED`
+  under a `RESERVED` permit; a terminal back-catalogue failure returned `FAILED`, and a back-catalogue completion
+  `SUCCEEDED`, each over a new `RESERVED` unit permit.
+- The opposite order was already safe: the reservation's claim re-check under `J` refused `CROSSREF_PERMIT_CLAIM_STALE`.
+
+### 18.5 Accepted-unit race: root cause
+
+- Amendment 3 section 9.6 orders the back-catalogue reservation as step 9, an `ACCEPTED` permit for this root in this
+  outer job; step 10, membership; step 11, `K`, `F`, the blocking check, history, allocation and insertion.
+  `reportCrossrefWrite` takes only the permit row `X`; reconciliation takes `A` of the permit's own attempt, then `X`.
+- A unit permit that was `AUTHORIZED` or `INDETERMINATE` at step 9 passed that check. If a report, or a
+  reconciliation of a permit from an earlier attempt of the same outer job, committed `ACCEPTED` before the blocking
+  check, the blocking check found nothing, because `ACCEPTED` does not block. The reservation then issued a second
+  permit for a unit already deposited in the outer job.
+- By derivation, a reconciliation of a permit on the reservation's own attempt serialises with it at `A`, so the
+  reachable reconciliation window is the earlier-attempt case.
+
+### 18.6 The source correction
+
+```text
+git diff --numstat aabb5e0d 073447cc
+34    16  thoth-api/src/model/crossref_write_permit/crud.rs
+1307   0  thoth-api/src/model/crossref_write_permit/tests.rs
+23     2  thoth-api/src/model/distribution_job/crud.rs
+```
+
+1. `distribution_job/crud.rs`, `attempt_permit_guard`: a new first statement locks the job row by id,
+   `SELECT status, claim_token … FOR UPDATE`, and returns `Ok(())` unless the row is `RUNNING` with the presented
+   token, so the released statement still classifies a stale, missing or terminal claim as before. The existing join
+   of the job to its open attempt and the permit read now follow in later statements. Refusal order and codes are
+   unchanged. The comments at both call sites say the row stays held.
+2. `crossref_write_permit/crud.rs`: the step 9 query moved unchanged into `unit_deposited_in_job`, called at the same
+   place. `issue` calls it again on the back-catalogue route, after the blocking check found no blocker and before
+   history, allocation and insertion, refusing `CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB`. The other routes are
+   unchanged.
+3. Unchanged: `finalise_crossref_write`, `report_crossref_write`, reconciliation, both voids, the `WORK_UPSERT`
+   completion guard and T2, cancellation, lease recovery, both claims and the deletion units. No migration,
+   `schema.rs`, GraphQL, error definition or mapping, public API, enum, trigger, dependency or workflow changed.
+
+### 18.7 Semantics
+
+- **Where `J` is taken.** In `attempt_permit_guard`'s first statement: for failure of every job, and for completion of
+  every job that does not take the `WORK_UPSERT` prefix (every kind other than `WORK_UPSERT`, and a `WORK_UPSERT` row
+  without its Work or profile). None of those paths takes `P`, `W` or `G`, so `J` is their first row lock and their
+  order is `J → A`, as before.
+- **Claim re-check.** The lock statement returns the job row's latest committed version after any wait, and the guard
+  compares status and token in Rust. The attempt join and the permit read are later statements, so their snapshots
+  include every transaction that held `J` before this one. The permit read takes no lock.
+- **Retention.** Row locks end only with the transaction: through the released job `UPDATE` (on the row already held),
+  `close_open_attempt` (`A`) and the commit, or through the rollback of a refusal.
+- **Both orders.** A reservation or finalisation holding `J` makes the failure or completion wait; once it commits,
+  the guard sees `RESERVED` or `AUTHORIZED` and refuses, leaving the job `RUNNING` and the attempt open. A failure or
+  completion holding `J` makes the reservation or finalisation wait at its own `J`; once that commits, the claim
+  re-check refuses `CROSSREF_PERMIT_CLAIM_STALE`. No newly committed `RESERVED` or `AUTHORIZED` permit is left on an
+  attempt that the generic transition closes.
+- **`WORK_UPSERT` completion.** Unchanged, and still `P → W → G → J → A`. It holds `G` before it reads the fence and
+  the accepted permit, and a reservation or finalisation of the same attempt holds `G` from before its own `J` until
+  its commit, so the two serialise at `G` (section 18.8). R52B section 10.4's stability argument still holds: one
+  permit per attempt, a write-once fence, and `ACCEPTED` terminal. No `J → P`, `J → W` or `J → G` edge was added.
+- **Deadlock.** The lock sequence of a failure or outer completion is unchanged, `J` then `A`; only the moment `J` is
+  taken moved, to before the MVCC reads. When it requests `J` it holds no row lock (the completion's job-kind read
+  before it is MVCC), so that wait cannot close a cycle, and its one hold-and-wait, `J` held while it waits for `A`,
+  existed before. A stale or terminal claim now also takes `J` briefly before the released statement classifies it.
+  No wait-for cycle is added.
+- **Late deposited check.** An MVCC read in a statement after `K`, `F` and the blocking check. A report or
+  reconciliation that commits before the blocking check's snapshot lets that check pass, and the later statement sees
+  `ACCEPTED`. One that commits later leaves the permit blocking in that snapshot, and the reservation is refused
+  `CROSSREF_PERMIT_BLOCKED`. Either way no second permit is issued for a unit whose overlapping permit is accepted in
+  the outer job. A permit whose DOIs no longer overlap the root's current membership never blocks, so a report that
+  commits after the late check is not observed; that is also the sequential behaviour of Amendment 3 section 9.6,
+  whose deposited check reads the state at reservation time.
+- **Report and reconciliation locks.** Not widened. Comment `5703204194` section 3 keeps their approved leaf-lock
+  behaviour; the reservation observes their commits instead.
+
+### 18.8 Regression tests
+
+All in `thoth-api/src/model/crossref_write_permit/tests.rs`, module `post_review_correction`. The race tests use the
+section 9.5 pause point. While the second session waits they read its lock from `pg_locks`, the statement it is
+executing from `pg_stat_activity`, and the job's committed permit count. They assert both results and the final
+rows, formatted `status|claimed|attempt_count|last_error_code attempts=… permits=state@attempt`.
+
+| Test | Schedule | Final state after the correction |
+|---|---|---|
+| `a_failure_behind_a_work_upsert_reservation_waits_on_the_job_row_and_refuses` | reservation paused before its permit insert; retryable failure | failure waits in `distribution_job FOR UPDATE` with 0 committed permits, then `ATTEMPT_HAS_OPEN_RESERVATION`; `RUNNING`, attempt open, permit `RESERVED` |
+| `a_reservation_behind_a_work_upsert_failure_waits_on_the_job_row_and_finds_the_claim_stale` | failure paused after its job `UPDATE`; reservation | failure `PENDING`; reservation waits in `distribution_job FOR UPDATE`, then `CROSSREF_PERMIT_CLAIM_STALE`; attempt `FAILED`; no permit |
+| `a_failure_behind_a_finalisation_waits_on_the_job_row_and_refuses_the_authorization` | finalisation paused before its permit `UPDATE`; terminal failure | finalisation `AUTHORIZED`; failure waits in `distribution_job FOR UPDATE`, then `ATTEMPT_HAS_AUTHORIZED_PERMIT`; `RUNNING`, attempt open, permit `AUTHORIZED` |
+| `a_work_upsert_completion_behind_a_reservation_waits_on_the_generation_row_and_refuses` | reservation paused before its permit insert; completion | completion waits in `work_upsert_generation FOR UPDATE`, then `WORK_UPSERT_COMPLETION_REQUIRES_FENCE`; `RUNNING`, attempt open, permit `RESERVED` |
+| `a_terminal_outer_failure_behind_a_unit_reservation_waits_on_the_job_row_and_refuses` | unit reservation paused before its permit insert; outer failure, not retryable | failure waits in `distribution_job FOR UPDATE`, then `ATTEMPT_HAS_OPEN_RESERVATION`; `RUNNING`, attempt open, unit permit `RESERVED` |
+| `a_unit_reservation_behind_a_terminal_outer_failure_waits_on_the_job_row_and_finds_the_claim_stale` | outer failure paused after its job `UPDATE`; unit reservation | failure `FAILED`; reservation waits in `distribution_job FOR UPDATE`, then `CROSSREF_PERMIT_CLAIM_STALE`; attempt `FAILED`; no permit |
+| `an_outer_completion_behind_a_unit_reservation_waits_on_the_job_row_and_refuses` | unit reservation paused before its permit insert; outer completion | completion waits in `distribution_job FOR UPDATE`, then `ATTEMPT_HAS_OPEN_RESERVATION`; `RUNNING`, attempt open, unit permit `RESERVED` |
+| `a_unit_reservation_behind_an_outer_completion_waits_on_the_job_row_and_finds_the_claim_stale` | outer completion paused after its job `UPDATE`; unit reservation | completion `SUCCEEDED`; reservation waits in `distribution_job FOR UPDATE`, then `CROSSREF_PERMIT_CLAIM_STALE`; attempt `SUCCEEDED`; no permit |
+| `a_report_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check` | unit permit `AUTHORIZED`; another session holds the unit's DOI key; the repeat reservation waits on it (`advisory:ExclusiveLock`), past step 9; `reportCrossrefWrite` `ACCEPTED` commits; the key is released | report `ACCEPTED`; reservation `CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB`; `RUNNING`, attempt open, one permit, `ACCEPTED` |
+| `a_unit_reservation_reading_the_permit_before_the_report_commits_is_blocked` | report paused after its permit `UPDATE`; the repeat reservation runs to its end without waiting | reservation `CROSSREF_PERMIT_BLOCKED`; report `ACCEPTED`; one permit |
+| `a_reconciliation_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check` | unit permit `INDETERMINATE` from attempt 1; attempt 1 failed retryably and the job was claimed again; the key held; the attempt 2 reservation waits on it; reconciliation to `ACCEPTED` commits; the key is released | reconciliation `ACCEPTED`; reservation `CROSSREF_UNIT_ALREADY_DEPOSITED_IN_JOB`; attempts `FAILED,OPEN`; one permit, `ACCEPTED` on attempt 1 |
+| `a_unit_reservation_reading_the_permit_before_the_reconciliation_commits_is_blocked` | the same, with reconciliation paused after its permit `UPDATE` | reservation `CROSSREF_PERMIT_BLOCKED`; reconciliation `ACCEPTED`; one permit |
+| `a_work_upsert_failure_over_each_committed_permit_state` | sequential: retryable and terminal failure over each of the six permit states, and a retryable failure after a `VOIDED_RETRYABLE` finalisation | `RESERVED` → `ATTEMPT_HAS_OPEN_RESERVATION` and `AUTHORIZED` → `ATTEMPT_HAS_AUTHORIZED_PERMIT`, each with the job `RUNNING` and the attempt open; `VOIDED`, `NONE_ATTEMPTED`, `INDETERMINATE` and `ACCEPTED` → `PENDING` or `FAILED`, attempt `FAILED` |
+| `an_outer_back_catalogue_completion_or_failure_over_each_committed_unit_permit_state` | sequential: completion, retryable failure and terminal failure over each of the six unit-permit states, and a retryable failure at `attempt_count = 5` | `RESERVED` and `AUTHORIZED` refuse all three; `INDETERMINATE` refuses completion and terminal failure with `OUTER_ATTEMPT_HAS_OPEN_PERMITS`, allows the retryable failure (`PENDING`), and refuses it at the budget; `VOIDED`, `NONE_ATTEMPTED` and `ACCEPTED` allow all three |
+| `t229_replay_is_decided_by_the_reservation_token_and_the_persisted_digest` | section 18.3 | section 18.3 |
+
+### 18.9 RED
+
+The tests were written before any production change. Both RED runs used this command:
+
+```text
+cargo test -p thoth-api --features backend --lib -- --test-threads=1 \
+  model::crossref_write_permit::tests::post_review_correction
+```
+
+1. In the task worktree, with only the test file changed (the production files byte-identical to `aabb5e0d`) and
+   before the finalisation-first test was added: `test result: FAILED. 9 passed; 5 failed`.
+2. In a disposable `git archive aabb5e0d` copy, with only `crossref_write_permit/tests.rs` replaced by the committed
+   file from `073447cc` (SHA-256 `755d30a6…`) and its own target directory: `test result: FAILED. 9 passed;
+   6 failed`. `left` is what `aabb5e0d` did; `right` is the corrected contract:
+
+```text
+a_failure_behind_a_work_upsert_reservation_waits_on_the_job_row_and_refuses
+  left: (Ok(()), Ok(Pending), Waited { locks: ["transactionid:ShareLock"], statements: ["released distribution_job UPDATE"], committed_permits: 0 }, "PENDING|false|1|CROSSREF_PREPARED_FETCH_FAILED attempts=FAILED permits=RESERVED@FAILED")
+ right: (Ok(()), Err(AttemptHasOpenReservation), Waited { locks: ["transactionid:ShareLock"], statements: ["distribution_job FOR UPDATE"], committed_permits: 0 }, "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN")
+a_terminal_outer_failure_behind_a_unit_reservation_waits_on_the_job_row_and_refuses
+  left: (Ok(()), Ok(Failed), Waited { locks: ["transactionid:ShareLock"], statements: ["released distribution_job UPDATE"], committed_permits: 0 }, "FAILED|false|1|CROSSREF_ARTIFACT_REFUSED attempts=FAILED permits=RESERVED@FAILED")
+ right: (Ok(()), Err(AttemptHasOpenReservation), Waited { locks: ["transactionid:ShareLock"], statements: ["distribution_job FOR UPDATE"], committed_permits: 0 }, "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN")
+an_outer_completion_behind_a_unit_reservation_waits_on_the_job_row_and_refuses
+  left: (Ok(()), Ok(Succeeded), Waited { locks: ["transactionid:ShareLock"], statements: ["released distribution_job UPDATE"], committed_permits: 0 }, "SUCCEEDED|false|1|- attempts=SUCCEEDED permits=RESERVED@SUCCEEDED")
+ right: (Ok(()), Err(AttemptHasOpenReservation), Waited { locks: ["transactionid:ShareLock"], statements: ["distribution_job FOR UPDATE"], committed_permits: 0 }, "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN")
+a_report_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check
+  left: (Ok(0659b22a-d3f2-425e-8744-8130b570d7b2), Ok(Accepted), ["advisory:ExclusiveLock"], "RUNNING|true|1|- attempts=OPEN permits=ACCEPTED@OPEN,RESERVED@OPEN")
+ right: (Err(CrossrefUnitAlreadyDepositedInJob), Ok(Accepted), ["advisory:ExclusiveLock"], "RUNNING|true|1|- attempts=OPEN permits=ACCEPTED@OPEN")
+a_reconciliation_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check
+  left: (Ok(ef3231e7-fd2e-436f-897c-405adb2a6269), Ok(Accepted), ["advisory:ExclusiveLock"], "RUNNING|true|2|CROSSREF_PROVIDER_INDETERMINATE attempts=FAILED,OPEN permits=ACCEPTED@FAILED,RESERVED@OPEN")
+ right: (Err(CrossrefUnitAlreadyDepositedInJob), Ok(Accepted), ["advisory:ExclusiveLock"], "RUNNING|true|2|CROSSREF_PROVIDER_INDETERMINATE attempts=FAILED,OPEN permits=ACCEPTED@FAILED")
+a_failure_behind_a_finalisation_waits_on_the_job_row_and_refuses_the_authorization
+  the second session did not wait: Err(AttemptHasOpenReservation); the first: Ok(Authorized)
+```
+
+The first five are the reproduced defects. In the sixth, `aabb5e0d`'s failure read the still-`RESERVED` permit and
+refused at once, without serialising with the finalisation. That result was safe but not the specified order. The
+nine tests that passed at `aabb5e0d` are the three opposite orders on the job row, the two orders in which a report
+or reconciliation commits after the reservation's read, the `WORK_UPSERT` completion at `G`, both sequential controls
+and T229.
+
+### 18.10 GREEN and validation
+
+- Before the commit: module `post_review_correction` 15 passed in three consecutive runs;
+  `cargo test -p thoth-api --features backend --no-fail-fast`: lib 1452 passed, `crossref_permit_concurrency` 3,
+  `crossref_serializer_dependency_guard` 4, `graphql_permissions` 13, `work_upsert_capture` 31,
+  `work_upsert_deletion` 4, `work_upsert_lifecycle` 7.
+- On source commit `073447cca036ff4d91c540003cd4d49f9c9adaac` (tree `81f452076958741e1564cface4b4f0bb952b88ef`), with
+  a clean worktree:
+
+```text
+cargo fmt --all -- --check                                      exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings  exit 0 (every workspace crate re-checked; proc-macro-error2 notice only)
+cargo test --workspace --no-fail-fast                           exit 0; 1723 passed, 0 failed, 8 ignored
+thoth (bin)                                          31 passed
+thoth-api lib                                      1452 passed (1437 + 15)
+thoth-api tests/crossref_permit_concurrency           3 passed
+thoth-api tests/crossref_serializer_dependency_guard  4 passed
+thoth-api tests/graphql_permissions                  13 passed
+thoth-api tests/work_upsert_capture                  31 passed
+thoth-api tests/work_upsert_deletion                  4 passed
+thoth-api tests/work_upsert_lifecycle                 7 passed
+thoth-api-server lib 3; thoth-client lib 4; thoth-errors lib 11; thoth-export-server lib 152
+doc-tests: thoth_client 6; thoth_export_server 2; thoth_api 0 passed, 8 ignored
+```
+
+- Within that run: `model::crossref_write_permit::tests` 99 (84 existing and 15 new), `model::distribution_job::tests`
+  74, `model::work_upsert::tests` 99 and `graphql::` 163 passed. Among them: T166; the existing replay and
+  finalisation tests (`a_work_upsert_finalisation_authorises_and_fences_in_one_transaction`, groups A0, A, B and C,
+  P1, P2, T216); the completion and failure guards
+  (`completion_requires_the_fence_and_an_accepted_permit_at_the_claimed_generation`,
+  `an_outer_back_catalogue_attempt_cannot_close_over_an_open_unit_permit`, T2, R6, R7); T256
+  (`a_back_catalogue_unit_is_deposited_at_most_once_per_outer_job`); the races T205-T223, T270, T272-T275 and
+  T280-T289; admission A2, A3, A4, X8/A5, A6/A7, S4/A8 and T257/A9, with D10/T290, D11, T291 and T292; deletion, fence
+  and recovery T325-T328; the GraphQL refusal order (`f4_f6_f17_c6_m7_x9_refusals_through_graphql`) and X9; F13 and
+  H8; X4 for the shared job operations and for the deletion units; T203; the serializer dependency guard; and S1,
+  evaluated.
+- **Deadlocks.** `pg_stat_database.deadlocks` rose by exactly one in each run that included
+  `tests/work_upsert_capture.rs`. Every `deadlock detected` line in the disposable server's log is
+  `t319_negative_control_without_the_defence_deadlocks`, which requires that deadlock. The correction's module runs
+  left the counter unchanged, and every race result is asserted exactly, so no race order met `40P01`.
+
+### 18.11 Diff
+
+`git diff --name-status aabb5e0dace9e3d613ee1a2b347496326cec5d36..HEAD`, with the documentation commit:
+
+```text
+M	docs/engineering/ai-delivery/implementation-reports/BE-06-implementation-report.md
+M	docs/engineering/ai-delivery/tasks/BE-06.md
+M	thoth-api/src/model/crossref_write_permit/crud.rs
+M	thoth-api/src/model/crossref_write_permit/tests.rs
+M	thoth-api/src/model/distribution_job/crud.rs
+```
+
+Five of the seven authorized paths, all modifications; no addition, deletion, rename or copy.
+`thoth-api/src/model/distribution_job/tests.rs` and `thoth-api/tests/crossref_permit_concurrency.rs` were not needed
+and are untouched. The documentation commit changes only this file and `tasks/BE-06.md`; its SHA is the pushed head.
+
+### 18.12 Side effects and remaining gate
+
+- **Repository writes:** the five paths above, on the task branch only.
+- **Commits:** `073447cc` and the documentation commit, as Javier Arias, without AI attribution. No earlier commit was
+  amended, rebased or rewritten.
+- **Push:** `feature/publisher-services-v1-10--be-06` only, a fast-forward from `aabb5e0d` without force. The remote
+  branch, the PR list, #848 and the push triggers are re-checked immediately before it.
+- **No** PR, issue or comment mutation, CI dispatch, provider access, Crossref traffic, production access, migration
+  outside the disposable database, G-6, G-7, #919 operation or BE-07 work. Tests ran only against the disposable local
+  PostgreSQL 17 and Redis. The disposable `aabb5e0d` copy and its build directory are outside the repository.
+- **Gate:** the implementation agent does not approve its own work. `aabb5e0d` remains an unapproved historical head.
+  The pushed head requires a fresh independent exact-head CRITICAL source, migration, authorization and concurrency
+  review of the entire BE-06 implementation, not only this correction. PR creation remains unauthorized; merge,
+  release, deployment, production migration, G-6, G-7 and activation remain separate gates.
