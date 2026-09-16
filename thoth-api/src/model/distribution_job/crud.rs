@@ -627,7 +627,9 @@ pub(crate) fn complete_distribution_job(
     let mut connection = db.get()?;
     connection.transaction(|connection| {
         // BE-06 (R52B sections 10.8, 11.5, 14.4 and 18.10): the completion guards,
-        // and for WORK_UPSERT the P -> W -> G prefix that T2 needs.
+        // and for WORK_UPSERT the P -> W -> G prefix that T2 needs. Any other job's
+        // permit guard takes the job row first and it stays held through the
+        // statements below.
         let work_upsert =
             work_upsert_completion_guard(connection, distribution_job_id, claim_token)?;
 
@@ -696,7 +698,8 @@ pub(crate) fn fail_distribution_job(
     let mut connection = db.get()?;
     connection.transaction(|connection| {
         // BE-06 (R52B sections 10.8 and 18.10): a worker may not give up an attempt
-        // over an open reservation or an unreported authorization.
+        // over an open reservation or an unreported authorization. The guard takes
+        // the job row first and it stays held through the statements below.
         attempt_permit_guard(
             connection,
             distribution_job_id,
@@ -836,6 +839,14 @@ struct WorkUpsertCompletionPrefix {
 /// back-catalogue attempt terminally closing — a blocking unit permit.
 /// `retryable` is `None` for completion. A claim that is not current passes, so
 /// the released statement classifies it.
+///
+/// The job row `J` is taken `FOR UPDATE` first; the claim is re-checked, the
+/// attempt found and its permits read in later statements (#848 comment
+/// 5703204194 section 2). A reservation or finalisation that holds `J` has
+/// therefore committed its permit before those reads, and one that reaches `J`
+/// after this lock finds the claim stale once this transaction commits. `J` is
+/// held to the end of the transaction, through the released job and attempt
+/// statements or the refusal. No permit row is locked.
 fn attempt_permit_guard(
     connection: &mut PgConnection,
     distribution_job_id: Uuid,
@@ -846,6 +857,16 @@ fn attempt_permit_guard(
     use crate::model::work_upsert::WorkUpsertQueryResultExt;
     use crate::schema::crossref_write_permit as permit;
 
+    let locked = distribution_job::table
+        .filter(distribution_job::distribution_job_id.eq(distribution_job_id))
+        .select((distribution_job::status, distribution_job::claim_token))
+        .for_update()
+        .first::<(DistributionJobStatus, Option<Uuid>)>(connection)
+        .optional()
+        .work_upsert()?;
+    if locked != Some((DistributionJobStatus::Running, Some(claim_token))) {
+        return Ok(());
+    }
     let Some((kind, attempt_count, attempt_id)) = distribution_job::table
         .inner_join(distribution_job_attempt::table)
         .filter(distribution_job::distribution_job_id.eq(distribution_job_id))

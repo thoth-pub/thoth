@@ -126,6 +126,25 @@ fn derived_membership(connection: &mut PgConnection, root: Uuid) -> Tx<Vec<Strin
     Ok(row.dois)
 }
 
+/// Whether an `ACCEPTED` back-catalogue permit has already deposited `root` in
+/// the outer job (Amendment 3 section 9.6, step 9 of the back-catalogue route).
+fn unit_deposited_in_job(
+    connection: &mut PgConnection,
+    job_id: Uuid,
+    root: Uuid,
+) -> QueryResult<bool> {
+    use crate::schema::crossref_write_permit as permit;
+    permit::table
+        .filter(permit::route.eq(CrossrefWriteRoute::PublisherBackCatalogue))
+        .filter(permit::job_identity.eq(job_id))
+        .filter(permit::root_work_identity.eq(root))
+        .filter(permit::state.eq(CrossrefWritePermitState::Accepted))
+        .select(permit::permit_id)
+        .first::<Uuid>(connection)
+        .optional()
+        .map(|deposited| deposited.is_some())
+}
+
 /// What the common suffix of a reservation inserts.
 struct Issue<'a> {
     route: CrossrefWriteRoute,
@@ -138,8 +157,8 @@ struct Issue<'a> {
 }
 
 /// LO-C after the route prefix (R52B sections 16.4 and 16.5): `K` ascending,
-/// `F FOR SHARE`, the blocking check, history, the one clock read and
-/// allocation, then `X` and `M`.
+/// `F FOR SHARE`, the blocking check, for a back-catalogue unit the deposited
+/// check again, history, the one clock read and allocation, then `X` and `M`.
 fn issue(
     connection: &mut PgConnection,
     issue: Issue<'_>,
@@ -201,6 +220,17 @@ fn issue(
     .is_some();
     if blocked {
         return refuse(ThothError::CrossrefPermitBlocked);
+    }
+    // A back-catalogue unit: the deposited check again, in this later statement
+    // (#848 comment 5703204194 section 3). A report or reconciliation that made an
+    // overlapping permit ACCEPTED after the route's step 9, and so let the blocking
+    // check pass, had committed before that check; this statement sees the row.
+    if let (CrossrefWriteRoute::PublisherBackCatalogue, Some((job_id, _))) =
+        (issue.route, issue.job)
+    {
+        if unit_deposited_in_job(connection, job_id, issue.root)? {
+            return refuse(ThothError::CrossrefUnitAlreadyDepositedInJob);
+        }
     }
     // History: every non-VOIDED overlapping permit.
     let history = diesel::sql_query(
@@ -395,20 +425,8 @@ pub fn reserve_back_catalogue_crossref_write(
         }
         let witness = substrate::lock_generation(connection, root_work_id, CROSSREF_PROFILE.key)?;
         let attempt_id = lock_job_and_attempt(connection, distribution_job_id, claim_token)?;
-        {
-            use crate::model::crossref_write_permit::CrossrefWritePermitState;
-            use crate::schema::crossref_write_permit as permit;
-            let deposited = permit::table
-                .filter(permit::route.eq(CrossrefWriteRoute::PublisherBackCatalogue))
-                .filter(permit::job_identity.eq(distribution_job_id))
-                .filter(permit::root_work_identity.eq(root_work_id))
-                .filter(permit::state.eq(CrossrefWritePermitState::Accepted))
-                .select(permit::permit_id)
-                .first::<Uuid>(connection)
-                .optional()?;
-            if deposited.is_some() {
-                return refuse(ThothError::CrossrefUnitAlreadyDepositedInJob);
-            }
+        if unit_deposited_in_job(connection, distribution_job_id, root_work_id)? {
+            return refuse(ThothError::CrossrefUnitAlreadyDepositedInJob);
         }
         let membership = derived_membership(connection, root_work_id)?;
         issue(

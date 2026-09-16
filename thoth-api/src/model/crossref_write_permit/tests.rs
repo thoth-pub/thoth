@@ -6184,3 +6184,1310 @@ fn t265_the_authorization_time_history_reproof() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The post-review specification correction, #848 comment 5703204194: section 1, T229's replay identity; section 2, the
+// job row `J` held ahead of the permit-state guard of a generic failure or completion; section 3, the late deposited
+// check of a back-catalogue reservation. Every race runs on real sessions in both orders, reads its waits from pg_locks,
+// and asserts both results and the final job, attempt and permit rows.
+// ---------------------------------------------------------------------------------------------------------------------
+
+mod post_review_correction {
+    use std::sync::Arc;
+
+    use diesel::connection::SimpleConnection;
+
+    use super::*;
+    use crate::db::PgPool;
+    use crate::model::crossref_write_permit::CrossrefFinalisationResult;
+
+    /// A valid digest other than `DIGEST`.
+    const OTHER_DIGEST: &str = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+    /// The advisory-lock namespace of the Crossref DOI keys `K` (R52B section 16.5).
+    const DOI_KEY_NAMESPACE: i64 = 1_948_572_001;
+    /// The advisory namespace of `race`'s test-only pause points.
+    const PAUSE_NAMESPACE: i64 = 1_948_579_000;
+
+    /// A job's row as `status|claimed|attempt_count|last_error_code`, its attempts' results by ordinal (`OPEN` while
+    /// open), and its permits by issue order as `state@result of the attempt the permit belongs to`.
+    fn lifecycle(connection: &mut PgConnection, job: Uuid) -> String {
+        fx::texts(
+            connection,
+            &format!(
+                "SELECT j.status::text || '|' || (j.claim_token IS NOT NULL)::text || '|' || j.attempt_count::text || '|' \
+                     || coalesce(j.last_error_code, '-') \
+                     || ' attempts=' || coalesce((SELECT string_agg(coalesce(a.result::text, 'OPEN'), ',' ORDER BY a.attempt_number) \
+                                                    FROM distribution_job_attempt a \
+                                                   WHERE a.distribution_job_id = j.distribution_job_id), '-') \
+                     || ' permits=' || coalesce((SELECT string_agg(p.state::text || '@' || CASE WHEN a.distribution_job_attempt_id IS NULL \
+                                                            THEN '-' ELSE coalesce(a.result::text, 'OPEN') END, ',' ORDER BY p.issued_at) \
+                                                   FROM crossref_write_permit p \
+                                                   LEFT JOIN distribution_job_attempt a ON a.distribution_job_attempt_id = p.attempt_identity \
+                                                  WHERE p.job_identity = j.distribution_job_id), '-') AS value \
+                 FROM distribution_job j WHERE j.distribution_job_id = '{job}'"
+            ),
+        )
+        .remove(0)
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Section 1, R52B T229: C2's replay identity is the reservation token and the persisted digest.
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /// A finalisation's outcome, void reason, permit state and persisted digest.
+    type Replay = (
+        Finalised,
+        Option<CrossrefVoidReason>,
+        CrossrefWritePermitState,
+        Option<String>,
+    );
+
+    fn replay_of(result: CrossrefFinalisationResult) -> Replay {
+        (
+            result.outcome,
+            result.void_reason,
+            result.permit.permit.state,
+            result.permit.permit.payload_digest,
+        )
+    }
+
+    /// A finalisation that must write nothing: a replay or a refusal.
+    fn replay(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        input: &FinaliseCrossrefWrite,
+        authorize: &dyn Fn(CrossrefWriteRoute) -> ThothResult<()>,
+    ) -> ThothResult<Replay> {
+        let before = fingerprint(connection);
+        let result = permit_crud::finalise_crossref_write(pool, input, authorize).map(replay_of);
+        assert_eq!(fingerprint(connection), before, "{input:?} wrote");
+        result
+    }
+
+    /// `input` with each presented field outside C2's replay identity changed, one at a time and then all together.
+    fn outside_the_replay_identity(
+        input: &FinaliseCrossrefWrite,
+    ) -> Vec<(&'static str, FinaliseCrossrefWrite)> {
+        vec![
+            (
+                "another observed DOI set",
+                FinaliseCrossrefWrite {
+                    observed_dois: vec!["https://doi.org/10.12345/never-reserved".to_string()],
+                    ..input.clone()
+                },
+            ),
+            (
+                "no observed DOI",
+                FinaliseCrossrefWrite {
+                    observed_dois: Vec::new(),
+                    ..input.clone()
+                },
+            ),
+            (
+                "another batch id",
+                FinaliseCrossrefWrite {
+                    observed_doi_batch_id: format!("{}-other", input.observed_doi_batch_id),
+                    ..input.clone()
+                },
+            ),
+            (
+                "another timestamp",
+                FinaliseCrossrefWrite {
+                    observed_crossref_timestamp: input.observed_crossref_timestamp + 1,
+                    ..input.clone()
+                },
+            ),
+            (
+                "no claim token",
+                FinaliseCrossrefWrite {
+                    claim_token: None,
+                    ..input.clone()
+                },
+            ),
+            (
+                "another claim token",
+                FinaliseCrossrefWrite {
+                    claim_token: Some(Uuid::new_v4()),
+                    ..input.clone()
+                },
+            ),
+            (
+                "all of them",
+                FinaliseCrossrefWrite {
+                    claim_token: Some(Uuid::new_v4()),
+                    observed_dois: Vec::new(),
+                    observed_doi_batch_id: "other".to_string(),
+                    observed_crossref_timestamp: input.observed_crossref_timestamp - 1,
+                    ..input.clone()
+                },
+            ),
+        ]
+    }
+
+    /// C2 on a permit already finalised: every presentation with the reservation token returns `recorded`, whatever
+    /// its observed fields and claim token; another valid digest returns `recorded` too, unless `digest_decides` (an
+    /// `AUTHORIZED` permit), when it is `CROSSREF_PERMIT_ILLEGAL_TRANSITION`. Nothing is written.
+    fn assert_c2(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        input: &FinaliseCrossrefWrite,
+        recorded: &ThothResult<Replay>,
+        digest_decides: bool,
+    ) {
+        let illegal: ThothResult<Replay> = Err(ThothError::CrossrefPermitIllegalTransition);
+        let mut presentations = vec![("the first presentation", input.clone())];
+        presentations.extend(outside_the_replay_identity(input));
+        for (changed, same_digest) in presentations {
+            assert_eq!(
+                &replay(pool, connection, &same_digest, &allow),
+                recorded,
+                "{changed}"
+            );
+            let other_digest = FinaliseCrossrefWrite {
+                payload_digest: OTHER_DIGEST.to_string(),
+                ..same_digest
+            };
+            assert_eq!(
+                &replay(pool, connection, &other_digest, &allow),
+                if digest_decides { &illegal } else { recorded },
+                "{changed}, another valid digest"
+            );
+        }
+    }
+
+    /// What precedes C2 in every permit state (Amendment 3 section 9.7): request authorization, re-evaluated on every
+    /// call; then the digest's syntax, before any lock or token comparison; then C1, before C2 and C3.
+    fn assert_precedence_before_c2(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        input: &FinaliseCrossrefWrite,
+    ) {
+        let deny =
+            |_route: CrossrefWriteRoute| -> ThothResult<()> { Err(ThothError::Unauthorised) };
+        assert_eq!(
+            replay(pool, connection, input, &deny),
+            Err(ThothError::Unauthorised)
+        );
+        for malformed in [DIGEST.to_uppercase(), DIGEST[1..].to_string()] {
+            for reservation_token in [input.reservation_token, Uuid::new_v4()] {
+                let presented = FinaliseCrossrefWrite {
+                    reservation_token,
+                    payload_digest: malformed.clone(),
+                    ..input.clone()
+                };
+                assert_eq!(
+                    replay(pool, connection, &presented, &deny),
+                    Err(ThothError::Unauthorised)
+                );
+                assert_eq!(
+                    replay(pool, connection, &presented, &allow),
+                    Err(ThothError::CrossrefPayloadDigestInvalid),
+                    "{malformed}, the reservation token presented: {}",
+                    reservation_token == input.reservation_token
+                );
+            }
+        }
+        for digest in [DIGEST, OTHER_DIGEST] {
+            let presented = FinaliseCrossrefWrite {
+                reservation_token: Uuid::new_v4(),
+                payload_digest: digest.to_string(),
+                ..input.clone()
+            };
+            assert_eq!(
+                replay(pool, connection, &presented, &allow),
+                Err(ThothError::CrossrefPermitRequiresReservationToken),
+                "{digest}"
+            );
+        }
+    }
+
+    #[test]
+    fn t229_replay_is_decided_by_the_reservation_token_and_the_persisted_digest() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let pool = pool.as_ref();
+
+        // AUTHORIZED: the persisted digest replays AUTHORIZED whatever else is presented; another valid digest is an
+        // illegal transition.
+        let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool, &mut connection);
+        let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+        let input = presentation(&reservation, Some(token));
+        let authorized = Ok((
+            Finalised::Authorized,
+            None,
+            CrossrefWritePermitState::Authorized,
+            Some(DIGEST.to_string()),
+        ));
+        assert_eq!(finalise(pool, &input).map(replay_of), authorized);
+        assert_c2(pool, &mut connection, &input, &authorized, true);
+        assert_precedence_before_c2(pool, &mut connection, &input);
+        assert_eq!(
+            lifecycle(&mut connection, job),
+            "RUNNING|true|1|- attempts=OPEN permits=AUTHORIZED@OPEN"
+        );
+
+        // Group A on a claimed attempt, SOURCE_CHANGED_DURING_PREPARATION: the recorded void replays for any valid
+        // digest; no digest is persisted.
+        let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool, &mut connection);
+        let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+        fx::execute(
+            &mut connection,
+            &format!("UPDATE work SET place = 'Cambridge' WHERE work_id = '{work}'"),
+        );
+        let input = presentation(&reservation, Some(token));
+        let voided = Ok((
+            Finalised::VoidedRetryable,
+            Some(CrossrefVoidReason::SourceChangedDuringPreparation),
+            CrossrefWritePermitState::Voided,
+            None,
+        ));
+        assert_eq!(finalise(pool, &input).map(replay_of), voided);
+        assert_c2(pool, &mut connection, &input, &voided, false);
+        assert_precedence_before_c2(pool, &mut connection, &input);
+        assert_eq!(
+            lifecycle(&mut connection, job),
+            "RUNNING|true|1|- attempts=OPEN permits=VOIDED@OPEN"
+        );
+
+        // Group A on a job-less route, ARTIFACT_BATCH_ID_MISMATCH: the presentation matching the reservation, which a
+        // first call would have authorised, replays the recorded void.
+        let (publisher, imprint) = fx::publisher_and_imprint(pool);
+        fx::cover_crossref(&mut connection, publisher);
+        let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+        let legacy =
+            permit_crud::reserve_legacy_scheduled_crossref_write(pool, root).expect("legacy");
+        let matching = presentation(&legacy, None);
+        let mismatched = FinaliseCrossrefWrite {
+            observed_doi_batch_id: format!("{}x", matching.observed_doi_batch_id),
+            ..matching.clone()
+        };
+        let voided = Ok((
+            Finalised::VoidedRetryable,
+            Some(CrossrefVoidReason::ArtifactBatchIdMismatch),
+            CrossrefWritePermitState::Voided,
+            None,
+        ));
+        assert_eq!(finalise(pool, &mismatched).map(replay_of), voided);
+        assert_c2(pool, &mut connection, &matching, &voided, false);
+        assert_precedence_before_c2(pool, &mut connection, &matching);
+
+        // Group B, BINDING_SUPERSEDED: the job is retired, and the recorded void replays ahead of any claim check.
+        let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool, &mut connection);
+        let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+        let (_other, other_imprint) = fx::publisher_and_imprint(pool);
+        fx::execute(
+            &mut connection,
+            &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"),
+        );
+        let input = presentation(&reservation, Some(token));
+        let retired = Ok((
+            Finalised::VoidedJobRetired,
+            Some(CrossrefVoidReason::BindingSuperseded),
+            CrossrefWritePermitState::Voided,
+            None,
+        ));
+        assert_eq!(finalise(pool, &input).map(replay_of), retired);
+        assert_c2(pool, &mut connection, &input, &retired, false);
+        assert_precedence_before_c2(pool, &mut connection, &input);
+        assert_eq!(
+            lifecycle(&mut connection, job),
+            "CANCELLED|false|1|- attempts=CANCELLED permits=VOIDED@CANCELLED"
+        );
+
+        // The route owner's and the superuser's explicit voids are not finalisation voids: no presentation replays.
+        for superuser in [false, true] {
+            let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool, &mut connection);
+            let reservation = reserve_work_upsert(pool, job, token).expect("reserve");
+            let voided = if superuser {
+                permit_crud::void_crossref_write_reservation_as_superuser(
+                    pool,
+                    reservation.permit_id,
+                    "cleanup",
+                    "INC-848",
+                )
+                .map(|permit| permit.permit.state)
+            } else {
+                owner_void(pool, reservation.permit_id, reservation.reservation_token)
+            };
+            assert_eq!(voided, Ok(CrossrefWritePermitState::Voided));
+            let input = presentation(&reservation, Some(token));
+            assert_c2(
+                pool,
+                &mut connection,
+                &input,
+                &Err(ThothError::CrossrefPermitIllegalTransition),
+                false,
+            );
+            assert_precedence_before_c2(pool, &mut connection, &input);
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Section 2: a generic failure or completion takes `J FOR UPDATE`, re-checks the claim, and only then reads the
+    // attempt's permits, holding `J` to its transition or refusal.
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /// What was observed while the second session of a schedule waited: the lock transcript, the statement each waiter
+    /// was executing, and how many permits of the job were committed.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Waited {
+        locks: Vec<String>,
+        statements: Vec<String>,
+        committed_permits: i64,
+    }
+
+    fn waiting(locks: &[&str], statements: &[&str]) -> Waited {
+        Waited {
+            locks: locks.iter().map(|lock| lock.to_string()).collect(),
+            statements: statements.iter().map(|s| s.to_string()).collect(),
+            committed_permits: 0,
+        }
+    }
+
+    fn waited(observer: &mut PgConnection, job: Uuid) -> Waited {
+        Waited {
+            locks: race::waits(observer),
+            statements: fx::texts(
+                observer,
+                &format!(
+                    "SELECT CASE \
+                         WHEN a.query ~ '^UPDATE distribution_job j' THEN 'released distribution_job UPDATE' \
+                         WHEN a.query ~ 'FOR UPDATE' THEN coalesce(substring(a.query from 'FROM \"([a-z_]+)\"'), '?') || ' FOR UPDATE' \
+                         ELSE regexp_replace(left(a.query, 60), '\\s+', ' ', 'g') END AS value \
+                       FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid \
+                      WHERE NOT l.granted AND NOT (l.locktype = 'advisory' AND l.classid = {PAUSE_NAMESPACE}) \
+                      ORDER BY 1"
+                ),
+            ),
+            committed_permits: fx::count(
+                observer,
+                &format!(
+                    "SELECT count(*) AS count FROM crossref_write_permit WHERE job_identity = '{job}'"
+                ),
+            ),
+        }
+    }
+
+    /// `race::interleave` with a waiting second session, observing `Waited` while it waits.
+    fn interleave_observed<A, B>(
+        pool: &Arc<PgPool>,
+        mut pause: PausePoint,
+        first: impl FnOnce(&PgPool) -> A + Send + 'static,
+        second: impl FnOnce(&PgPool) -> B + Send + 'static,
+        job: Uuid,
+    ) -> (A, B, Waited)
+    where
+        A: Send + std::fmt::Debug + 'static,
+        B: Send + std::fmt::Debug + 'static,
+    {
+        let mut observer = race::dedicated();
+        let first_pool = pool.clone();
+        let first = std::thread::spawn(move || first(first_pool.as_ref()));
+        fx::wait_until(|| race::paused_sessions(&mut observer) >= 1 || first.is_finished());
+        if first.is_finished() {
+            panic!(
+                "the first session never reached its pause point: {:?}",
+                first.join().expect("first session")
+            );
+        }
+        let second_pool = pool.clone();
+        let second = std::thread::spawn(move || second(second_pool.as_ref()));
+        fx::wait_until(|| !race::waits(&mut observer).is_empty() || second.is_finished());
+        if second.is_finished() {
+            pause.release();
+            panic!(
+                "the second session did not wait: {:?}; the first: {:?}",
+                second.join().expect("second session"),
+                first.join().expect("first session")
+            );
+        }
+        race::assert_blocked(&second);
+        let observed = waited(&mut observer, job);
+        pause.release();
+        let first = first.join().expect("first session");
+        let second = second.join().expect("second session");
+        drop(pause);
+        (first, second, observed)
+    }
+
+    /// A claimed outer back-catalogue job and one eligible unit of its publisher: `(job, token, unit)`.
+    fn outer_job_with_unit(pool: &PgPool, connection: &mut PgConnection) -> (Uuid, Uuid, Uuid) {
+        let (_publisher, imprint, job, token) = claimed_back_catalogue(pool, connection);
+        let unit = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+        (job, token, unit)
+    }
+
+    fn reserve_unit(pool: &PgPool, job: Uuid, token: Uuid, unit: Uuid) -> ThothResult<Uuid> {
+        permit_crud::reserve_back_catalogue_crossref_write(pool, job, token, unit)
+            .map(|reservation| reservation.permit_id)
+    }
+
+    fn fail(
+        pool: &PgPool,
+        job: Uuid,
+        token: Uuid,
+        code: &str,
+        retryable: bool,
+    ) -> ThothResult<DistributionJobStatus> {
+        job_crud::fail_distribution_job(pool, job, token, code, None, retryable)
+            .map(|job| job.status)
+    }
+
+    fn complete(pool: &PgPool, job: Uuid, token: Uuid) -> ThothResult<DistributionJobStatus> {
+        job_crud::complete_distribution_job(pool, job, token).map(|job| job.status)
+    }
+
+    #[test]
+    fn a_failure_behind_a_work_upsert_reservation_waits_on_the_job_row_and_refuses() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+        let (reserved, failed, observed) = interleave_observed(
+            &pool,
+            PausePoint::install(
+                "pr_wu_reserve_fail",
+                "BEFORE INSERT",
+                "crossref_write_permit",
+            ),
+            move |pool| reserve_work_upsert(pool, job, token).map(|_| ()),
+            move |pool| fail(pool, job, token, "CROSSREF_PREPARED_FETCH_FAILED", true),
+            job,
+        );
+        assert_eq!(
+            (reserved, failed, observed, lifecycle(&mut connection, job)),
+            (
+                Ok(()),
+                Err(ThothError::AttemptHasOpenReservation),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_reservation_behind_a_work_upsert_failure_waits_on_the_job_row_and_finds_the_claim_stale() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+        let (failed, reserved, observed) = interleave_observed(
+            &pool,
+            PausePoint::install("pr_wu_fail_reserve", "AFTER UPDATE", "distribution_job"),
+            move |pool| fail(pool, job, token, "CROSSREF_PREPARED_FETCH_FAILED", true),
+            move |pool| reserve_work_upsert(pool, job, token).map(|_| ()),
+            job,
+        );
+        assert_eq!(
+            (failed, reserved, observed, lifecycle(&mut connection, job)),
+            (
+                Ok(DistributionJobStatus::Pending),
+                Err(ThothError::CrossrefPermitClaimStale),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "PENDING|false|1|CROSSREF_PREPARED_FETCH_FAILED attempts=FAILED permits=-"
+                    .to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_failure_behind_a_finalisation_waits_on_the_job_row_and_refuses_the_authorization() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+        let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+        let input = presentation(&reservation, Some(token));
+        let (finalised, failed, observed) = interleave_observed(
+            &pool,
+            PausePoint::install(
+                "pr_wu_finalise_fail",
+                "BEFORE UPDATE",
+                "crossref_write_permit",
+            ),
+            move |pool| finalise(pool, &input).map(|r| r.outcome),
+            move |pool| fail(pool, job, token, "CROSSREF_PROVIDER_INDETERMINATE", false),
+            job,
+        );
+        assert_eq!(
+            (finalised, failed, observed, lifecycle(&mut connection, job)),
+            (
+                Ok(Finalised::Authorized),
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                Waited {
+                    locks: vec!["transactionid:ShareLock".to_string()],
+                    statements: vec!["distribution_job FOR UPDATE".to_string()],
+                    committed_permits: 1,
+                },
+                "RUNNING|true|1|- attempts=OPEN permits=AUTHORIZED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_work_upsert_completion_behind_a_reservation_waits_on_the_generation_row_and_refuses() {
+        // The completion guard of a WORK_UPSERT job holds `G` before it reads the attempt and its permit, and a
+        // reservation or finalisation of that attempt holds `G` from before its own `J` to its commit, so the two
+        // serialise at `G` (R52B section 10.4 "Complete (T2)").
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+        let (reserved, completed, observed) = interleave_observed(
+            &pool,
+            PausePoint::install(
+                "pr_wu_reserve_complete",
+                "BEFORE INSERT",
+                "crossref_write_permit",
+            ),
+            move |pool| reserve_work_upsert(pool, job, token).map(|_| ()),
+            move |pool| complete(pool, job, token),
+            job,
+        );
+        assert_eq!(
+            (
+                reserved,
+                completed,
+                observed,
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Ok(()),
+                Err(ThothError::WorkUpsertCompletionRequiresFence),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["work_upsert_generation FOR UPDATE"]
+                ),
+                "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_terminal_outer_failure_behind_a_unit_reservation_waits_on_the_job_row_and_refuses() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let (reserved, failed, observed) = interleave_observed(
+            &pool,
+            PausePoint::install(
+                "pr_bc_reserve_fail",
+                "BEFORE INSERT",
+                "crossref_write_permit",
+            ),
+            move |pool| reserve_unit(pool, job, token, unit).map(|_| ()),
+            move |pool| fail(pool, job, token, "CROSSREF_ARTIFACT_REFUSED", false),
+            job,
+        );
+        assert_eq!(
+            (reserved, failed, observed, lifecycle(&mut connection, job)),
+            (
+                Ok(()),
+                Err(ThothError::AttemptHasOpenReservation),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_unit_reservation_behind_a_terminal_outer_failure_waits_on_the_job_row_and_finds_the_claim_stale(
+    ) {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let (failed, reserved, observed) = interleave_observed(
+            &pool,
+            PausePoint::install("pr_bc_fail_reserve", "AFTER UPDATE", "distribution_job"),
+            move |pool| fail(pool, job, token, "CROSSREF_ARTIFACT_REFUSED", false),
+            move |pool| reserve_unit(pool, job, token, unit).map(|_| ()),
+            job,
+        );
+        assert_eq!(
+            (failed, reserved, observed, lifecycle(&mut connection, job)),
+            (
+                Ok(DistributionJobStatus::Failed),
+                Err(ThothError::CrossrefPermitClaimStale),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "FAILED|false|1|CROSSREF_ARTIFACT_REFUSED attempts=FAILED permits=-".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn an_outer_completion_behind_a_unit_reservation_waits_on_the_job_row_and_refuses() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let (reserved, completed, observed) = interleave_observed(
+            &pool,
+            PausePoint::install(
+                "pr_bc_reserve_complete",
+                "BEFORE INSERT",
+                "crossref_write_permit",
+            ),
+            move |pool| reserve_unit(pool, job, token, unit).map(|_| ()),
+            move |pool| complete(pool, job, token),
+            job,
+        );
+        assert_eq!(
+            (
+                reserved,
+                completed,
+                observed,
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Ok(()),
+                Err(ThothError::AttemptHasOpenReservation),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "RUNNING|true|1|- attempts=OPEN permits=RESERVED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_unit_reservation_behind_an_outer_completion_waits_on_the_job_row_and_finds_the_claim_stale(
+    ) {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let (completed, reserved, observed) = interleave_observed(
+            &pool,
+            PausePoint::install("pr_bc_complete_reserve", "AFTER UPDATE", "distribution_job"),
+            move |pool| complete(pool, job, token),
+            move |pool| reserve_unit(pool, job, token, unit).map(|_| ()),
+            job,
+        );
+        assert_eq!(
+            (
+                completed,
+                reserved,
+                observed,
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Ok(DistributionJobStatus::Succeeded),
+                Err(ThothError::CrossrefPermitClaimStale),
+                waiting(
+                    &["transactionid:ShareLock"],
+                    &["distribution_job FOR UPDATE"]
+                ),
+                "SUCCEEDED|false|1|- attempts=SUCCEEDED permits=-".to_string(),
+            )
+        );
+    }
+
+    const CONTROL_CODE: &str = "BE06_TERMINAL_CONTROL";
+
+    #[test]
+    fn a_work_upsert_failure_over_each_committed_permit_state() {
+        use CrossrefWritePermitState as State;
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let open = |permit: &str| format!("RUNNING|true|1|- attempts=OPEN permits={permit}@OPEN");
+        let closed = |status: &str, permit: &str| {
+            format!("{status}|false|1|{CONTROL_CODE} attempts=FAILED permits={permit}@FAILED")
+        };
+        for (state, retryable, expected, after) in [
+            (
+                State::Reserved,
+                true,
+                Err(ThothError::AttemptHasOpenReservation),
+                open("RESERVED"),
+            ),
+            (
+                State::Reserved,
+                false,
+                Err(ThothError::AttemptHasOpenReservation),
+                open("RESERVED"),
+            ),
+            (
+                State::Authorized,
+                true,
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                open("AUTHORIZED"),
+            ),
+            (
+                State::Authorized,
+                false,
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                open("AUTHORIZED"),
+            ),
+            (
+                State::Voided,
+                true,
+                Ok(DistributionJobStatus::Pending),
+                closed("PENDING", "VOIDED"),
+            ),
+            (
+                State::Voided,
+                false,
+                Ok(DistributionJobStatus::Failed),
+                closed("FAILED", "VOIDED"),
+            ),
+            (
+                State::NoneAttempted,
+                true,
+                Ok(DistributionJobStatus::Pending),
+                closed("PENDING", "NONE_ATTEMPTED"),
+            ),
+            (
+                State::NoneAttempted,
+                false,
+                Ok(DistributionJobStatus::Failed),
+                closed("FAILED", "NONE_ATTEMPTED"),
+            ),
+            (
+                State::Indeterminate,
+                true,
+                Ok(DistributionJobStatus::Pending),
+                closed("PENDING", "INDETERMINATE"),
+            ),
+            (
+                State::Indeterminate,
+                false,
+                Ok(DistributionJobStatus::Failed),
+                closed("FAILED", "INDETERMINATE"),
+            ),
+            (
+                State::Accepted,
+                true,
+                Ok(DistributionJobStatus::Pending),
+                closed("PENDING", "ACCEPTED"),
+            ),
+            (
+                State::Accepted,
+                false,
+                Ok(DistributionJobStatus::Failed),
+                closed("FAILED", "ACCEPTED"),
+            ),
+        ] {
+            let (job, token, _permit, _reservation_token) =
+                attempt_with_permit_in(pool.as_ref(), &mut connection, state);
+            assert_eq!(
+                (
+                    fail(pool.as_ref(), job, token, CONTROL_CODE, retryable),
+                    lifecycle(&mut connection, job)
+                ),
+                (expected, after),
+                "{state:?}, retryable {retryable}"
+            );
+        }
+
+        // A finalisation void, VOIDED_RETRYABLE, then the retryable failure the protocol assigns to it.
+        let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+        let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+        fx::execute(
+            &mut connection,
+            &format!("UPDATE work SET place = 'Bath' WHERE work_id = '{work}'"),
+        );
+        assert_eq!(
+            finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+            Ok(Finalised::VoidedRetryable)
+        );
+        assert_eq!(
+            (
+                fail(pool.as_ref(), job, token, CONTROL_CODE, true),
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Ok(DistributionJobStatus::Pending),
+                closed("PENDING", "VOIDED")
+            )
+        );
+    }
+
+    /// An outer back-catalogue attempt whose one unit permit is brought to `state` through the API: `(job, token)`.
+    fn outer_attempt_with_unit_permit_in(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        state: CrossrefWritePermitState,
+    ) -> (Uuid, Uuid) {
+        let (job, token, unit) = outer_job_with_unit(pool, connection);
+        let reservation =
+            permit_crud::reserve_back_catalogue_crossref_write(pool, job, token, unit)
+                .expect("unit");
+        let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
+        match state {
+            CrossrefWritePermitState::Reserved => {}
+            CrossrefWritePermitState::Voided => {
+                owner_void(pool, permit, reservation_token).expect("void");
+            }
+            other => {
+                assert_eq!(
+                    finalise(pool, &presentation(&reservation, Some(token))).map(|r| r.outcome),
+                    Ok(Finalised::Authorized)
+                );
+                let outcome = match other {
+                    CrossrefWritePermitState::Indeterminate => Some(Outcome::Indeterminate),
+                    CrossrefWritePermitState::Accepted => Some(Outcome::Accepted),
+                    CrossrefWritePermitState::NoneAttempted => Some(Outcome::NoneAttempted),
+                    _ => None,
+                };
+                if let Some(outcome) = outcome {
+                    report(pool, permit, reservation_token, outcome).expect("report");
+                }
+            }
+        }
+        (job, token)
+    }
+
+    #[test]
+    fn an_outer_back_catalogue_completion_or_failure_over_each_committed_unit_permit_state() {
+        use CrossrefWritePermitState as State;
+        #[derive(Clone, Copy, Debug)]
+        enum Call {
+            Complete,
+            Fail(bool),
+        }
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let open = |permit: &str| format!("RUNNING|true|1|- attempts=OPEN permits={permit}@OPEN");
+        let failed = |status: &str, permit: &str| {
+            format!("{status}|false|1|{CONTROL_CODE} attempts=FAILED permits={permit}@FAILED")
+        };
+        let succeeded = |permit: &str| {
+            format!("SUCCEEDED|false|1|- attempts=SUCCEEDED permits={permit}@SUCCEEDED")
+        };
+        for (state, call, expected, after) in [
+            (
+                State::Reserved,
+                Call::Complete,
+                Err(ThothError::AttemptHasOpenReservation),
+                open("RESERVED"),
+            ),
+            (
+                State::Reserved,
+                Call::Fail(true),
+                Err(ThothError::AttemptHasOpenReservation),
+                open("RESERVED"),
+            ),
+            (
+                State::Reserved,
+                Call::Fail(false),
+                Err(ThothError::AttemptHasOpenReservation),
+                open("RESERVED"),
+            ),
+            (
+                State::Authorized,
+                Call::Complete,
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                open("AUTHORIZED"),
+            ),
+            (
+                State::Authorized,
+                Call::Fail(true),
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                open("AUTHORIZED"),
+            ),
+            (
+                State::Authorized,
+                Call::Fail(false),
+                Err(ThothError::AttemptHasAuthorizedPermit),
+                open("AUTHORIZED"),
+            ),
+            (
+                State::Indeterminate,
+                Call::Complete,
+                Err(ThothError::OuterAttemptHasOpenPermits),
+                open("INDETERMINATE"),
+            ),
+            (
+                State::Indeterminate,
+                Call::Fail(false),
+                Err(ThothError::OuterAttemptHasOpenPermits),
+                open("INDETERMINATE"),
+            ),
+            (
+                State::Indeterminate,
+                Call::Fail(true),
+                Ok(DistributionJobStatus::Pending),
+                failed("PENDING", "INDETERMINATE"),
+            ),
+            (
+                State::Voided,
+                Call::Complete,
+                Ok(DistributionJobStatus::Succeeded),
+                succeeded("VOIDED"),
+            ),
+            (
+                State::Voided,
+                Call::Fail(true),
+                Ok(DistributionJobStatus::Pending),
+                failed("PENDING", "VOIDED"),
+            ),
+            (
+                State::Voided,
+                Call::Fail(false),
+                Ok(DistributionJobStatus::Failed),
+                failed("FAILED", "VOIDED"),
+            ),
+            (
+                State::NoneAttempted,
+                Call::Complete,
+                Ok(DistributionJobStatus::Succeeded),
+                succeeded("NONE_ATTEMPTED"),
+            ),
+            (
+                State::NoneAttempted,
+                Call::Fail(true),
+                Ok(DistributionJobStatus::Pending),
+                failed("PENDING", "NONE_ATTEMPTED"),
+            ),
+            (
+                State::NoneAttempted,
+                Call::Fail(false),
+                Ok(DistributionJobStatus::Failed),
+                failed("FAILED", "NONE_ATTEMPTED"),
+            ),
+            (
+                State::Accepted,
+                Call::Complete,
+                Ok(DistributionJobStatus::Succeeded),
+                succeeded("ACCEPTED"),
+            ),
+            (
+                State::Accepted,
+                Call::Fail(true),
+                Ok(DistributionJobStatus::Pending),
+                failed("PENDING", "ACCEPTED"),
+            ),
+            (
+                State::Accepted,
+                Call::Fail(false),
+                Ok(DistributionJobStatus::Failed),
+                failed("FAILED", "ACCEPTED"),
+            ),
+        ] {
+            let (job, token) =
+                outer_attempt_with_unit_permit_in(pool.as_ref(), &mut connection, state);
+            let result = match call {
+                Call::Complete => complete(pool.as_ref(), job, token),
+                Call::Fail(retryable) => fail(pool.as_ref(), job, token, CONTROL_CODE, retryable),
+            };
+            assert_eq!(
+                (result, lifecycle(&mut connection, job)),
+                (expected, after),
+                "{state:?}, {call:?}"
+            );
+        }
+
+        // At the attempt budget a retryable failure closes terminally, so a blocking unit permit refuses it too.
+        let (job, token) =
+            outer_attempt_with_unit_permit_in(pool.as_ref(), &mut connection, State::Indeterminate);
+        fx::execute(
+            &mut connection,
+            &format!(
+                "UPDATE distribution_job SET attempt_count = 5 WHERE distribution_job_id = '{job}'"
+            ),
+        );
+        assert_eq!(
+            (
+                fail(pool.as_ref(), job, token, CONTROL_CODE, true),
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Err(ThothError::OuterAttemptHasOpenPermits),
+                "RUNNING|true|5|- attempts=OPEN permits=INDETERMINATE@OPEN".to_string()
+            )
+        );
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // Section 3: after `K`, `F` and a blocking check that found no blocker, the back-catalogue reservation re-runs its
+    // deposited-in-this-outer-job check before history, allocation and insertion.
+    // -----------------------------------------------------------------------------------------------------------------
+
+    /// Another session holding the first DOI key `K` of `dois`, as an overlapping reservation inside its own `K → F →
+    /// …` would.
+    struct HeldKey {
+        holder: PgConnection,
+        key: i64,
+        held: bool,
+    }
+
+    impl HeldKey {
+        fn hold(dois: &[String]) -> Self {
+            let mut holder = race::dedicated();
+            let array = dois
+                .iter()
+                .map(|doi| format!("'{doi}'"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let key = fx::count(
+                &mut holder,
+                &format!(
+                    "SELECT min(hashtext('be06:crossref:doi:' || d))::bigint AS count FROM unnest(ARRAY[{array}]::text[]) AS d"
+                ),
+            );
+            holder
+                .batch_execute(&format!(
+                    "SELECT pg_advisory_lock({DOI_KEY_NAMESPACE}, {key})"
+                ))
+                .expect("hold the key");
+            HeldKey {
+                holder,
+                key,
+                held: true,
+            }
+        }
+
+        fn release(&mut self) {
+            if self.held {
+                self.holder
+                    .batch_execute(&format!(
+                        "SELECT pg_advisory_unlock({DOI_KEY_NAMESPACE}, {})",
+                        self.key
+                    ))
+                    .expect("release the key");
+                self.held = false;
+            }
+        }
+    }
+
+    impl Drop for HeldKey {
+        fn drop(&mut self) {
+            self.release();
+        }
+    }
+
+    /// Holds the unit's first key from another session, starts `reserve` and waits until it waits on that key — past
+    /// the claim, the locks, the early deposited check and membership — then runs `meanwhile` to its commit, observes
+    /// that the reservation still waits, releases the key and returns both results with the reservation's wait.
+    fn behind_the_unit_key<R, M>(
+        pool: &Arc<PgPool>,
+        dois: &[String],
+        reserve: impl FnOnce(&PgPool) -> R + Send + 'static,
+        meanwhile: impl FnOnce() -> M,
+    ) -> (R, M, Vec<String>)
+    where
+        R: Send + std::fmt::Debug + 'static,
+    {
+        let mut key = HeldKey::hold(dois);
+        let mut observer = race::dedicated();
+        let reserve_pool = pool.clone();
+        let reservation = std::thread::spawn(move || reserve(reserve_pool.as_ref()));
+        let waiting_on_the_key = |observer: &mut PgConnection| {
+            fx::count(
+                observer,
+                &format!(
+                    "SELECT count(*) AS count FROM pg_locks \
+                     WHERE locktype = 'advisory' AND NOT granted AND classid = {DOI_KEY_NAMESPACE}"
+                ),
+            )
+        };
+        fx::wait_until(|| waiting_on_the_key(&mut observer) >= 1 || reservation.is_finished());
+        if reservation.is_finished() {
+            key.release();
+            panic!(
+                "the reservation did not wait on the unit's key: {:?}",
+                reservation.join().expect("reservation")
+            );
+        }
+        let transcript = race::waits(&mut observer);
+        let meanwhile = meanwhile();
+        race::assert_blocked(&reservation);
+        key.release();
+        (
+            reservation.join().expect("reservation"),
+            meanwhile,
+            transcript,
+        )
+    }
+
+    /// An outer back-catalogue job whose unit permit, from the first attempt, is `INDETERMINATE` and blocking; the
+    /// attempt failed retryably and the job was claimed again: `(job, second token, unit, the first reservation)`.
+    fn outer_job_reclaimed_over_an_indeterminate_unit(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+    ) -> (Uuid, Uuid, Uuid, CrossrefWriteReservation) {
+        let (job, first_token, unit) = outer_job_with_unit(pool, connection);
+        let first =
+            permit_crud::reserve_back_catalogue_crossref_write(pool, job, first_token, unit)
+                .expect("unit");
+        assert_eq!(
+            finalise(pool, &presentation(&first, Some(first_token))).map(|r| r.outcome),
+            Ok(Finalised::Authorized)
+        );
+        assert_eq!(
+            report(
+                pool,
+                first.permit_id,
+                first.reservation_token,
+                Outcome::Indeterminate
+            ),
+            Ok(CrossrefWritePermitState::Indeterminate)
+        );
+        assert_eq!(
+            fail(
+                pool,
+                job,
+                first_token,
+                "CROSSREF_PROVIDER_INDETERMINATE",
+                true
+            ),
+            Ok(DistributionJobStatus::Pending)
+        );
+        fx::execute(
+            connection,
+            &format!(
+                "UPDATE distribution_job SET available_at = now() WHERE distribution_job_id = '{job}'"
+            ),
+        );
+        let token = job_crud::claim_distribution_jobs(pool, "legacy", 10, 900, &[])
+            .expect("claim")
+            .into_iter()
+            .find(|claimed| claimed.job.job.distribution_job_id == job)
+            .expect("reclaimed")
+            .claim_token;
+        (job, token, unit, first)
+    }
+
+    #[test]
+    fn a_report_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let first =
+            permit_crud::reserve_back_catalogue_crossref_write(pool.as_ref(), job, token, unit)
+                .expect("unit");
+        assert_eq!(
+            finalise(pool.as_ref(), &presentation(&first, Some(token))).map(|r| r.outcome),
+            Ok(Finalised::Authorized)
+        );
+        let (reserved, reported, transcript) = behind_the_unit_key(
+            &pool,
+            &first.dois,
+            move |pool| reserve_unit(pool, job, token, unit),
+            || {
+                report(
+                    pool.as_ref(),
+                    first.permit_id,
+                    first.reservation_token,
+                    Outcome::Accepted,
+                )
+            },
+        );
+        assert_eq!(
+            (
+                reserved,
+                reported,
+                transcript,
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Err(ThothError::CrossrefUnitAlreadyDepositedInJob),
+                Ok(CrossrefWritePermitState::Accepted),
+                vec!["advisory:ExclusiveLock".to_string()],
+                "RUNNING|true|1|- attempts=OPEN permits=ACCEPTED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_unit_reservation_reading_the_permit_before_the_report_commits_is_blocked() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit) = outer_job_with_unit(pool.as_ref(), &mut connection);
+        let first =
+            permit_crud::reserve_back_catalogue_crossref_write(pool.as_ref(), job, token, unit)
+                .expect("unit");
+        assert_eq!(
+            finalise(pool.as_ref(), &presentation(&first, Some(token))).map(|r| r.outcome),
+            Ok(Finalised::Authorized)
+        );
+        let (permit, reservation_token) = (first.permit_id, first.reservation_token);
+        let (reported, reserved, transcript) = interleave(
+            &pool,
+            PausePoint::install(
+                "pr_bc_report_first",
+                "AFTER UPDATE",
+                "crossref_write_permit",
+            ),
+            move |pool| report(pool, permit, reservation_token, Outcome::Accepted),
+            move |pool| reserve_unit(pool, job, token, unit),
+            false,
+        );
+        assert_eq!(
+            (
+                reported,
+                reserved,
+                transcript,
+                lifecycle(&mut connection, job)
+            ),
+            (
+                Ok(CrossrefWritePermitState::Accepted),
+                Err(ThothError::CrossrefPermitBlocked),
+                Vec::<String>::new(),
+                "RUNNING|true|1|- attempts=OPEN permits=ACCEPTED@OPEN".to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_reconciliation_accepting_the_unit_after_the_early_check_is_seen_by_the_late_deposited_check(
+    ) {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit, first) =
+            outer_job_reclaimed_over_an_indeterminate_unit(pool.as_ref(), &mut connection);
+        let (reserved, reconciled, transcript) = behind_the_unit_key(
+            &pool,
+            &first.dois,
+            move |pool| reserve_unit(pool, job, token, unit),
+            || reconcile(pool.as_ref(), first.permit_id, Outcome::Accepted, "INC-848"),
+        );
+        assert_eq!(
+            (reserved, reconciled, transcript, lifecycle(&mut connection, job)),
+            (
+                Err(ThothError::CrossrefUnitAlreadyDepositedInJob),
+                Ok(CrossrefWritePermitState::Accepted),
+                vec!["advisory:ExclusiveLock".to_string()],
+                "RUNNING|true|2|CROSSREF_PROVIDER_INDETERMINATE attempts=FAILED,OPEN permits=ACCEPTED@FAILED"
+                    .to_string(),
+            )
+        );
+    }
+
+    #[test]
+    fn a_unit_reservation_reading_the_permit_before_the_reconciliation_commits_is_blocked() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token, unit, first) =
+            outer_job_reclaimed_over_an_indeterminate_unit(pool.as_ref(), &mut connection);
+        let permit = first.permit_id;
+        let (reconciled, reserved, transcript) = interleave(
+            &pool,
+            PausePoint::install(
+                "pr_bc_reconcile_first",
+                "AFTER UPDATE",
+                "crossref_write_permit",
+            ),
+            move |pool| reconcile(pool, permit, Outcome::Accepted, "INC-848"),
+            move |pool| reserve_unit(pool, job, token, unit),
+            false,
+        );
+        assert_eq!(
+            (reconciled, reserved, transcript, lifecycle(&mut connection, job)),
+            (
+                Ok(CrossrefWritePermitState::Accepted),
+                Err(ThothError::CrossrefPermitBlocked),
+                Vec::<String>::new(),
+                "RUNNING|true|2|CROSSREF_PROVIDER_INDETERMINATE attempts=FAILED,OPEN permits=ACCEPTED@FAILED"
+                    .to_string(),
+            )
+        );
+    }
+}
