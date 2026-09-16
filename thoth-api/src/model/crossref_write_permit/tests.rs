@@ -2976,56 +2976,7 @@ fn p2_the_lower_case_digest_authorises_and_an_upper_cased_replay_is_malformed() 
 // waits read from pg_locks (section 29).
 // ---------------------------------------------------------------------------------------------------------------------
 
-use crate::model::work_upsert::tests::race::{self, PausePoint};
-
-/// Run `first` to its pause point, start `second`, observe `second` wait, release, and return both results with
-/// the transcript of `second`'s wait.
-fn interleave<A, B>(
-    pool: &std::sync::Arc<crate::db::PgPool>,
-    mut pause: PausePoint,
-    first: impl FnOnce(&crate::db::PgPool) -> A + Send + 'static,
-    second: impl FnOnce(&crate::db::PgPool) -> B + Send + 'static,
-    second_waits: bool,
-) -> (A, B, Vec<String>)
-where
-    A: Send + std::fmt::Debug + 'static,
-    B: Send + std::fmt::Debug + 'static,
-{
-    let mut observer = race::dedicated();
-    let first_pool = pool.clone();
-    let first = std::thread::spawn(move || first(first_pool.as_ref()));
-    fx::wait_until(|| race::paused_sessions(&mut observer) >= 1 || first.is_finished());
-    if first.is_finished() {
-        panic!(
-            "the first session never reached its pause point: {:?}",
-            first.join().expect("first session")
-        );
-    }
-    let second_pool = pool.clone();
-    let second = std::thread::spawn(move || second(second_pool.as_ref()));
-    let transcript = if second_waits {
-        fx::wait_until(|| !race::waits(&mut observer).is_empty() || second.is_finished());
-        if second.is_finished() {
-            pause.release();
-            panic!(
-                "the second session did not wait: {:?}; the first: {:?}",
-                second.join().expect("second session"),
-                first.join().expect("first session")
-            );
-        }
-        let transcript = race::waits(&mut observer);
-        race::assert_blocked(&second);
-        transcript
-    } else {
-        fx::wait_until(|| second.is_finished());
-        Vec::new()
-    };
-    pause.release();
-    let first = first.join().expect("first session");
-    let second = second.join().expect("second session");
-    drop(pause);
-    (first, second, transcript)
-}
+use crate::model::work_upsert::tests::race::{self, interleave, PausePoint};
 
 fn state_name(connection: &mut PgConnection, permit: Uuid) -> String {
     state_of(connection, permit)
@@ -5576,4 +5527,29 @@ fn t289_the_gate_key_collides_with_no_other_advisory_key() {
              FROM pg_enum WHERE enumtypid = 'distribution_platform'::regtype"),
         vec!["17|17"]
     );
+}
+
+#[test]
+fn r7_two_reservations_of_one_attempt_yield_one_permit() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let (first, second, transcript) = interleave(
+        &pool,
+        PausePoint::install("r7", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| reserve_work_upsert(pool, job, token).map(|r| r.permit_id),
+        move |pool| reserve_work_upsert(pool, job, token).map(|r| r.permit_id),
+        true,
+    );
+    assert!(first.is_ok());
+    assert_eq!(
+        second,
+        Err(ThothError::CrossrefPermitAttemptAlreadyReserved)
+    );
+    assert_eq!(
+        transcript,
+        vec!["transactionid:ShareLock"],
+        "the second waits on J"
+    );
+    assert_eq!(permit_count(&mut connection), 1);
 }

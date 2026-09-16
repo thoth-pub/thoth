@@ -6246,6 +6246,11 @@ pub(crate) mod race {
         /// `timing` is `BEFORE`/`AFTER` and the event, e.g. `AFTER UPDATE`: an `AFTER` row trigger pauses while
         /// holding the row it wrote, a `BEFORE` one before that row is locked.
         pub(crate) fn install(name: &str, timing: &str, table: &str) -> Self {
+            Self::install_when(name, timing, table, "true")
+        }
+
+        /// As `install`, pausing only on a row for which the trigger `condition` over `NEW`/`OLD` holds.
+        pub(crate) fn install_when(name: &str, timing: &str, table: &str, condition: &str) -> Self {
             let mut controller = dedicated();
             controller
                 .batch_execute(&format!(
@@ -6265,7 +6270,7 @@ pub(crate) mod race {
                      SELECT pg_advisory_lock({PAUSE_NAMESPACE}, hashtext('{name}'));
                      INSERT INTO be06_test.pause_arm (point) VALUES ('{name}') ON CONFLICT DO NOTHING;
                      CREATE TRIGGER be06_test_pause_{name} {timing} ON public.{table}
-                         FOR EACH ROW EXECUTE FUNCTION be06_test.pause('{name}');"
+                         FOR EACH ROW WHEN ({condition}) EXECUTE FUNCTION be06_test.pause('{name}');"
                 ))
                 .expect("install the pause point");
             PausePoint {
@@ -6330,9 +6335,752 @@ pub(crate) mod race {
         waits(observer)
     }
 
+    /// Run `first` to its pause point, start `second`, observe `second` wait, release, and return both results with
+    /// the transcript of `second`'s wait.
+    pub(crate) fn interleave<A, B>(
+        pool: &std::sync::Arc<crate::db::PgPool>,
+        mut pause: PausePoint,
+        first: impl FnOnce(&crate::db::PgPool) -> A + Send + 'static,
+        second: impl FnOnce(&crate::db::PgPool) -> B + Send + 'static,
+        second_waits: bool,
+    ) -> (A, B, Vec<String>)
+    where
+        A: Send + std::fmt::Debug + 'static,
+        B: Send + std::fmt::Debug + 'static,
+    {
+        let mut observer = dedicated();
+        let first_pool = pool.clone();
+        let first = std::thread::spawn(move || first(first_pool.as_ref()));
+        super::wait_until(|| paused_sessions(&mut observer) >= 1 || first.is_finished());
+        if first.is_finished() {
+            panic!(
+                "the first session never reached its pause point: {:?}",
+                first.join().expect("first session")
+            );
+        }
+        let second_pool = pool.clone();
+        let second = std::thread::spawn(move || second(second_pool.as_ref()));
+        let transcript = if second_waits {
+            super::wait_until(|| !waits(&mut observer).is_empty() || second.is_finished());
+            if second.is_finished() {
+                pause.release();
+                panic!(
+                    "the second session did not wait: {:?}; the first: {:?}",
+                    second.join().expect("second session"),
+                    first.join().expect("first session")
+                );
+            }
+            let transcript = waits(&mut observer);
+            assert_blocked(&second);
+            transcript
+        } else {
+            super::wait_until(|| second.is_finished());
+            Vec::new()
+        };
+        pause.release();
+        let first = first.join().expect("first session");
+        let second = second.join().expect("second session");
+        drop(pause);
+        (first, second, transcript)
+    }
+
     /// Assert that the thread has not finished after a short grace period: it did not escape the wait.
     pub(crate) fn assert_blocked<T>(handle: &std::thread::JoinHandle<T>) {
         std::thread::sleep(std::time::Duration::from_millis(150));
         assert!(!handle.is_finished(), "the session was expected to wait");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 11.2 and R52B section 25.20: the drain, the seed and
+// admission against concurrent change (M5, M6, M10, M12, M14, D10 = T290,
+// D11, T291, T292), on real sessions.
+// ---------------------------------------------------------------------------
+
+mod drain_seed_races {
+    use diesel::connection::SimpleConnection;
+    use diesel::PgConnection;
+    use uuid::Uuid;
+
+    use super::race::{self, PausePoint};
+    use super::*;
+    use crate::model::work_upsert::WorkUpsertMaterializationOutcome as Outcome;
+
+    fn admit(pool: &crate::db::PgPool, publisher: Uuid) -> ThothResult<String> {
+        work_upsert_crud::admit_crossref_work_upsert(pool, publisher, "EV-RACE", "admin")
+            .map(|a| a.evidence_reference)
+    }
+
+    fn census(pool: &crate::db::PgPool, publisher: Uuid) -> i32 {
+        work_upsert_crud::seed_crossref_work_upsert(pool, publisher, Some(0))
+            .expect("census")
+            .remaining_uncovered
+    }
+
+    fn hold(statement: &str) -> PgConnection {
+        let mut session = race::dedicated();
+        session
+            .batch_execute(&format!("BEGIN; {statement}"))
+            .expect("held statement");
+        session
+    }
+
+    fn commit(mut session: PgConnection) {
+        session.batch_execute("COMMIT").expect("commit");
+    }
+
+    fn make_ineligible(connection: &mut PgConnection, work: Uuid) {
+        execute(
+            connection,
+            &format!(
+                "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) \
+                 VALUES ('{work}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)"
+            ),
+        );
+    }
+
+    fn chapter_of(connection: &mut PgConnection, imprint: Uuid, parent: Uuid) -> Uuid {
+        let chapter = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        execute(
+            connection,
+            &format!("UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = '{chapter}'"),
+        );
+        relate_child(connection, parent, chapter, 1);
+        chapter
+    }
+
+    fn all_jobs(connection: &mut PgConnection) -> i64 {
+        count(
+            connection,
+            "SELECT count(*) AS count FROM distribution_job WHERE kind = 'WORK_UPSERT'",
+        )
+    }
+
+    #[test]
+    fn m5_m10_state_changes_between_the_selector_and_a_unit_end_and_count_accordingly() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, imprint, _activation, _) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        let ids = ascending_ids(4);
+        for id in &ids {
+            insert_eligible_work(&mut connection, imprint, *id);
+        }
+        admit(pool.as_ref(), publisher).expect("admit");
+        let (first, moved, abstracted, created_elsewhere) = (ids[0], ids[1], ids[2], ids[3]);
+        assert_eq!(independent_d(&mut connection), ids);
+        let (unadmitted, unadmitted_imprint, _a, _w) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+
+        // The drain's first unit pauses at its job insert, after the selector has read all four candidates.
+        let mut pause = PausePoint::install("m5", "BEFORE INSERT", "distribution_job");
+        let mut observer = race::dedicated();
+        let drain_pool = pool.clone();
+        let drainer = std::thread::spawn(move || drain(drain_pool.as_ref(), Some(4)));
+        wait_until(|| race::paused_sessions(&mut observer) == 1);
+        // Between the selector and their units: a move to an unadmitted publisher, a non-normalising abstract, and
+        // a job created by another unit.
+        execute(
+            &mut connection,
+            &format!(
+                "UPDATE work SET imprint_id = '{unadmitted_imprint}' WHERE work_id = '{moved}'"
+            ),
+        );
+        make_ineligible(&mut connection, abstracted);
+        assert_eq!(
+            materialize(pool.as_ref(), created_elsewhere, false).outcome,
+            Outcome::Created
+        );
+        pause.release();
+        let result = drainer.join().expect("drain");
+        drop(pause);
+        assert_eq!(
+            (
+                result.examined,
+                result.created,
+                result.skipped_not_admitted,
+                result.skipped_ineligible
+            ),
+            (4, 1, 1, 1),
+            "PENDING_CURRENT is examined and counted in no skip"
+        );
+        assert_eq!(job_summary(&mut connection, first).len(), 1);
+        assert_eq!(
+            job_summary(&mut connection, created_elsewhere).len(),
+            1,
+            "no duplicate"
+        );
+        // M10: both are absent from the next call's D, and the moved Work is created after its publisher's admission.
+        assert_eq!(independent_d(&mut connection), Vec::<Uuid>::new());
+        assert_eq!(result.remaining_candidates, 0);
+        assert_eq!(drain(pool.as_ref(), Some(4)).examined, 0);
+        admit(pool.as_ref(), unadmitted).expect("admit the new publisher");
+        let next = drain(pool.as_ref(), Some(4));
+        assert_eq!((next.examined, next.created), (1, 1));
+        assert_eq!(job_summary(&mut connection, moved).len(), 1);
+        assert!(
+            job_summary(&mut connection, abstracted).is_empty(),
+            "never a unit again"
+        );
+    }
+
+    #[test]
+    fn m6_a_binding_moved_end_leaves_the_candidate_in_d_and_the_next_call_examines_it() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_publisher, _imprint, _activation, work) =
+            drainable_work(pool.as_ref(), &mut connection, 1);
+        let (other, other_imprint, _a, _w) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        admit(pool.as_ref(), other).expect("admit the destination");
+        // An editor moves the Work into another admitted publisher and holds W; the unit waits at W.
+        let mover = hold(&format!(
+            "UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"
+        ));
+        let mut observer = race::dedicated();
+        let drain_pool = pool.clone();
+        let drainer = std::thread::spawn(move || drain(drain_pool.as_ref(), Some(1)));
+        assert_eq!(
+            race::wait_for_waits(&mut observer, 1),
+            vec!["transactionid:ShareLock"]
+        );
+        commit(mover);
+        let first = drainer.join().expect("drain");
+        assert_eq!(
+            (first.examined, first.created, first.remaining_candidates),
+            (1, 0, 1),
+            "BINDING_MOVED_RETRY_LATER leaves it in D"
+        );
+        let second = drain(pool.as_ref(), Some(1));
+        assert_eq!(
+            (second.examined, second.created, second.remaining_candidates),
+            (1, 1, 0)
+        );
+    }
+
+    #[test]
+    fn m12_saturation_is_observable() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, imprint, _activation, _) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        let (other, other_imprint, _a, _w) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        let ids = ascending_ids(3);
+        for id in &ids {
+            insert_eligible_work(&mut connection, imprint, *id);
+        }
+        admit(pool.as_ref(), publisher).expect("admit");
+        admit(pool.as_ref(), other).expect("admit");
+        let (low, high) = (&ids[..2], ids[2]);
+
+        // `limit` lower-ordered Works re-enter D in every call (their units end BINDING_MOVED_RETRY_LATER as an editor
+        // moves each between the two admitted publishers while the unit waits): the higher Work is never examined.
+        let saturated_call =
+            |connection: &mut PgConnection, low: &[Uuid], limit: i32, destination: Uuid| {
+                let movers: Vec<PgConnection> = low
+                    .iter()
+                    .map(|work| {
+                        hold(&format!(
+                            "UPDATE work SET imprint_id = '{destination}' WHERE work_id = '{work}'"
+                        ))
+                    })
+                    .collect();
+                let mut observer = race::dedicated();
+                let drain_pool = pool.clone();
+                let drainer = std::thread::spawn(move || drain(drain_pool.as_ref(), Some(limit)));
+                for mover in movers {
+                    race::wait_for_waits(&mut observer, 1);
+                    commit(mover);
+                }
+                let result = drainer.join().expect("drain");
+                let _ = connection;
+                result
+            };
+        for (call, destination) in [other_imprint, imprint].into_iter().enumerate() {
+            let result = saturated_call(&mut connection, low, 2, destination);
+            assert_eq!(result.examined, 2, "call {call}");
+            assert_eq!(result.created, 0, "call {call}");
+            assert!(
+                result.remaining_candidates >= 2,
+                "call {call}: {}",
+                result.remaining_candidates
+            );
+            assert!(
+                job_summary(&mut connection, high).is_empty(),
+                "call {call}: the higher Work is unexamined"
+            );
+        }
+        // With one fewer re-entering Work (the second has left D with its own job), the higher Work is examined in the
+        // first call.
+        assert_eq!(
+            materialize(pool.as_ref(), low[1], false).outcome,
+            Outcome::Created
+        );
+        let result = saturated_call(&mut connection, &low[..1], 2, other_imprint);
+        assert_eq!(result.examined, 2);
+        assert_eq!(job_summary(&mut connection, high).len(), 1);
+    }
+
+    #[test]
+    fn m12_with_limit_one_higher_the_higher_work_is_examined_in_the_first_call() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, imprint, _activation, _) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        let (other, other_imprint, _a, _w) =
+            admissible_publisher(pool.as_ref(), &mut connection, 0);
+        let ids = ascending_ids(3);
+        for id in &ids {
+            insert_eligible_work(&mut connection, imprint, *id);
+        }
+        admit(pool.as_ref(), publisher).expect("admit");
+        admit(pool.as_ref(), other).expect("admit");
+        let movers: Vec<PgConnection> = ids[..2]
+            .iter()
+            .map(|work| {
+                hold(&format!(
+                    "UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"
+                ))
+            })
+            .collect();
+        let mut observer = race::dedicated();
+        let drain_pool = pool.clone();
+        let drainer = std::thread::spawn(move || drain(drain_pool.as_ref(), Some(3)));
+        for mover in movers {
+            race::wait_for_waits(&mut observer, 1);
+            commit(mover);
+        }
+        let result = drainer.join().expect("drain");
+        assert_eq!((result.examined, result.created), (3, 1));
+        assert_eq!(job_summary(&mut connection, ids[2]).len(), 1);
+    }
+
+    #[test]
+    fn m14_the_selector_takes_no_lock_and_the_unit_serialises_with_editorial_capture() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+
+        // The selector returns without waiting while an uncommitted fan-out edit holds every Work row.
+        let (publisher, imprint, _activation, work) =
+            drainable_work(pool.as_ref(), &mut connection, 1);
+        let fan_out = hold(&format!(
+            "UPDATE publisher SET publisher_name = publisher_name || ' (edited)' WHERE publisher_id = '{publisher}'"
+        ));
+        let drain_pool = pool.clone();
+        let selector = std::thread::spawn(move || drain(drain_pool.as_ref(), Some(0)));
+        wait_until(|| selector.is_finished());
+        assert_eq!(selector.join().expect("selector").remaining_candidates, 1);
+        commit(fan_out);
+
+        // The unit holding W: an edit of the Work waits, and both commit.
+        let (unit, edited, transcript) = race::interleave(
+            &pool,
+            PausePoint::install("m14a", "BEFORE INSERT", "distribution_job"),
+            move |pool| materialize(pool, work, false).outcome,
+            move |pool| {
+                pool.get()
+                    .expect("editor")
+                    .batch_execute(&format!(
+                        "UPDATE work SET place = 'M14' WHERE work_id = '{work}'"
+                    ))
+                    .map_err(|e| e.to_string())
+            },
+            true,
+        );
+        assert_eq!(unit, Outcome::Created);
+        assert_eq!(edited, Ok(()));
+        assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+
+        // An edit holding W: the unit waits, and both commit.
+        let (_p, _i, _a, work) = drainable_work(pool.as_ref(), &mut connection, 1);
+        let editor = hold(&format!(
+            "UPDATE work SET place = 'M14b' WHERE work_id = '{work}'"
+        ));
+        let mut observer = race::dedicated();
+        let unit_pool = pool.clone();
+        let unit = std::thread::spawn(move || materialize(unit_pool.as_ref(), work, false));
+        assert_eq!(
+            race::wait_for_waits(&mut observer, 1),
+            vec!["transactionid:ShareLock"]
+        );
+        commit(editor);
+        let unit = unit.join().expect("unit");
+        assert_eq!(unit.outcome, Outcome::Created);
+        assert_eq!(
+            unit.job.and_then(|j| j.created_generation),
+            Some(2),
+            "the edit's generation"
+        );
+
+        // The unit holding G: a chapter edit's commit-time flush waits, and both commit.
+        let parent = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+        let chapter = chapter_of(&mut connection, imprint, parent);
+        let (unit, edited, transcript) = race::interleave(
+            &pool,
+            PausePoint::install("m14c", "BEFORE INSERT", "distribution_job"),
+            move |pool| materialize(pool, parent, false).outcome,
+            move |pool| {
+                pool.get()
+                    .expect("editor")
+                    .batch_execute(&format!(
+                        "UPDATE title SET title = 'Chapter edit' WHERE work_id = '{chapter}'"
+                    ))
+                    .map_err(|e| e.to_string())
+            },
+            true,
+        );
+        assert_eq!(unit, Outcome::Created);
+        assert_eq!(edited, Ok(()));
+        assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    }
+
+    /// T290's four schedules, each over its own admissible publisher with an uncovered root RA, a second root RB
+    /// and a chapter CY of RA; returns the publisher and the generation of `(RA, RB, CY)` afterwards.
+    fn seed_capture_schedule(
+        pool: &std::sync::Arc<crate::db::PgPool>,
+        connection: &mut PgConnection,
+        schedule: &str,
+    ) -> (Uuid, Uuid, Vec<Option<i64>>) {
+        let (publisher, imprint, _activation, roots) =
+            admissible_publisher(pool.as_ref(), connection, 2);
+        let (ra, rb) = (roots[0], roots[1]);
+        let cy = chapter_of(connection, imprint, ra);
+        for work in [ra, rb, cy] {
+            uncover(connection, work);
+        }
+        let seed_ra = move |pool: &crate::db::PgPool| {
+            crate::model::work_upsert::crud::seed_unit(pool, publisher, ra).expect("seed unit")
+        };
+        let edit = |statement: String| {
+            move |pool: &crate::db::PgPool| {
+                pool.get()
+                    .expect("editor")
+                    .batch_execute(&statement)
+                    .map_err(|e| e.to_string())
+            }
+        };
+        let work_edit = format!("UPDATE work SET place = 'T290' WHERE work_id = '{ra}'");
+        let chapter_edit = format!("UPDATE title SET title = 'T290' WHERE work_id = '{cy}'");
+        match schedule {
+            "B01" => {
+                let (seeded, edited, transcript) = race::interleave(
+                    pool,
+                    PausePoint::install("b01", "AFTER UPDATE", "work_upsert_generation"),
+                    seed_ra,
+                    edit(work_edit),
+                    true,
+                );
+                assert_eq!(seeded, crate::model::work_upsert::SeedUnitOutcome::Seeded);
+                assert_eq!(edited, Ok(()));
+                assert!(!transcript.is_empty());
+            }
+            "B02" => {
+                let (edited, seeded, transcript) = race::interleave(
+                    pool,
+                    PausePoint::install("b02", "AFTER INSERT", "work_upsert_generation"),
+                    edit(work_edit),
+                    seed_ra,
+                    true,
+                );
+                assert_eq!(edited, Ok(()));
+                assert_eq!(seeded, crate::model::work_upsert::SeedUnitOutcome::Observed);
+                assert!(!transcript.is_empty());
+            }
+            "B03" => {
+                let (seeded, edited, transcript) = race::interleave(
+                    pool,
+                    PausePoint::install("b03", "AFTER UPDATE", "work_upsert_generation"),
+                    seed_ra,
+                    edit(chapter_edit),
+                    true,
+                );
+                assert_eq!(seeded, crate::model::work_upsert::SeedUnitOutcome::Seeded);
+                assert_eq!(edited, Ok(()));
+                assert!(!transcript.is_empty());
+            }
+            "B04" => {
+                let (edited, seeded, transcript) = race::interleave(
+                    pool,
+                    PausePoint::install("b04", "AFTER INSERT", "work_upsert_generation"),
+                    edit(chapter_edit),
+                    seed_ra,
+                    true,
+                );
+                assert_eq!(edited, Ok(()));
+                assert_eq!(seeded, crate::model::work_upsert::SeedUnitOutcome::Observed);
+                assert!(!transcript.is_empty());
+            }
+            other => panic!("{other}"),
+        }
+        let generations = [ra, rb, cy]
+            .iter()
+            .map(|work| generation_of(connection, *work))
+            .collect();
+        (publisher, ra, generations)
+    }
+
+    #[test]
+    fn d10_t290_the_seed_against_editorial_capture_then_census_admission_and_drain() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let mut publishers = Vec::new();
+        for (schedule, expected) in [
+            ("B01", vec![Some(2), None, None]),
+            ("B02", vec![Some(1), None, None]),
+            ("B03", vec![Some(2), None, Some(1)]),
+            ("B04", vec![Some(1), None, Some(1)]),
+        ] {
+            let before_jobs = all_jobs(&mut connection);
+            let (publisher, ra, generations) =
+                seed_capture_schedule(&pool, &mut connection, schedule);
+            assert_eq!(generations, expected, "{schedule}");
+            assert_eq!(
+                all_jobs(&mut connection),
+                before_jobs,
+                "{schedule}: no job before admission"
+            );
+            // RB (and CY where untouched) stay uncovered: the census refuses admission.
+            assert!(census(pool.as_ref(), publisher) >= 1, "{schedule}");
+            assert_eq!(
+                admit(pool.as_ref(), publisher),
+                Err(ThothError::WorkUpsertAdmissionCensusNotEmpty),
+                "{schedule}"
+            );
+            publishers.push((publisher, ra));
+        }
+        for (publisher, _ra) in &publishers {
+            let seeded =
+                work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), *publisher, None)
+                    .expect("seed");
+            assert_eq!(seeded.remaining_uncovered, 0);
+            let again =
+                work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), *publisher, None)
+                    .expect("seed");
+            assert_eq!(
+                (again.examined, again.seeded),
+                (0, 0),
+                "a second seed writes nothing"
+            );
+            assert_eq!(all_jobs(&mut connection), 0, "the seed creates no job");
+            admit(pool.as_ref(), *publisher).expect("admission");
+            assert_eq!(all_jobs(&mut connection), 0, "admission creates no job");
+        }
+        let drained = drain(pool.as_ref(), Some(100));
+        assert_eq!(drained.remaining_candidates, 0);
+        for (_publisher, ra) in &publishers {
+            let summary = job_summary(&mut connection, *ra);
+            assert_eq!(summary.len(), 1, "one PENDING job for RA");
+            let generation = generation_of(&mut connection, *ra).expect("generation");
+            assert!(
+                summary[0].starts_with(&format!("PENDING|-|{generation}|1|")),
+                "{summary:?}"
+            );
+        }
+        assert_eq!(
+            drain(pool.as_ref(), Some(100)).created,
+            0,
+            "a second drain creates nothing"
+        );
+    }
+
+    #[test]
+    fn d11_a_publisher_losing_its_assignment_mid_call_keeps_committed_units() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, _imprint, _activation, works) =
+            admissible_publisher(pool.as_ref(), &mut connection, 3);
+        for work in &works {
+            uncover(&mut connection, *work);
+        }
+        // The second unit pauses holding P FOR SHARE; the assignment is disabled behind it.
+        let mut pause = PausePoint::install("d11", "AFTER UPDATE", "work_upsert_generation");
+        let mut observer = race::dedicated();
+        // Arm on the second unit: let the first commit by consuming a first arming on a throwaway row.
+        let seed_pool = pool.clone();
+        let seeder = std::thread::spawn(move || {
+            work_upsert_crud::seed_crossref_work_upsert(seed_pool.as_ref(), publisher, None)
+        });
+        wait_until(|| race::paused_sessions(&mut observer) == 1);
+        let disable_pool = pool.clone();
+        let disabler = std::thread::spawn(move || {
+            crate::model::publisher_distribution_platform::PublisherDistributionPlatform::disable(
+                disable_pool.as_ref(),
+                publisher,
+                DistributionPlatform::Crossref,
+            )
+        });
+        race::wait_for_waits(&mut observer, 1);
+        pause.release();
+        let seeded = seeder.join().expect("seed").expect("the call completes");
+        assert_eq!(disabler.join().expect("disable"), Ok(()));
+        drop(pause);
+        assert_eq!(seeded.seeded, 3, "units already committed stay");
+        for work in &works {
+            assert_eq!(generation_of(&mut connection, *work), Some(1));
+        }
+        assert_eq!(
+            work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None)
+                .map(|r| r.seeded),
+            Err(ThothError::CrossrefPublisherNotCovered)
+        );
+        assert_eq!(
+            admit(pool.as_ref(), publisher),
+            Err(ThothError::CrossrefPublisherNotCovered)
+        );
+    }
+
+    #[test]
+    fn t291_the_census_under_generation_coverage_over_an_interrupted_seed() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, _imprint, _activation, works) =
+            admissible_publisher(pool.as_ref(), &mut connection, 7);
+        for work in &works {
+            uncover(&mut connection, *work);
+        }
+        assert_eq!(census(pool.as_ref(), publisher), 7);
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, Some(2))
+            .expect("batch");
+        assert_eq!(census(pool.as_ref(), publisher), 5);
+        assert_eq!(
+            admit(pool.as_ref(), publisher),
+            Err(ThothError::WorkUpsertAdmissionCensusNotEmpty)
+        );
+
+        // A batch that crashes after visiting 3: its second unit (the second uncovered Work in ascending order) is
+        // paused and its backend terminated, so the first unit's write is the only one that commits.
+        let mut pause = PausePoint::install_when(
+            "t291",
+            "AFTER UPDATE",
+            "work_upsert_generation",
+            &format!("NEW.work_id = '{}'", works[3]),
+        );
+        let mut observer = race::dedicated();
+        let seed_pool = pool.clone();
+        let seeder = std::thread::spawn(move || {
+            work_upsert_crud::seed_crossref_work_upsert(seed_pool.as_ref(), publisher, Some(3))
+        });
+        wait_until(|| race::paused_sessions(&mut observer) == 1);
+        execute(
+            &mut observer,
+            "SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND classid = 1948579000",
+        );
+        let crashed = seeder.join().expect("seed thread");
+        assert!(crashed.is_err(), "the batch crashed: {crashed:?}");
+        pause.release();
+        drop(pause);
+        let after_crash = census(pool.as_ref(), publisher);
+        assert_eq!(
+            after_crash, 4,
+            "the Work it wrote before the crash stays covered"
+        );
+
+        // An edit's row covers its unvisited Work; a reservation's 0 row stays uncovered.
+        let uncovered: Vec<Uuid> = works
+            .iter()
+            .copied()
+            .filter(|work| generation_of(&mut connection, *work).is_none())
+            .collect();
+        execute(
+            &mut connection,
+            &format!(
+                "UPDATE work SET place = 'Edited' WHERE work_id = '{}'",
+                uncovered[0]
+            ),
+        );
+        assert_eq!(census(pool.as_ref(), publisher), 3);
+        crate::model::crossref_write_permit::crud::reserve_legacy_scheduled_crossref_write(
+            pool.as_ref(),
+            uncovered[1],
+        )
+        .expect("a reservation's 0 row");
+        assert_eq!(generation_of(&mut connection, uncovered[1]), Some(0));
+        assert_eq!(census(pool.as_ref(), publisher), 3, "a 0 row is uncovered");
+        // A deleted and a moved Work leave the census.
+        crate::model::work::Work::from_id(pool.as_ref(), &uncovered[2])
+            .expect("work")
+            .delete(pool.as_ref())
+            .expect("delete");
+        let (_other, other_imprint) = publisher_and_imprint(pool.as_ref());
+        execute(
+            &mut connection,
+            &format!(
+                "UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{}'",
+                uncovered[3]
+            ),
+        );
+        assert_eq!(census(pool.as_ref(), publisher), 1);
+
+        // The full seed raises the 0 row once and leaves the edited Work at 1; no job; a re-run writes nothing.
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None).expect("seed");
+        assert_eq!(census(pool.as_ref(), publisher), 0);
+        assert_eq!(generation_of(&mut connection, uncovered[1]), Some(1));
+        assert_eq!(generation_of(&mut connection, uncovered[0]), Some(1));
+        assert_eq!(all_jobs(&mut connection), 0);
+        let again = work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None)
+            .expect("seed");
+        assert_eq!(again.seeded, 0);
+        admit(pool.as_ref(), publisher).expect("admission");
+        assert_eq!(all_jobs(&mut connection), 0, "admission creates no job");
+        let drained = drain(pool.as_ref(), Some(100));
+        assert_eq!(drained.created, 5, "one PENDING job per covered Work");
+        assert_eq!(drain(pool.as_ref(), Some(100)).created, 0);
+    }
+
+    #[test]
+    fn t292_admission_against_a_concurrent_activation_change_and_capture() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (publisher, _imprint, activation, works) =
+            admissible_publisher(pool.as_ref(), &mut connection, 1);
+        let mut pause = PausePoint::install("t292", "BEFORE INSERT", "work_upsert_admission");
+        let mut observer = race::dedicated();
+        let admit_pool = pool.clone();
+        let admitter = std::thread::spawn(move || admit(admit_pool.as_ref(), publisher));
+        wait_until(|| race::paused_sessions(&mut observer) == 1);
+        // The activation change begins inside the admission and waits on P.
+        let change_pool = pool.clone();
+        let changer = std::thread::spawn(move || {
+            use crate::model::publisher_distribution_platform::PublisherDistributionPlatform as Assignment;
+            Assignment::disable(
+                change_pool.as_ref(),
+                publisher,
+                DistributionPlatform::Crossref,
+            )?;
+            Assignment::enable(
+                change_pool.as_ref(),
+                publisher,
+                DistributionPlatform::Crossref,
+            )
+        });
+        race::wait_for_waits(&mut observer, 1);
+        // An editorial capture runs inside the admission without waiting.
+        execute(
+            &mut connection,
+            &format!(
+                "UPDATE work SET place = 'T292' WHERE work_id = '{}'",
+                works[0]
+            ),
+        );
+        race::assert_blocked(&changer);
+        pause.release();
+        assert!(admitter.join().expect("admission").is_ok());
+        assert_eq!(changer.join().expect("change"), Ok(()));
+        drop(pause);
+        let rows = texts(
+            &mut connection,
+            &format!("SELECT activation_id::text AS value FROM work_upsert_admission WHERE publisher_id = '{publisher}'"),
+        );
+        assert_eq!(
+            rows,
+            vec![activation.to_string()],
+            "the activation read under P, and only it"
+        );
+        assert_eq!(
+            all_jobs(&mut connection),
+            0,
+            "neither admission nor the capture created a job"
+        );
     }
 }
