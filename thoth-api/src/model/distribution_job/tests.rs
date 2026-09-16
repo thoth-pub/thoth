@@ -4463,3 +4463,156 @@ fn code_owned_bounds_are_the_specified_values() {
     );
     assert_eq!(backoff(10), DISTRIBUTION_JOB_RETRY_MAX_SECONDS);
 }
+
+// ---------------------------------------------------------------------------
+// BE-06 Amendment 3 section 10.3 EB3 (X12): the released paths BE-06 extends
+// keep their released pool, statement and commit error behaviour.
+// ---------------------------------------------------------------------------
+
+mod x12_released_error_behaviour {
+    use diesel::connection::SimpleConnection;
+    use diesel::r2d2::{ConnectionManager, Pool};
+    use diesel::PgConnection;
+    use uuid::Uuid;
+
+    use super::complete_distribution_job;
+    use crate::model::crossref_write_permit::crud as permit_crud;
+    use crate::model::crossref_write_permit::CrossrefWriteOutcome;
+    use crate::model::tests::db as test_db;
+    use crate::model::work_upsert::tests as fx;
+
+    /// A fenced WORK_UPSERT attempt with an ACCEPTED permit: completion's BE-06 guards all pass.
+    fn completable(pool: &crate::db::PgPool, connection: &mut PgConnection) -> (Uuid, Uuid) {
+        let (_publisher, _imprint, _activation, _work, job) = fx::claimable_job(pool, connection);
+        fx::enable_execution(pool);
+        let token = fx::claim(pool)
+            .into_iter()
+            .find(|claimed| claimed.job.job.distribution_job_id == job)
+            .map(|claimed| claimed.claim_token)
+            .expect("claimed");
+        let reservation =
+            permit_crud::reserve_work_upsert_crossref_write(pool, job, token).expect("reserve");
+        let input = permit_crud::FinaliseCrossrefWrite {
+            permit_id: reservation.permit_id,
+            reservation_token: reservation.reservation_token,
+            claim_token: Some(token),
+            observed_dois: reservation.dois.clone(),
+            observed_doi_batch_id: reservation.doi_batch_id.clone(),
+            observed_crossref_timestamp: reservation.crossref_timestamp,
+            payload_digest: "0".repeat(64),
+        };
+        let allow = |_route| Ok(());
+        permit_crud::finalise_crossref_write(pool, &input, &allow).expect("finalise");
+        permit_crud::report_crossref_write(
+            pool,
+            reservation.permit_id,
+            reservation.reservation_token,
+            CrossrefWriteOutcome::Accepted,
+            &allow,
+        )
+        .expect("report");
+        (job, token)
+    }
+
+    /// A test-only trigger, removed when dropped.
+    struct TestTrigger {
+        connection: PgConnection,
+        drop_sql: String,
+    }
+
+    impl TestTrigger {
+        fn install(sql: &str, drop_sql: &str) -> Self {
+            let mut connection = fx::race::dedicated();
+            connection.batch_execute(sql).expect("install");
+            TestTrigger {
+                connection,
+                drop_sql: drop_sql.to_string(),
+            }
+        }
+    }
+
+    impl Drop for TestTrigger {
+        fn drop(&mut self) {
+            let _ = self.connection.batch_execute(&self.drop_sql);
+        }
+    }
+
+    #[test]
+    fn x12_an_exhausted_pool_keeps_the_released_internal_error() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        let small: crate::db::PgPool = Pool::builder()
+            .max_size(1)
+            .connection_timeout(std::time::Duration::from_millis(300))
+            .build(ConnectionManager::<PgConnection>::new(
+                test_db::test_db_url(),
+            ))
+            .expect("pool");
+        let _held = small.get().expect("the only connection");
+        let error = complete_distribution_job(&small, job, token).expect_err("exhausted");
+        assert_eq!(
+            error.to_string(),
+            "Internal error: timed out waiting for connection"
+        );
+    }
+
+    #[test]
+    fn x12_a_released_statement_failure_keeps_database_error_with_its_message() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        let _trigger = TestTrigger::install(
+            &format!(
+                "CREATE SCHEMA IF NOT EXISTS be06_test;
+                 CREATE OR REPLACE FUNCTION be06_test.x12_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+                 BEGIN RAISE EXCEPTION 'x12 released statement failure'; END $$;
+                 CREATE TRIGGER be06_test_x12_fail BEFORE UPDATE ON public.distribution_job
+                     FOR EACH ROW WHEN (OLD.distribution_job_id = '{job}') EXECUTE FUNCTION be06_test.x12_fail();"
+            ),
+            "DROP TRIGGER IF EXISTS be06_test_x12_fail ON public.distribution_job",
+        );
+        let error = complete_distribution_job(pool.as_ref(), job, token).expect_err("failure");
+        assert_eq!(
+            error.to_string(),
+            "Database error: x12 released statement failure"
+        );
+    }
+
+    #[test]
+    fn x12_a_commit_time_be06_trigger_in_a_released_transaction_keeps_database_error_with_its_code()
+    {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        // The released completion statement's own row write removes the job's target, so the deferred BE-06
+        // target-set trigger fails at the released transaction's COMMIT.
+        let _trigger = TestTrigger::install(
+            &format!(
+                "CREATE SCHEMA IF NOT EXISTS be06_test;
+                 CREATE OR REPLACE FUNCTION be06_test.x12_detarget() RETURNS trigger LANGUAGE plpgsql AS $$
+                 BEGIN DELETE FROM public.distribution_job_target WHERE distribution_job_id = NEW.distribution_job_id;
+                       RETURN NULL; END $$;
+                 CREATE TRIGGER be06_test_x12_detarget AFTER UPDATE ON public.distribution_job
+                     FOR EACH ROW WHEN (OLD.distribution_job_id = '{job}' AND NEW.status = 'SUCCEEDED')
+                     EXECUTE FUNCTION be06_test.x12_detarget();"
+            ),
+            "DROP TRIGGER IF EXISTS be06_test_x12_detarget ON public.distribution_job",
+        );
+        let error = complete_distribution_job(pool.as_ref(), job, token).expect_err("commit");
+        assert!(
+            error
+                .to_string()
+                .starts_with("Database error: WORK_UPSERT_"),
+            "{error}"
+        );
+        assert_eq!(
+            fx::texts(
+                &mut connection,
+                &format!("SELECT status::text AS value FROM distribution_job WHERE distribution_job_id = '{job}'")
+            ),
+            vec!["RUNNING"],
+            "the released transaction rolled back"
+        );
+    }
+}

@@ -5553,3 +5553,149 @@ fn r7_two_reservations_of_one_attempt_yield_one_permit() {
     );
     assert_eq!(permit_count(&mut connection), 1);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Static containment: F16 and R52B T167 (no provider or GitHub traffic path), and T203 (no generic permit writer).
+// ---------------------------------------------------------------------------------------------------------------------
+
+fn non_test_sources(root: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(root).expect("read") {
+        let path = entry.expect("entry").path();
+        if path.is_dir() {
+            non_test_sources(&path, files);
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            if name != "tests.rs" && !name.ends_with("_tests.rs") {
+                files.push(path);
+            }
+        }
+    }
+}
+
+#[test]
+fn f16_t167_no_be06_path_carries_a_github_client_or_any_network_call() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    // F16: the four named files.
+    for path in [
+        "src/model/crossref_write_permit/mod.rs",
+        "src/model/crossref_write_permit/crud.rs",
+        "src/graphql/work_upsert.rs",
+        "src/graphql/mutation.rs",
+    ] {
+        let text = std::fs::read_to_string(manifest.join(path))
+            .expect("read")
+            .to_lowercase();
+        let (forge, client) = (
+            "buhtig".chars().rev().collect::<String>(),
+            "tsewqer".chars().rev().collect::<String>(),
+        );
+        assert!(!text.contains(&forge), "{path} names {forge}");
+        assert!(!text.contains(&client), "{path} names {client}");
+    }
+    // T167: no BE-06 file, source or test, has an HTTP client or a provider endpoint, so no test and no code path can
+    // reach Crossref.
+    let workspace = manifest.parent().expect("workspace");
+    let be06_files = [
+        "thoth-api/src/model/work_upsert/mod.rs",
+        "thoth-api/src/model/work_upsert/registry.rs",
+        "thoth-api/src/model/work_upsert/crud.rs",
+        "thoth-api/src/model/work_upsert/policy.rs",
+        "thoth-api/src/model/work_upsert/tests.rs",
+        "thoth-api/src/model/crossref_write_permit/mod.rs",
+        "thoth-api/src/model/crossref_write_permit/crud.rs",
+        "thoth-api/src/model/crossref_write_permit/tests.rs",
+        "thoth-api/src/graphql/work_upsert.rs",
+        "thoth-api/tests/work_upsert_capture.rs",
+        "thoth-api/tests/crossref_permit_concurrency.rs",
+        "thoth-api/migrations/20260910_v1.10.0/up.sql",
+        "thoth-api/migrations/20260911_v1.10.0/up.sql",
+    ];
+    for path in be06_files {
+        let Ok(text) = std::fs::read_to_string(workspace.join(path)) else {
+            continue;
+        };
+        let lower = text.to_lowercase();
+        for forbidden in [
+            "tsewqer",
+            "tneilc::repyh",
+            "tneilc::cwa",
+            "qeru",
+            "chasi",
+            "::lruc",
+            "maertspct",
+            "gro.ferssorc.iod",
+            "gro.ferssorc.ipa",
+            "gro.ferssorc.tset",
+            "knilbd",
+            "tseuqer_ptth",
+        ]
+        .map(|reversed| reversed.chars().rev().collect::<String>())
+        {
+            assert!(!lower.contains(&forbidden), "{path} contains {forbidden}");
+        }
+    }
+}
+
+#[test]
+fn t203_no_generic_path_writes_a_permit_and_the_only_referential_actions_are_set_null() {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    non_test_sources(&manifest.join("src"), &mut files);
+    let sql_write = regex::Regex::new(
+        r"(?i)(insert\s+into|update|delete\s+from|truncate)\s+(public\.)?crossref_write_permit(_doi)?\b",
+    )
+    .expect("regex");
+    let alias = regex::Regex::new(r"crossref_write_permit(_doi)?\s+as\s+(\w+)").expect("regex");
+    let mut writers = Vec::new();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("read");
+        let display = path.display().to_string();
+        let mut names = vec![
+            "crossref_write_permit".to_string(),
+            "crossref_write_permit_doi".to_string(),
+        ];
+        names.extend(alias.captures_iter(&text).map(|c| c[2].to_string()));
+        let mut writes = sql_write.is_match(&text);
+        for name in &names {
+            for call in ["insert_into", "update", "delete"] {
+                if text.contains(&format!("{call}({name}::table")) {
+                    writes = true;
+                }
+            }
+        }
+        if writes {
+            writers.push(display);
+        }
+    }
+    assert_eq!(writers.len(), 1, "{writers:?}");
+    assert!(
+        writers[0].ends_with("src/model/crossref_write_permit/crud.rs"),
+        "{writers:?}"
+    );
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    assert_eq!(
+        fx::texts(
+            &mut connection,
+            "SELECT string_agg(conname || ':' || confdeltype::text, ',' ORDER BY conname) AS value FROM pg_constraint \
+             WHERE contype = 'f' AND conrelid = 'public.crossref_write_permit'::regclass"
+        ),
+        vec![
+            "crossref_write_permit_distribution_job_attempt_id_fkey:n,crossref_write_permit_distribution_job_id_fkey:n,crossref_write_permit_publisher_id_fkey:n"
+        ]
+    );
+    assert_eq!(
+        fx::count(
+            &mut connection,
+            "SELECT count(*) AS count FROM pg_constraint WHERE contype = 'f' \
+             AND confrelid IN ('public.crossref_write_permit'::regclass, 'public.crossref_write_permit_doi'::regclass) \
+             AND confdeltype NOT IN ('a', 'r')"
+        ),
+        0,
+        "nothing cascades into or out of the permit tables"
+    );
+}
