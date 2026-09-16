@@ -11,7 +11,9 @@ use diesel::connection::SimpleConnection;
 use diesel::sql_types::{BigInt, Text, Uuid as SqlUuid};
 use diesel::{Connection, PgConnection, QueryableByName, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
-use thoth_errors::{ThothError, WORK_UPSERT_SUFFIXED_TRIGGER_CODES, WORK_UPSERT_TRIGGER_CODES};
+use thoth_errors::{
+    ThothError, ThothResult, WORK_UPSERT_SUFFIXED_TRIGGER_CODES, WORK_UPSERT_TRIGGER_CODES,
+};
 use uuid::Uuid;
 
 use crate::db::MIGRATIONS;
@@ -2000,4 +2002,227 @@ fn generation_is_exactly_the_lossless_decimal_grammar() {
     let output: InputValue<DefaultScalarValue> =
         juniper::ToInputValue::to_input_value(&Generation::from_i64(7).expect("7"));
     assert_eq!(output, InputValue::scalar("7"), "a string on the wire");
+}
+
+// ---------------------------------------------------------------------------
+// Amendment 3 section 10.3: the controlled error boundary (X1, X3, X10)
+// ---------------------------------------------------------------------------
+
+use crate::model::work_upsert::{
+    work_upsert_transaction, WorkUpsertQueryResultExt, WorkUpsertTxError,
+};
+
+/// The five BE-06 model files of Amendment 3 section 10.3's X1 and X3.
+const BE06_MODEL_FILES: [&str; 5] = [
+    "src/model/work_upsert/mod.rs",
+    "src/model/work_upsert/crud.rs",
+    "src/model/work_upsert/policy.rs",
+    "src/model/crossref_write_permit/mod.rs",
+    "src/model/crossref_write_permit/crud.rs",
+];
+
+fn source(path: &str) -> String {
+    std::fs::read_to_string(format!("{}/{path}", env!("CARGO_MANIFEST_DIR")))
+        .unwrap_or_else(|error| panic!("read {path}: {error}"))
+}
+
+#[test]
+fn x1_the_boundary_holds_the_only_transaction_and_pool_acquisition() {
+    let mut transactions = 0;
+    let mut acquisitions = 0;
+    for path in BE06_MODEL_FILES {
+        let text = source(path);
+        transactions += text.matches(".transaction(").count();
+        acquisitions += text.matches("db.get()").count();
+    }
+    assert_eq!(
+        transactions, 1,
+        "`.transaction(` occurs once, in the boundary"
+    );
+    assert_eq!(acquisitions, 1, "`db.get()` occurs once, in the boundary");
+    let boundary = source("src/model/work_upsert/mod.rs");
+    let body = boundary
+        .split_once("pub(crate) fn work_upsert_transaction<")
+        .expect("the boundary")
+        .1
+        .split_once("\n}\n")
+        .expect("its end")
+        .0;
+    assert!(body.contains(".transaction("));
+    assert!(body.contains("db.get()"));
+}
+
+#[test]
+fn x3_no_be06_model_file_uses_a_released_conversion() {
+    for path in BE06_MODEL_FILES {
+        let text = source(path);
+        for forbidden in [
+            "map_err(Into::into)",
+            "ThothError::from(",
+            "impl From<diesel",
+        ] {
+            assert!(!text.contains(forbidden), "{path} contains {forbidden}");
+        }
+    }
+}
+
+#[test]
+fn x2_the_scoped_conversion_is_referenced_once_outside_tests() {
+    let mut references = Vec::new();
+    let mut stack = vec![std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src"
+    ))];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(&directory).expect("read src") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            if name == "tests.rs" || name.ends_with("_tests.rs") || !name.ends_with(".rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read");
+            for _ in text.matches("from_work_upsert_database_error") {
+                references.push(path.display().to_string());
+            }
+            if text.contains("PgConnection::establish") {
+                assert!(
+                    path.ends_with("src/db.rs"),
+                    "X10: PgConnection::establish outside db.rs in {}",
+                    path.display()
+                );
+            }
+        }
+    }
+    assert_eq!(references.len(), 1, "{references:?}");
+    assert!(references[0].ends_with("src/model/work_upsert/mod.rs"));
+}
+
+#[test]
+fn x10_a_pool_that_cannot_connect_is_the_fixed_internal_failure() {
+    let pool = test_db::failing_pool();
+    let result = work_upsert_transaction(&pool, |_connection| Ok::<_, WorkUpsertTxError>(()));
+    assert_eq!(result, Err(ThothError::WorkUpsertDatabaseFailure));
+    let message = result.expect_err("refused").to_string();
+    for leak in [
+        "invalid",
+        "localhost",
+        "5432",
+        ":1",
+        "connection",
+        "timed out",
+    ] {
+        assert!(!message.contains(leak), "{message}");
+    }
+}
+
+#[test]
+fn x10_a_pool_whose_only_connection_is_held_is_the_fixed_internal_failure() {
+    let _guard = test_db::test_lock();
+    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(test_db::test_db_url());
+    let pool = diesel::r2d2::Pool::builder()
+        .max_size(1)
+        .connection_timeout(std::time::Duration::from_millis(200))
+        .build(manager)
+        .expect("pool");
+    let _held = pool.get().expect("the only connection");
+    let result = work_upsert_transaction(&pool, |_connection| Ok::<_, WorkUpsertTxError>(()));
+    assert_eq!(result, Err(ThothError::WorkUpsertDatabaseFailure));
+    assert_eq!(
+        result.expect_err("refused").to_string(),
+        "A work-level distribution database operation failed."
+    );
+}
+
+#[test]
+fn the_boundary_commits_rolls_back_and_converts_exactly() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let publisher = test_db::create_publisher(pool.as_ref());
+
+    // Commit, at PostgreSQL's default READ COMMITTED.
+    let isolation = work_upsert_transaction(pool.as_ref(), |connection| {
+        insert_admission(connection, publisher.publisher_id);
+        Ok(texts(
+            connection,
+            "SELECT current_setting('transaction_isolation') AS value",
+        ))
+    })
+    .expect("committed");
+    assert_eq!(isolation, vec!["read committed"]);
+    let mut connection = pool.get().expect("connection");
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM work_upsert_admission"
+        ),
+        1
+    );
+
+    // A ThothError from the closure passes through unchanged and rolls back.
+    let result: ThothResult<()> = work_upsert_transaction(pool.as_ref(), |connection| {
+        connection.batch_execute(
+            "UPDATE work_upsert_control SET capture_enabled = true WHERE execution_profile = 'CROSSREF'",
+        )?;
+        Err(ThothError::CrossrefPermitNotFound.into())
+    });
+    assert_eq!(result, Err(ThothError::CrossrefPermitNotFound));
+    assert_eq!(
+        texts(
+            &mut connection,
+            "SELECT capture_enabled::text AS value FROM work_upsert_control"
+        ),
+        vec!["false"]
+    );
+
+    // A statement error inside the closure is converted by the scoped conversion.
+    let result: ThothResult<()> = work_upsert_transaction(pool.as_ref(), |connection| {
+        connection.batch_execute(
+            "UPDATE work_upsert_control SET execution_enabled = true WHERE execution_profile = 'CROSSREF'",
+        )?;
+        Ok(())
+    });
+    assert_eq!(result, Err(ThothError::WorkUpsertCaptureNotEnabled));
+
+    // A deferred trigger failing at COMMIT is converted too.
+    let result: ThothResult<()> = work_upsert_transaction(pool.as_ref(), |connection| {
+        connection.batch_execute(&format!(
+            "INSERT INTO crossref_write_permit {PERMIT_COLUMNS} VALUES {}",
+            legacy_permit_values(publisher.publisher_id, "https://doi.org/10.12345/boundary")
+        ))?;
+        Ok(())
+    });
+    assert_eq!(
+        result,
+        Err(ThothError::CrossrefPermitMembershipCardinalityMismatch)
+    );
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM crossref_write_permit"
+        ),
+        0
+    );
+
+    // An unmapped error is the fixed internal failure, never the database text.
+    let result: ThothResult<()> = work_upsert_transaction(pool.as_ref(), |connection| {
+        connection.batch_execute("SELECT no_such_column FROM work_upsert_control")?;
+        Ok(())
+    });
+    assert_eq!(result, Err(ThothError::WorkUpsertDatabaseFailure));
+
+    // The EB2 extension applies the same conversion.
+    let mapped = diesel::sql_query("DELETE FROM work_upsert_control")
+        .execute(&mut connection)
+        .work_upsert();
+    assert_eq!(mapped, Err(ThothError::WorkUpsertControlRowIsPermanent));
+    let unmapped = diesel::sql_query("SELECT no_such_column FROM work_upsert_control")
+        .execute(&mut connection)
+        .work_upsert();
+    assert_eq!(unmapped, Err(ThothError::WorkUpsertDatabaseFailure));
 }

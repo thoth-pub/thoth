@@ -6,5 +6,8 @@
 //! Crossref: provider writes are performed by the separately specified
 //! downstream dissemination task (`thoth-pub/thoth-dissemination#106`).
 
+#[cfg(feature = "backend")]
+pub mod crud;
+
 #[cfg(all(test, feature = "backend"))]
 mod tests;
