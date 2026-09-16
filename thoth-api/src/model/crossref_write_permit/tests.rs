@@ -4014,3 +4014,385 @@ fn t223_cross_route_overlapping_reservations() {
     assert_eq!(work_upsert, Err(ThothError::CrossrefPermitBlocked));
     assert!(!transcript.is_empty());
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// R52B section 25.17 T237-T240 and section 25.18 T269: the permit state machine against the implementation's own
+// migration — the insertion guard, the authorization preconditions against bypass rows, the 30 ordered state pairs,
+// and the immutable and write-once fields (section 29).
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// A legacy permit brought to `state` through the API.
+fn legacy_permit_in(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+    state: CrossrefWritePermitState,
+) -> CrossrefWriteReservation {
+    let (publisher, imprint) = fx::publisher_and_imprint(pool);
+    fx::cover_crossref(connection, publisher);
+    let root = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+    let reservation =
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool, root).expect("reserve");
+    let (permit, token) = (reservation.permit_id, reservation.reservation_token);
+    match state {
+        CrossrefWritePermitState::Reserved => {}
+        CrossrefWritePermitState::Voided => {
+            owner_void(pool, permit, token).expect("void");
+        }
+        other => {
+            finalise(pool, &presentation(&reservation, None)).expect("finalise");
+            let outcome = match other {
+                CrossrefWritePermitState::Indeterminate => Some(Outcome::Indeterminate),
+                CrossrefWritePermitState::Accepted => Some(Outcome::Accepted),
+                CrossrefWritePermitState::NoneAttempted => Some(Outcome::NoneAttempted),
+                _ => None,
+            };
+            if let Some(outcome) = outcome {
+                report(pool, permit, token, outcome).expect("report");
+            }
+        }
+    }
+    reservation
+}
+
+/// Run `statement` in a transaction that is always rolled back; `Ok` when it was accepted, else the message.
+fn attempt_rolled_back(connection: &mut PgConnection, statement: &str) -> Result<(), String> {
+    use diesel::connection::SimpleConnection;
+    use diesel::Connection;
+    let mut outcome = Ok(());
+    let _ = connection.transaction::<(), diesel::result::Error, _>(|connection| {
+        if let Err(error) = connection.batch_execute(statement) {
+            outcome = Err(error.to_string());
+        }
+        Err(diesel::result::Error::RollbackTransaction)
+    });
+    outcome
+}
+
+const STATE_LABELS: [&str; 6] = [
+    "RESERVED",
+    "VOIDED",
+    "AUTHORIZED",
+    "INDETERMINATE",
+    "ACCEPTED",
+    "NONE_ATTEMPTED",
+];
+
+/// The writes an act moving a permit to `to` would make, one variant per owning act.
+fn transition_variants(to: &str) -> Vec<String> {
+    let digest = DIGEST;
+    match to {
+        "RESERVED" => vec![
+            "state = 'RESERVED', payload_digest = NULL, authorized_at = NULL, provider_reported_at = NULL, \
+             void_reason = NULL, void_detail = NULL, closed_at = NULL"
+                .to_string(),
+        ],
+        "VOIDED" => vec![
+            "state = 'VOIDED', void_reason = 'OWNER_ABANDONED', void_detail = 'x', closed_at = coalesce(closed_at, now())"
+                .to_string(),
+            "state = 'VOIDED', void_reason = 'OWNER_ABANDONED', void_detail = 'x', closed_at = coalesce(closed_at, now()), \
+             payload_digest = NULL, authorized_at = NULL, provider_reported_at = NULL"
+                .to_string(),
+        ],
+        "AUTHORIZED" => vec![format!(
+            "state = 'AUTHORIZED', payload_digest = coalesce(payload_digest, '{digest}'), \
+             authorized_at = coalesce(authorized_at, now())"
+        )],
+        "INDETERMINATE" => vec![
+            format!(
+                "state = 'INDETERMINATE', payload_digest = coalesce(payload_digest, '{digest}'), \
+                 authorized_at = coalesce(authorized_at, now()), provider_reported_at = coalesce(provider_reported_at, now())"
+            ),
+            format!(
+                "state = 'INDETERMINATE', payload_digest = coalesce(payload_digest, '{digest}'), \
+                 authorized_at = coalesce(authorized_at, now()), reconciliation_state = 'RECONCILIATION_REQUIRED', \
+                 reconciliation_annotation_reference = 'ANN', reconciliation_annotated_at = now()"
+            ),
+        ],
+        closed => vec![
+            format!(
+                "state = '{closed}', payload_digest = coalesce(payload_digest, '{digest}'), \
+                 authorized_at = coalesce(authorized_at, now()), provider_reported_at = coalesce(provider_reported_at, now()), \
+                 closed_at = coalesce(closed_at, now())"
+            ),
+            format!(
+                "state = '{closed}', payload_digest = coalesce(payload_digest, '{digest}'), \
+                 authorized_at = coalesce(authorized_at, now()), reconciliation_state = 'RECONCILED', \
+                 reconciliation_authorization_reference = 'REC', reconciled_at = now(), closed_at = coalesce(closed_at, now())"
+            ),
+        ],
+    }
+}
+
+#[test]
+fn t239_t269_exactly_the_seven_edges_of_the_30_ordered_pairs_are_permitted() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let mut permitted = Vec::new();
+    let mut refused = 0;
+    for (from_state, from) in PERMIT_STATES.iter().zip(STATE_LABELS) {
+        let permit = legacy_permit_in(pool.as_ref(), &mut connection, *from_state).permit_id;
+        assert_eq!(state_name(&mut connection, permit), from);
+        for to in STATE_LABELS.iter().filter(|to| **to != from) {
+            let outcomes: Vec<Result<(), String>> = transition_variants(to)
+                .iter()
+                .map(|set| {
+                    attempt_rolled_back(
+                        &mut connection,
+                        &format!(
+                            "UPDATE crossref_write_permit SET {set} WHERE permit_id = '{permit}'"
+                        ),
+                    )
+                })
+                .collect();
+            if outcomes.iter().any(Result::is_ok) {
+                permitted.push(format!("{from}->{to}"));
+            } else {
+                refused += 1;
+                for outcome in outcomes {
+                    let message = outcome.expect_err("refused");
+                    assert!(
+                        message.starts_with("CROSSREF_")
+                            || message.contains("violates check constraint"),
+                        "{from}->{to}: {message}"
+                    );
+                }
+            }
+        }
+    }
+    permitted.sort();
+    assert_eq!(
+        permitted,
+        vec![
+            "AUTHORIZED->ACCEPTED",
+            "AUTHORIZED->INDETERMINATE",
+            "AUTHORIZED->NONE_ATTEMPTED",
+            "INDETERMINATE->ACCEPTED",
+            "INDETERMINATE->NONE_ATTEMPTED",
+            "RESERVED->AUTHORIZED",
+            "RESERVED->VOIDED",
+        ]
+    );
+    assert_eq!(refused, 23);
+}
+
+#[test]
+fn t237_t269_the_insertion_guard_admits_only_a_clean_reserved_row() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let template = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Reserved,
+    );
+    let copy = |overrides: &str| {
+        format!(
+            "INSERT INTO crossref_write_permit \
+             SELECT (json_populate_record(p, json_build_object('permit_id', gen_random_uuid(), \
+                                                               'reservation_token', gen_random_uuid(){overrides}))).* \
+               FROM crossref_write_permit p WHERE p.permit_id = '{}'",
+            template.permit_id
+        )
+    };
+    let shapes = [
+        ("VOIDED", ", 'state', 'VOIDED', 'void_reason', 'OWNER_ABANDONED', 'void_detail', 'x', 'closed_at', now()"),
+        ("AUTHORIZED", &format!(", 'state', 'AUTHORIZED', 'payload_digest', '{DIGEST}', 'authorized_at', now()") as &str),
+        ("INDETERMINATE", &format!(", 'state', 'INDETERMINATE', 'payload_digest', '{DIGEST}', 'authorized_at', now(), 'provider_reported_at', now()")),
+        ("ACCEPTED", &format!(", 'state', 'ACCEPTED', 'payload_digest', '{DIGEST}', 'authorized_at', now(), 'provider_reported_at', now(), 'closed_at', now()")),
+        ("NONE_ATTEMPTED", &format!(", 'state', 'NONE_ATTEMPTED', 'payload_digest', '{DIGEST}', 'authorized_at', now(), 'provider_reported_at', now(), 'closed_at', now()")),
+        ("RESERVED with a digest", &format!(", 'payload_digest', '{DIGEST}'")),
+        ("RESERVED with authorized_at", ", 'authorized_at', now()"),
+        ("RESERVED with a void reason", ", 'void_reason', 'OWNER_ABANDONED'"),
+        ("RESERVED with a reconciliation state", ", 'reconciliation_state', 'RECONCILIATION_REQUIRED'"),
+    ];
+    for (shape, overrides) in shapes {
+        let refused = attempt_rolled_back(&mut connection, &copy(overrides)).expect_err(shape);
+        assert!(
+            refused.contains("CROSSREF_PERMIT_INITIAL_STATE_INVALID"),
+            "{shape}: {refused}"
+        );
+    }
+}
+
+#[test]
+fn t240_t269_immutable_write_once_and_non_restorable_fields() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let update = |connection: &mut PgConnection, permit: Uuid, set: &str| {
+        attempt_rolled_back(
+            connection,
+            &format!("UPDATE crossref_write_permit SET {set} WHERE permit_id = '{permit}'"),
+        )
+    };
+
+    // The issuance reference is immutable.
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let manual = permit_crud::reserve_manual_recovery_crossref_write(pool.as_ref(), root, "INC-1")
+        .expect("manual");
+    assert!(update(
+        &mut connection,
+        manual.permit_id,
+        "operator_authorization_reference = 'INC-2'"
+    )
+    .expect_err("immutable")
+    .contains("CROSSREF_PERMIT_EVIDENCE_IMMUTABLE"));
+    // The void reference is write-once.
+    permit_crud::void_crossref_write_reservation_as_superuser(
+        pool.as_ref(),
+        manual.permit_id,
+        "cleanup",
+        "INC-3",
+    )
+    .expect("superuser void");
+    assert!(update(
+        &mut connection,
+        manual.permit_id,
+        "void_authorization_reference = 'INC-4'"
+    )
+    .expect_err("write-once")
+    .contains("CROSSREF_PERMIT_WRITE_ONCE_FIELD"));
+
+    // The payload digest is write-once.
+    let authorized = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Authorized,
+    );
+    assert!(update(
+        &mut connection,
+        authorized.permit_id,
+        &format!("payload_digest = '{}'", "f".repeat(64))
+    )
+    .expect_err("write-once")
+    .contains("CROSSREF_PERMIT_WRITE_ONCE_FIELD"));
+    // The reconciliation reference is write-once.
+    reconcile(
+        pool.as_ref(),
+        authorized.permit_id,
+        Outcome::Accepted,
+        "REC-1",
+    )
+    .expect("reconcile");
+    assert!(update(
+        &mut connection,
+        authorized.permit_id,
+        "reconciliation_authorization_reference = 'REC-2'"
+    )
+    .expect_err("write-once")
+    .contains("CROSSREF_PERMIT_WRITE_ONCE_FIELD"));
+
+    // A NULLed link is not restorable.
+    let reserved = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Reserved,
+    );
+    let publisher_id = fx::texts(
+        &mut connection,
+        &format!(
+            "SELECT publisher_id::text AS value FROM crossref_write_permit WHERE permit_id = '{}'",
+            reserved.permit_id
+        ),
+    )
+    .remove(0);
+    fx::execute(
+        &mut connection,
+        &format!(
+            "UPDATE crossref_write_permit SET publisher_id = NULL WHERE permit_id = '{}'",
+            reserved.permit_id
+        ),
+    );
+    assert!(update(
+        &mut connection,
+        reserved.permit_id,
+        &format!("publisher_id = '{publisher_id}'")
+    )
+    .expect_err("not restorable")
+    .contains("CROSSREF_PERMIT_LINK_NOT_RESTORABLE"));
+}
+
+#[test]
+fn t238_authorization_preconditions_hold_against_bypass_rows() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let authorize = |connection: &mut PgConnection, permit: Uuid| {
+        attempt_rolled_back(
+            connection,
+            &format!(
+                "UPDATE crossref_write_permit SET state = 'AUTHORIZED', payload_digest = '{DIGEST}', authorized_at = now() \
+                 WHERE permit_id = '{permit}'"
+            ),
+        )
+    };
+    // A RESERVED copy of `source`, with its membership, written with every trigger bypassed.
+    let bypass_copy = |connection: &mut PgConnection, source: Uuid, timestamp: Option<i64>| {
+        let copy = Uuid::new_v4();
+        let timestamp = timestamp.map_or("p.crossref_timestamp".to_string(), |t| t.to_string());
+        fx::execute(connection, &format!(
+            "SET session_replication_role = replica; \
+             INSERT INTO crossref_write_permit \
+             SELECT (json_populate_record(p, json_build_object( \
+                        'permit_id', '{copy}', 'reservation_token', gen_random_uuid(), 'state', 'RESERVED', \
+                        'crossref_timestamp', {timestamp}, 'doi_batch_id', 'bypass-{copy}', 'payload_digest', NULL, \
+                        'authorized_at', NULL, 'provider_reported_at', NULL, 'closed_at', NULL, \
+                        'reconciliation_state', NULL, 'reconciliation_authorization_reference', NULL, 'reconciled_at', NULL))).* \
+               FROM crossref_write_permit p WHERE p.permit_id = '{source}'; \
+             INSERT INTO crossref_write_permit_doi (permit_id, doi) \
+             SELECT '{copy}', doi FROM crossref_write_permit_doi WHERE permit_id = '{source}'; \
+             SET session_replication_role = origin;"
+        ));
+        copy
+    };
+
+    // Overlapping an AUTHORIZED permit.
+    let held = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Authorized,
+    );
+    let copy = bypass_copy(
+        &mut connection,
+        held.permit_id,
+        Some(held.crossref_timestamp + 1),
+    );
+    assert!(authorize(&mut connection, copy)
+        .expect_err("blocked")
+        .contains("CROSSREF_PERMIT_BLOCKED"));
+
+    // Below history: an older ACCEPTED permit at or above the candidate.
+    let accepted = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Accepted,
+    );
+    let copy = bypass_copy(
+        &mut connection,
+        accepted.permit_id,
+        Some(accepted.crossref_timestamp),
+    );
+    assert!(authorize(&mut connection, copy)
+        .expect_err("history")
+        .contains("CROSSREF_TIMESTAMP_NOT_INCREASING"));
+
+    // A false witness: the root changed after the reservation.
+    let reserved = legacy_permit_in(
+        pool.as_ref(),
+        &mut connection,
+        CrossrefWritePermitState::Reserved,
+    );
+    fx::execute(&mut connection, &format!(
+        "UPDATE work SET place = 'Changed' WHERE work_id = (SELECT root_work_identity FROM crossref_write_permit WHERE permit_id = '{}')",
+        reserved.permit_id
+    ));
+    assert!(authorize(&mut connection, reserved.permit_id)
+        .expect_err("witness")
+        .contains("CROSSREF_ARTIFACT_SOURCE_CHANGED"));
+
+    // Unfenced: a WORK_UPSERT permit whose attempt was never fenced.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let work_upsert = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert!(authorize(&mut connection, work_upsert.permit_id)
+        .expect_err("fence")
+        .contains("CROSSREF_PERMIT_AUTHORIZATION_REQUIRES_FENCE"));
+}
