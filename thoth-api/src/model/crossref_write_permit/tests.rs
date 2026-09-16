@@ -272,7 +272,6 @@ fn the_domain_maximum_has_no_successor_and_overflow_raises_a_stable_code() {
 // R52B section 16.4 and Amendment 3 section 9.6: the four reservations
 // ---------------------------------------------------------------------------
 
-use diesel::connection::SimpleConnection;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 
@@ -1862,9 +1861,7 @@ fn f1_f2_f3_f15_a_single_advance_writes_exactly_one_audit_row() {
         vec![TARGET.to_string()]
     );
     assert_eq!(
-        fx::texts(&mut connection, &format!(
-            "SELECT audit_id::text || '|' || mutation_kind || '|' || g7_authorization_reference || '|' || actor AS value FROM crossref_version_floor_audit"
-        )),
+        fx::texts(&mut connection, "SELECT audit_id::text || '|' || mutation_kind || '|' || g7_authorization_reference || '|' || actor AS value FROM crossref_version_floor_audit"),
         vec![format!("{}|ADVANCE_VERSION_FLOOR| G7-AUTH-1 |user-g7", advance.audit_id)]
     );
     // F15: the audit row is append-only.

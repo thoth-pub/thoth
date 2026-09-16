@@ -3715,6 +3715,7 @@ fn t53_the_creation_helper_is_the_only_work_upsert_job_insert() {
         }
     }
     let mut helper_calls = Vec::new();
+    let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
     for path in files {
         let text = std::fs::read_to_string(&path).expect("read");
         let display = path.display().to_string();
@@ -3747,7 +3748,6 @@ fn t53_the_creation_helper_is_the_only_work_upsert_job_insert() {
             if before.ends_with("fn ") {
                 continue;
             }
-            let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
             let function = item
                 .captures_iter(before)
                 .last()
@@ -3975,8 +3975,7 @@ fn m2_m3_m4_remaining_candidates_equals_an_independent_evaluation_of_d() {
     let result = drain(pool.as_ref(), Some(600));
     assert_eq!(
         result.examined,
-        result.created + result.skipped_resolved + result.skipped_ineligible + result.skipped_not_admitted
-            + 0,
+        result.created + result.skipped_resolved + result.skipped_ineligible + result.skipped_not_admitted,
         "no unit ended NO_WORK, BINDING_MOVED, CAPTURE_DISABLED, PENDING_CURRENT or RUNNING_IN_FLIGHT"
     );
     assert_eq!(result.rebound, 1);
@@ -5083,6 +5082,7 @@ fn reports_5_6_7_jobs_attempts_and_recovery_blocks_by_identity() {
 #[test]
 fn x11_only_the_claim_and_the_job_reports_reuse_released_job_helpers() {
     let mut calls = Vec::new();
+    let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
     for path in [
         "src/model/work_upsert/crud.rs",
         "src/model/work_upsert/mod.rs",
@@ -5090,7 +5090,6 @@ fn x11_only_the_claim_and_the_job_reports_reuse_released_job_helpers() {
         "src/model/crossref_write_permit/mod.rs",
     ] {
         let text = source(path);
-        let item = regex::Regex::new(r"(?m)^(?:pub(?:\(crate\))? )?fn (\w+)").expect("regex");
         for helper in [
             "targets_for_jobs(",
             "attempts_for_jobs(",
@@ -5256,6 +5255,8 @@ const FROZEN_QUERY_FIELDS: [&str; 16] = [
 #[test]
 fn s4_b1_b5_d1_a8_every_frozen_type_is_exact() {
     let sdl = schema_sdl();
+    let item = regex::Regex::new(r"[a-zA-Z0-9]+(\([^)]*\))?: [\[\]A-Za-z0-9!]+( = [^ ]+)?")
+        .expect("regex");
     for line in FROZEN_TYPES.lines().filter(|line| !line.trim().is_empty()) {
         let (declaration, rest) = line.split_once(" {").expect("a declaration");
         let expected: Vec<String> = rest
@@ -5281,8 +5282,6 @@ fn s4_b1_b5_d1_a8_every_frozen_type_is_exact() {
                 .map(str::to_string)
                 .collect()
         } else {
-            let item = regex::Regex::new(r"[a-zA-Z0-9]+(\([^)]*\))?: [\[\]A-Za-z0-9!]+( = [^ ]+)?")
-                .expect("regex");
             item.find_iter(&body)
                 .map(|m| m.as_str().to_string())
                 .collect()
