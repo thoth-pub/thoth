@@ -77,6 +77,34 @@ DO $$
 DECLARE
     tbls TEXT;
 BEGIN
+    IF current_setting('session_replication_role') <> 'origin' THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
+    END IF;
+
+    IF (SELECT count(*)
+          FROM pg_trigger t
+          JOIN pg_class c ON c.oid = t.tgrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled = 'O'
+           AND (c.relname, t.tgname) IN (
+               ('crossref_write_permit', 'crossref_write_permit_insert_guard'),
+               ('crossref_write_permit', 'crossref_write_permit_fsm'),
+               ('crossref_write_permit', 'crossref_write_permit_no_truncate'),
+               ('crossref_write_permit', 'crossref_permit_membership_agreement_p'),
+               ('crossref_write_permit_doi', 'crossref_write_permit_doi_immutable'),
+               ('crossref_write_permit_doi', 'crossref_write_permit_doi_no_truncate'),
+               ('crossref_write_permit_doi', 'crossref_permit_membership_agreement_d'),
+               ('work_crossref_version_floor', 'work_crossref_version_floor_guard'),
+               ('work_crossref_version_floor', 'work_crossref_version_floor_no_truncate'),
+               ('crossref_version_floor_audit', 'crossref_version_floor_audit_append_only'),
+               ('crossref_version_floor_audit', 'crossref_version_floor_audit_no_truncate'),
+               ('work_upsert_control', 'work_upsert_control_guard'),
+               ('work_upsert_control', 'work_upsert_control_no_truncate'),
+               ('work_upsert_admission', 'work_upsert_admission_guard'),
+               ('work_upsert_admission', 'work_upsert_admission_no_truncate'))) <> 15 THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
+    END IF;
+
     SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
     INTO tbls
     FROM pg_tables
@@ -84,7 +112,23 @@ BEGIN
       AND tablename != '__diesel_schema_migrations';
 
     IF tbls IS NOT NULL THEN
+        PERFORM set_config('session_replication_role', 'replica', true);
         EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE';
+        PERFORM set_config('session_replication_role', 'origin', true);
+    END IF;
+
+    INSERT INTO public.work_upsert_control (execution_profile, capture_enabled, execution_enabled)
+    VALUES ('CROSSREF', false, false);
+    INSERT INTO public.work_crossref_version_floor (floor_id, floor_value)
+    VALUES (true, 0);
+
+    IF current_setting('session_replication_role') <> 'origin'
+       OR EXISTS (SELECT 1
+                    FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled <> 'O') THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
     END IF;
 END $$;
 "#;

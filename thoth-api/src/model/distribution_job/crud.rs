@@ -48,7 +48,8 @@ const JOB_COLUMNS_QUALIFIED: &str = "\
     j.status, j.deduplication_key, j.attempt_count, j.available_at, j.claim_token, \
     j.claimed_by, j.claimed_at, j.lease_expires_at, j.completed_at, \
     j.cancellation_reason, j.last_error_code, j.last_error_detail, j.created_at, \
-    j.updated_at";
+    j.updated_at, j.execution_profile, j.work_identity, j.created_generation, \
+    j.job_ordinal, j.predecessor_job_id, j.superseded_by_job_id";
 
 /// The same columns projected out of the `claimed` CTE.
 const JOB_COLUMNS_FROM_CLAIMED: &str = "\
@@ -56,7 +57,8 @@ const JOB_COLUMNS_FROM_CLAIMED: &str = "\
     c.status, c.deduplication_key, c.attempt_count, c.available_at, c.claim_token, \
     c.claimed_by, c.claimed_at, c.lease_expires_at, c.completed_at, \
     c.cancellation_reason, c.last_error_code, c.last_error_detail, c.created_at, \
-    c.updated_at";
+    c.updated_at, c.execution_profile, c.work_identity, c.created_generation, \
+    c.job_ordinal, c.predecessor_job_id, c.superseded_by_job_id";
 
 /// The claim statement's row: the whole job plus the ordinal of the attempt this
 /// claim started.

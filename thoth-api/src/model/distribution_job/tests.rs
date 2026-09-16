@@ -277,9 +277,10 @@ fn every_enum_label_exists_in_pg_enum_with_the_exact_spelling_and_order() {
         )
     };
 
+    // BE-06 Migration 1 appends `WORK_UPSERT` (R52B section 18.8).
     assert_eq!(
         labels("distribution_job_kind"),
-        vec!["PUBLISHER_BACK_CATALOGUE"]
+        vec!["PUBLISHER_BACK_CATALOGUE", "WORK_UPSERT"]
     );
     assert_eq!(
         labels("distribution_job_status"),
@@ -289,9 +290,15 @@ fn every_enum_label_exists_in_pg_enum_with_the_exact_spelling_and_order() {
         labels("distribution_job_attempt_result"),
         vec!["SUCCEEDED", "FAILED", "CANCELLED", "ABANDONED"]
     );
+    // BE-06 Migration 1 appends `BINDING_SUPERSEDED` and `WORK_DELETED`.
     assert_eq!(
         labels("distribution_job_cancellation_reason"),
-        vec!["ADMINISTRATIVE", "ASSIGNMENT_DISABLED"]
+        vec![
+            "ADMINISTRATIVE",
+            "ASSIGNMENT_DISABLED",
+            "BINDING_SUPERSEDED",
+            "WORK_DELETED"
+        ]
     );
 }
 
@@ -319,13 +326,21 @@ fn every_rust_enum_round_trips_through_the_database() {
 
     let (_guard, pool) = test_db::setup_test_db();
 
-    // `distribution_job_kind` carries exactly one value today.
-    assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
-        &pool,
-        "'PUBLISHER_BACK_CATALOGUE'::distribution_job_kind",
-        DistributionJobKind::PublisherBackCatalogue,
-    );
-    assert_graphql_enum_roundtrip(DistributionJobKind::PublisherBackCatalogue);
+    for (literal, expected) in [
+        (
+            "'PUBLISHER_BACK_CATALOGUE'::distribution_job_kind",
+            DistributionJobKind::PublisherBackCatalogue,
+        ),
+        (
+            "'WORK_UPSERT'::distribution_job_kind",
+            DistributionJobKind::WorkUpsert,
+        ),
+    ] {
+        assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
+            &pool, literal, expected,
+        );
+        assert_graphql_enum_roundtrip(expected);
+    }
 
     for (literal, expected) in [
         (
@@ -389,6 +404,14 @@ fn every_rust_enum_round_trips_through_the_database() {
             "'ASSIGNMENT_DISABLED'::distribution_job_cancellation_reason",
             DistributionJobCancellationReason::AssignmentDisabled,
         ),
+        (
+            "'BINDING_SUPERSEDED'::distribution_job_cancellation_reason",
+            DistributionJobCancellationReason::BindingSuperseded,
+        ),
+        (
+            "'WORK_DELETED'::distribution_job_cancellation_reason",
+            DistributionJobCancellationReason::WorkDeleted,
+        ),
     ] {
         assert_db_enum_roundtrip::<
             DistributionJobCancellationReason,
@@ -403,7 +426,8 @@ fn an_unrecognised_value_fails_rather_than_resolving_to_a_nearest_one() {
     use std::str::FromStr;
 
     // String / serde.
-    assert!(DistributionJobKind::from_str("WORK_UPSERT").is_err());
+    assert!(DistributionJobKind::from_str("OTHER").is_err());
+    assert!(DistributionJobKind::from_str("work_upsert").is_err());
     assert!(DistributionJobStatus::from_str("UNKNOWN").is_err());
     assert!(DistributionJobStatus::from_str("pending").is_err());
     assert!(DistributionJobAttemptResult::from_str("TIMED_OUT").is_err());
@@ -473,6 +497,13 @@ fn schema_rs_matches_the_migration_for_all_three_relations() {
             "last_error_detail text YES",
             "created_at timestamptz NO",
             "updated_at timestamptz NO",
+            // BE-06 (R52B section 18.1).
+            "execution_profile distribution_platform YES",
+            "work_identity uuid YES",
+            "created_generation int8 YES",
+            "job_ordinal int4 YES",
+            "predecessor_job_id uuid YES",
+            "superseded_by_job_id uuid YES",
         ]
     );
     assert_eq!(
@@ -496,6 +527,11 @@ fn schema_rs_matches_the_migration_for_all_three_relations() {
             "result distribution_job_attempt_result YES",
             "error_code text YES",
             "error_detail text YES",
+            // BE-06 (R52B section 18.2).
+            "claimed_generation int8 YES",
+            "fenced_at timestamptz YES",
+            "recovery_cleared_at timestamptz YES",
+            "recovery_clearance_reference text YES",
         ]
     );
 
@@ -537,23 +573,35 @@ fn only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_speci
         catalog_values(
             &pool,
             "SELECT tgname AS value FROM pg_trigger \
-             WHERE tgrelid = 'public.distribution_job'::regclass AND NOT tgisinternal"
+             WHERE tgrelid = 'public.distribution_job'::regclass AND NOT tgisinternal \
+             ORDER BY tgname"
         ),
-        vec!["set_updated_at"]
+        // `set_updated_at` is the one Diesel-managed trigger; the other two are
+        // BE-06's reference guard and deferred target-set check (R52B 11.4, 18.1).
+        vec![
+            "distribution_job_work_reference_guard",
+            "set_updated_at",
+            "work_upsert_target_set_job",
+        ]
     );
-    for append_only in ["distribution_job_target", "distribution_job_attempt"] {
-        assert!(
-            catalog_values(
-                &pool,
-                &format!(
-                    "SELECT tgname AS value FROM pg_trigger \
-                     WHERE tgrelid = 'public.{append_only}'::regclass AND NOT tgisinternal"
-                )
-            )
-            .is_empty(),
-            "{append_only} is append-only and has no updated_at to manage"
-        );
-    }
+    let triggers = |table: &str| {
+        catalog_values(
+            &pool,
+            &format!(
+                "SELECT tgname AS value FROM pg_trigger \
+                 WHERE tgrelid = 'public.{table}'::regclass AND NOT tgisinternal"
+            ),
+        )
+    };
+    assert_eq!(
+        triggers("distribution_job_target"),
+        vec!["work_upsert_target_set_target"],
+        "distribution_job_target is append-only; its one trigger is BE-06's target-set check"
+    );
+    assert!(
+        triggers("distribution_job_attempt").is_empty(),
+        "distribution_job_attempt is append-only and has no updated_at to manage"
+    );
 
     assert_eq!(
         catalog_values(
@@ -570,6 +618,8 @@ fn only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_speci
             "distribution_job_claimable_idx",
             "distribution_job_deduplication_key_key",
             "distribution_job_lease_idx",
+            // BE-06 actionable uniqueness (R52B section 18.1).
+            "distribution_job_one_actionable_work_upsert_idx",
             "distribution_job_pkey",
             "distribution_job_publisher_latest_idx",
             "distribution_job_target_pkey",
@@ -611,6 +661,24 @@ fn every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog() {
         "distribution_job_target_distribution_job_id_fkey",
         "distribution_job_target_pkey",
         "distribution_job_work_id_fkey",
+        // BE-06 (R52B sections 11.4, 18.1 and 18.2).
+        "distribution_job_actionable_work_present_check",
+        "distribution_job_attempt_claimed_generation_check",
+        "distribution_job_attempt_recovery_clearance_pairing_check",
+        "distribution_job_attempt_recovery_reference_check",
+        "distribution_job_attempt_recovery_requires_fence_check",
+        "distribution_job_no_self_predecessor_check",
+        "distribution_job_no_self_successor_check",
+        "distribution_job_predecessor_fkey",
+        "distribution_job_successor_fkey",
+        "distribution_job_work_identity_agreement_check",
+        "distribution_job_work_upsert_dedup_formula_check",
+        "distribution_job_work_upsert_generation_check",
+        "distribution_job_work_upsert_identity_check",
+        "distribution_job_work_upsert_ordinal_check",
+        "distribution_job_work_upsert_profile_check",
+        "work_upsert_target_set_job",
+        "work_upsert_target_set_target",
     ];
     expected.sort_unstable();
 
@@ -634,11 +702,14 @@ fn every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog() {
         cascades,
         vec![
             "distribution_job_attempt_distribution_job_id_fkey c",
+            "distribution_job_predecessor_fkey n",
             "distribution_job_publisher_id_fkey c",
+            "distribution_job_successor_fkey n",
             "distribution_job_target_distribution_job_id_fkey c",
-            "distribution_job_work_id_fkey c",
+            // BE-06 replaces BE-04's deferred CASCADE with SET NULL (R52B section 13.2).
+            "distribution_job_work_id_fkey n",
         ],
-        "every foreign key must remain ON DELETE CASCADE and validated"
+        "every released foreign key other than work_id must remain ON DELETE CASCADE and validated"
     );
     assert!(
         catalog_values(
@@ -3842,6 +3913,10 @@ fn the_migration_directory_sorts_after_every_existing_one() {
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
+    // BE-06's two directories are the only ones that sort after BE-04's.
+    let be06 = ["20260910_v1.10.0", "20260911_v1.10.0"];
+    assert_eq!(&names[names.len() - 2..], be06);
+    names.truncate(names.len() - 2);
 
     let ours = names
         .iter()
