@@ -8,8 +8,8 @@ use crate::model::work_relation::{RelationType, WorkRelation, WorkRelationOrderB
 use crate::model::{Crud, DbInsert, Doi, HistoryEntry, PublisherId};
 use crate::schema::{work, work_abstract, work_history, work_title};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, PgTextExpressionMethods,
-    QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, OptionalExtension,
+    PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
@@ -578,7 +578,13 @@ impl Crud for Work {
             .map_err(Into::into)
     }
 
-    crud_methods!(work::table, work::dsl::work);
+    crud_methods!(work::table, work::dsl::work, without_delete);
+
+    /// Deletes the Work through BE-06's publisher-set-first deletion unit
+    /// (R52B section 13.4), which retires its actionable work-level jobs first.
+    fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
+        work_upsert_delete_work(db, self.work_id).map(|_| self)
+    }
 }
 
 publisher_id_impls!(Work, NewWork, PatchWork, |s, db| {
@@ -602,4 +608,203 @@ impl DbInsert for NewWorkHistory {
     type MainEntity = WorkHistory;
 
     db_insert!(work_history::table);
+}
+
+// ---------------------------------------------------------------------------
+// BE-06 (#848; R52B section 13): the deletion units of Work, Imprint and
+// Publisher. Every BE-06 statement uses the scoped conversion
+// (`.work_upsert()`, Amendment 3 section 10.3, EB2); the pool acquisition,
+// the transaction wrapper and the final released `DELETE` keep their released
+// error behaviour (EB3).
+// ---------------------------------------------------------------------------
+
+/// The bound on a deletion unit's attempts (R52B section 13.4 step 5).
+const WORK_DELETE_ATTEMPTS: usize = 3;
+
+/// Run one deletion unit in its own transaction, restarting it on binding drift
+/// at most [`WORK_DELETE_ATTEMPTS`] times.
+pub(crate) fn run_work_upsert_deletion_unit<F>(db: &crate::db::PgPool, unit: F) -> ThothResult<()>
+where
+    F: Fn(&mut diesel::PgConnection) -> ThothResult<()>,
+{
+    use diesel::Connection;
+    for _ in 0..WORK_DELETE_ATTEMPTS {
+        let mut connection = db.get()?;
+        match connection.transaction(|connection| unit(connection)) {
+            Err(ThothError::WorkDeleteBindingDrift) => continue,
+            result => return result,
+        }
+    }
+    Err(ThothError::WorkDeleteBindingDriftUnresolved)
+}
+
+/// `bound(W)`: the publishers of the `PENDING` `WORK_UPSERT` jobs of `works`, by
+/// MVCC, ascending and distinct.
+pub(crate) fn work_upsert_bound_publishers(
+    connection: &mut diesel::PgConnection,
+    works: &[Uuid],
+) -> ThothResult<Vec<Uuid>> {
+    use crate::model::distribution_job::{DistributionJobKind, DistributionJobStatus};
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::distribution_job;
+    let mut publishers = distribution_job::table
+        .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
+        .filter(distribution_job::status.eq(DistributionJobStatus::Pending))
+        .filter(distribution_job::work_id.eq_any(works))
+        .select(distribution_job::publisher_id)
+        .distinct()
+        .load::<Uuid>(connection)
+        .work_upsert()?;
+    publishers.sort();
+    Ok(publishers)
+}
+
+/// Lock the publisher set in one ascending pass: `FOR UPDATE` for `own` (a
+/// Publisher deletion's own row), `FOR SHARE` for every other.
+pub(crate) fn lock_publisher_set(
+    connection: &mut diesel::PgConnection,
+    publishers: &[Uuid],
+    own: Option<Uuid>,
+) -> ThothResult<()> {
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::publisher;
+    for publisher_id in publishers {
+        let query = publisher::table
+            .filter(publisher::publisher_id.eq(publisher_id))
+            .select(publisher::publisher_id);
+        if own == Some(*publisher_id) {
+            query.for_update().load::<Uuid>(connection).work_upsert()?;
+        } else {
+            query.for_share().load::<Uuid>(connection).work_upsert()?;
+        }
+    }
+    Ok(())
+}
+
+/// Retire the actionable work-level jobs of `works` (R52B section 13.3), their
+/// rows locked ascending: a fenced open attempt refuses the whole deletion with
+/// nothing written; otherwise `PENDING` and unfenced `RUNNING` jobs become
+/// `CANCELLED` with `WORK_DELETED`, an open attempt closes `CANCELLED` and the
+/// claim is cleared. No permit is written.
+pub(crate) fn retire_actionable_work_upsert_jobs(
+    connection: &mut diesel::PgConnection,
+    works: &[Uuid],
+) -> ThothResult<()> {
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use diesel::sql_types::{Array, Bool, Uuid as SqlUuid};
+
+    #[derive(diesel::QueryableByName)]
+    struct Actionable {
+        #[diesel(sql_type = SqlUuid)]
+        distribution_job_id: Uuid,
+        #[diesel(sql_type = Bool)]
+        fenced: bool,
+    }
+    let actionable = diesel::sql_query(
+        "SELECT j.distribution_job_id, \
+                EXISTS (SELECT 1 FROM distribution_job_attempt a \
+                         WHERE j.status = 'RUNNING' AND a.claim_token = j.claim_token \
+                           AND a.finished_at IS NULL AND a.fenced_at IS NOT NULL) AS fenced \
+           FROM distribution_job j \
+          WHERE j.kind = 'WORK_UPSERT' AND j.work_id = ANY($1) AND j.status IN ('PENDING', 'RUNNING') \
+          ORDER BY j.distribution_job_id \
+          FOR UPDATE OF j",
+    )
+    .bind::<Array<SqlUuid>, _>(works)
+    .load::<Actionable>(connection)
+    .work_upsert()?;
+    if actionable.iter().any(|job| job.fenced) {
+        return Err(ThothError::WorkDeleteBlockedByFencedAttempt);
+    }
+    if actionable.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<Uuid> = actionable
+        .iter()
+        .map(|job| job.distribution_job_id)
+        .collect();
+    diesel::sql_query(
+        "WITH target AS ( \
+             SELECT distribution_job_id, claim_token FROM distribution_job WHERE distribution_job_id = ANY($1) \
+         ), \
+         closed AS ( \
+             UPDATE distribution_job_attempt a \
+                SET finished_at = CURRENT_TIMESTAMP, result = 'CANCELLED' \
+               FROM target t \
+              WHERE a.claim_token = t.claim_token AND a.finished_at IS NULL \
+             RETURNING a.distribution_job_id \
+         ) \
+         UPDATE distribution_job j \
+            SET status = 'CANCELLED', cancellation_reason = 'WORK_DELETED', \
+                completed_at = CURRENT_TIMESTAMP, claim_token = NULL, claimed_by = NULL, \
+                claimed_at = NULL, lease_expires_at = NULL \
+           FROM target t \
+          WHERE j.distribution_job_id = t.distribution_job_id",
+    )
+    .bind::<Array<SqlUuid>, _>(&ids)
+    .execute(connection)
+    .work_upsert()?;
+    Ok(())
+}
+
+/// Whether `candidates` is a subset of the locked set.
+pub(crate) fn within_locked_set(locked: &[Uuid], candidates: &[Uuid]) -> bool {
+    candidates
+        .iter()
+        .all(|candidate| locked.contains(candidate))
+}
+
+/// `deleteWork` (R52B section 13.4).
+fn work_upsert_delete_work(db: &crate::db::PgPool, work_id: Uuid) -> ThothResult<()> {
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::imprint;
+    run_work_upsert_deletion_unit(db, |connection| {
+        // 1-2: the current publisher and the bound publishers, then the set.
+        let current = work::table
+            .inner_join(imprint::table)
+            .filter(work::work_id.eq(work_id))
+            .select(imprint::publisher_id)
+            .first::<Uuid>(connection)
+            .optional()
+            .work_upsert()?;
+        let Some(current) = current else {
+            return Ok(());
+        };
+        let mut locked = work_upsert_bound_publishers(connection, &[work_id])?;
+        locked.push(current);
+        locked.sort();
+        locked.dedup();
+        lock_publisher_set(connection, &locked, None)?;
+        // 3: the Work, FOR UPDATE.
+        let held = work::table
+            .filter(work::work_id.eq(work_id))
+            .select(work::work_id)
+            .for_update()
+            .first::<Uuid>(connection)
+            .optional()
+            .work_upsert()?;
+        if held.is_none() {
+            return Ok(());
+        }
+        // 4-5: revalidate under the Work lock.
+        let mut now = work_upsert_bound_publishers(connection, &[work_id])?;
+        now.extend(
+            work::table
+                .inner_join(imprint::table)
+                .filter(work::work_id.eq(work_id))
+                .select(imprint::publisher_id)
+                .first::<Uuid>(connection)
+                .optional()
+                .work_upsert()?,
+        );
+        if !within_locked_set(&locked, &now) {
+            return Err(ThothError::WorkDeleteBindingDrift);
+        }
+        // 6-7: retire, then the released DELETE.
+        retire_actionable_work_upsert_jobs(connection, &[work_id])?;
+        diesel::delete(work::table.find(work_id))
+            .execute(connection)
+            .map(|_| ())
+            .map_err(Into::into)
+    })
 }

@@ -4432,3 +4432,403 @@ fn x1_the_work_level_claim_opens_its_transaction_through_the_boundary() {
     assert!(!body.contains("db.get()"));
     assert!(!body.contains(".transaction("));
 }
+
+// ---------------------------------------------------------------------------
+// R52B section 13: Work, Imprint and Publisher deletion (T98-T105, T198, T204)
+// ---------------------------------------------------------------------------
+
+use crate::model::crossref_write_permit::crud as permit_crud;
+use crate::model::imprint::Imprint;
+use crate::model::publisher::Publisher;
+use crate::model::work::Work;
+use crate::model::Crud;
+
+const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn delete_work(pool: &crate::db::PgPool, work: Uuid) -> ThothResult<Uuid> {
+    let loaded = Work::from_id(pool, &work).expect("work");
+    loaded.delete(pool).map(|deleted| deleted.work_id)
+}
+
+fn finalise_authorized(
+    pool: &crate::db::PgPool,
+    job: Uuid,
+    token: Uuid,
+) -> crate::model::crossref_write_permit::CrossrefWriteReservation {
+    let reservation =
+        permit_crud::reserve_work_upsert_crossref_write(pool, job, token).expect("reserve");
+    let input = permit_crud::FinaliseCrossrefWrite {
+        permit_id: reservation.permit_id,
+        reservation_token: reservation.reservation_token,
+        claim_token: Some(token),
+        observed_dois: reservation.dois.clone(),
+        observed_doi_batch_id: reservation.doi_batch_id.clone(),
+        observed_crossref_timestamp: reservation.crossref_timestamp,
+        payload_digest: DIGEST.to_string(),
+    };
+    let allow = |_route| Ok(());
+    permit_crud::finalise_crossref_write(pool, &input, &allow).expect("finalise");
+    reservation
+}
+
+fn claimed(
+    pool: &crate::db::PgPool,
+    connection: &mut PgConnection,
+) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
+    let (publisher, imprint, _activation, work, job) = claimable_job(pool, connection);
+    enable_execution(pool);
+    let token = claim(pool)
+        .into_iter()
+        .find(|c| c.job.job.distribution_job_id == job)
+        .map(|c| c.claim_token)
+        .expect("claimed");
+    (publisher, imprint, work, job, token)
+}
+
+#[test]
+fn t98_t99_pending_retirement_and_terminal_history_survive_work_deletion() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // PENDING: retired CANCELLED/WORK_DELETED; evidence kept; nothing resurrects.
+    let (_publisher, _imprint, _activation, work, job) =
+        claimable_job(pool.as_ref(), &mut connection);
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT status::text || '|' || cancellation_reason::text || '|' || (work_id IS NULL)::text || '|' \
+                 || work_identity::text || '|' || (completed_at IS NOT NULL)::text || '|' \
+                 || (SELECT count(*) FROM distribution_job_target t WHERE t.distribution_job_id = j.distribution_job_id)::text AS value \
+             FROM distribution_job j WHERE distribution_job_id = '{job}'"
+        )),
+        vec![format!("CANCELLED|WORK_DELETED|true|{work}|true|1")]
+    );
+    assert_eq!(
+        generation_of(&mut connection, work),
+        None,
+        "the flush removed the generation row"
+    );
+    assert_eq!(
+        materialize(pool.as_ref(), work, false).outcome,
+        Outcome::NoWork
+    );
+    assert!(independent_d(&mut connection).is_empty());
+    assert_eq!(
+        count(&mut connection, "SELECT count(*) AS count FROM distribution_job WHERE status IN ('PENDING', 'RUNNING') AND work_id IS NULL"),
+        0
+    );
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM work_upsert_capture_queue"
+        ),
+        0
+    );
+
+    // Terminal history: a SUCCEEDED job and its attempt survive with work_id NULL.
+    let (_p, _i, work, job, token) = claimed(pool.as_ref(), &mut connection);
+    let reservation = finalise_authorized(pool.as_ref(), job, token);
+    permit_crud::report_crossref_write(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        crate::model::crossref_write_permit::CrossrefWriteOutcome::Accepted,
+        &|_| Ok(()),
+    )
+    .expect("report");
+    job_crud::complete_distribution_job(pool.as_ref(), job, token).expect("complete");
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT j.status::text || '|' || (j.work_id IS NULL)::text || '|' || a.result::text || '|' || (a.fenced_at IS NOT NULL)::text AS value \
+             FROM distribution_job j JOIN distribution_job_attempt a ON a.distribution_job_id = j.distribution_job_id \
+             WHERE j.work_identity = '{work}'"
+        )),
+        vec!["SUCCEEDED|true|SUCCEEDED|true"]
+    );
+    // The permit survives with its identities.
+    assert_eq!(
+        texts(&mut connection, &format!("SELECT state::text || '|' || root_work_identity::text AS value FROM crossref_write_permit WHERE permit_id = '{}'", reservation.permit_id)),
+        vec![format!("ACCEPTED|{work}")]
+    );
+}
+
+#[test]
+fn t100_t198_running_unfenced_retirement_leaves_the_reservation_blocking() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, imprint, work, job, token) = claimed(pool.as_ref(), &mut connection);
+    let reservation = permit_crud::reserve_work_upsert_crossref_write(pool.as_ref(), job, token)
+        .expect("reserve");
+    let permit_before = texts(&mut connection, &format!("SELECT row_to_json(p)::text AS value FROM crossref_write_permit p WHERE permit_id = '{}'", reservation.permit_id));
+
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT j.status::text || '|' || j.cancellation_reason::text || '|' || (j.claim_token IS NULL)::text || '|' || a.result::text AS value \
+             FROM distribution_job j JOIN distribution_job_attempt a ON a.distribution_job_id = j.distribution_job_id WHERE j.distribution_job_id = '{job}'"
+        )),
+        vec!["CANCELLED|WORK_DELETED|true|CANCELLED"]
+    );
+    // The permit's content is unchanged except its operational links' SET NULL (none here: the job survives).
+    assert_eq!(
+        texts(&mut connection, &format!("SELECT row_to_json(p)::text AS value FROM crossref_write_permit p WHERE permit_id = '{}'", reservation.permit_id)),
+        permit_before
+    );
+    // A stale worker cannot finalise, complete or fail.
+    let input = permit_crud::FinaliseCrossrefWrite {
+        permit_id: reservation.permit_id,
+        reservation_token: reservation.reservation_token,
+        claim_token: Some(token),
+        observed_dois: reservation.dois.clone(),
+        observed_doi_batch_id: reservation.doi_batch_id.clone(),
+        observed_crossref_timestamp: reservation.crossref_timestamp,
+        payload_digest: DIGEST.to_string(),
+    };
+    assert_eq!(
+        permit_crud::finalise_crossref_write(pool.as_ref(), &input, &|_| Ok(())).map(|r| r.outcome),
+        Err(ThothError::CrossrefPermitClaimStale)
+    );
+    assert_eq!(
+        job_crud::complete_distribution_job(pool.as_ref(), job, token).map(|j| j.status),
+        Err(ThothError::DistributionJobAlreadyTerminal(
+            "CANCELLED".to_string()
+        ))
+    );
+    assert_eq!(
+        job_crud::fail_distribution_job(pool.as_ref(), job, token, "X", None, true)
+            .map(|j| j.status),
+        Err(ThothError::DistributionJobAlreadyTerminal(
+            "CANCELLED".to_string()
+        ))
+    );
+    // The reservation still blocks a Work carrying the same DOI.
+    let doi = texts(
+        &mut connection,
+        &format!(
+            "SELECT doi AS value FROM crossref_write_permit_doi WHERE permit_id = '{}'",
+            reservation.permit_id
+        ),
+    )
+    .remove(0);
+    let twin = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET doi = '{doi}' WHERE work_id = '{twin}'"),
+    );
+    assert_eq!(
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), twin)
+            .map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked)
+    );
+}
+
+#[test]
+fn t101_t102_a_fenced_attempt_blocks_all_three_deletions_until_recovery() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint, work, job, token) = claimed(pool.as_ref(), &mut connection);
+    finalise_authorized(pool.as_ref(), job, token);
+    let before = texts(&mut connection, &format!("SELECT row_to_json(j)::text AS value FROM distribution_job j WHERE distribution_job_id = '{job}'"));
+
+    assert_eq!(
+        delete_work(pool.as_ref(), work),
+        Err(ThothError::WorkDeleteBlockedByFencedAttempt)
+    );
+    let loaded_imprint = Imprint::from_id(pool.as_ref(), &imprint).expect("imprint");
+    assert_eq!(
+        loaded_imprint.delete(pool.as_ref()).map(|i| i.imprint_id),
+        Err(ThothError::WorkDeleteBlockedByFencedAttempt)
+    );
+    let loaded_publisher = Publisher::from_id(pool.as_ref(), &publisher).expect("publisher");
+    assert_eq!(
+        loaded_publisher
+            .delete(pool.as_ref())
+            .map(|p| p.publisher_id),
+        Err(ThothError::WorkDeleteBlockedByFencedAttempt)
+    );
+    assert_eq!(
+        texts(&mut connection, &format!("SELECT row_to_json(j)::text AS value FROM distribution_job j WHERE distribution_job_id = '{job}'")),
+        before
+    );
+
+    // T102: lease recovery closes the attempt ABANDONED; deletion then proceeds and the evidence survives.
+    execute(&mut connection, &format!("UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"));
+    claim(pool.as_ref());
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT j.status::text || '|' || a.result::text || '|' || (a.fenced_at IS NOT NULL)::text AS value \
+             FROM distribution_job j JOIN distribution_job_attempt a ON a.distribution_job_id = j.distribution_job_id WHERE j.distribution_job_id = '{job}'"
+        )),
+        vec!["CANCELLED|ABANDONED|true"]
+    );
+}
+
+#[test]
+fn t105_a_raw_delete_bypassing_the_protocol_is_rejected_by_the_backstop() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work, _job) =
+        claimable_job(pool.as_ref(), &mut connection);
+    let refused = refusal(
+        &mut connection,
+        &format!("DELETE FROM work WHERE work_id = '{work}'"),
+    );
+    assert!(
+        refused.contains("distribution_job_actionable_work_present_check"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn a_pending_row_bound_to_a_former_publisher_is_in_the_locked_set() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_publisher, _imprint, _activation, work, job) =
+        claimable_job(pool.as_ref(), &mut connection);
+    let (_other, other_imprint) = publisher_and_imprint(pool.as_ref());
+    execute(
+        &mut connection,
+        &format!("UPDATE work SET imprint_id = '{other_imprint}' WHERE work_id = '{work}'"),
+    );
+    assert_eq!(delete_work(pool.as_ref(), work), Ok(work));
+    assert_eq!(
+        texts(&mut connection, &format!("SELECT status::text || '|' || cancellation_reason::text AS value FROM distribution_job WHERE distribution_job_id = '{job}'")),
+        vec!["CANCELLED|WORK_DELETED"]
+    );
+}
+
+#[test]
+fn imprint_and_publisher_deletion_retire_every_actionable_job_and_keep_permits() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // Imprint deletion retires the PENDING job of each of its Works.
+    let (_publisher, imprint, _activation, work, job) =
+        claimable_job(pool.as_ref(), &mut connection);
+    let second = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let second_job = materialize(pool.as_ref(), second, false)
+        .job
+        .expect("job")
+        .distribution_job_id;
+    let loaded = Imprint::from_id(pool.as_ref(), &imprint).expect("imprint");
+    assert_eq!(
+        loaded.delete(pool.as_ref()).map(|i| i.imprint_id),
+        Ok(imprint)
+    );
+    for id in [job, second_job] {
+        assert_eq!(
+            texts(&mut connection, &format!("SELECT status::text || '|' || cancellation_reason::text AS value FROM distribution_job WHERE distribution_job_id = '{id}'")),
+            vec!["CANCELLED|WORK_DELETED"]
+        );
+    }
+    let _ = work;
+
+    // T204: publisher deletion with permits in five states: all survive, links NULL, identities intact.
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    cover_crossref(&mut connection, publisher);
+    let allow = |_route| Ok(());
+    let mut permits = Vec::new();
+    for state in 0..5 {
+        let work = insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+        let reservation = permit_crud::reserve_legacy_scheduled_crossref_write(pool.as_ref(), work)
+            .expect("reserve");
+        if state > 0 {
+            let input = permit_crud::FinaliseCrossrefWrite {
+                permit_id: reservation.permit_id,
+                reservation_token: reservation.reservation_token,
+                claim_token: None,
+                observed_dois: reservation.dois.clone(),
+                observed_doi_batch_id: reservation.doi_batch_id.clone(),
+                observed_crossref_timestamp: reservation.crossref_timestamp,
+                payload_digest: DIGEST.to_string(),
+            };
+            permit_crud::finalise_crossref_write(pool.as_ref(), &input, &allow).expect("finalise");
+        }
+        use crate::model::crossref_write_permit::CrossrefWriteOutcome as O;
+        match state {
+            2 => {
+                permit_crud::report_crossref_write(
+                    pool.as_ref(),
+                    reservation.permit_id,
+                    reservation.reservation_token,
+                    O::Accepted,
+                    &allow,
+                )
+                .expect("report");
+            }
+            3 => {
+                permit_crud::report_crossref_write(
+                    pool.as_ref(),
+                    reservation.permit_id,
+                    reservation.reservation_token,
+                    O::Indeterminate,
+                    &allow,
+                )
+                .expect("report");
+            }
+            4 => {
+                permit_crud::report_crossref_write(
+                    pool.as_ref(),
+                    reservation.permit_id,
+                    reservation.reservation_token,
+                    O::NoneAttempted,
+                    &allow,
+                )
+                .expect("report");
+            }
+            _ => {}
+        }
+        permits.push(reservation.permit_id);
+    }
+    let loaded = Publisher::from_id(pool.as_ref(), &publisher).expect("publisher");
+    assert_eq!(
+        loaded.delete(pool.as_ref()).map(|p| p.publisher_id),
+        Ok(publisher)
+    );
+    assert_eq!(
+        texts(&mut connection, &format!(
+            "SELECT string_agg(state::text || ':' || (publisher_id IS NULL)::text || ':' || (publisher_identity = '{publisher}')::text, ',' ORDER BY issued_at) AS value \
+             FROM crossref_write_permit WHERE permit_id = ANY(ARRAY[{}]::uuid[])",
+            permits.iter().map(|p| format!("'{p}'")).collect::<Vec<_>>().join(",")
+        )),
+        vec!["RESERVED:true:true,AUTHORIZED:true:true,ACCEPTED:true:true,INDETERMINATE:true:true,NONE_ATTEMPTED:true:true"]
+    );
+}
+
+#[test]
+fn x4_every_be06_statement_in_the_deletion_units_uses_the_scoped_conversion() {
+    for path in [
+        "src/model/work/crud.rs",
+        "src/model/imprint/crud.rs",
+        "src/model/publisher/crud.rs",
+    ] {
+        let text = source(path);
+        let body = text
+            .split_once("fn delete(self, db: &crate::db::PgPool)")
+            .unwrap_or_else(|| panic!("{path} overrides delete"))
+            .1;
+        assert!(
+            body.contains("work_upsert"),
+            "{path} uses the BE-06 deletion unit"
+        );
+    }
+    let work = source("src/model/work/crud.rs");
+    for name in [
+        "lock_publisher_set",
+        "work_upsert_bound_publishers",
+        "retire_actionable_work_upsert_jobs",
+    ] {
+        let body = work
+            .split_once(&format!("fn {name}("))
+            .unwrap_or_else(|| panic!("{name}"))
+            .1
+            .split_once("\n}\n")
+            .expect("end")
+            .0;
+        let calls = body.matches("(connection").count();
+        assert!(calls > 0, "{name}");
+        assert!(body.matches(".work_upsert()").count() >= calls, "{name}");
+    }
+}

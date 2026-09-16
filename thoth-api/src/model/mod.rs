@@ -661,6 +661,22 @@ where
 #[macro_export]
 macro_rules! crud_methods {
     ($table_dsl:expr, $entity_dsl:expr) => {
+        $crate::crud_methods!($table_dsl, $entity_dsl, without_delete);
+
+        fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
+            use diesel::{QueryDsl, RunQueryDsl};
+
+            let mut connection = db.get()?;
+            diesel::delete($entity_dsl.find(&self.pk()))
+                .execute(&mut connection)
+                .map(|_| self)
+                .map_err(Into::into)
+        }
+    };
+    // BE-06 (R52B section 24.2): Work, Imprint and Publisher replace the
+    // generated `delete` with their own deletion unit and keep every other
+    // generated method.
+    ($table_dsl:expr, $entity_dsl:expr, without_delete) => {
         fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
@@ -701,16 +717,6 @@ macro_rules! crud_methods {
                     })
                     .map_err(Into::into)
             })
-        }
-
-        fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
-            use diesel::{QueryDsl, RunQueryDsl};
-
-            let mut connection = db.get()?;
-            diesel::delete($entity_dsl.find(&self.pk()))
-                .execute(&mut connection)
-                .map(|_| self)
-                .map_err(Into::into)
         }
     };
 }
