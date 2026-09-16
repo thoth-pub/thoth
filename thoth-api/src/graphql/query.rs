@@ -6,9 +6,12 @@ use super::types::inputs::{
     SubjectOrderBy, TimeExpression,
 };
 use crate::graphql::types::me::{Me, ToMe};
+use crate::graphql::work_upsert;
 use crate::graphql::Context;
 use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use crate::model::contributor::crud::MAX_CONTRIBUTOR_ORCID_BATCH;
+use crate::model::distribution_job::{DistributionJobAttempt, DistributionJobPayload};
+use crate::model::Generation;
 use crate::model::{
     additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
@@ -728,6 +731,243 @@ impl QueryRoot {
                 )
             })
             .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Query the resolution state of every Work under a work-level execution profile. Superuser only"
+    )]
+    fn work_upsert_resolution(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertResolutionRow>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_resolutions(
+                &context.db,
+                execution_profile,
+                limit.unwrap_or_default(),
+                offset.unwrap_or_default(),
+            )
+        }))
+    }
+
+    #[graphql(
+        description = "Get the total number of Works with work-level resolution state under an execution profile. Superuser only"
+    )]
+    fn work_upsert_resolution_count(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+    ) -> FieldResult<i32> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_resolution_count(
+                &context.db,
+                execution_profile,
+            )
+        }))
+    }
+
+    #[graphql(
+        description = "Query work-level residue candidates and their classes. Superuser only"
+    )]
+    fn work_upsert_residue(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertResidueRow>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_residue(
+                &context.db,
+                execution_profile,
+                limit.unwrap_or_default(),
+                offset.unwrap_or_default(),
+            )
+        }))
+    }
+
+    #[graphql(
+        description = "Query PENDING work-level jobs whose binding is obsolete. Superuser only"
+    )]
+    fn work_upsert_stale_bindings(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertStaleBindingRow>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_stale_bindings(
+                &context.db,
+                execution_profile,
+                limit.unwrap_or_default(),
+                offset.unwrap_or_default(),
+            )
+        }))
+    }
+
+    #[graphql(description = "Query work-level jobs with their lineage. Superuser only")]
+    fn work_upsert_jobs(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+    ) -> FieldResult<Vec<DistributionJobPayload>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_jobs(
+                &context.db,
+                execution_profile,
+                limit.unwrap_or_default(),
+                offset.unwrap_or_default(),
+            )
+        }))
+    }
+
+    #[graphql(
+        description = "Query every work-level job of a Work identity, including a deleted Work's. Superuser only"
+    )]
+    fn work_upsert_job(
+        context: &Context,
+        work_id: Uuid,
+    ) -> FieldResult<Vec<DistributionJobPayload>> {
+        work_upsert::field(
+            context.require_superuser().and_then(|_| {
+                crate::model::work_upsert::crud::work_upsert_job(&context.db, work_id)
+            }),
+        )
+    }
+
+    #[graphql(description = "Query every work-level attempt of a Work identity. Superuser only")]
+    fn work_upsert_attempts(
+        context: &Context,
+        work_id: Uuid,
+    ) -> FieldResult<Vec<DistributionJobAttempt>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_attempts(&context.db, work_id)
+        }))
+    }
+
+    #[graphql(description = "Query uncleared fenced abandonments. Superuser only")]
+    fn work_upsert_blocked_by_recovery(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertBlockedByRecoveryRow>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_blocked_by_recovery(
+                &context.db,
+                execution_profile,
+            )
+        }))
+    }
+
+    #[graphql(
+        description = "Get the largest outstanding work-level residue under an execution profile. Superuser only"
+    )]
+    fn work_upsert_capture_lag(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+    ) -> FieldResult<Generation> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_capture_lag(&context.db, execution_profile)
+                .map(|lag| {
+                    Generation::from_i64(lag).unwrap_or_else(|| Generation::from_i64(0).expect("0"))
+                })
+        }))
+    }
+
+    #[graphql(
+        description = "Query the admissions of publishers' current bindings under an execution profile. Superuser only"
+    )]
+    fn work_upsert_admissions(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertAdmission>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::work_upsert::crud::work_upsert_admissions(&context.db, execution_profile)
+        }))
+    }
+
+    #[graphql(
+        description = "Query the work-level control flags of every execution profile. Superuser only"
+    )]
+    fn work_upsert_control(
+        context: &Context,
+    ) -> FieldResult<Vec<crate::model::work_upsert::WorkUpsertControl>> {
+        work_upsert::field(
+            context
+                .require_superuser()
+                .and_then(|_| crate::model::work_upsert::crud::work_upsert_controls(&context.db)),
+        )
+    }
+
+    #[graphql(description = "Query Crossref write permits. Superuser only")]
+    #[allow(clippy::too_many_arguments)]
+    fn crossref_write_permits(
+        context: &Context,
+        #[graphql(default = 100, description = "The number of items to return")] limit: Option<i32>,
+        #[graphql(default = 0, description = "The number of items to skip")] offset: Option<i32>,
+        #[graphql(description = "If set, only permits of this job identity")] job_identity: Option<
+            Uuid,
+        >,
+        #[graphql(description = "If set, only permits of this attempt identity")] attempt_identity: Option<Uuid>,
+        #[graphql(description = "If set, only permits of this root Work identity")]
+        root_work_identity: Option<Uuid>,
+        #[graphql(description = "If set, only permits of this publisher identity")]
+        publisher_identity: Option<Uuid>,
+        #[graphql(default = vec![], description = "If set, only permits in these states")]
+        states: Option<Vec<crate::model::crossref_write_permit::CrossrefWritePermitState>>,
+    ) -> FieldResult<Vec<crate::model::crossref_write_permit::CrossrefWritePermitWithDois>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::crossref_write_permit::crud::crossref_write_permits(
+                &context.db,
+                &work_upsert::permit_filter(
+                    job_identity,
+                    attempt_identity,
+                    root_work_identity,
+                    publisher_identity,
+                    states,
+                ),
+                limit.unwrap_or_default(),
+                offset.unwrap_or_default(),
+            )
+        }))
+    }
+
+    #[graphql(description = "Query blocking Crossref write permits, oldest first. Superuser only")]
+    fn crossref_unresolved_permits(
+        context: &Context,
+    ) -> FieldResult<Vec<crate::model::crossref_write_permit::CrossrefWritePermitWithDois>> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::crossref_write_permit::crud::crossref_unresolved_permits(&context.db)
+        }))
+    }
+
+    #[graphql(
+        description = "Query the Crossref version floor and its audit history. Superuser only"
+    )]
+    fn crossref_version_floor(
+        context: &Context,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefVersionFloorReport> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::crossref_write_permit::crud::crossref_version_floor(&context.db)
+        }))
+    }
+
+    #[graphql(description = "Get the number of blocking Crossref write permits. Superuser only")]
+    fn crossref_blocking_write_permit_count(context: &Context) -> FieldResult<i32> {
+        work_upsert::field(context.require_superuser().and_then(|_| {
+            crate::model::crossref_write_permit::crud::crossref_blocking_write_permit_count(
+                &context.db,
+            )
+        }))
+    }
+
+    #[graphql(description = "Whether no Crossref write permit blocks. Superuser only")]
+    fn crossref_drained(context: &Context) -> FieldResult<bool> {
+        work_upsert::field(
+            context.require_superuser().and_then(|_| {
+                crate::model::crossref_write_permit::crud::crossref_drained(&context.db)
+            }),
+        )
     }
 
     #[graphql(

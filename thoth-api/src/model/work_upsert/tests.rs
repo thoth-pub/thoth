@@ -5126,3 +5126,375 @@ fn x11_only_the_claim_and_the_job_reports_reuse_released_job_helpers() {
         assert!(crud.contains(report), "{report}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Amendment 3 sections 4 and 11: the SDL contract (S2-S4, S7-S9, B1, B2, B5,
+// D1, A8)
+// ---------------------------------------------------------------------------
+
+/// Remove every description string (`"..."` and `"""..."""`) and collapse
+/// whitespace, so declarations compare on names, types, nullability and
+/// defaults alone.
+fn strip_descriptions(sdl: &str) -> String {
+    let mut out = String::new();
+    let bytes = sdl.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"\"\"\"") {
+            let end = sdl[index + 3..]
+                .find("\"\"\"")
+                .expect("closed block string");
+            index += 3 + end + 3;
+        } else if bytes[index] == b'"' {
+            index += 1;
+            while index < bytes.len() && bytes[index] != b'"' {
+                if bytes[index] == b'\\' {
+                    index += 1;
+                }
+                index += 1;
+            }
+            index += 1;
+        } else {
+            out.push(bytes[index] as char);
+            index += 1;
+        }
+    }
+    let collapsed = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed
+        .replace("( ", "(")
+        .replace(" )", ")")
+        .replace(", ", " ")
+}
+
+fn schema_sdl() -> String {
+    crate::graphql::create_schema().as_sdl()
+}
+
+/// The top-level field names of one SDL type block.
+fn field_names(block: &str) -> Vec<String> {
+    let field = regex::Regex::new(r"(?m)^  ([a-zA-Z_][a-zA-Z0-9_]*)[(:]").expect("regex");
+    field
+        .captures_iter(block)
+        .map(|c| c[1].to_string())
+        .collect()
+}
+
+const FROZEN_TYPES: &str = r#"
+input MaterializeWorkUpsertJobsInput { executionProfiles: [DistributionPlatform!]!  limit: Int = 100 }
+input ClaimWorkUpsertJobsInput { executionProfiles: [DistributionPlatform!]!  limit: Int = 10  leaseSeconds: Int = 900 }
+input ReserveWorkUpsertCrossrefWriteInput { distributionJobId: Uuid!  claimToken: Uuid! }
+input ReserveBackCatalogueCrossrefWriteInput { distributionJobId: Uuid!  claimToken: Uuid!  rootWorkId: Uuid! }
+input ReserveLegacyScheduledCrossrefWriteInput { rootWorkId: Uuid! }
+input ReserveManualRecoveryCrossrefWriteInput { rootWorkId: Uuid!  operatorAuthorizationReference: String! }
+input FinaliseCrossrefWriteInput { permitId: Uuid!  reservationToken: Uuid!  claimToken: Uuid  observedDois: [String!]!  observedDoiBatchId: String!  observedCrossrefTimestamp: Generation!  payloadDigest: String! }
+input ReportCrossrefWriteInput { permitId: Uuid!  reservationToken: Uuid!  outcome: CrossrefWriteOutcome! }
+input VoidCrossrefWriteReservationInput { permitId: Uuid!  reservationToken: Uuid!  detail: String! }
+input VoidCrossrefWriteReservationAsSuperuserInput { permitId: Uuid!  detail: String!  authorizationReference: String! }
+input ReconcileCrossrefWritePermitInput { permitId: Uuid!  outcome: CrossrefWriteOutcome!  reconciliationState: CrossrefReconciliationState!  authorizationReference: String! }
+input SeedCrossrefWorkUpsertInput { publisherId: Uuid!  limit: Int = 100 }
+input AdmitCrossrefWorkUpsertInput { publisherId: Uuid!  evidenceReference: String! }
+input AdvanceCrossrefVersionFloorInput { targetValue: Generation!  g6AttemptId: Uuid!  observationId: Uuid!  authorizationReference: String!  authorizationRegisterDigest: String! }
+input MaterializeWorkUpsertJobInput { workId: Uuid!  executionProfile: DistributionPlatform!  force: Boolean! = false }
+type MaterializeWorkUpsertJobsResult { examined: Int!  created: Int!  rebound: Int!  skippedResolved: Int!  skippedIneligible: Int!  skippedNotAdmitted: Int!  remainingCandidates: Int! }
+type CrossrefWriteReservation { permitId: Uuid!  reservationToken: Uuid!  crossrefTimestamp: Generation!  doiBatchId: String!  dois: [String!]!  publisherIdentity: Uuid!  rootWorkIdentity: Uuid! }
+type CrossrefFinalisationResult { outcome: CrossrefFinalisationOutcome!  voidReason: CrossrefVoidReason  permit: CrossrefWritePermit! }
+type CrossrefWritePermit { permitId: Uuid!  route: CrossrefWriteRoute!  scope: CrossrefWriteScope!  state: CrossrefWritePermitState!  reconciliationState: CrossrefReconciliationState  publisherId: Uuid  publisherIdentity: Uuid!  rootWorkIdentity: Uuid!  distributionJobId: Uuid  distributionJobAttemptId: Uuid  jobIdentity: Uuid  attemptIdentity: Uuid  permitGeneration: Generation  sourceGenerationWitness: Generation!  dois: [String!]!  doiSetDigest: String!  doiSetCardinality: Int!  crossrefTimestamp: Generation!  doiBatchId: String!  payloadDigest: String  operatorAuthorizationReference: String  voidReason: CrossrefVoidReason  voidDetail: String  voidAuthorizationReference: String  reconciliationAnnotationReference: String  reconciliationAnnotatedAt: Timestamp  reconciliationAuthorizationReference: String  reconciledAt: Timestamp  issuedAt: Timestamp!  authorizedAt: Timestamp  providerReportedAt: Timestamp  closedAt: Timestamp }
+type WorkUpsertControl { executionProfile: DistributionPlatform!  captureEnabled: Boolean!  executionEnabled: Boolean! }
+type SeedCrossrefWorkUpsertResult { examined: Int!  seeded: Int!  observed: Int!  bindingMovedRetryLater: Int!  noWork: Int!  remainingUncovered: Int! }
+type WorkUpsertAdmission { executionProfile: DistributionPlatform!  publisherId: Uuid!  evidenceReference: String!  actor: String!  admittedAt: Timestamp! }
+type CrossrefVersionFloorAdvance { auditId: Uuid!  beforeValue: Generation!  afterValue: Generation!  g6AttemptId: Uuid!  observationId: Uuid!  authorizationReference: String!  authorizationRegisterDigest: String!  actor: String!  occurredAt: Timestamp! }
+type WorkUpsertMaterialization { outcome: WorkUpsertMaterializationOutcome!  rebound: Boolean!  job: DistributionJob }
+enum CrossrefFinalisationOutcome { AUTHORIZED VOIDED_RETRYABLE VOIDED_JOB_RETIRED }
+enum CrossrefVoidReason { SOURCE_CHANGED_DURING_PREPARATION DOI_MEMBERSHIP_CHANGED ARTIFACT_DOI_SET_MISMATCH ARTIFACT_BATCH_ID_MISMATCH ARTIFACT_TIMESTAMP_MISMATCH EXECUTION_NOT_PERMITTED PROFILE_NOT_ADMITTED INELIGIBLE BINDING_SUPERSEDED ASSIGNMENT_DISABLED NO_WORK OWNER_ABANDONED OPERATOR_CLEANUP }
+enum CrossrefWriteRoute { WORK_UPSERT PUBLISHER_BACK_CATALOGUE LEGACY_SCHEDULED MANUAL_RECOVERY }
+enum CrossrefWriteScope { SINGLE_ROOT_WORK }
+enum CrossrefWritePermitState { RESERVED AUTHORIZED INDETERMINATE ACCEPTED NONE_ATTEMPTED VOIDED }
+enum CrossrefReconciliationState { RECONCILED RECONCILIATION_REQUIRED RECONCILIATION_IMPOSSIBLE }
+enum CrossrefWriteOutcome { ACCEPTED INDETERMINATE NONE_ATTEMPTED }
+enum WorkUpsertMaterializationOutcome { CREATED PENDING_CURRENT RUNNING_IN_FLIGHT RESOLVED INELIGIBLE RESIDUE_NOT_ADMITTED CAPTURE_DISABLED BINDING_MOVED_RETRY_LATER NO_WORK }
+"#;
+
+const FROZEN_MUTATIONS: [&str; 17] = [
+    "materializeWorkUpsertJobs(data: MaterializeWorkUpsertJobsInput!): MaterializeWorkUpsertJobsResult!",
+    "claimWorkUpsertJobs(data: ClaimWorkUpsertJobsInput!): [ClaimedDistributionJob!]!",
+    "reserveWorkUpsertCrossrefWrite(data: ReserveWorkUpsertCrossrefWriteInput!): CrossrefWriteReservation!",
+    "reserveBackCatalogueCrossrefWrite(data: ReserveBackCatalogueCrossrefWriteInput!): CrossrefWriteReservation!",
+    "reserveLegacyScheduledCrossrefWrite(data: ReserveLegacyScheduledCrossrefWriteInput!): CrossrefWriteReservation!",
+    "reserveManualRecoveryCrossrefWrite(data: ReserveManualRecoveryCrossrefWriteInput!): CrossrefWriteReservation!",
+    "finaliseCrossrefWrite(data: FinaliseCrossrefWriteInput!): CrossrefFinalisationResult!",
+    "reportCrossrefWrite(data: ReportCrossrefWriteInput!): CrossrefWritePermit!",
+    "voidCrossrefWriteReservation(data: VoidCrossrefWriteReservationInput!): CrossrefWritePermit!",
+    "voidCrossrefWriteReservationAsSuperuser(data: VoidCrossrefWriteReservationAsSuperuserInput!): CrossrefWritePermit!",
+    "reconcileCrossrefWritePermit(data: ReconcileCrossrefWritePermitInput!): CrossrefWritePermit!",
+    "enableWorkUpsertCapture(executionProfile: DistributionPlatform!): WorkUpsertControl!",
+    "setWorkUpsertExecution(executionProfile: DistributionPlatform!, enabled: Boolean!): WorkUpsertControl!",
+    "seedCrossrefWorkUpsert(data: SeedCrossrefWorkUpsertInput!): SeedCrossrefWorkUpsertResult!",
+    "admitCrossrefWorkUpsert(data: AdmitCrossrefWorkUpsertInput!): WorkUpsertAdmission!",
+    "advanceCrossrefVersionFloor(data: AdvanceCrossrefVersionFloorInput!): CrossrefVersionFloorAdvance!",
+    "materializeWorkUpsertJob(data: MaterializeWorkUpsertJobInput!): WorkUpsertMaterialization!",
+];
+
+const FROZEN_QUERY_FIELDS: [&str; 16] = [
+    "workUpsertResolution",
+    "workUpsertResolutionCount",
+    "workUpsertResidue",
+    "workUpsertStaleBindings",
+    "workUpsertJobs",
+    "workUpsertJob",
+    "workUpsertAttempts",
+    "workUpsertBlockedByRecovery",
+    "workUpsertCaptureLag",
+    "workUpsertAdmissions",
+    "workUpsertControl",
+    "crossrefWritePermits",
+    "crossrefUnresolvedPermits",
+    "crossrefVersionFloor",
+    "crossrefBlockingWritePermitCount",
+    "crossrefDrained",
+];
+
+#[test]
+fn s4_b1_b5_d1_a8_every_frozen_type_is_exact() {
+    let sdl = schema_sdl();
+    for line in FROZEN_TYPES.lines().filter(|line| !line.trim().is_empty()) {
+        let (declaration, rest) = line.split_once(" {").expect("a declaration");
+        let expected: Vec<String> = rest
+            .trim_end_matches('}')
+            .split("  ")
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .flat_map(|item| {
+                if declaration.starts_with("enum ") {
+                    item.split(' ').map(str::to_string).collect::<Vec<_>>()
+                } else {
+                    vec![item.to_string()]
+                }
+            })
+            .collect();
+        let body = strip_descriptions(crate::graphql::sdl_support::sdl_block(
+            &sdl,
+            &format!("{declaration} {{"),
+        ));
+        let actual: Vec<String> = if declaration.starts_with("enum ") {
+            body.split(' ')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        } else {
+            let item = regex::Regex::new(r"[a-zA-Z0-9]+(\([^)]*\))?: [\[\]A-Za-z0-9!]+( = [^ ]+)?")
+                .expect("regex");
+            item.find_iter(&body)
+                .map(|m| m.as_str().to_string())
+                .collect()
+        };
+        assert_eq!(actual, expected, "{declaration}");
+    }
+    // The scalar, exactly once.
+    assert_eq!(sdl.matches("scalar Generation").count(), 1);
+}
+
+#[test]
+fn s2_distribution_job_and_attempt_gain_exactly_the_section_19_2_fields() {
+    let sdl = schema_sdl();
+    let job = field_names(crate::graphql::sdl_support::sdl_block(
+        &sdl,
+        "type DistributionJob {",
+    ));
+    let released_job = [
+        "distributionJobId",
+        "kind",
+        "publisherId",
+        "workId",
+        "status",
+        "attemptCount",
+        "availableAt",
+        "targets",
+        "attempts",
+        "claimedAt",
+        "leaseExpiresAt",
+        "completedAt",
+        "cancellationReason",
+        "lastErrorCode",
+        "lastErrorDetail",
+        "createdAt",
+        "updatedAt",
+    ];
+    let added_job = [
+        "executionProfile",
+        "workIdentity",
+        "createdGeneration",
+        "jobOrdinal",
+        "predecessorJobId",
+        "supersededByJobId",
+    ];
+    let mut expected: Vec<String> = released_job
+        .iter()
+        .chain(added_job.iter())
+        .map(|s| s.to_string())
+        .collect();
+    let mut actual = job.clone();
+    expected.sort();
+    actual.sort();
+    assert_eq!(actual, expected);
+    let job_body = strip_descriptions(crate::graphql::sdl_support::sdl_block(
+        &sdl,
+        "type DistributionJob {",
+    ));
+    for typed in [
+        "executionProfile: DistributionPlatform ",
+        "workIdentity: Uuid ",
+        "createdGeneration: Generation ",
+        "jobOrdinal: Int ",
+        "predecessorJobId: Uuid ",
+        "supersededByJobId: Uuid ",
+    ] {
+        assert!(format!("{job_body} ").contains(typed), "{typed}");
+    }
+    let attempt = field_names(crate::graphql::sdl_support::sdl_block(
+        &sdl,
+        "type DistributionJobAttempt {",
+    ));
+    for added in ["claimedGeneration", "fencedAt", "recoveryClearedAt"] {
+        assert_eq!(
+            attempt.iter().filter(|name| *name == added).count(),
+            1,
+            "{added}"
+        );
+    }
+    assert!(!attempt
+        .iter()
+        .any(|name| name == "recoveryClearanceReference"));
+    let attempt_body = strip_descriptions(crate::graphql::sdl_support::sdl_block(
+        &sdl,
+        "type DistributionJobAttempt {",
+    ));
+    for typed in [
+        "claimedGeneration: Generation ",
+        "fencedAt: Timestamp ",
+        "recoveryClearedAt: Timestamp ",
+    ] {
+        assert!(format!("{attempt_body} ").contains(typed), "{typed}");
+    }
+}
+
+#[test]
+fn s3_the_17_mutations_and_16_query_fields_are_exact_and_counted() {
+    let sdl = schema_sdl();
+    let mutations = crate::graphql::sdl_support::sdl_block(&sdl, "type MutationRoot {");
+    let normalised = strip_descriptions(mutations);
+    for declaration in FROZEN_MUTATIONS {
+        let expected = declaration.replace(", ", " ");
+        assert_eq!(normalised.matches(&expected).count(), 1, "{declaration}");
+    }
+    assert_eq!(
+        field_names(mutations).len(),
+        115,
+        "MutationRoot has 98 + 17 fields"
+    );
+    let queries = crate::graphql::sdl_support::sdl_block(&sdl, "type QueryRoot {");
+    let names = field_names(queries);
+    for field in FROZEN_QUERY_FIELDS {
+        assert_eq!(
+            names.iter().filter(|name| *name == field).count(),
+            1,
+            "{field}"
+        );
+    }
+    assert_eq!(names.len(), 104, "QueryRoot has 88 + 16 fields");
+    let normalised_queries = strip_descriptions(queries);
+    for safety in [
+        "crossrefBlockingWritePermitCount: Int!",
+        "crossrefDrained: Boolean!",
+    ] {
+        assert_eq!(
+            normalised_queries.matches(safety).count(),
+            1,
+            "{safety} takes no argument"
+        );
+    }
+}
+
+#[test]
+fn s7_s8_s9_b2_no_leakage_token_boundary_or_removed_vocabulary() {
+    let sdl = schema_sdl();
+    // S8 / T170: the reservation token's SDL boundary.
+    let token_output = regex::Regex::new(r"(?m)^type (\w+) \{").expect("regex");
+    let mut output_holders = Vec::new();
+    let mut input_holders = Vec::new();
+    for capture in token_output.captures_iter(&sdl) {
+        let name = capture[1].to_string();
+        let body = crate::graphql::sdl_support::sdl_block(&sdl, &format!("type {name} {{"));
+        if body.contains("reservationToken") || body.contains("reservation_token") {
+            output_holders.push(name);
+        }
+    }
+    let input = regex::Regex::new(r"(?m)^input (\w+) \{").expect("regex");
+    for capture in input.captures_iter(&sdl) {
+        let name = capture[1].to_string();
+        let body = crate::graphql::sdl_support::sdl_block(&sdl, &format!("input {name} {{"));
+        if body.contains("reservationToken") || body.contains("reservation_token") {
+            input_holders.push(name);
+        }
+    }
+    // MutationRoot names the input types, never a token field.
+    output_holders.retain(|name| name != "MutationRoot");
+    assert_eq!(output_holders, vec!["CrossrefWriteReservation"]);
+    input_holders.sort();
+    assert_eq!(
+        input_holders,
+        vec![
+            "FinaliseCrossrefWriteInput",
+            "ReportCrossrefWriteInput",
+            "VoidCrossrefWriteReservationInput"
+        ]
+    );
+    // No mutation clears a fenced abandonment.
+    assert!(!sdl.to_lowercase().contains("clearfencedabandonment"));
+
+    // S7: no BE-06 object type leaks an adapter, endpoint, bucket, host, credential or secret.
+    for line in FROZEN_TYPES
+        .lines()
+        .filter(|line| line.starts_with("type "))
+    {
+        let declaration = line.split_once(" {").expect("declaration").0;
+        let body = crate::graphql::sdl_support::sdl_block(&sdl, &format!("{declaration} {{"))
+            .to_lowercase();
+        for forbidden in [
+            "adapter",
+            "endpoint",
+            "bucket",
+            "host",
+            "credential",
+            "secret",
+        ] {
+            assert!(
+                !body.contains(forbidden),
+                "{declaration} contains {forbidden}"
+            );
+        }
+        // B2: no activation identity in any BE-06 type.
+        assert!(!body.contains("activationid"), "{declaration}");
+    }
+    assert!(
+        !crate::graphql::sdl_support::sdl_block(&sdl, "type DistributionJob {")
+            .contains("activationId")
+    );
+
+    // S9: the removed baseline vocabulary appears nowhere, in any casing.
+    let lower = sdl.to_lowercase();
+    for removed in [
+        "baseline",
+        "parser_failures",
+        "parserfailures",
+        "deleted_work_identity",
+        "destroyed_relation_topology",
+        "unknown_unquantified",
+        "residualcount",
+        "residual_count",
+    ] {
+        assert!(
+            !lower.contains(removed),
+            "the SDL names the removed {removed}"
+        );
+    }
+}

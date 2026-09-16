@@ -855,34 +855,158 @@ fn the_generated_sdl_never_exposes_a_claim_token_or_an_operational_identity() {
     assert!(fail_input.contains("errorCode: String!"));
 
     // No type exposes an adapter profile, endpoint, bucket, host or credential.
+    if let Err(leak) = operational_identity_leak(&sdl) {
+        panic!("{leak}");
+    }
+}
+
+/// The fourteen tokens the leakage loop forbids in the four job blocks.
+const LEAKAGE_TOKENS: [&str; 14] = [
+    "adapter",
+    "Adapter",
+    "endpoint",
+    "Endpoint",
+    "bucket",
+    "Bucket",
+    "host",
+    "Host",
+    "credential",
+    "Credential",
+    "secret",
+    "Secret",
+    "profile",
+    "Profile",
+];
+
+/// The leakage loop, with BE-06's one exemption (Amendment 3 section 11, S5):
+/// in `type DistributionJob` only, the one line whose trimmed text is exactly
+/// `executionProfile: DistributionPlatform` and the single-line description
+/// directly before it. The rest of the block is scanned with all fourteen
+/// tokens, and the removed description with the twelve other than
+/// `profile`/`Profile`.
+fn operational_identity_leak(sdl: &str) -> Result<(), String> {
     for block in [
         "type DistributionJob {",
         "type DistributionJobTarget {",
         "type DistributionJobAttempt {",
         "type ClaimedDistributionJob {",
     ] {
-        let body = sdl_block(&sdl, block);
-        for forbidden in [
-            "adapter",
-            "Adapter",
-            "endpoint",
-            "Endpoint",
-            "bucket",
-            "Bucket",
-            "host",
-            "Host",
-            "credential",
-            "Credential",
-            "secret",
-            "Secret",
-            "profile",
-            "Profile",
-        ] {
-            assert!(
-                !body.contains(forbidden),
-                "{block} must not expose `{forbidden}`"
-            );
+        let body = sdl_block(sdl, block);
+        let mut scanned = body.to_string();
+        let mut exempt_description = String::new();
+        if block == "type DistributionJob {" {
+            let lines: Vec<&str> = body.lines().collect();
+            let exempt: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, line)| line.trim() == "executionProfile: DistributionPlatform")
+                .map(|(index, _)| index)
+                .collect();
+            if exempt.len() != 1 {
+                return Err(format!(
+                    "{block} must declare `executionProfile: DistributionPlatform` exactly once, found {}",
+                    exempt.len()
+                ));
+            }
+            let index = exempt[0];
+            let description =
+                index
+                    .checked_sub(1)
+                    .map(|previous| lines[previous])
+                    .filter(|previous| {
+                        let trimmed = previous.trim();
+                        trimmed.len() >= 2
+                            && trimmed.starts_with('"')
+                            && trimmed.ends_with('"')
+                            && !trimmed.starts_with("\"\"\"")
+                    });
+            let mut kept = Vec::new();
+            for (position, line) in lines.iter().enumerate() {
+                if position == index || (description.is_some() && position + 1 == index) {
+                    continue;
+                }
+                kept.push(*line);
+            }
+            scanned = kept.join("\n");
+            exempt_description = description.unwrap_or_default().to_string();
         }
+        for forbidden in LEAKAGE_TOKENS {
+            if scanned.contains(forbidden) {
+                return Err(format!("{block} must not expose `{forbidden}`"));
+            }
+        }
+        for forbidden in LEAKAGE_TOKENS
+            .iter()
+            .filter(|token| !token.eq_ignore_ascii_case("profile"))
+        {
+            if exempt_description.contains(forbidden) {
+                return Err(format!(
+                    "{block}'s executionProfile description must not mention `{forbidden}`"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn tampered_sdl_fails_the_leakage_exemption() {
+    let sdl = create_schema().as_sdl();
+    assert_eq!(operational_identity_leak(&sdl), Ok(()));
+    let job_field = "  executionProfile: DistributionPlatform\n";
+    assert!(sdl.contains(job_field));
+
+    let insert_after = |sdl: &str, declaration: &str, text: &str| {
+        let (head, tail) = sdl.split_once(declaration).expect("declaration");
+        format!("{head}{declaration}\n{text}{tail}")
+    };
+    let tampered = [
+        (
+            "executionProfile on DistributionJobAttempt",
+            insert_after(
+                &sdl,
+                "type DistributionJobAttempt {",
+                "  executionProfile: DistributionPlatform",
+            ),
+        ),
+        (
+            "adapterProfile on DistributionJob",
+            insert_after(&sdl, "type DistributionJob {", "  adapterProfile: String"),
+        ),
+        (
+            "executionProfile typed String",
+            sdl.replacen(job_field, "  executionProfile: String\n", 1),
+        ),
+        ("endpoint in the exempt description", {
+            let body = sdl_block(&sdl, "type DistributionJob {");
+            let lines: Vec<&str> = body.lines().collect();
+            let index = lines
+                .iter()
+                .position(|line| line.trim() == "executionProfile: DistributionPlatform")
+                .expect("line");
+            let description = lines[index - 1];
+            let changed = description.replacen('"', "\"endpoint ", 1);
+            sdl.replacen(
+                &format!("{description}\n{job_field}"),
+                &format!("{changed}\n{job_field}"),
+                1,
+            )
+        }),
+        (
+            "a second DistributionJob field containing profile",
+            insert_after(
+                &sdl,
+                "type DistributionJob {",
+                "  executionProfileHint: String",
+            ),
+        ),
+    ];
+    for (label, variant) in tampered {
+        assert_ne!(variant, sdl, "{label} changed the SDL");
+        assert!(
+            operational_identity_leak(&variant).is_err(),
+            "{label} must fail S5"
+        );
     }
 }
 
