@@ -7084,3 +7084,90 @@ mod drain_seed_races {
         );
     }
 }
+
+/// N5 (Amendment 3 section 11.2): on a database whose default collation is ICU and on one whose provider is libc `C`,
+/// the non-blank rule gives the same verdicts, and no CHECK refuses a value the code accepts.
+#[test]
+fn n5_the_non_blank_rule_is_independent_of_the_collation_provider() {
+    let inputs: Vec<String> = (0..=0x10FFFFu32)
+        .filter_map(char::from_u32)
+        .filter(|c| policy::is_blank(&c.to_string()))
+        .map(|c| c.to_string())
+        .chain(
+            [
+                "",
+                "x",
+                " x ",
+                "\u{00A0}x",
+                "\u{200B}",
+                "\u{FEFF}",
+                "\u{180E}",
+                " EV-1 ",
+                "\u{00A0}\u{2003}\u{3000}",
+                "\t\n\r\u{0b}\u{0c}",
+            ]
+            .iter()
+            .map(|s| s.to_string()),
+        )
+        .collect();
+    let mut verdicts_by_provider = Vec::new();
+    for (provider, options) in [
+        ("icu", "LOCALE_PROVIDER icu ICU_LOCALE 'en-US' LOCALE 'C'"),
+        ("libc C", "LOCALE_PROVIDER libc LOCALE 'C'"),
+    ] {
+        let admin_url = test_db::test_db_url();
+        let name = format!("thoth_be06_n5_{}", Uuid::new_v4().simple());
+        let mut admin = PgConnection::establish(&admin_url).expect("admin");
+        admin
+            .batch_execute(&format!(
+                "CREATE DATABASE \"{name}\" WITH ENCODING 'UTF8' TEMPLATE template0 {options}"
+            ))
+            .unwrap_or_else(|e| panic!("{provider}: {e}"));
+        let db = TempMigrationDb { admin_url, name };
+        let mut connection = db.conn();
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("migrate");
+        assert_eq!(
+            texts(&mut connection, "SELECT datlocprovider::text AS value FROM pg_database WHERE datname = current_database()"),
+            vec![if provider == "icu" { "i" } else { "c" }]
+        );
+        let publisher = Uuid::new_v4();
+        execute(
+            &mut connection,
+            &format!(
+                "INSERT INTO publisher (publisher_id, publisher_name) VALUES ('{publisher}', 'N5')"
+            ),
+        );
+        let mut verdicts = Vec::new();
+        for input in &inputs {
+            let accepted = connection
+                .transaction::<(), diesel::result::Error, _>(|connection| {
+                    diesel::sql_query(
+                        "INSERT INTO work_upsert_admission (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+                         VALUES ('CROSSREF', $1, gen_random_uuid(), $2, 'n5')",
+                    )
+                    .bind::<SqlUuid, _>(publisher)
+                    .bind::<Text, _>(input)
+                    .execute(connection)?;
+                    Err(diesel::result::Error::RollbackTransaction)
+                })
+                .map_or_else(|error| error == diesel::result::Error::RollbackTransaction, |_| true);
+            if !policy::is_blank(input) {
+                assert!(
+                    accepted,
+                    "{provider}: the CHECK refuses {:?}, which the code accepts",
+                    input.chars().map(u32::from).collect::<Vec<_>>()
+                );
+            }
+            // The API result: a blank input is refused by the code before any database access; otherwise the row is
+            // written exactly when the CHECK accepts it.
+            verdicts.push(!policy::is_blank(input) && accepted);
+        }
+        verdicts_by_provider.push(verdicts);
+    }
+    assert_eq!(
+        verdicts_by_provider[0], verdicts_by_provider[1],
+        "ICU and C give the same API results"
+    );
+}
