@@ -6243,7 +6243,9 @@ pub(crate) mod race {
     }
 
     impl PausePoint {
-        pub(crate) fn install(name: &str, event: &str, table: &str) -> Self {
+        /// `timing` is `BEFORE`/`AFTER` and the event, e.g. `AFTER UPDATE`: an `AFTER` row trigger pauses while
+        /// holding the row it wrote, a `BEFORE` one before that row is locked.
+        pub(crate) fn install(name: &str, timing: &str, table: &str) -> Self {
             let mut controller = dedicated();
             controller
                 .batch_execute(&format!(
@@ -6262,7 +6264,7 @@ pub(crate) mod race {
                      END $$;
                      SELECT pg_advisory_lock({PAUSE_NAMESPACE}, hashtext('{name}'));
                      INSERT INTO be06_test.pause_arm (point) VALUES ('{name}') ON CONFLICT DO NOTHING;
-                     CREATE TRIGGER be06_test_pause_{name} BEFORE {event} ON public.{table}
+                     CREATE TRIGGER be06_test_pause_{name} {timing} ON public.{table}
                          FOR EACH ROW EXECUTE FUNCTION be06_test.pause('{name}');"
                 ))
                 .expect("install the pause point");
@@ -6272,11 +6274,6 @@ pub(crate) mod race {
                 table: table.to_string(),
                 held: true,
             }
-        }
-
-        /// Wait until a session is paused here.
-        pub(crate) fn wait_paused(&self, observer: &mut PgConnection) {
-            super::wait_until(|| paused_sessions(observer) >= 1);
         }
 
         pub(crate) fn release(&mut self) {

@@ -2988,13 +2988,19 @@ fn interleave<A, B>(
     second_waits: bool,
 ) -> (A, B, Vec<String>)
 where
-    A: Send + 'static,
+    A: Send + std::fmt::Debug + 'static,
     B: Send + 'static,
 {
     let mut observer = race::dedicated();
     let first_pool = pool.clone();
     let first = std::thread::spawn(move || first(first_pool.as_ref()));
-    pause.wait_paused(&mut observer);
+    fx::wait_until(|| race::paused_sessions(&mut observer) >= 1 || first.is_finished());
+    if first.is_finished() {
+        panic!(
+            "the first session never reached its pause point: {:?}",
+            first.join().expect("first session")
+        );
+    }
     let second_pool = pool.clone();
     let second = std::thread::spawn(move || second(second_pool.as_ref()));
     let transcript = if second_waits {
@@ -3041,7 +3047,7 @@ fn t205_finalise_and_the_route_owner_void_in_both_orders() {
     let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
     let (finalised, voided, transcript) = interleave(
         &pool,
-        PausePoint::install("t205a", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t205a", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         move |pool| owner_void(pool, permit, reservation_token),
         true,
@@ -3058,7 +3064,7 @@ fn t205_finalise_and_the_route_owner_void_in_both_orders() {
     let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
     let (voided, finalised, transcript) = interleave(
         &pool,
-        PausePoint::install("t205b", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t205b", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| owner_void(pool, permit, reservation_token),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         true,
@@ -3084,7 +3090,7 @@ fn t206_finalise_and_the_superuser_void_in_both_orders() {
     let permit = reservation.permit_id;
     let (finalised, voided, transcript) = interleave(
         &pool,
-        PausePoint::install("t206a", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t206a", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         move |pool| superuser_void(pool, permit),
         true,
@@ -3099,7 +3105,7 @@ fn t206_finalise_and_the_superuser_void_in_both_orders() {
     let permit = reservation.permit_id;
     let (voided, finalised, transcript) = interleave(
         &pool,
-        PausePoint::install("t206b", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t206b", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| superuser_void(pool, permit),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         true,
@@ -3120,7 +3126,7 @@ fn t207_finalise_and_administrative_cancellation_in_both_orders() {
     let input = presentation(&reservation, Some(token));
     let (finalised, cancelled, transcript) = interleave(
         &pool,
-        PausePoint::install("t207a", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t207a", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         move |pool| job_crud::cancel_distribution_job(pool, job).map(|j| j.status),
         true,
@@ -3140,7 +3146,7 @@ fn t207_finalise_and_administrative_cancellation_in_both_orders() {
     let before = permit_row(&mut connection, permit);
     let (cancelled, finalised, transcript) = interleave(
         &pool,
-        PausePoint::install("t207b", "UPDATE", "distribution_job"),
+        PausePoint::install("t207b", "BEFORE UPDATE", "distribution_job"),
         move |pool| job_crud::cancel_distribution_job(pool, job).map(|j| j.status),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         true,
@@ -3172,7 +3178,7 @@ fn t208_finalise_and_work_deletion_in_both_orders() {
     let input = presentation(&reservation, Some(token));
     let (finalised, deleted, transcript) = interleave(
         &pool,
-        PausePoint::install("t208a", "UPDATE", "crossref_write_permit"),
+        PausePoint::install("t208a", "BEFORE UPDATE", "crossref_write_permit"),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         move |pool| delete(pool, work),
         true,
@@ -3187,12 +3193,824 @@ fn t208_finalise_and_work_deletion_in_both_orders() {
     let input = presentation(&reservation, Some(token));
     let (deleted, finalised, transcript) = interleave(
         &pool,
-        PausePoint::install("t208b", "DELETE", "work"),
+        PausePoint::install("t208b", "BEFORE DELETE", "work"),
         move |pool| delete(pool, work),
         move |pool| finalise(pool, &input).map(|r| r.outcome),
         true,
     );
     assert_eq!(deleted, Ok(work));
     assert_eq!(finalised, Err(ThothError::CrossrefPermitClaimStale));
+    assert!(!transcript.is_empty());
+}
+
+fn expire_lease(connection: &mut PgConnection, job: Uuid) {
+    fx::execute(
+        connection,
+        &format!("UPDATE distribution_job SET lease_expires_at = now() - interval '1 second' WHERE distribution_job_id = '{job}'"),
+    );
+}
+
+fn attempt_row(connection: &mut PgConnection, job: Uuid) -> Vec<String> {
+    fx::texts(
+        connection,
+        &format!(
+            "SELECT coalesce(result::text, 'OPEN') || '|' || (fenced_at IS NOT NULL)::text || '|' \
+                 || (recovery_cleared_at IS NOT NULL)::text AS value \
+             FROM distribution_job_attempt WHERE distribution_job_id = '{job}' ORDER BY started_at"
+        ),
+    )
+}
+
+fn report(
+    pool: &crate::db::PgPool,
+    permit: Uuid,
+    token: Uuid,
+    outcome: Outcome,
+) -> ThothResult<CrossrefWritePermitState> {
+    permit_crud::report_crossref_write(pool, permit, token, outcome, &allow).map(|p| p.permit.state)
+}
+
+fn reconcile(
+    pool: &crate::db::PgPool,
+    permit: Uuid,
+    outcome: Outcome,
+    reference: &str,
+) -> ThothResult<CrossrefWritePermitState> {
+    permit_crud::reconcile_crossref_write_permit(
+        pool,
+        permit,
+        outcome,
+        Recon::Reconciled,
+        reference,
+    )
+    .map(|p| p.permit.state)
+}
+
+#[test]
+fn t209_finalise_and_lease_recovery_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // Finalise first, paused holding J with the lease lapsed: recovery skips the locked job without waiting.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    expire_lease(&mut connection, job);
+    let (finalised, claimed, transcript) = interleave(
+        &pool,
+        PausePoint::install("t209a", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| finalise(pool, &input).map(|r| r.outcome),
+        move |pool| fx::claim(pool).len(),
+        false,
+    );
+    assert_eq!(finalised, Ok(Finalised::Authorized));
+    assert_eq!(claimed, 0);
+    assert!(transcript.is_empty(), "recovery never waited");
+    assert_eq!(attempt_row(&mut connection, job), vec!["OPEN|true|false"]);
+
+    // Recovery first: the attempt is abandoned unfenced and finalisation finds the claim stale.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    expire_lease(&mut connection, job);
+    assert!(
+        fx::claim(pool.as_ref()).is_empty(),
+        "the RESERVED permit keeps the job unclaimable"
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+        Err(ThothError::CrossrefPermitClaimStale)
+    );
+    assert_eq!(
+        attempt_row(&mut connection, job),
+        vec!["ABANDONED|false|false"]
+    );
+    assert_eq!(
+        state_name(&mut connection, reservation.permit_id),
+        "RESERVED"
+    );
+}
+
+#[test]
+fn t210_t211_finalise_against_the_report_and_reconciliation_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // T210, finalise first: the report waits at X, then records ACCEPTED.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
+    let (finalised, reported, transcript) = interleave(
+        &pool,
+        PausePoint::install("t210a", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| finalise(pool, &input).map(|r| r.outcome),
+        move |pool| report(pool, permit, reservation_token, Outcome::Accepted),
+        true,
+    );
+    assert_eq!(finalised, Ok(Finalised::Authorized));
+    assert_eq!(reported, Ok(CrossrefWritePermitState::Accepted));
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    // T210, the report first: refused on RESERVED, then finalisation authorises.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert_eq!(
+        report(
+            pool.as_ref(),
+            reservation.permit_id,
+            reservation.reservation_token,
+            Outcome::Accepted
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+
+    // T211, finalise first: reconciliation waits at A, then records RECONCILED:ACCEPTED.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    let permit = reservation.permit_id;
+    let (finalised, reconciled, transcript) = interleave(
+        &pool,
+        PausePoint::install("t211a", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| finalise(pool, &input).map(|r| r.outcome),
+        move |pool| reconcile(pool, permit, Outcome::Accepted, "R-211"),
+        true,
+    );
+    assert_eq!(finalised, Ok(Finalised::Authorized));
+    assert_eq!(reconciled, Ok(CrossrefWritePermitState::Accepted));
+    assert!(!transcript.is_empty());
+    assert!(state_of(&mut connection, permit).starts_with("ACCEPTED|RECONCILED|"));
+    // T211, reconciliation first: refused on RESERVED, then finalisation authorises.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    assert_eq!(
+        reconcile(
+            pool.as_ref(),
+            reservation.permit_id,
+            Outcome::Accepted,
+            "R-211b"
+        ),
+        Err(ThothError::CrossrefPermitIllegalTransition)
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reservation, Some(token))).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+}
+
+#[test]
+fn t212_t213_completion_against_the_report_and_the_confirmation() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let complete = |pool: &crate::db::PgPool, job: Uuid, token: Uuid| {
+        job_crud::complete_distribution_job(pool, job, token).map(|j| j.status)
+    };
+
+    // T212: completion while the report holds X, uncommitted, reads the permit by MVCC and is refused without
+    // waiting; after the report commits, completion succeeds.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    let (permit, reservation_token) = (reservation.permit_id, reservation.reservation_token);
+    let (reported, completed, transcript) = interleave(
+        &pool,
+        PausePoint::install("t212", "AFTER UPDATE", "crossref_write_permit"),
+        move |pool| report(pool, permit, reservation_token, Outcome::Accepted),
+        move |pool| complete(pool, job, token),
+        false,
+    );
+    assert_eq!(reported, Ok(CrossrefWritePermitState::Accepted));
+    assert_eq!(
+        completed,
+        Err(ThothError::WorkUpsertCompletionRequiresAcceptedPermit)
+    );
+    assert!(transcript.is_empty());
+    assert_eq!(
+        complete(pool.as_ref(), job, token),
+        Ok(DistributionJobStatus::Succeeded)
+    );
+
+    // T213, confirmation first, paused holding A: completion waits at A; both land.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    report(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::Accepted,
+    )
+    .expect("report");
+    let permit = reservation.permit_id;
+    let (confirmed, completed, transcript) = interleave(
+        &pool,
+        PausePoint::install("t213a", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| reconcile(pool, permit, Outcome::Accepted, "CONF-213a"),
+        move |pool| complete(pool, job, token),
+        true,
+    );
+    assert_eq!(confirmed, Ok(CrossrefWritePermitState::Accepted));
+    assert_eq!(completed, Ok(DistributionJobStatus::Succeeded));
+    assert!(!transcript.is_empty());
+    assert!(state_of(&mut connection, permit).starts_with("ACCEPTED|RECONCILED|"));
+
+    // T213, completion first, paused holding J and A: the confirmation waits at A; both land.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    report(
+        pool.as_ref(),
+        reservation.permit_id,
+        reservation.reservation_token,
+        Outcome::Accepted,
+    )
+    .expect("report");
+    let permit = reservation.permit_id;
+    let (completed, confirmed, transcript) = interleave(
+        &pool,
+        PausePoint::install("t213b", "AFTER UPDATE", "distribution_job_attempt"),
+        move |pool| complete(pool, job, token),
+        move |pool| reconcile(pool, permit, Outcome::Accepted, "CONF-213b"),
+        true,
+    );
+    assert_eq!(completed, Ok(DistributionJobStatus::Succeeded));
+    assert_eq!(confirmed, Ok(CrossrefWritePermitState::Accepted));
+    assert!(!transcript.is_empty());
+}
+
+#[test]
+fn t214_reconciliation_and_lease_recovery_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // Recovery first: the fenced attempt is abandoned; reconciliation to NONE_ATTEMPTED clears it.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    expire_lease(&mut connection, job);
+    assert!(fx::claim(pool.as_ref()).is_empty());
+    assert_eq!(
+        attempt_row(&mut connection, job),
+        vec!["ABANDONED|true|false"]
+    );
+    assert_eq!(
+        reconcile(
+            pool.as_ref(),
+            reservation.permit_id,
+            Outcome::NoneAttempted,
+            "R-214a"
+        ),
+        Ok(CrossrefWritePermitState::NoneAttempted)
+    );
+    assert_eq!(
+        attempt_row(&mut connection, job),
+        vec!["ABANDONED|true|true"]
+    );
+
+    // Reconciliation first, paused holding A with the lease lapsed: recovery waits at A, then abandons; a later
+    // confirmation clears.
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    finalise(pool.as_ref(), &presentation(&reservation, Some(token))).expect("finalise");
+    expire_lease(&mut connection, job);
+    let permit = reservation.permit_id;
+    let (reconciled, claimed, transcript) = interleave(
+        &pool,
+        PausePoint::install("t214b", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| reconcile(pool, permit, Outcome::NoneAttempted, "R-214b"),
+        move |pool| fx::claim(pool).len(),
+        true,
+    );
+    assert_eq!(reconciled, Ok(CrossrefWritePermitState::NoneAttempted));
+    assert!(!transcript.is_empty());
+    let _ = claimed;
+    assert_eq!(attempt_row(&mut connection, job)[0], "ABANDONED|true|false");
+    assert_eq!(
+        reconcile(pool.as_ref(), permit, Outcome::NoneAttempted, "R-214c"),
+        Ok(CrossrefWritePermitState::NoneAttempted)
+    );
+    assert_eq!(attempt_row(&mut connection, job)[0], "ABANDONED|true|true");
+}
+
+#[test]
+fn t215_reservation_and_the_floor_advance_at_three_points() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let advance = |pool: &crate::db::PgPool| {
+        permit_crud::advance_crossref_version_floor(
+            pool,
+            &advance_input(Uuid::new_v4()),
+            "superuser",
+        )
+        .map(|a| a.after_value)
+    };
+
+    // F held by the reservation: the advance waits at F, then is refused NOT_DRAINED.
+    let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (reserved, advanced, transcript) = interleave(
+        &pool,
+        PausePoint::install("t215c", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| permit_crud::reserve_legacy_scheduled_crossref_write(pool, root),
+        advance,
+        true,
+    );
+    let reserved = reserved.expect("reserved");
+    assert_eq!(advanced, Err(ThothError::CrossrefVersionFloorNotDrained));
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    permit_crud::void_crossref_write_reservation(
+        pool.as_ref(),
+        reserved.permit_id,
+        reserved.reservation_token,
+        "t215",
+        &allow,
+    )
+    .expect("void");
+
+    // K held by another reservation's keys: the advance proceeds without waiting.
+    let mut holder = race::dedicated();
+    use diesel::connection::SimpleConnection;
+    holder
+        .batch_execute(&format!(
+            "BEGIN; SELECT pg_advisory_xact_lock(1948572001, hashtext('be06:crossref:doi:' || public.crossref_canonical_doi(doi))) FROM work WHERE work_id = '{root}'"
+        ))
+        .expect("hold K");
+    assert_eq!(
+        advance(pool.as_ref()),
+        Ok(TARGET),
+        "the advance takes no DOI key"
+    );
+    holder.batch_execute("ROLLBACK").expect("release K");
+
+    // F held by the advance: a reservation waits at F, then allocates a 17-digit value above the floor.
+    let (_guard2, pool2) = (0, pool.clone());
+    let _ = _guard2;
+    fx::execute(&mut connection, "SET session_replication_role = replica; UPDATE work_crossref_version_floor SET floor_value = 0; DELETE FROM crossref_version_floor_audit; SET session_replication_role = origin");
+    let second_root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (advanced, reserved, transcript) = interleave(
+        &pool2,
+        PausePoint::install("t215b", "BEFORE INSERT", "crossref_version_floor_audit"),
+        advance,
+        move |pool| permit_crud::reserve_legacy_scheduled_crossref_write(pool, second_root),
+        true,
+    );
+    assert_eq!(advanced, Ok(TARGET));
+    let reserved = reserved.expect("reserved after the advance");
+    assert!(reserved.crossref_timestamp > TARGET);
+    assert_eq!(reserved.crossref_timestamp.to_string().len(), 17);
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+}
+
+#[test]
+fn t216_two_finalisations_of_one_permit_with_different_digests() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (_p, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let first = presentation(&reservation, Some(token));
+    let second = FinaliseCrossrefWrite {
+        payload_digest: "e".repeat(64),
+        ..first.clone()
+    };
+    let (a, b, transcript) = interleave(
+        &pool,
+        PausePoint::install("t216", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| finalise(pool, &first).map(|r| r.outcome),
+        move |pool| finalise(pool, &second).map(|r| r.outcome),
+        true,
+    );
+    assert_eq!(a, Ok(Finalised::Authorized));
+    assert_eq!(b, Err(ThothError::CrossrefPermitIllegalTransition));
+    assert_eq!(transcript.len(), 1);
+    assert_eq!(
+        state_of(&mut connection, reservation.permit_id)
+            .split('|')
+            .next(),
+        Some("AUTHORIZED")
+    );
+}
+
+/// Two parents sharing one non-chapter child, so their memberships overlap.
+fn overlapping_parents(
+    connection: &mut PgConnection,
+    imprint: Uuid,
+    shared: Uuid,
+    others: [Uuid; 2],
+) -> (Uuid, Uuid) {
+    let mut parents = Vec::new();
+    for other in others {
+        let parent = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+        fx::execute(
+            connection,
+            &format!("UPDATE work SET landing_page = NULL WHERE work_id = '{parent}'"),
+        );
+        fx::relate_child(connection, parent, shared, 1);
+        fx::relate_child(connection, parent, other, 2);
+        parents.push(parent);
+    }
+    (parents[0], parents[1])
+}
+
+#[test]
+fn t217_two_overlapping_reservations_serialise_at_the_first_shared_key() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let shared = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let others = [
+        fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4()),
+        fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4()),
+    ];
+    let (first_root, second_root) = overlapping_parents(&mut connection, imprint, shared, others);
+    let (first, second, transcript) = interleave(
+        &pool,
+        PausePoint::install("t217", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| permit_crud::reserve_legacy_scheduled_crossref_write(pool, first_root),
+        move |pool| permit_crud::reserve_legacy_scheduled_crossref_write(pool, second_root),
+        true,
+    );
+    assert!(first.is_ok());
+    assert_eq!(
+        second.map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked)
+    );
+    assert_eq!(transcript, vec!["advisory:ExclusiveLock"]);
+}
+
+#[test]
+fn t218_a_real_hashtext_collision_is_acquired_in_key_order_without_deadlock() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    #[derive(QueryableByName)]
+    struct Pair {
+        #[diesel(sql_type = Text)]
+        low: String,
+        #[diesel(sql_type = Text)]
+        high: String,
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        key: i32,
+    }
+    // A real collision of the DOI key: two canonical DOIs, one key.
+    let pairs = diesel::sql_query(
+        "SELECT min(d) AS low, max(d) AS high, h AS key FROM ( \
+             SELECT 'https://doi.org/10.12345/t218-' || n AS d, \
+                    hashtext('be06:crossref:doi:' || 'https://doi.org/10.12345/t218-' || n) AS h \
+               FROM generate_series(1, 400000) n) s \
+          GROUP BY h HAVING count(*) = 2 ORDER BY h",
+    )
+    .load::<Pair>(&mut connection)
+    .expect("collisions");
+    // A shared DOI strictly between them in code-point order, so string order and key order disagree.
+    let (pair, shared_doi) = pairs
+        .iter()
+        .find_map(|pair| {
+            let shared = format!("{}0", pair.low);
+            (pair.low < shared && shared < pair.high).then_some((pair, shared))
+        })
+        .expect("a usable collision");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let with_doi = |connection: &mut PgConnection, doi: &str| {
+        let work = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+        fx::execute(
+            connection,
+            &format!("UPDATE work SET doi = '{doi}' WHERE work_id = '{work}'"),
+        );
+        work
+    };
+    let shared = with_doi(&mut connection, &shared_doi);
+    let low = with_doi(&mut connection, &pair.low);
+    let high = with_doi(&mut connection, &pair.high);
+    let shared_key = fx::texts(
+        &mut connection,
+        &format!("SELECT hashtext('be06:crossref:doi:{shared_doi}')::text AS value"),
+    )
+    .remove(0)
+    .parse::<i32>()
+    .expect("key");
+    assert_ne!(shared_key, pair.key);
+    // Parent 1 = {shared, high}, parent 2 = {low, shared}: in string order parent 1 takes shared then the collided
+    // key and parent 2 the collided key then shared — the withdrawn R52 order's deadlock.
+    let (first_root, second_root) =
+        overlapping_parents(&mut connection, imprint, shared, [high, low]);
+
+    // Hold the larger key from a third session, so the first reservation takes the smaller key and waits.
+    let (smaller, larger) = (shared_key.min(pair.key), shared_key.max(pair.key));
+    let mut blocker = race::dedicated();
+    use diesel::connection::SimpleConnection;
+    blocker
+        .batch_execute(&format!(
+            "BEGIN; SELECT pg_advisory_xact_lock(1948572001, {larger})"
+        ))
+        .expect("blocker");
+    let mut observer = race::dedicated();
+    let first_pool = pool.clone();
+    let first = std::thread::spawn(move || {
+        permit_crud::reserve_legacy_scheduled_crossref_write(first_pool.as_ref(), first_root)
+    });
+    race::wait_for_waits(&mut observer, 1);
+    let second_pool = pool.clone();
+    let second = std::thread::spawn(move || {
+        permit_crud::reserve_legacy_scheduled_crossref_write(second_pool.as_ref(), second_root)
+    });
+    let waits = race::wait_for_waits(&mut observer, 2);
+    assert_eq!(
+        waits,
+        vec!["advisory:ExclusiveLock", "advisory:ExclusiveLock"]
+    );
+    // The second waits on the smaller key, which the first holds: both acquire in key order.
+    assert_eq!(
+        fx::texts(
+            &mut observer,
+            "SELECT string_agg(((objid::bigint # 2147483648) - 2147483648)::text || ':' || granted::text, ',' ORDER BY granted, ((objid::bigint # 2147483648) - 2147483648)) AS value \
+             FROM pg_locks WHERE locktype = 'advisory' AND classid = 1948572001"
+        ),
+        vec![format!("{smaller}:false,{larger}:false,{smaller}:true,{larger}:true")]
+    );
+    blocker.batch_execute("ROLLBACK").expect("release");
+    assert!(first.join().expect("first").is_ok());
+    assert_eq!(
+        second.join().expect("second").map(|r| r.permit_id),
+        Err(ThothError::CrossrefPermitBlocked),
+        "no 40P01: the second is refused on the shared DOI"
+    );
+}
+
+/// An emitted chapter of `parent`: a DOI-bearing `book-chapter` with no edition.
+fn chapter_of(connection: &mut PgConnection, imprint: Uuid, parent: Uuid) -> Uuid {
+    let chapter = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+    fx::execute(
+        connection,
+        &format!("UPDATE work SET work_type = 'book-chapter', edition = NULL WHERE work_id = '{chapter}'"),
+    );
+    fx::relate_child(connection, parent, chapter, 1);
+    chapter
+}
+
+#[test]
+fn t219_the_witness_against_capture_at_its_pause_points() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    fx::enable_capture(&mut connection);
+
+    // The reservation holds G: a child capture's commit-time flush waits for it, so the witness is the value
+    // committed before its read, and the later finalisation voids SOURCE_CHANGED_DURING_PREPARATION.
+    let (_p, imprint, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let child = chapter_of(&mut connection, imprint, work);
+    let witness_before = fx::generation_of(&mut connection, work).expect("generation");
+    let (reserved, edited, transcript) = interleave(
+        &pool,
+        PausePoint::install("t219a", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| reserve_work_upsert(pool, job, token),
+        move |pool| {
+            let mut connection = pool.get().expect("editor");
+            use diesel::connection::SimpleConnection;
+            connection
+                .batch_execute(&format!(
+                    "UPDATE title SET title = 'Edited' WHERE work_id = '{child}'"
+                ))
+                .map_err(|e| e.to_string())
+        },
+        true,
+    );
+    let reserved = reserved.expect("reserved");
+    assert_eq!(edited, Ok(()));
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    assert_eq!(
+        permit_row(&mut connection, reserved.permit_id)
+            .split('|')
+            .nth(5),
+        Some(witness_before.to_string().as_str()),
+        "the witness is the value committed before its read"
+    );
+    let result = finalise(pool.as_ref(), &presentation(&reserved, Some(token))).expect("finalise");
+    assert_eq!(
+        (result.outcome, result.void_reason),
+        (
+            Finalised::VoidedRetryable,
+            Some(CrossrefVoidReason::SourceChangedDuringPreparation)
+        )
+    );
+
+    // The capture holds G at its flush: the reservation waits, and its witness includes the edit.
+    let (_p, imprint, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let child = chapter_of(&mut connection, imprint, work);
+    let before = fx::generation_of(&mut connection, work).expect("generation");
+    let (edited, reserved, transcript) = interleave(
+        &pool,
+        PausePoint::install("t219b", "AFTER UPDATE", "work_upsert_generation"),
+        move |pool| {
+            let mut connection = pool.get().expect("editor");
+            use diesel::connection::SimpleConnection;
+            connection
+                .batch_execute(&format!(
+                    "UPDATE title SET title = 'Edited' WHERE work_id = '{child}'"
+                ))
+                .map_err(|e| e.to_string())
+        },
+        move |pool| reserve_work_upsert(pool, job, token),
+        true,
+    );
+    assert_eq!(edited, Ok(()));
+    let reserved = reserved.expect("reserved");
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    assert_eq!(
+        permit_row(&mut connection, reserved.permit_id)
+            .split('|')
+            .nth(5),
+        Some((before + 1).to_string().as_str())
+    );
+    assert_eq!(
+        finalise(pool.as_ref(), &presentation(&reserved, Some(token))).map(|r| r.outcome),
+        Ok(Finalised::Authorized)
+    );
+}
+
+#[test]
+fn t220_the_witness_against_work_deletion_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let delete = |pool: &crate::db::PgPool, work: Uuid| {
+        crate::model::work::Work::from_id(pool, &work)
+            .expect("work")
+            .delete(pool)
+            .map(|w| w.work_id)
+    };
+
+    // The reservation first, paused holding W FOR SHARE and G: the deletion waits, then deletes; the permit
+    // survives and blocks.
+    let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (reserved, deleted, transcript) = interleave(
+        &pool,
+        PausePoint::install("t220a", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| permit_crud::reserve_legacy_scheduled_crossref_write(pool, root),
+        move |pool| delete(pool, root),
+        true,
+    );
+    let reserved = reserved.expect("reserved");
+    assert_eq!(deleted, Ok(root));
+    assert!(!transcript.is_empty());
+    assert_eq!(state_name(&mut connection, reserved.permit_id), "RESERVED");
+    assert_eq!(
+        fx::count(&mut connection, "SELECT count(*) AS count FROM crossref_write_permit WHERE public.crossref_is_blocking_write_permit(state, reconciliation_state)"),
+        1
+    );
+
+    // The deletion first, paused holding W FOR UPDATE: the reservation waits, then finds no root; no row.
+    let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (deleted, reserved, transcript) = interleave(
+        &pool,
+        PausePoint::install("t220b", "BEFORE DELETE", "work"),
+        move |pool| delete(pool, root),
+        move |pool| {
+            permit_crud::reserve_legacy_scheduled_crossref_write(pool, root).map(|r| r.permit_id)
+        },
+        true,
+    );
+    assert_eq!(deleted, Ok(root));
+    assert_eq!(reserved, Err(ThothError::CrossrefRootWorkNotFound));
+    assert!(!transcript.is_empty());
+    assert_eq!(
+        fx::count(
+            &mut connection,
+            "SELECT count(*) AS count FROM crossref_write_permit"
+        ),
+        1
+    );
+}
+
+#[test]
+fn t221_finalise_and_publisher_deletion_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let delete_publisher = |pool: &crate::db::PgPool, publisher: Uuid| {
+        crate::model::publisher::Publisher::from_id(pool, &publisher)
+            .expect("publisher")
+            .delete(pool)
+            .map(|p| p.publisher_id)
+    };
+
+    let (publisher, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    let (finalised, deleted, transcript) = interleave(
+        &pool,
+        PausePoint::install("t221a", "BEFORE UPDATE", "crossref_write_permit"),
+        move |pool| finalise(pool, &input).map(|r| r.outcome),
+        move |pool| delete_publisher(pool, publisher),
+        true,
+    );
+    assert_eq!(finalised, Ok(Finalised::Authorized));
+    assert_eq!(deleted, Err(ThothError::WorkDeleteBlockedByFencedAttempt));
+    assert!(!transcript.is_empty());
+
+    let (publisher, _i, _a, _w, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let reservation = reserve_work_upsert(pool.as_ref(), job, token).expect("reserve");
+    let input = presentation(&reservation, Some(token));
+    let (deleted, finalised, transcript) = interleave(
+        &pool,
+        PausePoint::install("t221b", "BEFORE DELETE", "publisher"),
+        move |pool| delete_publisher(pool, publisher),
+        move |pool| finalise(pool, &input).map(|r| r.outcome),
+        true,
+    );
+    assert_eq!(deleted, Ok(publisher));
+    assert_eq!(finalised, Err(ThothError::CrossrefPermitClaimStale));
+    assert!(!transcript.is_empty());
+}
+
+#[test]
+fn t222_back_catalogue_reservation_and_outer_cancellation_in_both_orders() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    let (_publisher, imprint, job, token) = claimed_back_catalogue(pool.as_ref(), &mut connection);
+    let unit = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (reserved, cancelled, transcript) = interleave(
+        &pool,
+        PausePoint::install("t222a", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| permit_crud::reserve_back_catalogue_crossref_write(pool, job, token, unit),
+        move |pool| job_crud::cancel_distribution_job(pool, job).map(|j| j.status),
+        true,
+    );
+    let reserved = reserved.expect("reserved");
+    assert_eq!(cancelled, Ok(DistributionJobStatus::Cancelled));
+    assert_eq!(transcript, vec!["transactionid:ShareLock"]);
+    assert_eq!(
+        state_name(&mut connection, reserved.permit_id),
+        "RESERVED",
+        "the unit permit is untouched"
+    );
+
+    let (_publisher, imprint, job, token) = claimed_back_catalogue(pool.as_ref(), &mut connection);
+    let unit = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (cancelled, reserved, transcript) = interleave(
+        &pool,
+        PausePoint::install("t222b", "BEFORE UPDATE", "distribution_job"),
+        move |pool| job_crud::cancel_distribution_job(pool, job).map(|j| j.status),
+        move |pool| {
+            permit_crud::reserve_back_catalogue_crossref_write(pool, job, token, unit)
+                .map(|r| r.permit_id)
+        },
+        true,
+    );
+    assert_eq!(cancelled, Ok(DistributionJobStatus::Cancelled));
+    assert_eq!(reserved, Err(ThothError::CrossrefPermitClaimStale));
+    assert!(!transcript.is_empty());
+}
+
+#[test]
+fn t223_cross_route_overlapping_reservations() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+
+    // Manual recovery holding its keys against a legacy reservation of the same root.
+    let (publisher, imprint) = fx::publisher_and_imprint(pool.as_ref());
+    fx::cover_crossref(&mut connection, publisher);
+    let root = fx::insert_eligible_work(&mut connection, imprint, Uuid::new_v4());
+    let (manual, legacy, transcript) = interleave(
+        &pool,
+        PausePoint::install("t223a", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| permit_crud::reserve_manual_recovery_crossref_write(pool, root, "INC-223"),
+        move |pool| {
+            permit_crud::reserve_legacy_scheduled_crossref_write(pool, root).map(|r| r.permit_id)
+        },
+        true,
+    );
+    assert!(manual.is_ok());
+    assert_eq!(legacy, Err(ThothError::CrossrefPermitBlocked));
+    assert!(!transcript.is_empty());
+
+    // A back-catalogue unit holding its keys against the WORK_UPSERT reservation of the same Work.
+    let (_p, _i, _a, work, job, token) = claimed_work_upsert(pool.as_ref(), &mut connection);
+    let work_publisher = fx::texts(&mut connection, &format!("SELECT i.publisher_id::text AS value FROM work w JOIN imprint i USING (imprint_id) WHERE w.work_id = '{work}'")).remove(0);
+    let activation = fx::texts(&mut connection, &format!("SELECT activation_id::text AS value FROM publisher_distribution_platform WHERE publisher_id = '{work_publisher}' AND platform = 'CROSSREF'")).remove(0);
+    fx::execute(&mut connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{work_publisher}', '{activation}', 'PUBLISHER_BACK_CATALOGUE:{work_publisher}:{activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE kind = 'PUBLISHER_BACK_CATALOGUE' AND publisher_id = '{work_publisher}'"
+    ));
+    let outer =
+        job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]).expect("claim");
+    let (outer_job, outer_token) = (outer[0].job.job.distribution_job_id, outer[0].claim_token);
+    let (unit, work_upsert, transcript) = interleave(
+        &pool,
+        PausePoint::install("t223b", "BEFORE INSERT", "crossref_write_permit"),
+        move |pool| {
+            permit_crud::reserve_back_catalogue_crossref_write(pool, outer_job, outer_token, work)
+        },
+        move |pool| reserve_work_upsert(pool, job, token).map(|r| r.permit_id),
+        true,
+    );
+    assert!(unit.is_ok());
+    assert_eq!(work_upsert, Err(ThothError::CrossrefPermitBlocked));
     assert!(!transcript.is_empty());
 }
