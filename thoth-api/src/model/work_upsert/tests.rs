@@ -7171,3 +7171,91 @@ fn n5_the_non_blank_rule_is_independent_of_the_collation_provider() {
         "ICU and C give the same API results"
     );
 }
+
+/// R52B section 25.14 T166: the migration and the deployment are inert. With the control row `(false, false)`,
+/// released paths — editorial writes, the coordinator creating a back-catalogue job, its claim and completion — and
+/// every BE-06 entry point leave no work-level job, target or attempt, no admission, no permit and no audit row; the
+/// only BE-06 state is generation rows.
+#[test]
+fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control_row_is_off() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let mut connection = pool.get().expect("connection");
+    let (publisher, imprint) = publisher_and_imprint(pool.as_ref());
+    let activation = cover_crossref(&mut connection, publisher);
+    let works: Vec<Uuid> = (0..3)
+        .map(|_| insert_eligible_work(&mut connection, imprint, Uuid::new_v4()))
+        .collect();
+    execute(
+        &mut connection,
+        &format!(
+            "UPDATE work SET place = 'Inert' WHERE work_id = '{}'",
+            works[0]
+        ),
+    );
+    // A released back-catalogue job through its released claim and completion.
+    execute(&mut connection, &format!(
+        "INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+         VALUES ('PUBLISHER_BACK_CATALOGUE', '{publisher}', '{activation}', 'PUBLISHER_BACK_CATALOGUE:{publisher}:{activation}'); \
+         INSERT INTO distribution_job_target (distribution_job_id, platform) \
+         SELECT distribution_job_id, 'CROSSREF' FROM distribution_job WHERE publisher_id = '{publisher}'"
+    ));
+    let claimed =
+        job_crud::claim_distribution_jobs(pool.as_ref(), "legacy", 10, 900, &[]).expect("claim");
+    assert_eq!(claimed.len(), 1);
+    job_crud::complete_distribution_job(
+        pool.as_ref(),
+        claimed[0].job.job.distribution_job_id,
+        claimed[0].claim_token,
+    )
+    .expect("released completion");
+    // Every BE-06 entry point, off.
+    assert_eq!(drain(pool.as_ref(), Some(100)).examined, 0);
+    assert!(claim(pool.as_ref()).is_empty());
+    assert_eq!(
+        materialize(pool.as_ref(), works[0], false).outcome,
+        crate::model::work_upsert::WorkUpsertMaterializationOutcome::CaptureDisabled
+    );
+    assert_eq!(
+        work_upsert_crud::seed_crossref_work_upsert(pool.as_ref(), publisher, None)
+            .map(|r| r.seeded),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+    assert_eq!(
+        work_upsert_crud::set_work_upsert_execution(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            true
+        )
+        .map(|c| c.execution_enabled),
+        Err(ThothError::WorkUpsertCaptureNotEnabled)
+    );
+    assert_eq!(
+        texts(&mut connection,
+            "SELECT (SELECT count(*) FROM distribution_job WHERE kind = 'WORK_UPSERT')::text || '|' \
+                 || (SELECT count(*) FROM distribution_job_attempt a JOIN distribution_job j USING (distribution_job_id) WHERE j.kind = 'WORK_UPSERT')::text || '|' \
+                 || (SELECT count(*) FROM distribution_job WHERE execution_profile IS NOT NULL OR work_identity IS NOT NULL OR created_generation IS NOT NULL)::text || '|' \
+                 || (SELECT count(*) FROM distribution_job_attempt WHERE claimed_generation IS NOT NULL OR fenced_at IS NOT NULL)::text || '|' \
+                 || (SELECT count(*) FROM work_upsert_admission)::text || '|' \
+                 || (SELECT count(*) FROM crossref_write_permit)::text || '|' \
+                 || (SELECT count(*) FROM crossref_version_floor_audit)::text || '|' \
+                 || (SELECT capture_enabled::text || '/' || execution_enabled::text FROM work_upsert_control) || '|' \
+                 || (SELECT floor_value::text FROM work_crossref_version_floor) || '|' \
+                 || (SELECT count(*) FROM work_upsert_generation WHERE NOT EXISTS (SELECT 1 FROM work w WHERE w.work_id = work_upsert_generation.work_id))::text AS value"),
+        vec!["0|0|0|0|0|0|0|false/false|0|0"]
+    );
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS count FROM work_upsert_generation"
+        ),
+        3,
+        "only generation rows"
+    );
+    // Admission is an explicit superuser act whose frozen precedence (Amendment 3 section 9.3) has no capture
+    // condition: it is not a released path and is outside the inert state above.
+    assert_eq!(
+        work_upsert_crud::admit_crossref_work_upsert(pool.as_ref(), publisher, "EV", "admin")
+            .map(|a| a.actor),
+        Ok("admin".to_string())
+    );
+}
