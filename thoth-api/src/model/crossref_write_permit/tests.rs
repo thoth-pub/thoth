@@ -7491,3 +7491,587 @@ mod post_review_correction {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The merge-readiness correction, #848 comment 5718898530: reports 11 and 12 read the memberships of the permits they
+// return in one set-based statement, never one statement per permit (`thoth-api/AGENTS.md` section 6). What a report
+// returns is unchanged: the same permits, in the same order, each with its persisted membership ascending by code point.
+// ---------------------------------------------------------------------------------------------------------------------
+
+mod merge_readiness_correction {
+    use std::sync::{Arc, Mutex};
+
+    use diesel::connection::InstrumentationEvent;
+    use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool};
+    use diesel::Connection;
+
+    use super::*;
+    use crate::db::PgPool;
+    use crate::model::crossref_write_permit::CrossrefWritePermitWithDois;
+
+    /// Every statement a measured connection starts, in order. The log is one test's own: it is installed on the
+    /// connections of that test's pool through Diesel's per-connection instrumentation, and on nothing process-wide.
+    #[derive(Debug)]
+    struct StatementLog(Arc<Mutex<Vec<String>>>);
+
+    impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for StatementLog {
+        fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+            let log = Arc::clone(&self.0);
+            connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+                if let InstrumentationEvent::StartQuery { query, .. } = event {
+                    log.lock().expect("statement log").push(query.to_string());
+                }
+            });
+            Ok(())
+        }
+    }
+
+    /// A one-connection pool over the test database, and the log of what its connection runs.
+    fn measured_pool() -> (PgPool, Arc<Mutex<Vec<String>>>) {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let pool = Pool::builder()
+            .max_size(1)
+            .test_on_check_out(false)
+            .connection_customizer(Box::new(StatementLog(Arc::clone(&log))))
+            .build(ConnectionManager::<PgConnection>::new(
+                test_db::test_db_url(),
+            ))
+            .expect("measured pool");
+        (pool, log)
+    }
+
+    /// `report`'s result and the statements it ran, in order.
+    fn measured<T>(log: &Mutex<Vec<String>>, report: impl FnOnce() -> T) -> (T, Vec<String>) {
+        log.lock().expect("statement log").clear();
+        let result = report();
+        let statements = log.lock().expect("statement log").clone();
+        (result, statements)
+    }
+
+    /// The statements that read the membership table.
+    fn membership_reads(statements: &[String]) -> Vec<&String> {
+        statements
+            .iter()
+            .filter(|statement| statement.contains("crossref_write_permit_doi"))
+            .collect()
+    }
+
+    /// The DOI suffixes of `five_permits`' deposits, in the order their chapters are related, which is not their
+    /// canonical order.
+    const RELATED: [&[&str]; 5] = [
+        &["m1_c", "m1-b", "m1.a"],
+        &["m2"],
+        &["m3.y", "m3-z"],
+        &["m4"],
+        &["m5_a", "m5-c", "m5.b"],
+    ];
+
+    /// The same memberships ascending by code point: `-` (U+002D), then `.` (U+002E), then `_` (U+005F). No
+    /// linguistic collation orders the first and the last this way.
+    const CANONICAL: [&[&str]; 5] = [
+        &["m1-b", "m1.a", "m1_c"],
+        &["m2"],
+        &["m3-z", "m3.y"],
+        &["m4"],
+        &["m5-c", "m5.b", "m5_a"],
+    ];
+
+    /// `10.12345/{suffix}` as a membership holds it.
+    fn canonical(suffix: &str) -> String {
+        format!("https://doi.org/10.12345/{suffix}")
+    }
+
+    /// Two covered publishers, each with an imprint: `[(publisher, imprint); 2]`.
+    fn two_covered_imprints(pool: &PgPool, connection: &mut PgConnection) -> [(Uuid, Uuid); 2] {
+        [(); 2].map(|()| {
+            let (publisher, imprint) = fx::publisher_and_imprint(pool);
+            fx::cover_crossref(connection, publisher);
+            (publisher, imprint)
+        })
+    }
+
+    /// A Work of `imprint` registered as `10.12345/{suffix}`.
+    fn work_with_doi(connection: &mut PgConnection, imprint: Uuid, suffix: &str) -> Uuid {
+        let work = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+        fx::execute(
+            connection,
+            &format!(
+                "UPDATE work SET doi = 'https://doi.org/10.12345/{suffix}' WHERE work_id = '{work}'"
+            ),
+        );
+        work
+    }
+
+    /// A `RESERVED` permit whose membership is exactly `suffixes`' DOIs: the root alone for one suffix, otherwise a
+    /// parent without a landing page over one chapter per suffix, related in the order given.
+    fn reserve_over(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        imprint: Uuid,
+        suffixes: &[&str],
+    ) -> CrossrefWriteReservation {
+        let root = match suffixes {
+            [only] => work_with_doi(connection, imprint, only),
+            chapters => {
+                let parent = fx::insert_eligible_work(connection, imprint, Uuid::new_v4());
+                fx::execute(
+                    connection,
+                    &format!("UPDATE work SET landing_page = NULL WHERE work_id = '{parent}'"),
+                );
+                for (ordinal, suffix) in chapters.iter().enumerate() {
+                    let chapter = work_with_doi(connection, imprint, suffix);
+                    fx::relate_child(connection, parent, chapter, ordinal as i32 + 1);
+                }
+                parent
+            }
+        };
+        permit_crud::reserve_legacy_scheduled_crossref_write(pool, root).expect("reserved")
+    }
+
+    /// Five `RESERVED` permits in issue order over `RELATED`, alternating between the two imprints: three, one, two,
+    /// one and three DOIs.
+    fn five_permits(
+        pool: &PgPool,
+        connection: &mut PgConnection,
+        covered: &[(Uuid, Uuid); 2],
+    ) -> Vec<CrossrefWriteReservation> {
+        RELATED
+            .iter()
+            .enumerate()
+            .map(|(index, suffixes)| reserve_over(pool, connection, covered[index % 2].1, suffixes))
+            .collect()
+    }
+
+    /// Moves `five_permits` apart: the first stays `RESERVED`, the second becomes `AUTHORIZED`, the third
+    /// `INDETERMINATE`, the fourth `VOIDED` and the fifth `ACCEPTED`. The first three block.
+    fn spread_states(pool: &PgPool, issued: &[CrossrefWriteReservation]) {
+        for reservation in [&issued[1], &issued[2], &issued[4]] {
+            assert_eq!(
+                finalise(pool, &presentation(reservation, None)).map(|r| r.outcome),
+                Ok(Finalised::Authorized)
+            );
+        }
+        for (reservation, outcome) in [
+            (&issued[2], Outcome::Indeterminate),
+            (&issued[4], Outcome::Accepted),
+        ] {
+            permit_crud::report_crossref_write(
+                pool,
+                reservation.permit_id,
+                reservation.reservation_token,
+                outcome,
+                &allow,
+            )
+            .expect("reported");
+        }
+        permit_crud::void_crossref_write_reservation(
+            pool,
+            issued[3].permit_id,
+            issued[3].reservation_token,
+            "abandoned",
+            &allow,
+        )
+        .expect("voided");
+    }
+
+    /// A permit's persisted membership, read from the table by this test alone.
+    fn persisted(connection: &mut PgConnection, permit: Uuid) -> Vec<String> {
+        fx::texts(
+            connection,
+            &format!(
+                "SELECT doi AS value FROM crossref_write_permit_doi WHERE permit_id = '{permit}' \
+                 ORDER BY doi COLLATE \"C\""
+            ),
+        )
+    }
+
+    /// Each permit as the unchanged single-permit read returns it, in issue order.
+    fn singly_read(
+        connection: &mut PgConnection,
+        issued: &[CrossrefWriteReservation],
+    ) -> Vec<CrossrefWritePermitWithDois> {
+        issued
+            .iter()
+            .map(|reservation| {
+                permit_crud::permit_with_dois(connection, reservation.permit_id, false)
+                    .expect("read")
+                    .expect("the permit")
+            })
+            .collect()
+    }
+
+    /// The N+1 regression. A report that returns five permits reads the membership table in one statement, and runs
+    /// exactly as many statements as the same report returning one permit.
+    #[test]
+    fn a_permit_report_reads_the_memberships_it_returns_in_one_statement() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let issued = five_permits(pool.as_ref(), &mut connection, &covered);
+        let (measured_db, log) = measured_pool();
+
+        let (page, page_statements) = measured(&log, || {
+            permit_crud::crossref_write_permits(&measured_db, &Default::default(), 100, 0)
+        });
+        let (unresolved, unresolved_statements) = measured(&log, || {
+            permit_crud::crossref_unresolved_permits(&measured_db)
+        });
+        let (one, one_statements) = measured(&log, || {
+            permit_crud::crossref_write_permits(&measured_db, &Default::default(), 1, 0)
+        });
+        assert_eq!(page.expect("report 11").len(), issued.len());
+        assert_eq!(unresolved.expect("report 12").len(), issued.len());
+        assert_eq!(one.expect("report 11").len(), 1);
+        assert_eq!(membership_reads(&one_statements).len(), 1);
+
+        assert_eq!(
+            (
+                membership_reads(&page_statements).len(),
+                membership_reads(&unresolved_statements).len(),
+                page_statements.len(),
+                unresolved_statements.len(),
+            ),
+            (1, 1, one_statements.len(), one_statements.len()),
+            "(membership reads of report 11, of report 12, statements of report 11, of report 12) over {} permits, \
+             against one membership read and the statements of a one-permit page\n\
+             report 11: {page_statements:#?}\nreport 12: {unresolved_statements:#?}\none permit: {one_statements:#?}",
+            issued.len()
+        );
+    }
+
+    /// Each report returns the permits in issue order, each as the single-permit read returns it, with the membership
+    /// the table holds for that permit and for no other, ascending by code point.
+    #[test]
+    fn both_reports_return_each_permit_in_issue_order_with_its_own_membership() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let mut issued = five_permits(pool.as_ref(), &mut connection, &covered);
+        let mut memberships: Vec<Vec<String>> = CANONICAL
+            .iter()
+            .map(|suffixes| suffixes.iter().map(|suffix| canonical(suffix)).collect())
+            .collect();
+        // Issue order must not be permit-id order, the order of the membership statement, or a report that took its
+        // order from that statement would pass.
+        while issued
+            .windows(2)
+            .all(|pair| pair[0].permit_id < pair[1].permit_id)
+        {
+            let suffix = format!("m{}", issued.len() + 1);
+            issued.push(reserve_over(
+                pool.as_ref(),
+                &mut connection,
+                covered[0].1,
+                &[suffix.as_str()],
+            ));
+            memberships.push(vec![canonical(&suffix)]);
+        }
+
+        let expected = singly_read(&mut connection, &issued);
+        for ((entry, reservation), membership) in expected.iter().zip(&issued).zip(&memberships) {
+            assert_eq!(entry.permit.permit_id, reservation.permit_id);
+            assert_eq!(&entry.dois, membership);
+            assert_eq!(&reservation.dois, membership);
+            assert_eq!(
+                &persisted(&mut connection, reservation.permit_id),
+                membership
+            );
+            assert_eq!(entry.permit.doi_set_cardinality as usize, membership.len());
+        }
+
+        assert_eq!(
+            permit_crud::crossref_write_permits(pool.as_ref(), &Default::default(), 100, 0),
+            Ok(expected.clone())
+        );
+        assert_eq!(
+            permit_crud::crossref_unresolved_permits(pool.as_ref()),
+            Ok(expected)
+        );
+    }
+
+    /// Report 11 selects, orders and pages exactly the permits it did, each with its own membership.
+    #[test]
+    fn report_11_keeps_its_filters_and_pagination() {
+        use permit_crud::CrossrefWritePermitFilter as Filter;
+        use CrossrefWritePermitState as State;
+
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let issued = five_permits(pool.as_ref(), &mut connection, &covered);
+        spread_states(pool.as_ref(), &issued);
+        let expected = singly_read(&mut connection, &issued);
+        assert_eq!(
+            expected
+                .iter()
+                .map(|entry| entry.permit.state)
+                .collect::<Vec<_>>(),
+            vec![
+                State::Reserved,
+                State::Authorized,
+                State::Indeterminate,
+                State::Voided,
+                State::Accepted
+            ]
+        );
+        let [(first_publisher, _), (second_publisher, _)] = covered;
+
+        for (case, filter, limit, offset, indices) in [
+            ("no filter", Filter::default(), 100, 0, vec![0, 1, 2, 3, 4]),
+            (
+                "one publisher",
+                Filter {
+                    publisher_identity: Some(first_publisher),
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![0, 2, 4],
+            ),
+            (
+                "the other publisher",
+                Filter {
+                    publisher_identity: Some(second_publisher),
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![1, 3],
+            ),
+            (
+                "one root Work",
+                Filter {
+                    root_work_identity: Some(issued[2].root_work_identity),
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![2],
+            ),
+            (
+                "one state",
+                Filter {
+                    states: vec![State::Reserved],
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![0],
+            ),
+            (
+                "several states",
+                Filter {
+                    states: vec![State::Voided, State::Authorized, State::Indeterminate],
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![1, 2, 3],
+            ),
+            (
+                "a state no permit is in",
+                Filter {
+                    states: vec![State::NoneAttempted],
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![],
+            ),
+            (
+                "a publisher and states together",
+                Filter {
+                    publisher_identity: Some(first_publisher),
+                    states: vec![State::Accepted, State::Reserved],
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![0, 4],
+            ),
+            (
+                "a job no permit belongs to",
+                Filter {
+                    job_identity: Some(Uuid::new_v4()),
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![],
+            ),
+            (
+                "an attempt no permit belongs to",
+                Filter {
+                    attempt_identity: Some(Uuid::new_v4()),
+                    ..Default::default()
+                },
+                100,
+                0,
+                vec![],
+            ),
+            ("the first page", Filter::default(), 2, 0, vec![0, 1]),
+            ("the second page", Filter::default(), 2, 2, vec![2, 3]),
+            ("the last page", Filter::default(), 2, 4, vec![4]),
+            ("a page past the end", Filter::default(), 2, 5, vec![]),
+            ("an offset alone", Filter::default(), 100, 3, vec![3, 4]),
+            (
+                "a page of a filtered report",
+                Filter {
+                    publisher_identity: Some(first_publisher),
+                    ..Default::default()
+                },
+                1,
+                1,
+                vec![2],
+            ),
+            ("a limit of zero", Filter::default(), 0, 0, vec![]),
+            ("a negative limit", Filter::default(), -1, 0, vec![]),
+            ("a negative offset", Filter::default(), 2, -3, vec![0, 1]),
+        ] {
+            let selected: Vec<CrossrefWritePermitWithDois> = indices
+                .into_iter()
+                .map(|index: usize| expected[index].clone())
+                .collect();
+            assert_eq!(
+                permit_crud::crossref_write_permits(pool.as_ref(), &filter, limit, offset),
+                Ok(selected),
+                "{case}"
+            );
+        }
+    }
+
+    /// Report 12 returns every blocking permit and no other, oldest first, each with its own membership.
+    #[test]
+    fn report_12_returns_every_blocking_permit_oldest_first() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let issued = five_permits(pool.as_ref(), &mut connection, &covered);
+        spread_states(pool.as_ref(), &issued);
+        let expected = singly_read(&mut connection, &issued);
+
+        let unresolved =
+            permit_crud::crossref_unresolved_permits(pool.as_ref()).expect("report 12");
+        assert_eq!(unresolved, expected[..3].to_vec());
+        assert_eq!(
+            unresolved
+                .iter()
+                .map(|entry| entry.dois.clone())
+                .collect::<Vec<_>>(),
+            CANONICAL[..3]
+                .iter()
+                .map(|suffixes| suffixes
+                    .iter()
+                    .map(|suffix| canonical(suffix))
+                    .collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            permit_crud::crossref_blocking_write_permit_count(pool.as_ref()),
+            Ok(3)
+        );
+    }
+
+    /// Report 12 has no cap and report 11 pages as before, past the resolver's default page of 100, and neither reads
+    /// the membership table more than once.
+    #[test]
+    fn a_report_over_more_permits_than_a_default_page_is_complete_and_reads_the_memberships_once() {
+        const PERMITS: usize = 120;
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let issued: Vec<(Uuid, Vec<String>)> = (0..PERMITS)
+            .map(|index| {
+                let suffix = format!("bulk-{index:03}");
+                let reservation = reserve_over(
+                    pool.as_ref(),
+                    &mut connection,
+                    covered[index % 2].1,
+                    &[suffix.as_str()],
+                );
+                (reservation.permit_id, vec![canonical(&suffix)])
+            })
+            .collect();
+        let (measured_db, log) = measured_pool();
+        let returned = |report: ThothResult<Vec<CrossrefWritePermitWithDois>>| {
+            report
+                .expect("report")
+                .into_iter()
+                .map(|entry| (entry.permit.permit_id, entry.dois))
+                .collect::<Vec<_>>()
+        };
+
+        let (unresolved, statements) = measured(&log, || {
+            permit_crud::crossref_unresolved_permits(&measured_db)
+        });
+        assert_eq!(returned(unresolved), issued);
+        assert_eq!(membership_reads(&statements).len(), 1, "{statements:#?}");
+
+        for (limit, offset, page) in [(100, 0, &issued[..100]), (100, 100, &issued[100..])] {
+            let (found, statements) = measured(&log, || {
+                permit_crud::crossref_write_permits(
+                    &measured_db,
+                    &Default::default(),
+                    limit,
+                    offset,
+                )
+            });
+            assert_eq!(returned(found), page.to_vec(), "page at {offset}");
+            assert_eq!(membership_reads(&statements).len(), 1, "{statements:#?}");
+        }
+    }
+
+    /// A report that returns no permit returns an empty list and does not read the membership table.
+    #[test]
+    fn an_empty_report_is_empty_and_reads_no_membership() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (measured_db, log) = measured_pool();
+        let nothing = permit_crud::CrossrefWritePermitFilter {
+            states: vec![CrossrefWritePermitState::Accepted],
+            ..Default::default()
+        };
+
+        // No permit exists.
+        let (page, page_statements) = measured(&log, || {
+            permit_crud::crossref_write_permits(&measured_db, &Default::default(), 100, 0)
+        });
+        let (unresolved, unresolved_statements) = measured(&log, || {
+            permit_crud::crossref_unresolved_permits(&measured_db)
+        });
+        assert_eq!((page, unresolved), (Ok(Vec::new()), Ok(Vec::new())));
+        assert!(membership_reads(&page_statements).is_empty());
+        assert!(membership_reads(&unresolved_statements).is_empty());
+
+        // Permits exist, none of them blocks, and the filter and the page select none of them.
+        let covered = two_covered_imprints(pool.as_ref(), &mut connection);
+        let issued = five_permits(pool.as_ref(), &mut connection, &covered);
+        for reservation in &issued {
+            permit_crud::void_crossref_write_reservation(
+                pool.as_ref(),
+                reservation.permit_id,
+                reservation.reservation_token,
+                "abandoned",
+                &allow,
+            )
+            .expect("voided");
+        }
+        for (filter, limit) in [(&nothing, 100), (&Default::default(), 0)] {
+            let (page, statements) = measured(&log, || {
+                permit_crud::crossref_write_permits(&measured_db, filter, limit, 0)
+            });
+            assert_eq!(page, Ok(Vec::new()));
+            assert!(membership_reads(&statements).is_empty(), "{statements:#?}");
+        }
+        let (unresolved, statements) = measured(&log, || {
+            permit_crud::crossref_unresolved_permits(&measured_db)
+        });
+        assert_eq!(unresolved, Ok(Vec::new()));
+        assert!(membership_reads(&statements).is_empty(), "{statements:#?}");
+        assert_eq!(
+            permit_crud::crossref_write_permits(pool.as_ref(), &Default::default(), 100, 0)
+                .map(|permits| permits.len()),
+            Ok(issued.len())
+        );
+    }
+}

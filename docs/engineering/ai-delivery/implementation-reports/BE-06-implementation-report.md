@@ -12,6 +12,10 @@ executed. It is evidence for the independent exact-head CRITICAL review, not a s
 > **Post-review correction.** Section 17's head `aabb5e0d` was not approved on independent review either; sections
 > 1-17 are preserved as written. Section 18 records the correction authorized by #848 comment `5703254463` under CTO
 > specification correction `5703204194`.
+>
+> **Merge-readiness correction.** Section 18's head `86917f9f` was approved on independent review (#848 comment
+> `5715923725`) and PR #925 was opened. The merge-readiness review then required changes; sections 1-18 are preserved
+> as written. Section 19 records the correction authorized by #848 comment `5718898530`.
 
 ## 1. Repository state
 
@@ -1048,3 +1052,274 @@ and are untouched. The documentation commit changes only this file and `tasks/BE
   The pushed head requires a fresh independent exact-head CRITICAL source, migration, authorization and concurrency
   review of the entire BE-06 implementation, not only this correction. PR creation remains unauthorized; merge,
   release, deployment, production migration, G-6, G-7 and activation remain separate gates.
+
+## 19. Merge-readiness correction
+
+### 19.1 Finding and authority
+
+- Independent exact-head CRITICAL review approved `86917f9f909a8e84f0682af72b48d43245d9858e` (tree
+  `2190191b4827a1624a48f3cb7c4c64c975c2f766`), the head that carried section 18, in #848 comment `5715923725`. PR #925
+  was then opened against `feature/publisher-services-v1-10 @ b23ba05c…` and marked ready for review.
+- The pre-merge sweep of PR #925's review threads found two findings from an automated review of `86917f9f`
+  (`chatgpt-codex-connector`, review `5238132704`; thread comments `4038781259` and `4038781276`), both citing
+  `thoth-api/AGENTS.md` section 6:
+  1. `thoth-api/src/model/work_upsert/crud.rs`: the materializer loads the complete candidate set before it applies
+     `limit`.
+  2. `thoth-api/src/model/crossref_write_permit/crud.rs`: a permit report that returns N permits runs N further
+     `membership_of` queries.
+- #848 comment `5718898530` is the CTO's merge-readiness decision, CHANGES REQUIRED, and the sole authority for this
+  correction. It rejects finding 1, confirms finding 2 as blocking, and authorizes a test-first correction of finding
+  2 from `86917f9f` within three paths: `crossref_write_permit/crud.rs`, `crossref_write_permit/tests.rs` and this
+  report. It authorizes one correction commit, a fast-forward push, and the natural PR #925 workflows that push
+  triggers. The push makes approval `5715923725` historical.
+
+### 19.2 Preflight
+
+Read-only, before any write: #848 comment `5718898530` read in full (author `ja573`, created
+`2026-09-17T17:54:51Z`, never edited); it was the last of 38 comments and no timeline event followed it.
+`git ls-remote` and the GitHub API both gave `feature/publisher-services-v1-10--be-06` = `86917f9f…` (tree
+`2190191b…`) and `feature/publisher-services-v1-10` = `b23ba05c…`. PR #925 was open, not a draft, unmerged and
+mergeable, with head `86917f9f…`, base `b23ba05c…` and 46 commits. Its two review threads were unresolved. PR #927
+was a draft at `4372841c…`. The work was done in a fresh clone of the repository on the existing task branch, with a
+clean worktree and `HEAD` = `86917f9f…`; no branch was created.
+
+### 19.3 The rejected materializer finding
+
+No materializer source changed; `thoth-api/src/model/work_upsert/crud.rs` is byte-identical to `86917f9f`. Finding 1
+asks for the batch `limit` to be applied before candidates are loaded and for `remainingCandidates` to become a
+count. Approved Amendment 3 (SHA-256 `d9c04dec84945f3e1ff13a9101372cd65b964b466e5c02ca34da25982e4b0831`) section 9.4
+specifies the opposite, deliberately:
+
+- the selector is one `READ COMMITTED` statement "returning every member of `C` over the requested profiles — with no
+  `LIMIT`", together with the abstract content the pure Rust drainability filter needs;
+- "`remainingCandidates` repeats that read after the call's last unit commits";
+- "`limit` bounds the number of unit transactions, and so the rows a call locks and writes; it does not bound the
+  rows a call reads."
+
+Section 9.4 states that cost and rests its convergence argument on it: no unit is ever spent on an undrainable
+candidate. Bounding the read would reintroduce the starvation that section removed. The finding conflicts with the
+approved specification, and comment `5718898530` authorizes no materializer change.
+
+### 19.4 Permit-report N+1: root cause
+
+Reports 11 and 12, `crossref_write_permits` and `crossref_unresolved_permits`, each load their permit rows in one
+statement and pass them to the private helper `with_dois`. At `86917f9f` that helper mapped every permit to
+`membership_of(connection, permit.permit_id)`, the single-permit read
+`SELECT doi FROM public.crossref_write_permit_doi WHERE permit_id = $1 ORDER BY doi COLLATE "C"`. A report returning N
+permits therefore ran N membership statements after its permit statement. Report 11 accepts any `limit`, and report
+12 is unbounded by contract, so N is not bounded. `thoth-api/AGENTS.md` section 6 requires new lists and reports to
+avoid N+1 access and to use set-based SQL or batched loaders. Nothing in R52B or Amendment 3 requires one statement
+per permit: the contract fixes which permits a report returns, their order, and each membership and its order.
+
+`membership_of` is correct for what it was written for, `permit_with_dois`, which reads one known permit inside the
+mutations. That path is unchanged.
+
+### 19.5 Test mechanism
+
+The regression counts the statements a report runs, at run time, on the real disposable PostgreSQL:
+
+- Diesel 2.3's per-connection instrumentation (`Connection::set_instrumentation`) receives
+  `InstrumentationEvent::StartQuery` for every statement a connection starts, with the statement's text. The repository
+  already counts statements from that event: `graphql::dataloader::fixture::SqlProbe`. That fixture is private to the
+  `graphql` module and installs a process-wide default, so the model tests cannot reach it without a fourth path.
+- The new tests install the same hook more narrowly. A test builds its own one-connection pool over
+  `test_db::test_db_url()`, as `x10_a_pool_whose_only_connection_is_held…` already does, with an r2d2
+  `CustomizeConnection` that sets the instrumentation on that pool's connection only. Both reports take `&PgPool` and
+  run wholly inside `work_upsert_transaction`, so every statement of a report runs on the measured connection.
+- Nothing process-wide is installed (`set_default_instrumentation` is not used). There is no database extension, no
+  production hook, no new dependency and no path outside `tests.rs`. Fixture writes use the ordinary test pool and are
+  not measured.
+- The assertion is exact: the number of logged statements naming `crossref_write_permit_doi`, and the number of
+  statements of a report over five permits against the same report over one permit.
+
+### 19.6 RED
+
+The regression test was written before any production change. Every RED run used:
+
+```text
+cargo test -p thoth-api --features backend --lib -- \
+  model::crossref_write_permit::tests::merge_readiness_correction
+```
+
+1. With only `tests.rs` changed and `crud.rs` byte-identical to `86917f9f` (blob `89b557f3…`), the test as first
+   written stopped at its first assertion: `crossrefWritePermits returned 5 permits and read the membership table 5
+   times`, `left: 5`, `right: 1`.
+2. The test was then changed, still before any production change, to observe both reports before asserting
+   (`tests.rs` blob `eb530b6c…`). Against the same unchanged `crud.rs`:
+
+```text
+(membership reads of report 11, of report 12, statements of report 11, of report 12) over 5 permits, against one
+membership read and the statements of a one-permit page
+report 11: [ "BEGIN", "SELECT … FROM \"crossref_write_permit\" … LIMIT $1 OFFSET $2",
+             "SELECT doi FROM public.crossref_write_permit_doi WHERE permit_id = $1 ORDER BY doi COLLATE \"C\"" × 5,
+             "COMMIT" ]
+report 12: [ "BEGIN", "SELECT * FROM public.crossref_write_permit WHERE … ORDER BY issued_at, permit_id",
+             "SELECT doi FROM public.crossref_write_permit_doi WHERE permit_id = $1 ORDER BY doi COLLATE \"C\"" × 5,
+             "COMMIT" ]
+one permit: [ "BEGIN", "SELECT … LIMIT $1 OFFSET $2", "SELECT doi FROM … WHERE permit_id = $1 …", "COMMIT" ]
+  left: (5, 5, 8, 8)
+ right: (1, 1, 4, 4)
+test result: FAILED. 0 passed; 1 failed
+```
+
+   The five logged membership statements carried five different permit ids as their bind. That is the confirmed
+   defect: one membership read per returned permit, in both reports.
+3. The tests of section 19.9 were added after the correction, and the regression's fixture was then shared with
+   them, so its permits alternate between two publishers; its assertions did not change. The committed `tests.rs`
+   (blob `6f577759…`) was therefore run once more against the `86917f9f` `crud.rs`, swapped into the worktree for that
+   run only and restored afterwards (blob `1b988a9a…` re-verified): `test result: FAILED. 4 passed; 2 failed`. The two failures are the two
+   statement-count tests: the regression, `(5, 5, 8, 8)` against `(1, 1, 4, 4)` again, and the 120-permit test,
+   `left: 120`, `right: 1` for report 12. The four tests that pass against the old source are the behaviour tests, so
+   they describe what the reports already returned.
+
+### 19.7 The source correction
+
+```text
+git diff --numstat 86917f9f -- thoth-api/src
+42      4       thoth-api/src/model/crossref_write_permit/crud.rs
+584     0       thoth-api/src/model/crossref_write_permit/tests.rs
+```
+
+`crud.rs` (blob `1b988a9a310a54fb96ac5ecc3bf5fc74882c5c7b`):
+
+1. New private `memberships_of(connection, permit_ids)`. For an empty slice it returns an empty map and runs no
+   statement. Otherwise it runs one statement, with the ids bound as one `uuid[]`, and groups the rows into
+   `HashMap<Uuid, Vec<String>>` in row order:
+
+   ```text
+   SELECT permit_id, doi FROM public.crossref_write_permit_doi
+    WHERE permit_id = ANY($1) ORDER BY permit_id, doi COLLATE "C"
+   ```
+
+2. `with_dois` collects the ids of the permits it was given, calls `memberships_of` once, and then maps the permits
+   vector in its own order, taking each permit's DOIs out of the map by `permit_id`. It is the shape
+   `load_job_payloads` already uses for `workUpsertJobs` and `workUpsertJob`.
+3. `use std::collections::HashMap;`.
+
+Unchanged: both report functions, their permit statements, filters, `limit.max(0)` and `offset.max(0)`, their order
+`(issued_at, permit_id)` and their signatures; `membership_of` and `permit_with_dois`; every reservation,
+finalisation, report, void, reconciliation and floor operation. No migration, `schema.rs`, GraphQL, error definition,
+policy, enum, dependency, workflow, changelog or task record changed, and no file was added.
+
+### 19.8 Semantics
+
+- **Permit order.** It comes only from the report's own permit statement. The membership statement's row order
+  decides nothing but the order of DOIs inside one permit, and the map is read by `permit_id`.
+- **DOI order.** `ORDER BY permit_id, doi COLLATE "C"` makes each permit's rows arrive ascending by code point, the
+  order `membership_of` gives. `(permit_id, doi)` is the table's primary key, so that order is total.
+- **Membership identity.** Rows are grouped by their own `permit_id`, so a permit receives exactly the rows the table
+  holds for it. `permit_id` is the permit table's primary key and both permit statements read that table alone, so an
+  id occurs once in a report and taking its entry out of the map loses nothing.
+- **Snapshot.** Both reports were, and remain, one `READ COMMITTED` transaction whose statements each take a
+  snapshot. Membership rows are inserted in the transaction that inserts their permit and can never be updated or
+  deleted (`crossref_write_permit_doi_immutable`), so any statement that runs after the permit statement sees the
+  complete membership of every permit it returned. One later statement returns what N later statements returned.
+- **Empty report.** No id, no membership statement, an empty list.
+- **A permit without membership rows** cannot exist: `doi_set_cardinality >= 1`, and the deferred
+  `crossref_permit_membership_agreement` triggers compare it with the row count at commit. Both the old and the new
+  helper would give such a permit an empty list.
+- **Errors.** The new statement's `?` is inside the same `work_upsert_transaction` closure, so a database error takes
+  the same scoped conversion as before. Authorization is the resolver's and is untouched.
+- **Cost.** A report now runs two statements for any N ≥ 1, and one for N = 0.
+
+### 19.9 Tests
+
+All in `thoth-api/src/model/crossref_write_permit/tests.rs`, module `merge_readiness_correction`, on the real disposable
+PostgreSQL. The fixture issues legacy-route permits over two covered publishers, alternating, with memberships of
+three, one, two, one and three DOIs. The chapters are related in an order that is not canonical, and the DOI suffixes
+differ in `-`, `.` and `_`, which code-point order and a linguistic collation rank differently (checked outside the
+repository: `COLLATE "en-US-x-icu"` orders the first and last memberships differently from `COLLATE "C"`).
+
+| Test | What it establishes |
+|---|---|
+| `a_permit_report_reads_the_memberships_it_returns_in_one_statement` | the regression of section 19.6: five permits, one membership statement in each report, and as many statements as a one-permit page |
+| `both_reports_return_each_permit_in_issue_order_with_its_own_membership` | permits are issued until issue order differs from `permit_id` order, the order of the membership statement; each report equals, entry for entry, the unchanged single-permit read `permit_with_dois` in issue order; every membership equals the literal canonical list, the reservation's `dois`, the rows the test reads from the table itself, and `doi_set_cardinality` |
+| `report_11_keeps_its_filters_and_pagination` | over permits in `RESERVED`, `AUTHORIZED`, `INDETERMINATE`, `VOIDED` and `ACCEPTED`: no filter; each publisher; one root Work; one state, several states, a state with no permit; a publisher and states together; a job and an attempt no permit has; pages `(2,0)`, `(2,2)`, `(2,4)`, `(2,5)`, `(100,3)`, a page of a filtered report; `limit` 0 and -1; `offset` -3. Each result equals the expected slice of whole entries |
+| `report_12_returns_every_blocking_permit_oldest_first` | of those five, exactly the `RESERVED`, `AUTHORIZED` and `INDETERMINATE` permits, oldest first, with their three-, one- and two-DOI memberships; `crossref_blocking_write_permit_count` agrees |
+| `a_report_over_more_permits_than_a_default_page_is_complete_and_reads_the_memberships_once` | 120 blocking permits: report 12 returns all 120 in issue order, each with its own DOI; report 11 returns the resolver's default page of 100 and then the remaining 20; one membership statement each time |
+| `an_empty_report_is_empty_and_reads_no_membership` | with no permit, and with five `VOIDED` permits under a filter, a `limit` of 0 and report 12: an empty list and no membership statement |
+
+Unchanged and passing: `reports_11_to_14_list_permits_unresolved_permits_the_floor_and_drain`, which covers the job
+and attempt filters on a `WORK_UPSERT` permit; the frozen query-field list and T257's superuser-only check of report
+12 through GraphQL; and `tests/work_upsert_lifecycle.rs`, which reads report 11 through GraphQL by job identity
+and state.
+
+### 19.10 GREEN and validation
+
+- With `tests.rs` unchanged from RED run 2 (blob `eb530b6c…`), the regression test passed once `crud.rs` was
+  corrected: `1 passed`, and `model::crossref_write_permit::tests` `100 passed`. With the committed `tests.rs`: module
+  `merge_readiness_correction` `6 passed`, and `model::crossref_write_permit::tests` `105 passed` (99 existing and 6
+  new), `0 failed`.
+- On the worktree whose `crud.rs` and `tests.rs` are the committed blobs (`1b988a9a…` and `6f577759…`), before this
+  section was written:
+
+```text
+cargo fmt --all -- --check                                      exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings  exit 0 (proc-macro-error2 notice only)
+cargo test --workspace --no-fail-fast                           exit 0; 1729 passed, 0 failed, 8 ignored
+thoth (bin)                                          31 passed
+thoth-api lib                                      1458 passed (1452 + 6)
+thoth-api tests/crossref_permit_concurrency           3 passed
+thoth-api tests/crossref_serializer_dependency_guard  4 passed
+thoth-api tests/graphql_permissions                  13 passed
+thoth-api tests/work_upsert_capture                  31 passed
+thoth-api tests/work_upsert_deletion                  4 passed
+thoth-api tests/work_upsert_lifecycle                 7 passed
+thoth-api-server lib 3; thoth-client lib 4; thoth-errors lib 11; thoth-export-server lib 152
+doc-tests: thoth_client 6; thoth_export_server 2; thoth_api 0 passed, 8 ignored
+```
+
+- Within that run: `model::crossref_write_permit::tests` 105, `model::distribution_job::tests` 74,
+  `model::work_upsert::tests` 99 and `graphql::` 163 passed. Among them: the static gates over `crud.rs` (T253, T203,
+  F16/T167, X1, X3, X11 and `only_finalisation_moves_a_permit_to_authorized`), and S1, evaluated.
+- **API.** The GraphQL SDL the build generates (`thoth-client/assets/schema.graphql`, untracked) is byte-identical to
+  the one generated from `86917f9f`: SHA-256 `6ee55071f58a7593163118ce1e9522e655bbcb6750b18225a726c90a147c2311`.
+- This section is the only later change, and it is documentation. `cargo fmt --all -- --check` and module
+  `merge_readiness_correction` were run again on the worktree that carries it, before the commit. S1 reads the
+  committed diff, so it is run again on the commit before the push; the handoff records that result.
+- **Deadlocks.** `pg_stat_database.deadlocks` rose from 0 to 1 over the workspace run. The one `deadlock detected`
+  entry in the disposable server's log is the pair of `UPDATE title` statements of `t319_schedule`, the deadlock
+  `t319_negative_control_without_the_defence_deadlocks` requires (section 18.10). That log holds no error for either
+  membership statement.
+- Tests ran only against a disposable local PostgreSQL 17.10 and Redis. `THOTH_EXPORT_API`, a compile-time string,
+  was set to a localhost URL. Nothing contacted Crossref, a provider or production.
+
+### 19.11 Diff
+
+`git diff --name-status 86917f9f909a8e84f0682af72b48d43245d9858e..HEAD`:
+
+```text
+M	docs/engineering/ai-delivery/implementation-reports/BE-06-implementation-report.md
+M	thoth-api/src/model/crossref_write_permit/crud.rs
+M	thoth-api/src/model/crossref_write_permit/tests.rs
+```
+
+The three authorized paths and no fourth; all modifications; no addition, deletion, rename or copy. This report
+gains this section and the third paragraph of the note at its head, and loses no line.
+
+The correction is one commit whose only parent is `86917f9f909a8e84f0682af72b48d43245d9858e`. A commit cannot contain
+its own SHA or tree, and the authorization allows one commit, so they are not written here: they are the head of PR
+#925 after the push and are given in the handoff. The two source blobs above identify the corrected source
+independently of this file.
+
+### 19.12 Record, side effects and remaining gate
+
+- **Model.** Claude Fable 5.1 (`claude-fable-5-1`); role: implementation; reasoning: maximum. The task brief
+  recommended Claude Sonnet 5 at high reasoning; the session's model was not changed.
+- **Limitation.** The implementing session is the one that performed the independent exact-head review of `86917f9f`
+  recorded in `5715923725`, which did not raise this finding. It is not independent for any later BE-06 review.
+- **Repository writes:** the three paths above, on the task branch only.
+- **Commit:** one, as Javier Arias, without AI attribution. No earlier commit was amended, rebased or rewritten.
+- **Push:** `feature/publisher-services-v1-10--be-06` only, a fast-forward from `86917f9f` without force. The remote
+  branch, the integration target, PR #925 and #848 are re-checked immediately before it.
+- **CI:** the push naturally triggers PR #925's `build-test-and-check`, `run-migrations`, `publish-to-dockerhub`
+  (the `staging-pr-925` image) and `check-changelog` workflows, as `5718898530` authorizes. They are observed
+  read-only; none is dispatched, re-run or cancelled. Their run IDs do not exist until after the push and are given
+  in the handoff.
+- **No** #848 comment, PR body or metadata edit, review-thread reply or resolution, PR #927 change, merge, release,
+  deployment, migration outside the disposable database, G-6, G-7, provider or Crossref access, production access or
+  activation.
+- **Gate:** the implementation agent does not approve its own work. `5715923725` approved `86917f9f` only and is
+  historical once this commit is pushed. The pushed head requires a fresh independent cold-start CRITICAL review of
+  the entire BE-06 implementation, not only this correction, before any new merge authorization. Both automated
+  review threads on PR #925 remain open for the control plane.

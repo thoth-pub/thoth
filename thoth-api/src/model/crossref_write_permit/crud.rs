@@ -7,6 +7,8 @@
 //! (Amendment 3 section 10.3, EB1). Request authorization, including the
 //! route-derived role, is the resolver's and always precedes the call.
 
+use std::collections::HashMap;
+
 use diesel::prelude::*;
 use diesel::sql_types::{Array, BigInt, Integer, Nullable, Text, Uuid as SqlUuid};
 use thoth_errors::{ThothError, ThothResult};
@@ -1424,17 +1426,53 @@ pub struct CrossrefWritePermitFilter {
     pub states: Vec<CrossrefWritePermitState>,
 }
 
+/// The persisted memberships of `permit_ids`, read in one statement, each
+/// ascending by code point.
+fn memberships_of(
+    connection: &mut PgConnection,
+    permit_ids: &[Uuid],
+) -> QueryResult<HashMap<Uuid, Vec<String>>> {
+    #[derive(QueryableByName)]
+    struct Member {
+        #[diesel(sql_type = SqlUuid)]
+        permit_id: Uuid,
+        #[diesel(sql_type = Text)]
+        doi: String,
+    }
+    let mut memberships: HashMap<Uuid, Vec<String>> = HashMap::new();
+    if permit_ids.is_empty() {
+        return Ok(memberships);
+    }
+    let members = diesel::sql_query(
+        "SELECT permit_id, doi FROM public.crossref_write_permit_doi \
+          WHERE permit_id = ANY($1) ORDER BY permit_id, doi COLLATE \"C\"",
+    )
+    .bind::<Array<SqlUuid>, _>(permit_ids)
+    .load::<Member>(connection)?;
+    for member in members {
+        memberships
+            .entry(member.permit_id)
+            .or_default()
+            .push(member.doi);
+    }
+    Ok(memberships)
+}
+
+/// The permits of a report in the order given, each with its membership. The
+/// memberships are one read for the whole list, never one read per permit.
 fn with_dois(
     connection: &mut PgConnection,
     permits: Vec<super::CrossrefWritePermit>,
 ) -> QueryResult<Vec<super::CrossrefWritePermitWithDois>> {
-    permits
+    let permit_ids: Vec<Uuid> = permits.iter().map(|permit| permit.permit_id).collect();
+    let mut memberships = memberships_of(connection, &permit_ids)?;
+    Ok(permits
         .into_iter()
         .map(|permit| {
-            let dois = membership_of(connection, permit.permit_id)?;
-            Ok(super::CrossrefWritePermitWithDois { permit, dois })
+            let dois = memberships.remove(&permit.permit_id).unwrap_or_default();
+            super::CrossrefWritePermitWithDois { permit, dois }
         })
-        .collect()
+        .collect())
 }
 
 /// Report 11, `crossrefWritePermits`: permits in issuance order.
