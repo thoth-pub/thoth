@@ -47,7 +47,10 @@ use crate::model::{
     metric_rollup_delta::{MetricRollupDeltaClaim, MetricRollupWatermark},
     metric_source::{MetricSource, MetricSourceAcquisitionType},
     metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
-    metric_source_checkpoint::MetricSourceCheckpoint,
+    metric_source_checkpoint::{
+        MetricPeriodManifestCursor, MetricPeriodManifestCursorEntry, MetricSourceCheckpoint,
+        PERIOD_MANIFEST_CURSOR_SCHEMA,
+    },
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3988,6 +3991,12 @@ impl MetricSourceAccount {
 // claim token, cursor or error text, and the import never exposes its raw
 // evidence references, upstream identity, manifest, creator or counters. A
 // claim's token is returned once, on the claim itself.
+//
+// `MET-WP2-03` adds exactly two claim fields: the platform code copied from the
+// platform row the claim locked, and the typed period-manifest cursor decoded
+// under the claim's checkpoint lock. The two cursor objects are reachable only
+// through that claim field; the generic checkpoint object still exposes no
+// cursor.
 // --------------------------------------------------------------------------
 
 #[juniper::graphql_object(
@@ -4027,6 +4036,54 @@ impl MetricSourceUnitClaim {
     )]
     pub fn lease_expires_at(&self) -> Timestamp {
         self.lease_expires_at
+    }
+
+    #[graphql(
+        description = "Stable code of the claimed account's metric platform, copied from the enabled platform row the claim locked to decide eligibility"
+    )]
+    pub fn platform_code(&self) -> &String {
+        &self.platform_code
+    }
+
+    #[graphql(
+        description = "The source manifests the checkpoint has accepted, by period, as decoded when the claim was granted. Null when none has been accepted. A period that is absent is unknown, never unchanged"
+    )]
+    pub fn period_manifest_cursor(&self) -> Option<&MetricPeriodManifestCursor> {
+        self.period_manifest_cursor.as_ref()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The source manifest digests one claimed checkpoint has accepted: at most 64 periods, oldest first"
+)]
+impl MetricPeriodManifestCursor {
+    #[graphql(description = "The cursor representation. Always \"thoth-period-manifest-cursor/1\"")]
+    pub fn schema_version(&self) -> &str {
+        PERIOD_MANIFEST_CURSOR_SCHEMA
+    }
+
+    #[graphql(description = "The retained periods, strictly ascending by periodStart")]
+    pub fn entries(&self) -> &[MetricPeriodManifestCursorEntry] {
+        self.retained_entries()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The manifest digest accepted for one period"
+)]
+impl MetricPeriodManifestCursorEntry {
+    #[graphql(description = "First day of the period")]
+    pub fn period_start(&self) -> NaiveDate {
+        self.period()
+    }
+
+    #[graphql(
+        description = "SHA-256 of the deterministic source manifest a successful import recorded for the period: 64 lowercase hexadecimal characters"
+    )]
+    pub fn manifest_digest(&self) -> &str {
+        self.digest()
     }
 }
 

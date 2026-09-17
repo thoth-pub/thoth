@@ -9,6 +9,11 @@
 //! database access, a complete lifecycle through GraphQL, and the bounded,
 //! sanitized error extensions.
 //!
+//! `MET-WP2-03` adds the exact claim-time `platformCode` and period-manifest
+//! cursor object shapes, their reachability only through the protected claim
+//! result, the typed claim snapshot through GraphQL, and the refusal of any
+//! caller-supplied cursor on the checkpoint update.
+//!
 //! Lease, concurrency, idempotency, progress and crash/retry evidence lives
 //! with the durable state itself, in
 //! `crate::model::metric_ingestion_lifecycle::tests`.
@@ -397,7 +402,15 @@ fn the_lifecycle_objects_and_inputs_match_the_frozen_contract_exactly() {
     };
     exact(
         "type MetricSourceUnitClaim {",
-        "source:MetricSource!sourceAccount:MetricSourceAccount!checkpoint:MetricSourceCheckpoint!partitionKey:String!leaseToken:Uuid!leaseExpiresAt:Timestamp!",
+        "source:MetricSource!sourceAccount:MetricSourceAccount!checkpoint:MetricSourceCheckpoint!partitionKey:String!leaseToken:Uuid!leaseExpiresAt:Timestamp!platformCode:String!periodManifestCursor:MetricPeriodManifestCursor",
+    );
+    exact(
+        "type MetricPeriodManifestCursor {",
+        "schemaVersion:String!entries:[MetricPeriodManifestCursorEntry!]!",
+    );
+    exact(
+        "type MetricPeriodManifestCursorEntry {",
+        "periodStart:Date!manifestDigest:String!",
     );
     exact(
         "type MetricSourceCheckpoint {",
@@ -466,6 +479,109 @@ fn the_lifecycle_objects_and_inputs_match_the_frozen_contract_exactly() {
     // No new scalar was introduced for this surface.
     for scalar in ["scalar UUID", "scalar DateTime"] {
         assert!(!sdl.contains(scalar), "`{scalar}` must not be introduced");
+    }
+}
+
+/// Every SDL line declaring a field or argument of exactly `type_name`,
+/// ignoring list and non-null wrappers.
+fn fields_of_type<'a>(sdl: &'a str, type_name: &str) -> Vec<&'a str> {
+    sdl.lines()
+        .map(str::trim)
+        .filter(|line| {
+            line.rsplit_once(": ").is_some_and(|(_, declared)| {
+                declared.trim_matches(|c| matches!(c, '[' | ']' | '!')) == type_name
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn the_claim_context_is_reachable_only_through_the_protected_claim_result() {
+    let sdl = create_schema().as_sdl();
+
+    // Each cursor object is returned by exactly one field in the whole schema...
+    assert_eq!(
+        fields_of_type(&sdl, "MetricPeriodManifestCursor"),
+        ["periodManifestCursor: MetricPeriodManifestCursor"]
+    );
+    assert!(sdl_block(&sdl, "type MetricSourceUnitClaim {")
+        .contains("\n  periodManifestCursor: MetricPeriodManifestCursor\n"));
+    assert_eq!(
+        fields_of_type(&sdl, "MetricPeriodManifestCursorEntry"),
+        ["entries: [MetricPeriodManifestCursorEntry!]!"]
+    );
+    assert!(sdl_block(&sdl, "type MetricPeriodManifestCursor {")
+        .contains("\n  entries: [MetricPeriodManifestCursorEntry!]!\n"));
+    // ...and the claim itself only by the protected claim mutation.
+    let claim_fields = fields_of_type(&sdl, "MetricSourceUnitClaim");
+    assert_eq!(claim_fields.len(), 1, "{claim_fields:?}");
+    assert!(claim_fields[0].starts_with("claimMetricSourceUnits("));
+    assert!(sdl_block(&sdl, "type MutationRoot {").contains(claim_fields[0]));
+
+    // `platformCode` is an output field of the claim and of no other object.
+    let declaring_platform_code: Vec<&str> = sdl
+        .lines()
+        .filter_map(|line| line.strip_prefix("type ")?.strip_suffix(" {"))
+        .filter(|name| {
+            sdl_block(&sdl, &format!("type {name} {{"))
+                .lines()
+                .any(|line| line.trim_start().starts_with("platformCode:"))
+        })
+        .collect();
+    assert_eq!(declaring_platform_code, ["MetricSourceUnitClaim"]);
+
+    // No root, checkpoint, registry, import or public object mentions cursor
+    // or manifest state.
+    for declaration in [
+        "type QueryRoot {",
+        "type MutationRoot {",
+        "type MetricSourceCheckpoint {",
+        "type MetricSource {",
+        "type MetricSourceAccount {",
+        "type MetricPlatform {",
+        "type MetricImport {",
+        "type Work {",
+        "type Publisher {",
+        "type Imprint {",
+        "type Publication {",
+    ] {
+        let block = sdl_block(&sdl, declaration).to_lowercase();
+        for absent in ["cursor", "manifest"] {
+            assert!(
+                !block.contains(absent),
+                "`{declaration}` must not mention `{absent}`"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_checkpoint_update_accepts_no_caller_supplied_cursor_or_manifest() {
+    // An unreachable pool: a document that reached a resolver would report the
+    // database classification instead of failing validation.
+    let unreachable = Arc::new(test_db::failing_pool());
+    let schema = create_schema();
+    let context = context_for(&unreachable, Some(ingest_user()));
+    for member in [
+        "cursor: \"{}\"",
+        "periodManifestCursor: { schemaVersion: \"thoth-period-manifest-cursor/1\", entries: [] }",
+        "manifestDigest: \"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"",
+        "periodStart: \"2026-03-01\"",
+    ] {
+        let document = format!(
+            "mutation {{ updateMetricSourceCheckpoint(input: {{ importId: \"{}\", leaseToken: \"{}\", {member} }}) \
+               {{ sourceCheckpointId }} }}",
+            Uuid::new_v4(),
+            Uuid::new_v4()
+        );
+        let response = run(&schema, &context, &document).await;
+        assert!(response["data"].is_null(), "{member}: {response}");
+        let errors = response["errors"].as_array().expect("errors array");
+        assert!(!errors.is_empty(), "{member}: {response}");
+        assert!(
+            !response.to_string().contains("INTERNAL_DATABASE_ERROR"),
+            "{member} must fail validation before any resolver runs: {response}"
+        );
     }
 }
 
@@ -823,4 +939,92 @@ async fn a_complete_unit_runs_through_the_five_operations_with_bounded_errors() 
         &run(&schema, &context, &unknown_source).await,
         "SOURCE_NOT_FOUND",
     );
+}
+
+// --------------------------------------------------------------------------
+// MET-WP2-03: claim-time platform code and period-manifest cursor
+// --------------------------------------------------------------------------
+
+fn claim_context_doc(limit: i32) -> String {
+    format!(
+        "mutation {{ claimMetricSourceUnits(input: {{ sourceCode: \"{SOURCE_CODE}\", limit: {limit} }}) \
+           {{ leaseToken platformCode sourceAccount {{ code }} \
+              periodManifestCursor {{ schemaVersion entries {{ periodStart manifestDigest }} }} }} }}"
+    )
+}
+
+#[tokio::test]
+async fn a_claim_returns_its_locked_platform_code_and_the_accepted_period_manifest_cursor() {
+    let (_guard, f) = setup();
+    let schema = create_schema();
+    let context = context_for(&f.pool, Some(ingest_user()));
+
+    // No accepted manifest history: SQL NULL is GraphQL null.
+    let response = run(&schema, &context, &claim_context_doc(1)).await;
+    let claims = data(&response, "claimMetricSourceUnits")
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0]["sourceAccount"]["code"], ACCOUNT_A);
+    assert_eq!(claims[0]["platformCode"], "cf");
+    assert!(claims[0]["periodManifestCursor"].is_null());
+    let token = claims[0]["leaseToken"].as_str().unwrap().to_string();
+
+    // One successful unit through the protected operations.
+    let begun = run(&schema, &context, &begin_doc(&token, "report-1", &["b1"])).await;
+    let import_id = data(&begun, "beginMetricImport")["importId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let batch = run(
+        &schema,
+        &context,
+        &ingest_doc(&import_id, &token, "b1", "10"),
+    )
+    .await;
+    data(&batch, "ingestMetricBatch");
+    let completed = run(&schema, &context, &complete_doc(&import_id, &token)).await;
+    assert_eq!(
+        data(&completed, "completeMetricImport")["status"],
+        "COMPLETED"
+    );
+    let recorded = run(&schema, &context, &update_doc(&import_id, &token)).await;
+    assert_eq!(
+        data(&recorded, "updateMetricSourceCheckpoint")["lastSuccessfulPeriodEnd"],
+        "2026-03-02"
+    );
+
+    // The next claim returns the accepted manifest, typed.
+    let response = run(&schema, &context, &claim_context_doc(1)).await;
+    let claim = data(&response, "claimMetricSourceUnits")[0].clone();
+    assert_eq!(claim["sourceAccount"]["code"], ACCOUNT_A);
+    assert_eq!(claim["platformCode"], "cf");
+    assert_eq!(
+        claim["periodManifestCursor"],
+        json!({
+            "schemaVersion": "thoth-period-manifest-cursor/1",
+            "entries": [{"periodStart": "2026-03-01", "manifestDigest": DIGEST}],
+        })
+    );
+
+    // A stored cursor outside the closed representation fails the claim with
+    // the bounded, sanitized code, and no unit is leased.
+    f.sql("UPDATE metric_source_checkpoint SET lease_owner = NULL, lease_expires_at = NULL");
+    f.sql(&format!(
+        "UPDATE metric_source_checkpoint SET cursor = '{}'::jsonb WHERE source_account_id = '{}'",
+        json!({
+            "schemaVersion": "thoth-period-manifest-cursor/1",
+            "entries": [{"periodStart": "2026-03-01", "manifestDigest": DIGEST, "objectKey": "leak-sentinel"}],
+        }),
+        f.account_a
+    ));
+    let before = f.snapshot();
+    let response = run(&schema, &context, &claim_context_doc(10)).await;
+    assert_error(&response, "INTERNAL_STATE_INCONSISTENCY");
+    assert!(
+        !response.to_string().contains("leak-sentinel") && !response.to_string().contains(DIGEST),
+        "no stored cursor content may reach the caller: {response}"
+    );
+    assert_eq!(f.snapshot(), before);
 }
