@@ -363,8 +363,10 @@ Contract:
   returned only in that claim as `leaseToken`. Every later operation locks the
   checkpoint `FOR UPDATE` and requires that exact token and an unexpired
   lease; an unknown, foreign, expired, reclaimed or released token is
-  `STALE_SOURCE_CLAIM` and changes nothing. `lease_owner`, `cursor` and
-  `last_error` are never exposed, and the last two are never written.
+  `STALE_SOURCE_CLAIM` and changes nothing. `lease_owner` and `last_error` are
+  never exposed, and `last_error` is never written. The checkpoint `cursor` is
+  read and written only as section 3.3 defines, and is never exposed on
+  `MetricSourceCheckpoint`.
 - **Import envelope.** `beginMetricImport` creates the account's import for one
   one-day unit with status `PROCESSING`, the publisher taken from the account's
   pin, `created_by` from the authenticated principal, `raw_object_key` null,
@@ -418,6 +420,87 @@ Contract:
 No migration, table, column or index is added: the existing checkpoint lease
 columns and import idempotency index are the whole durable boundary. There is
 no second queue, no process-local claim state and no generic job abstraction.
+
+### 3.3 Claim context and period-manifest cursor (`MET-WP2-03`)
+
+`MET-WP2-03` (#924) extends the section 3.2 lifecycle with the claim-time
+context a real managed `DRIVER` needs and a bounded, producer-owned checkpoint
+cursor. It adds no operation, input field, enum value, error code, role, table,
+column or index: the five operations and their authorization are exactly those
+of section 3.2.
+
+The generated SDL gains exactly these declarations:
+
+```graphql
+type MetricPeriodManifestCursor {
+  schemaVersion: String!
+  entries: [MetricPeriodManifestCursorEntry!]!
+}
+
+type MetricPeriodManifestCursorEntry {
+  periodStart: Date!
+  manifestDigest: String!
+}
+
+# on MetricSourceUnitClaim only
+platformCode: String!
+periodManifestCursor: MetricPeriodManifestCursor
+```
+
+Contract:
+
+- **Claimed context.** A claim already carries the source (`code`, `driverKey`,
+  `defaultLookbackDays`, `defaultFinalizationDelayDays`) and the source account
+  (`code`, typed `configuration`) it revalidated under its locks; consumers
+  select those existing fields, which are not duplicated. `platformCode` is
+  copied inside the claim transaction from the platform row the claim locked
+  `FOR SHARE` and found enabled, and is never resolved afterwards.
+- **Representation.** The only durable cursor is
+  `metric_source_checkpoint.cursor`, whose database type stays generic JSONB.
+  SQL `NULL` is the only representation of no accepted history and is returned
+  as `periodManifestCursor: null`. Any other stored value must be exactly
+  `{"schemaVersion": "thoth-period-manifest-cursor/1", "entries": [{"periodStart": "YYYY-MM-DD", "manifestDigest": "<64 lowercase hexadecimal characters>"}]}`
+  with no other member at either level, 1 to 64 entries strictly ascending and
+  unique by `periodStart`, and every `periodStart` the canonical ten-character
+  rendering of one valid date. It holds no source object, request, viewer or
+  credential data.
+- **Absence means unknown.** 64 is a storage bound, not a lookback limit. A
+  period that is absent, whether never recorded or evicted, is unknown and may
+  be rediscovered; absence never means unchanged.
+- **Claim-time validation.** For each unit still eligible after the locked
+  revalidation, the stored cursor is decoded while its checkpoint is locked and
+  before the lease is written. A stored cursor outside the representation fails
+  the whole claim as `INTERNAL_STATE_INCONSISTENCY`: no lease is granted and
+  nothing is repaired. A unit skipped as ineligible is not decoded.
+- **Server-derived advancement.** No caller supplies cursor state, and
+  `UpdateMetricSourceCheckpointInput` remains exactly `importId` and
+  `leaseToken`. When the live holder records an import that satisfies the
+  section 3.2 successful-period predicate, the single `UPDATE` that records
+  progress and releases the lease also inserts or replaces the entry for the
+  import's `period_start`, using the `manifestDigest` of its strict
+  `thoth-managed-driver-import/1` envelope, and evicts the chronologically
+  oldest entries beyond 64. `COMPLETED_WITH_ERRORS`, zero coverage rows, a
+  mismatched period, `PARTIAL` and `UNKNOWN` leave the cursor unchanged;
+  non-terminal and `FAILED` imports and stale, expired, reclaimed or foreign
+  tokens change nothing. Successful reprocessing of an older period may replace
+  its digest and never moves `last_successful_period_end` backwards.
+- **Replay.** A repeat after release stays read-only. It returns the checkpoint
+  without writing when progress is already recorded, the cursor plays no part in
+  that decision, and an entry evicted later is never resurrected.
+- **Fail-closed stored state.** A terminal import whose stored envelope does
+  not decode, and a live update over a stored cursor outside the
+  representation, fail as `INTERNAL_STATE_INCONSISTENCY` with no cursor,
+  progress or lease write. The client-facing message is the fixed coordinator
+  message and carries no stored value.
+- **Reachability.** The two cursor objects are reachable only through
+  `MetricSourceUnitClaim.periodManifestCursor`, and `platformCode` is an output
+  field of the claim only. `MetricSourceCheckpoint`, `MetricSource`,
+  `MetricSourceAccount`, `MetricPlatform`, `QueryRoot` and the superuser
+  registry lookups expose no cursor state.
+
+An existing stored cursor outside the representation is neither migrated nor
+rewritten; a claim of its eligible unit fails closed until a separately
+authorized repair.
 
 ## 4. Dashboard/widget
 

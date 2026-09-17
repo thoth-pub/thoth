@@ -5,10 +5,10 @@
 //! only: canonical ingestion is delegated unchanged to
 //! [`ingest_metric_batch`](crate::model::metric_ingestion::ingest_metric_batch),
 //! and the only durable state touched here is the existing
-//! `metric_source_checkpoint` lease/progress row, the existing `metric_import`
-//! envelope and, read-only, the committed `metric_import_batch` and
-//! `metric_coverage` evidence. There is no second queue, no process-local claim
-//! ledger and no generic worker or job abstraction.
+//! `metric_source_checkpoint` lease, progress and cursor row, the existing
+//! `metric_import` envelope and, read-only, the committed `metric_import_batch`
+//! and `metric_coverage` evidence. There is no second queue, no process-local
+//! claim ledger and no generic worker or job abstraction.
 //!
 //! # One source unit
 //!
@@ -31,6 +31,23 @@
 //! required by every later operation. A caller holds a *live* claim only while
 //! the stored token equals its token and `lease_expires_at` is after the
 //! transaction timestamp, both checked under the checkpoint row lock.
+//!
+//! # Claim context and period-manifest cursor (`MET-WP2-03`)
+//!
+//! A claim carries the source and account rows it revalidated under its locks,
+//! the stable `platform_code` copied from the platform row it locked
+//! `FOR SHARE` and found enabled, and the checkpoint's accepted
+//! [`MetricPeriodManifestCursor`], decoded while that checkpoint is locked and
+//! before its lease is written. A stored cursor outside the closed
+//! representation fails the whole claim as `INTERNAL_STATE_INCONSISTENCY`, so
+//! no lease is granted over it.
+//!
+//! No caller ever supplies cursor state. `update_metric_source_checkpoint`
+//! derives the one entry it may record from the terminal import's own
+//! `period_start` and the `manifestDigest` of its strict managed envelope, and
+//! records it only under the same successful-period predicate that advances
+//! `last_successful_period_end`, in the one `UPDATE` that also records progress
+//! and releases the claim.
 //!
 //! # Transactions and lock order
 //!
@@ -74,7 +91,8 @@ use diesel::pg::PgConnection;
 use diesel::r2d2::PoolError;
 use diesel::result::Error as DieselError;
 use diesel::sql_types::{
-    Array, BigInt, Bool, Date as SqlDate, Integer, Nullable, Text, Timestamptz, Uuid as SqlUuid,
+    Array, BigInt, Bool, Date as SqlDate, Integer, Jsonb, Nullable, Text, Timestamptz,
+    Uuid as SqlUuid,
 };
 use diesel::{sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use juniper::{FieldError, IntoFieldError};
@@ -93,7 +111,7 @@ use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::MetricRecordProvenanceClassification;
 use crate::model::metric_source::{MetricSource, MetricSourceAcquisitionType};
 use crate::model::metric_source_account::{check_source_compatibility, MetricSourceAccount};
-use crate::model::metric_source_checkpoint::MetricSourceCheckpoint;
+use crate::model::metric_source_checkpoint::{MetricPeriodManifestCursor, MetricSourceCheckpoint};
 use crate::model::publication::PublicationType;
 use crate::model::publisher::{PublisherCapability, ThothPackage};
 use crate::model::Timestamp;
@@ -422,7 +440,12 @@ pub struct UpdateMetricSourceCheckpointInput {
 pub struct MetricSourceUnitClaim {
     pub source: MetricSource,
     pub source_account: MetricSourceAccount,
+    /// Stable code of the platform row the claim locked and found enabled.
+    pub platform_code: String,
     pub checkpoint: MetricSourceCheckpoint,
+    /// The checkpoint's accepted period manifests, decoded under the claim's
+    /// checkpoint lock; `None` is SQL `NULL`, no accepted history.
+    pub period_manifest_cursor: Option<MetricPeriodManifestCursor>,
     pub lease_token: Uuid,
     pub lease_expires_at: Timestamp,
 }
@@ -505,13 +528,15 @@ fn manifest_envelope(manifest_digest: &str, keys: &BTreeSet<String>) -> JsonValu
     })
 }
 
-/// Decode a stored managed-DRIVER manifest envelope into its expected batch
-/// keys. Anything that is not exactly that envelope fails closed.
-pub(crate) fn expected_batch_keys(manifest: &JsonValue) -> Option<BTreeSet<String>> {
+/// Decode a stored managed-DRIVER manifest envelope into its manifest digest
+/// and expected batch keys. Anything that is not exactly that envelope fails
+/// closed.
+fn decode_manifest_envelope(manifest: &JsonValue) -> Option<(&str, BTreeSet<String>)> {
     let object = manifest.as_object()?;
+    let manifest_digest = object.get("manifestDigest")?.as_str()?;
     if object.len() != 3
         || object.get("schemaVersion")?.as_str()? != MANAGED_IMPORT_MANIFEST_SCHEMA
-        || !is_lowercase_sha256_hex(object.get("manifestDigest")?.as_str()?)
+        || !is_lowercase_sha256_hex(manifest_digest)
     {
         return None;
     }
@@ -520,7 +545,13 @@ pub(crate) fn expected_batch_keys(manifest: &JsonValue) -> Option<BTreeSet<Strin
         .iter()
         .map(|key| key.as_str().map(str::to_string))
         .collect::<Option<_>>()?;
-    (!set.is_empty() && set.len() == keys.len()).then_some(set)
+    (!set.is_empty() && set.len() == keys.len()).then_some((manifest_digest, set))
+}
+
+/// Decode a stored managed-DRIVER manifest envelope into its expected batch
+/// keys. Anything that is not exactly that envelope fails closed.
+pub(crate) fn expected_batch_keys(manifest: &JsonValue) -> Option<BTreeSet<String>> {
+    decode_manifest_envelope(manifest).map(|(_, keys)| keys)
 }
 
 /// Validate the begin-import request without touching the database, returning
@@ -618,8 +649,17 @@ fn to_coordinator_batch(input: &IngestMetricBatchInput) -> LifecycleResult<Metri
     })
 }
 
+/// What an eligible managed-DRIVER route resolves to.
+struct EligibleRoute {
+    /// The account's pinned publisher.
+    publisher_id: Uuid,
+    /// Stable code of the enabled platform row eligibility was decided from.
+    platform_code: String,
+}
+
 /// Whether one source account is an eligible managed-DRIVER route for its
-/// source, returning its pinned publisher.
+/// source, returning its pinned publisher and the stable code of the platform
+/// row eligibility was decided from.
 ///
 /// `lock` reads the platform and publisher `FOR SHARE`, the order the
 /// canonical coordinator uses. The claim's candidate enumeration reads them
@@ -631,7 +671,7 @@ fn check_eligibility(
     source: &MetricSource,
     account: &MetricSourceAccount,
     lock: bool,
-) -> LifecycleResult<Uuid> {
+) -> LifecycleResult<EligibleRoute> {
     use MetricLifecycleError::{MetricsCollectNotEntitled, SourceNotEligible};
     if source.acquisition_type != MetricSourceAcquisitionType::Driver
         || !source.enabled
@@ -646,9 +686,9 @@ fn check_eligibility(
     } else {
         platform_query.first(connection).optional()?
     };
-    if !platform.is_some_and(|platform| platform.enabled) {
-        return Err(SourceNotEligible);
-    }
+    let platform = platform
+        .filter(|platform| platform.enabled)
+        .ok_or(SourceNotEligible)?;
     let publisher_id = account.expected_publisher_id.ok_or(SourceNotEligible)?;
     let package_query = publisher::table
         .find(publisher_id)
@@ -666,7 +706,10 @@ fn check_eligibility(
     if !package.has_capability(PublisherCapability::MetricsCollect) {
         return Err(MetricsCollectNotEntitled);
     }
-    Ok(publisher_id)
+    Ok(EligibleRoute {
+        publisher_id,
+        platform_code: platform.code,
+    })
 }
 
 /// The account's `default` checkpoint, locked `FOR UPDATE`, with its lease
@@ -740,11 +783,20 @@ struct SelectedCheckpoint {
     source_account_id: Uuid,
 }
 
+/// The locked canonical authority one claimed unit is leased from.
+struct ClaimAuthority {
+    source: MetricSource,
+    account: MetricSourceAccount,
+    /// Stable code of the platform row locked `FOR SHARE` and found enabled.
+    platform_code: String,
+}
+
 /// Reload and lock `FOR SHARE`, in the lifecycle's lock order, every mutable
 /// canonical authority row behind one locked checkpoint, and decide the unit's
 /// eligibility from those rows alone.
 ///
-/// This is the CR-1 claim-time revalidation: the rows it returns are the ones
+/// This is the CR-1 claim-time revalidation: the rows it returns, and the
+/// platform code it copies from the platform row it locked, are the authority
 /// the lease is granted from, and their shares are held until the claim
 /// commits, so no canonical writer can commit a conflicting change in between.
 /// A source that is no longer an enabled `DRIVER` source fails the whole claim
@@ -755,7 +807,7 @@ fn revalidate_claim_authority(
     connection: &mut PgConnection,
     source_id: Uuid,
     source_account_id: Uuid,
-) -> LifecycleResult<Option<(MetricSource, MetricSourceAccount)>> {
+) -> LifecycleResult<Option<ClaimAuthority>> {
     let account: Option<MetricSourceAccount> = metric_source_account::table
         .find(source_account_id)
         .for_share()
@@ -772,13 +824,38 @@ fn revalidate_claim_authority(
         return Err(MetricLifecycleError::SourceNotEligible);
     }
     match check_eligibility(connection, &source, &account, true) {
-        Ok(_) => Ok(Some((source, account))),
+        Ok(route) => Ok(Some(ClaimAuthority {
+            source,
+            account,
+            platform_code: route.platform_code,
+        })),
         Err(
             MetricLifecycleError::SourceNotEligible
             | MetricLifecycleError::MetricsCollectNotEntitled,
         ) => Ok(None),
         Err(error) => Err(error),
     }
+}
+
+/// Decode the stored cursor of a checkpoint this transaction holds locked.
+///
+/// A value outside the closed representation is internal state inconsistency:
+/// it is never read as empty and never repaired, and the failure carries none
+/// of the stored value.
+fn locked_period_manifest_cursor(
+    connection: &mut PgConnection,
+    source_checkpoint_id: Uuid,
+) -> LifecycleResult<Option<MetricPeriodManifestCursor>> {
+    let stored: Option<JsonValue> = metric_source_checkpoint::table
+        .find(source_checkpoint_id)
+        .select(metric_source_checkpoint::cursor)
+        .first(connection)?;
+    MetricPeriodManifestCursor::decode(stored.as_ref()).map_err(|_| {
+        log::error!(
+            "metric source checkpoint {source_checkpoint_id} holds an unsupported period-manifest cursor"
+        );
+        MetricIngestionErrorCode::InternalStateInconsistency.into()
+    })
 }
 
 /// Claim up to `limit` units of one managed-DRIVER source.
@@ -788,11 +865,13 @@ fn revalidate_claim_authority(
 /// conflict-safe insert, lock the unleased or expired checkpoints
 /// `FOR UPDATE SKIP LOCKED` in the same order, then, for each locked
 /// checkpoint, lock and revalidate its account, source, platform and publisher
-/// `FOR SHARE` and lease it under a fresh token from that locked state only. A
-/// row another claimer holds locked is skipped, never waited on. An account
-/// that is ineligible at enumeration is skipped and gains no checkpoint; one
-/// that became ineligible by revalidation is skipped and its checkpoint stays
-/// unleased; a source that became ineligible fails the claim closed.
+/// `FOR SHARE`, decode its stored period-manifest cursor, and lease it under a
+/// fresh token from that locked state only. A row another claimer holds locked
+/// is skipped, never waited on. An account that is ineligible at enumeration is
+/// skipped and gains no checkpoint; one that became ineligible by revalidation
+/// is skipped, its cursor unread and its checkpoint unleased; a source that
+/// became ineligible, or an eligible unit whose stored cursor is outside the
+/// closed representation, fails the claim closed.
 pub fn claim_metric_source_units(
     db: &PgPool,
     input: &ClaimMetricSourceUnitsInput,
@@ -872,11 +951,13 @@ pub fn claim_metric_source_units(
 
         let mut claims = Vec::with_capacity(selected.len());
         for row in selected {
-            let Some((locked_source, locked_account)) =
+            let Some(authority) =
                 revalidate_claim_authority(connection, source.source_id, row.source_account_id)?
             else {
                 continue;
             };
+            let period_manifest_cursor =
+                locked_period_manifest_cursor(connection, row.source_checkpoint_id)?;
             let lease_token = Uuid::new_v4();
             sql_query(
                 "UPDATE metric_source_checkpoint \
@@ -895,9 +976,11 @@ pub fn claim_metric_source_units(
                 .lease_expires_at
                 .ok_or(MetricIngestionErrorCode::InternalStateInconsistency)?;
             claims.push(MetricSourceUnitClaim {
-                source: locked_source,
-                source_account: locked_account,
+                source: authority.source,
+                source_account: authority.account,
+                platform_code: authority.platform_code,
                 checkpoint,
+                period_manifest_cursor,
                 lease_token,
                 lease_expires_at,
             });
@@ -941,7 +1024,7 @@ pub fn begin_metric_import(
             .find(account.source_id)
             .for_share()
             .first(connection)?;
-        let publisher_id = check_eligibility(connection, &source, &account, true)?;
+        let publisher_id = check_eligibility(connection, &source, &account, true)?.publisher_id;
 
         let existing: Option<MetricImport> = metric_import::table
             .filter(metric_import::source_account_id.eq(source_account_id))
@@ -1096,9 +1179,18 @@ struct CoverageEvidence {
 /// which covers exactly the import's one-day period and is `COMPLETE`; it
 /// never moves back. Zero coverage rows are not evidence of success.
 ///
+/// Under exactly that successful-period predicate, the same `UPDATE` also
+/// records the import's `period_start` and the `manifestDigest` of its strict
+/// managed envelope in the checkpoint's period-manifest cursor, replacing that
+/// period's entry and retaining at most the 64 chronologically newest periods
+/// (`MET-WP2-03`). A terminal import whose envelope does not decode, or a live
+/// update over a stored cursor outside the closed representation, fails as
+/// `INTERNAL_STATE_INCONSISTENCY` and writes nothing.
+///
 /// A repeat after the claim was already released returns the checkpoint
 /// unchanged when this import's progress is already recorded on it; it never
-/// writes. Any other call without the live claim changes nothing.
+/// writes, and the cursor plays no part in that decision. Any other call
+/// without the live claim changes nothing.
 pub fn update_metric_source_checkpoint(
     db: &PgPool,
     input: &UpdateMetricSourceCheckpointInput,
@@ -1126,9 +1218,8 @@ pub fn update_metric_source_checkpoint(
             (Some(start), Some(end)) if start.succ_opt() == Some(end) => Some((start, end)),
             _ => None,
         };
-        let valid = terminal && expected_batch_keys(&import.manifest).is_some();
         let (Some((period_start, period_end)), Some(completed_at), true) =
-            (one_day, import.completed_at, valid)
+            (one_day, import.completed_at, terminal)
         else {
             return Err(if live {
                 MetricLifecycleError::InvalidImportState
@@ -1136,6 +1227,12 @@ pub fn update_metric_source_checkpoint(
                 MetricLifecycleError::StaleSourceClaim
             });
         };
+        // The only manifest digest the cursor can ever record is the import's
+        // own. A terminal import whose strict envelope does not decode is
+        // internal state inconsistency, not a refusal a caller could correct.
+        let manifest_digest = decode_manifest_envelope(&import.manifest)
+            .map(|(manifest_digest, _)| manifest_digest.to_string())
+            .ok_or(MetricIngestionErrorCode::InternalStateInconsistency)?;
 
         let evidence: CoverageEvidence = sql_query(
             "SELECT COUNT(*) AS total, \
@@ -1171,12 +1268,29 @@ pub fn update_metric_source_checkpoint(
             };
         }
 
+        // The stored cursor is decoded under the checkpoint lock before any
+        // write, and its successor is derived from the import alone.
+        let current_cursor =
+            locked_period_manifest_cursor(connection, locked.source_checkpoint_id)?;
+        let recorded_cursor = if successful {
+            let recorded = MetricPeriodManifestCursor::record_accepted_manifest(
+                current_cursor.as_ref(),
+                period_start,
+                &manifest_digest,
+            )
+            .map_err(|_| MetricIngestionErrorCode::InternalStateInconsistency)?;
+            Some(recorded.encode())
+        } else {
+            None
+        };
+
         sql_query(
             "UPDATE metric_source_checkpoint \
                 SET last_completed_at = GREATEST(COALESCE(last_completed_at, $1), $1), \
                     last_successful_period_end = CASE \
                         WHEN $2 THEN GREATEST(COALESCE(last_successful_period_end, $3), $3) \
                         ELSE last_successful_period_end END, \
+                    cursor = CASE WHEN $2 THEN $5 ELSE cursor END, \
                     lease_owner = NULL, \
                     lease_expires_at = NULL \
               WHERE source_checkpoint_id = $4",
@@ -1185,6 +1299,7 @@ pub fn update_metric_source_checkpoint(
         .bind::<Bool, _>(successful)
         .bind::<SqlDate, _>(period_end)
         .bind::<SqlUuid, _>(locked.source_checkpoint_id)
+        .bind::<Nullable<Jsonb>, _>(recorded_cursor)
         .execute(connection)?;
         Ok(metric_source_checkpoint::table
             .find(locked.source_checkpoint_id)

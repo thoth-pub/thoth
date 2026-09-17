@@ -13,15 +13,23 @@
 //! The one failure-injection device (a sleeping trigger that holds a batch
 //! mid-transaction) exists only in the disposable test database, is defined
 //! only in this file and is removed by a `Drop` guard.
+//!
+//! `MET-WP2-03` evidence for the claim-time platform code and the closed
+//! `thoth-period-manifest-cursor/1` checkpoint cursor is asserted here against
+//! the persisted cursor itself: first advancement, same-period replacement,
+//! bounded retention, the successful-period predicate, stale tokens, replay
+//! after release, fail-closed stored state and a real current-versus-stale
+//! update race.
 
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use chrono::NaiveDate;
+use chrono::{Days, NaiveDate};
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use diesel::{sql_query, Connection, RunQueryDsl};
+use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
 use super::{
@@ -67,9 +75,110 @@ const WORK_DOI: &str = "https://doi.org/10.12345/thoth-wp2-02";
 const METHODOLOGY: &str = "cloudfront-title-session/2";
 pub(crate) const DIGEST: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
 const RAW_SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+/// The persisted cursor schema, spelled out so the stored contract is asserted
+/// independently of the implementation's constant.
+const CURSOR_SCHEMA: &str = "thoth-period-manifest-cursor/1";
 
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).expect("valid date")
+}
+
+/// A distinct valid manifest digest: 64 lowercase hexadecimal characters.
+fn digest(seed: u64) -> String {
+    format!("{seed:064x}")
+}
+
+/// The canonical stored cursor for `entries`, which must already be in
+/// strictly ascending period order.
+fn cursor_json(entries: &[(NaiveDate, String)]) -> JsonValue {
+    json!({
+        "schemaVersion": CURSOR_SCHEMA,
+        "entries": entries
+            .iter()
+            .map(|(period, digest)| json!({
+                "periodStart": period.format("%Y-%m-%d").to_string(),
+                "manifestDigest": digest,
+            }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// Stored cursor values the closed decoder must refuse, each labelled.
+fn unsupported_cursors() -> Vec<(&'static str, JsonValue)> {
+    let entry =
+        |period: &str, digest: &str| json!({"periodStart": period, "manifestDigest": digest});
+    let cursor =
+        |entries: Vec<JsonValue>| json!({"schemaVersion": CURSOR_SCHEMA, "entries": entries});
+    // Hexadecimal letters, so an uppercase variant really differs.
+    let valid = digest(0xabcdef);
+    vec![
+        ("a JSON null rather than SQL NULL", JsonValue::Null),
+        ("an empty object", json!({})),
+        ("an array", json!([entry("2026-03-01", &valid)])),
+        (
+            "an unsupported schema version",
+            json!({"schemaVersion": "thoth-period-manifest-cursor/2", "entries": [entry("2026-03-01", &valid)]}),
+        ),
+        ("no entries member", json!({"schemaVersion": CURSOR_SCHEMA})),
+        (
+            "an extension member",
+            json!({"schemaVersion": CURSOR_SCHEMA, "entries": [entry("2026-03-01", &valid)], "objects": ["cf/a.gz"]}),
+        ),
+        ("zero entries", cursor(vec![])),
+        (
+            "an entry extension member",
+            cursor(vec![
+                json!({"periodStart": "2026-03-01", "manifestDigest": valid, "requestId": "r-1"}),
+            ]),
+        ),
+        (
+            "a non-canonical date",
+            cursor(vec![entry("2026-3-01", &valid)]),
+        ),
+        (
+            "an impossible date",
+            cursor(vec![entry("2026-02-30", &valid)]),
+        ),
+        (
+            "an uppercase digest",
+            cursor(vec![entry("2026-03-01", &valid.to_uppercase())]),
+        ),
+        (
+            "a short digest",
+            cursor(vec![entry("2026-03-01", &valid[1..])]),
+        ),
+        (
+            "periods out of order",
+            cursor(vec![
+                entry("2026-03-02", &valid),
+                entry("2026-03-01", &valid),
+            ]),
+        ),
+        (
+            "a duplicated period",
+            cursor(vec![
+                entry("2026-03-01", &valid),
+                entry("2026-03-01", &valid),
+            ]),
+        ),
+        (
+            "65 entries",
+            cursor(
+                (0..65)
+                    .map(|offset| {
+                        entry(
+                            &date(2026, 1, 1)
+                                .checked_add_days(Days::new(offset))
+                                .unwrap()
+                                .format("%Y-%m-%d")
+                                .to_string(),
+                            &valid,
+                        )
+                    })
+                    .collect(),
+            ),
+        ),
+    ]
 }
 
 pub(crate) fn day(n: u32) -> NaiveDate {
@@ -208,6 +317,27 @@ impl Fixture {
         self.sql(&format!("UPDATE metric_source_checkpoint SET lease_expires_at = transaction_timestamp() - interval '1 second' WHERE source_account_id = '{account}'"));
     }
 
+    /// The account checkpoint's stored cursor exactly as PostgreSQL renders it;
+    /// `None` is SQL `NULL`.
+    fn stored_cursor_text(&self, account: Uuid) -> Option<String> {
+        text(
+            &self.pool,
+            &format!("(SELECT cursor::text FROM metric_source_checkpoint WHERE source_account_id = '{account}')"),
+        )
+    }
+
+    /// The account checkpoint's stored cursor as JSON; `None` is SQL `NULL`.
+    fn stored_cursor(&self, account: Uuid) -> Option<JsonValue> {
+        self.stored_cursor_text(account)
+            .map(|stored| serde_json::from_str(&stored).expect("a stored cursor is JSON"))
+    }
+
+    /// Store `cursor` verbatim on the account's checkpoint, bypassing every
+    /// lifecycle rule.
+    fn store_cursor(&self, account: Uuid, cursor: &JsonValue) {
+        self.sql(&format!("UPDATE metric_source_checkpoint SET cursor = '{cursor}'::jsonb WHERE source_account_id = '{account}'"));
+    }
+
     fn begin(&self, token: Uuid, upstream: &str, start: NaiveDate) -> Result<MetricImport, E> {
         begin_metric_import(&self.pool, ACTOR, &begin_input(token, upstream, start))
     }
@@ -266,7 +396,7 @@ impl Fixture {
                 (SELECT COUNT(*) FROM metric_coverage), \
                 (SELECT COUNT(*) FROM metric_rollup_delta), \
                 (SELECT string_agg(concat_ws(',', source_account_id, lease_owner, lease_expires_at, \
-                    last_discovered_at, last_completed_at, last_successful_period_end), ';' \
+                    last_discovered_at, last_completed_at, last_successful_period_end, cursor::text), ';' \
                     ORDER BY source_account_id) FROM metric_source_checkpoint), \
                 (SELECT string_agg(concat_ws(',', import_id, status, completed_at, received_count, \
                     accepted_count, invalid_count), ';' ORDER BY import_id) FROM metric_import)))",
@@ -283,8 +413,22 @@ impl Fixture {
         start: NaiveDate,
         coverage: Vec<NormalizedMetricCoverageAssertionInput>,
     ) -> MetricImport {
+        self.run_unit_with(token, upstream, start, DIGEST, "10", coverage)
+    }
+
+    /// `run_unit` with a chosen manifest digest and observation value.
+    fn run_unit_with(
+        &self,
+        token: Uuid,
+        upstream: &str,
+        start: NaiveDate,
+        manifest_digest: &str,
+        value: &str,
+        coverage: Vec<NormalizedMetricCoverageAssertionInput>,
+    ) -> MetricImport {
         let input = BeginMetricImportInput {
             expected_batch_keys: vec!["only".into()],
+            manifest_digest: manifest_digest.into(),
             ..begin_input(token, upstream, start)
         };
         let import = begin_metric_import(&self.pool, ACTOR, &input).expect("begin");
@@ -292,11 +436,37 @@ impl Fixture {
             import.import_id,
             token,
             "only",
-            vec![observation("10", start)],
+            vec![observation(value, start)],
             coverage,
         )
         .expect("batch");
         self.complete(import.import_id, token).expect("complete")
+    }
+
+    /// Claim account A, run one unit for `start` that satisfies the successful
+    /// period predicate, and record it, returning the claim token, the import
+    /// and the checkpoint the update returned.
+    fn record_success(
+        &self,
+        upstream: &str,
+        start: NaiveDate,
+        manifest_digest: &str,
+        value: &str,
+    ) -> (Uuid, MetricImport, MetricSourceCheckpoint) {
+        let claim = self.claim_a();
+        let import = self.run_unit_with(
+            claim.lease_token,
+            upstream,
+            start,
+            manifest_digest,
+            value,
+            vec![complete_day(start)],
+        );
+        assert_eq!(import.status, MetricImportStatus::Completed, "{upstream}");
+        let checkpoint = self
+            .update(import.import_id, claim.lease_token)
+            .unwrap_or_else(|error| panic!("{upstream}: {error:?}"));
+        (claim.lease_token, import, checkpoint)
     }
 }
 
@@ -397,6 +567,8 @@ fn the_first_claim_bootstraps_one_default_checkpoint_per_account_and_leases_it_u
             Some(claim.lease_expires_at)
         );
         assert_eq!(claim.checkpoint.cursor, None);
+        assert_eq!(claim.period_manifest_cursor, None, "SQL NULL is no history");
+        assert_eq!(claim.platform_code, "cf");
         assert_eq!(claim.checkpoint.last_error, None);
         assert_eq!(claim.checkpoint.last_discovered_at, None);
         assert_eq!(claim.checkpoint.last_successful_period_end, None);
@@ -527,6 +699,98 @@ fn source_resolution_and_eligibility_fail_closed() {
     f.sql("UPDATE publisher SET subscription_package = 'OBELISK'");
     f.sql("UPDATE metric_source SET acquisition_type = 'ADMIN_IMPORT', driver_key = NULL");
     assert_eq!(f.claim(10), Err(E::SourceNotEligible));
+}
+
+#[test]
+fn a_claim_carries_each_units_own_locked_platform_code_and_its_decoded_cursor() {
+    let (_guard, f) = setup();
+    // Account B reports through a second enabled platform.
+    let platform_eu = Uuid::new_v4();
+    f.sql(&format!("INSERT INTO metric_platform (platform_id, code, display_name, ownership_class, enabled) VALUES ('{platform_eu}', 'cf-eu', 'CloudFront EU', 'THOTH_MANAGED', TRUE)"));
+    f.sql(&format!(
+        "UPDATE metric_source_account SET platform_id = '{platform_eu}' WHERE source_account_id = '{}'",
+        f.account_b
+    ));
+    assert_eq!(f.claim(10).expect("claim").len(), 2);
+    reset_leases(&f);
+
+    // Account A holds a full canonical cursor; account B has no history.
+    let stored = cursor_json(
+        &(0..64)
+            .map(|offset| {
+                (
+                    date(2026, 1, 1)
+                        .checked_add_days(Days::new(offset))
+                        .unwrap(),
+                    digest(offset),
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    f.store_cursor(f.account_a, &stored);
+
+    let claims = f.claim(10).expect("claim");
+    assert_eq!(account_codes(&claims), [ACCOUNT_A, ACCOUNT_B]);
+    let (a, b) = (&claims[0], &claims[1]);
+    assert_eq!(a.platform_code, "cf");
+    assert_eq!(b.platform_code, "cf-eu");
+    let cursor = a
+        .period_manifest_cursor
+        .as_ref()
+        .expect("a stored cursor is decoded into the claim");
+    assert_eq!(cursor.retained_entries().len(), 64);
+    assert_eq!(
+        cursor.encode(),
+        stored,
+        "the typed snapshot is the stored cursor"
+    );
+    assert_eq!(a.checkpoint.cursor, Some(stored));
+    assert_eq!(b.period_manifest_cursor, None);
+    assert_eq!(cursor.retained_entries()[63].period(), date(2026, 3, 5));
+    assert_eq!(cursor.retained_entries()[63].digest(), digest(63));
+}
+
+#[test]
+fn an_unsupported_stored_cursor_fails_the_claim_closed_before_any_lease_is_written() {
+    let (_guard, f) = setup();
+    // Bootstrap both checkpoints, then release them.
+    assert_eq!(f.claim(10).expect("claim").len(), 2);
+    reset_leases(&f);
+
+    for (label, unsupported) in unsupported_cursors() {
+        f.store_cursor(f.account_a, &unsupported);
+        let stored = f.stored_cursor_text(f.account_a);
+        let before = f.snapshot();
+        assert_eq!(
+            f.claim(10).map(|claims| account_codes(&claims)),
+            Err(E::Ingestion(Code::InternalStateInconsistency)),
+            "{label}"
+        );
+        assert_eq!(
+            f.snapshot(),
+            before,
+            "{label}: no lease is written for any unit and nothing is repaired"
+        );
+        assert_eq!(f.stored_cursor_text(f.account_a), stored, "{label}");
+    }
+
+    // Only a unit the claim may return is decoded. An account skipped at
+    // enumeration is never read...
+    f.sql("UPDATE metric_source_account SET enabled = FALSE WHERE code = 'acct-a'");
+    assert_eq!(
+        f.claim(10).map(|claims| account_codes(&claims)),
+        Ok(vec![ACCOUNT_B.to_string()])
+    );
+    reset_leases(&f);
+    f.sql("UPDATE metric_source_account SET enabled = TRUE WHERE code = 'acct-a'");
+    // ...and neither is one skipped by the locked revalidation, whose checkpoint
+    // stays unleased.
+    let (claims, ()) = claim_while_paused(&f, "INSERT", |f| disable_account_a(&f.pool));
+    assert_eq!(
+        claims.map(|claims| account_codes(&claims)),
+        Ok(vec![ACCOUNT_B.to_string()])
+    );
+    assert_eq!(f.checkpoint(f.account_a).lease_owner, None);
 }
 
 // --------------------------------------------------------------------------
@@ -1571,11 +1835,12 @@ fn only_a_completed_import_with_exact_complete_coverage_advances_successful_prog
             (None, None),
             "{label}: released"
         );
-        assert_eq!(
-            (checkpoint.cursor, checkpoint.last_error),
-            (None, None),
-            "{label}"
-        );
+        assert_eq!(checkpoint.last_error, None, "{label}");
+        // The cursor advances under exactly the same predicate, in the same
+        // write that recorded progress and released the claim.
+        let expected_cursor = advances.then(|| cursor_json(&[(unit_day, DIGEST.to_string())]));
+        assert_eq!(checkpoint.cursor, expected_cursor, "{label}");
+        assert_eq!(f.stored_cursor(f.account_a), expected_cursor, "{label}");
     }
 }
 
@@ -1605,6 +1870,10 @@ fn completed_with_errors_releases_the_lease_but_never_claims_success() {
     assert_eq!(checkpoint.last_successful_period_end, None);
     assert_eq!(checkpoint.last_completed_at, completed.completed_at);
     assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(
+        checkpoint.cursor, None,
+        "COMPLETED_WITH_ERRORS accepts no manifest"
+    );
 }
 
 #[test]
@@ -1692,6 +1961,398 @@ fn checkpoint_progress_is_monotonic_and_a_released_repeat_is_read_only() {
         f.update(unrecorded.import_id, claim_free),
         Err(E::StaleSourceClaim)
     );
+}
+
+// --------------------------------------------------------------------------
+// MET-WP2-03: the period-manifest cursor on updateMetricSourceCheckpoint
+// --------------------------------------------------------------------------
+
+#[test]
+fn a_successful_update_records_its_period_manifest_and_replaces_only_that_period() {
+    let (_guard, f) = setup();
+    let accepted = |entries: &[(u32, u64)]| {
+        Some(cursor_json(
+            &entries
+                .iter()
+                .map(|(unit_day, seed)| (day(*unit_day), digest(*seed)))
+                .collect::<Vec<_>>(),
+        ))
+    };
+
+    // SQL NULL is the only representation of no accepted history; the first
+    // successful update turns it into a one-entry cursor derived from the
+    // import's own period and stored manifest digest.
+    f.claim_a();
+    assert_eq!(f.stored_cursor(f.account_a), None);
+    reset_leases(&f);
+    let (_, _, first) = f.record_success("report-d5", day(5), &digest(5), "10");
+    assert_eq!(first.last_successful_period_end, Some(day(6)));
+    assert_eq!(f.stored_cursor(f.account_a), accepted(&[(5, 5)]));
+    assert_eq!(first.cursor, f.stored_cursor(f.account_a));
+
+    // Another period inserts exactly one entry and keeps period order,
+    // whichever order the periods succeed in.
+    f.record_success("report-d9", day(9), &digest(9), "10");
+    let (_, _, earlier) = f.record_success("report-d2", day(2), &digest(2), "10");
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        accepted(&[(2, 2), (5, 5), (9, 9)])
+    );
+    assert_eq!(
+        earlier.last_successful_period_end,
+        Some(day(10)),
+        "an older successful period never moves progress backwards"
+    );
+
+    // Reprocessing a period under the same manifest leaves the stored value
+    // byte-identical.
+    let settled = f.stored_cursor_text(f.account_a);
+    f.record_success("report-d5-again", day(5), &digest(5), "10");
+    assert_eq!(f.stored_cursor_text(f.account_a), settled);
+
+    // A genuine managed revision of an older period under a changed manifest
+    // replaces that period's digest and nothing else.
+    let (_, revised, after_revision) =
+        f.record_success("report-d5-revised", day(5), &digest(55), "11");
+    assert_eq!(
+        scalar_i64(
+            &f.pool,
+            &format!("(SELECT COUNT(*) FROM metric_record_provenance WHERE import_id = '{}' AND classification = 'REVISION')", revised.import_id),
+        ),
+        1,
+        "the reprocessed period carries a real managed revision"
+    );
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        accepted(&[(2, 2), (5, 55), (9, 9)])
+    );
+    assert_eq!(after_revision.last_successful_period_end, Some(day(10)));
+}
+
+#[test]
+fn no_update_outside_the_successful_period_predicate_changes_an_accepted_cursor() {
+    let (_guard, f) = setup();
+    f.record_success("report-accepted", day(1), &digest(1), "10");
+    let accepted = f.stored_cursor_text(f.account_a);
+    assert!(accepted.is_some());
+
+    // COMPLETED imports whose coverage does not prove the period complete.
+    type Coverage = fn(NaiveDate) -> Vec<NormalizedMetricCoverageAssertionInput>;
+    let cases: Vec<(&str, Coverage)> = vec![
+        ("zero coverage rows", |_| vec![]),
+        ("PARTIAL", |d| {
+            vec![coverage(
+                MetricCoverageStatus::Partial,
+                d,
+                d.succ_opt().unwrap(),
+            )]
+        }),
+        ("UNKNOWN", |d| {
+            vec![coverage(
+                MetricCoverageStatus::Unknown,
+                d,
+                d.succ_opt().unwrap(),
+            )]
+        }),
+        ("COMPLETE and UNKNOWN", |d| {
+            vec![
+                complete_day(d),
+                coverage(MetricCoverageStatus::Unknown, d, d.succ_opt().unwrap()),
+            ]
+        }),
+    ];
+    for (index, (label, assertions)) in cases.into_iter().enumerate() {
+        let claim = f.claim_a();
+        let unit_day = day(10 + index as u32);
+        let import = f.run_unit_with(
+            claim.lease_token,
+            &format!("report-{index}"),
+            unit_day,
+            &digest(100 + index as u64),
+            "10",
+            assertions(unit_day),
+        );
+        assert_eq!(import.status, MetricImportStatus::Completed, "{label}");
+        let checkpoint = f
+            .update(import.import_id, claim.lease_token)
+            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        assert_eq!(checkpoint.lease_owner, None, "{label}: released");
+        assert_eq!(checkpoint.last_completed_at, import.completed_at, "{label}");
+        assert_eq!(
+            checkpoint.last_successful_period_end,
+            Some(day(2)),
+            "{label}"
+        );
+        assert_eq!(
+            f.stored_cursor_text(f.account_a),
+            accepted,
+            "{label}: no manifest is accepted"
+        );
+    }
+
+    // COMPLETED_WITH_ERRORS, even with exact COMPLETE coverage.
+    let claim = f.claim_a();
+    let input = BeginMetricImportInput {
+        expected_batch_keys: vec!["only".into()],
+        manifest_digest: digest(200),
+        ..begin_input(claim.lease_token, "report-errors", day(20))
+    };
+    let import = begin_metric_import(&f.pool, ACTOR, &input).unwrap();
+    f.ingest(
+        import.import_id,
+        claim.lease_token,
+        "only",
+        vec![NormalizedMetricObservationInput {
+            work_doi: "https://doi.org/10.12345/unknown".into(),
+            ..observation("1", day(20))
+        }],
+        vec![complete_day(day(20))],
+    )
+    .unwrap();
+    let completed = f.complete(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(completed.status, MetricImportStatus::CompletedWithErrors);
+    let checkpoint = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(f.stored_cursor_text(f.account_a), accepted);
+
+    // Non-terminal and FAILED imports keep their existing refusal and mutate
+    // nothing.
+    let claim = f.claim_a();
+    let pending = f
+        .begin(claim.lease_token, "report-pending", day(21))
+        .unwrap();
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(pending.import_id, claim.lease_token),
+        Err(E::InvalidImportState)
+    );
+    assert_eq!(f.snapshot(), before);
+    f.sql(&format!(
+        "UPDATE metric_import SET status = 'FAILED' WHERE import_id = '{}'",
+        pending.import_id
+    ));
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(pending.import_id, claim.lease_token),
+        Err(E::InvalidImportState)
+    );
+    assert_eq!(f.snapshot(), before);
+    assert_eq!(f.stored_cursor_text(f.account_a), accepted);
+}
+
+#[test]
+fn stale_expired_reclaimed_and_foreign_tokens_never_write_the_cursor() {
+    let (_guard, f) = setup();
+    let first = f.claim_a();
+    let import = f.run_unit_with(
+        first.lease_token,
+        "report-1",
+        day(1),
+        &digest(1),
+        "10",
+        vec![complete_day(day(1))],
+    );
+
+    // Expired, not yet reclaimed.
+    f.expire(f.account_a);
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(import.import_id, first.lease_token),
+        Err(E::StaleSourceClaim)
+    );
+    assert_eq!(f.snapshot(), before);
+
+    // Reclaimed: the old token and a foreign token are both stale.
+    let second = f.claim_a();
+    let before = f.snapshot();
+    for token in [first.lease_token, Uuid::new_v4()] {
+        assert_eq!(f.update(import.import_id, token), Err(E::StaleSourceClaim));
+    }
+    assert_eq!(f.snapshot(), before);
+    assert_eq!(f.stored_cursor(f.account_a), None);
+
+    // Only the live holder records the same terminal import.
+    let checkpoint = f.update(import.import_id, second.lease_token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(1), digest(1))]))
+    );
+}
+
+#[test]
+fn the_sixty_fifth_retained_period_evicts_only_the_oldest_and_a_released_replay_never_resurrects_it(
+) {
+    let (_guard, f) = setup();
+    let period = |offset: u64| {
+        date(2026, 1, 1)
+            .checked_add_days(Days::new(offset))
+            .unwrap()
+    };
+
+    // The oldest period is accepted through the real lifecycle.
+    let (oldest_token, oldest, _) = f.record_success("report-oldest", period(0), &digest(0), "10");
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(period(0), digest(0))]))
+    );
+    // Sixty-three later accepted periods fill the storage bound exactly.
+    let mut retained: Vec<(NaiveDate, String)> = (0..64)
+        .map(|offset| (period(offset), digest(offset)))
+        .collect();
+    f.store_cursor(f.account_a, &cursor_json(&retained));
+
+    // The sixty-fifth period is accepted through the real lifecycle and evicts
+    // the chronologically oldest entry only.
+    let (newest_token, newest, recorded) =
+        f.record_success("report-newest", period(64), &digest(64), "10");
+    retained.remove(0);
+    retained.push((period(64), digest(64)));
+    assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&retained)));
+    assert_eq!(recorded.last_successful_period_end, Some(period(65)));
+
+    // A released replay of either recorded import is read-only: the evicted
+    // oldest period is not resurrected and nothing is re-encoded.
+    let settled = f.snapshot();
+    for (import_id, token) in [
+        (oldest.import_id, oldest_token),
+        (newest.import_id, newest_token),
+    ] {
+        assert_eq!(f.update(import_id, token).unwrap(), recorded);
+        assert_eq!(f.snapshot(), settled);
+    }
+
+    // A successful period older than every retained one is inserted and
+    // evicted at once: absence means unknown, never unchanged.
+    let (_, _, older) = f.record_success("report-older", date(2025, 12, 31), &digest(999), "10");
+    assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&retained)));
+    assert_eq!(older.last_successful_period_end, Some(period(65)));
+}
+
+#[test]
+fn an_unsupported_cursor_or_import_envelope_fails_the_update_with_no_partial_write() {
+    let (_guard, f) = setup();
+    let refused = Err(E::Ingestion(Code::InternalStateInconsistency));
+    let claim = f.claim_a();
+    let successful = f.run_unit_with(
+        claim.lease_token,
+        "report-1",
+        day(1),
+        &digest(1),
+        "10",
+        vec![complete_day(day(1))],
+    );
+
+    // An unsupported stored cursor is never read as empty or repaired: no
+    // cursor, progress or release write happens.
+    for (label, unsupported) in unsupported_cursors() {
+        f.store_cursor(f.account_a, &unsupported);
+        let before = f.snapshot();
+        assert_eq!(
+            f.update(successful.import_id, claim.lease_token),
+            refused,
+            "{label}"
+        );
+        assert_eq!(f.snapshot(), before, "{label}");
+    }
+    f.sql(&format!(
+        "UPDATE metric_source_checkpoint SET cursor = NULL WHERE source_account_id = '{}'",
+        f.account_a
+    ));
+
+    // A terminal import whose stored managed envelope does not decode.
+    let envelope = f.import(successful.import_id).manifest;
+    let set_manifest = |import_id: Uuid, manifest: &JsonValue| {
+        f.sql(&format!(
+            "UPDATE metric_import SET manifest = '{manifest}'::jsonb WHERE import_id = '{import_id}'"
+        ))
+    };
+    let unsupported_envelopes = [
+        ("an empty object", json!({})),
+        (
+            "an unsupported envelope schema",
+            json!({"schemaVersion": "thoth-managed-driver-import/2", "manifestDigest": digest(1), "expectedBatchKeys": ["only"]}),
+        ),
+        (
+            "an uppercase digest",
+            json!({"schemaVersion": MANAGED_IMPORT_MANIFEST_SCHEMA, "manifestDigest": digest(0xabcdef).to_uppercase(), "expectedBatchKeys": ["only"]}),
+        ),
+        (
+            "no digest",
+            json!({"schemaVersion": MANAGED_IMPORT_MANIFEST_SCHEMA, "expectedBatchKeys": ["only"]}),
+        ),
+        (
+            "an extension member",
+            json!({"schemaVersion": MANAGED_IMPORT_MANIFEST_SCHEMA, "manifestDigest": digest(1), "expectedBatchKeys": ["only"], "cursor": {}}),
+        ),
+    ];
+    for (label, manifest) in &unsupported_envelopes {
+        set_manifest(successful.import_id, manifest);
+        let before = f.snapshot();
+        assert_eq!(
+            f.update(successful.import_id, claim.lease_token),
+            refused,
+            "{label}"
+        );
+        assert_eq!(f.snapshot(), before, "{label}");
+    }
+
+    // Restored, the live holder records the import.
+    set_manifest(successful.import_id, &envelope);
+    f.update(successful.import_id, claim.lease_token).unwrap();
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(1), digest(1))]))
+    );
+
+    // A released replay of that import fails closed the same way if its
+    // envelope stops decoding, and stays read-only.
+    set_manifest(successful.import_id, &json!({}));
+    let before = f.snapshot();
+    assert_eq!(f.update(successful.import_id, claim.lease_token), refused);
+    assert_eq!(f.snapshot(), before);
+    set_manifest(successful.import_id, &envelope);
+
+    // An unsuccessful terminal import is held to the same stored-state rules.
+    let claim = f.claim_a();
+    let unsuccessful = f.run_unit_with(
+        claim.lease_token,
+        "report-2",
+        day(2),
+        &digest(2),
+        "10",
+        vec![],
+    );
+    f.store_cursor(f.account_a, &json!({}));
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(unsuccessful.import_id, claim.lease_token),
+        refused,
+        "an unsupported cursor"
+    );
+    assert_eq!(f.snapshot(), before);
+    f.store_cursor(f.account_a, &cursor_json(&[(day(1), digest(1))]));
+    set_manifest(unsuccessful.import_id, &json!({}));
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(unsuccessful.import_id, claim.lease_token),
+        refused,
+        "an unsupported envelope"
+    );
+    assert_eq!(f.snapshot(), before);
+
+    // A non-terminal import keeps its existing refusal whatever its envelope.
+    let pending = f.begin(claim.lease_token, "report-3", day(3)).unwrap();
+    set_manifest(pending.import_id, &json!({}));
+    assert_eq!(
+        f.update(pending.import_id, claim.lease_token),
+        Err(E::InvalidImportState)
+    );
+
+    // The client-facing failure is the fixed, sanitized coordinator message.
+    let error = E::Ingestion(Code::InternalStateInconsistency);
+    assert_eq!(error.code(), "INTERNAL_STATE_INCONSISTENCY");
+    assert_eq!(error.message(), "The metric ingestion request was refused.");
 }
 
 // --------------------------------------------------------------------------
@@ -2244,6 +2905,9 @@ fn cr1_platform_authority_cannot_go_stale_between_eligibility_and_lease_grant() 
         account_codes(&claims),
         vec![ACCOUNT_A.to_string(), ACCOUNT_B.to_string()]
     );
+    // MET-WP2-03: each claim's platform code is the one it copied from the
+    // platform row it held locked and enabled while the writer waited.
+    assert!(claims.iter().all(|claim| claim.platform_code == "cf"));
     assert_eq!(f.count("metric_platform", "enabled = FALSE"), 1);
     assert_eq!(
         f.begin(claims[0].lease_token, "report-1", day(1)),
@@ -2370,4 +3034,146 @@ fn cr1_pause_cleanup_on_unwind_releases_its_hold_before_dropping_the_trigger() {
     );
     assert_eq!(f.count("pg_trigger", &format!("tgname = '{name}'")), 0);
     assert_eq!(f.count("pg_proc", &format!("proname = '{name}'")), 0);
+}
+
+// --------------------------------------------------------------------------
+// MET-WP2-03: a real current-versus-stale checkpoint update race
+// --------------------------------------------------------------------------
+
+/// A session holding one account's checkpoint row `FOR UPDATE` in an open
+/// transaction, so later updates queue on the canonical checkpoint lock in an
+/// order the test establishes. Dropping it unreleased closes the session,
+/// which releases the lock.
+struct CheckpointRowHold {
+    connection: PgConnection,
+}
+
+impl CheckpointRowHold {
+    fn acquire(account: Uuid) -> Self {
+        let mut connection = PgConnection::establish(&test_db_url()).expect("hold session");
+        sql_query("BEGIN")
+            .execute(&mut connection)
+            .expect("open the hold");
+        sql_query(format!(
+            "SELECT 1 FROM metric_source_checkpoint WHERE source_account_id = '{account}' FOR UPDATE"
+        ))
+        .execute(&mut connection)
+        .expect("lock the checkpoint row");
+        CheckpointRowHold { connection }
+    }
+
+    fn release(mut self) {
+        sql_query("COMMIT")
+            .execute(&mut self.connection)
+            .expect("release the hold");
+    }
+}
+
+/// Start one checkpoint update on its own pinned connection and return once
+/// PostgreSQL reports it queued on a heavyweight lock. The deadline is a hang
+/// guard only; nothing is decided by elapsed time.
+fn queued_update(
+    f: &Fixture,
+    import_id: Uuid,
+    lease_token: Uuid,
+) -> thread::JoinHandle<Result<MetricSourceCheckpoint, E>> {
+    let (pool, pid) = pinned_pool();
+    let handle = thread::spawn(move || {
+        update_metric_source_checkpoint(
+            &pool,
+            &UpdateMetricSourceCheckpointInput {
+                import_id,
+                lease_token,
+            },
+        )
+    });
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !is_lock_waiting(f, pid, None) {
+        assert!(
+            !handle.is_finished(),
+            "the update finished without queuing on the checkpoint lock"
+        );
+        assert!(
+            Instant::now() < deadline,
+            "the update never queued on the checkpoint lock"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    handle
+}
+
+#[test]
+fn a_current_and_a_stale_checkpoint_update_race_to_one_durable_outcome() {
+    let (_guard, f) = setup();
+    let mut accepted: Vec<(NaiveDate, String)> = Vec::new();
+    for (round, stale_first) in [(0u32, true), (10, false)] {
+        // A unit completed under a lease that then expired and was reclaimed,
+        // and a unit completed under the reclaim.
+        let stale = f.claim_a();
+        let stale_import = f.run_unit_with(
+            stale.lease_token,
+            &format!("stale-{round}"),
+            day(1 + round),
+            &digest(u64::from(1 + round)),
+            "10",
+            vec![complete_day(day(1 + round))],
+        );
+        f.expire(f.account_a);
+        let current = f.claim_a();
+        let current_import = f.run_unit_with(
+            current.lease_token,
+            &format!("current-{round}"),
+            day(2 + round),
+            &digest(u64::from(2 + round)),
+            "10",
+            vec![complete_day(day(2 + round))],
+        );
+
+        // Both updates queue on the one canonical checkpoint row lock.
+        let hold = CheckpointRowHold::acquire(f.account_a);
+        let (first, second) = if stale_first {
+            let first = queued_update(&f, stale_import.import_id, stale.lease_token);
+            (
+                first,
+                queued_update(&f, current_import.import_id, current.lease_token),
+            )
+        } else {
+            let first = queued_update(&f, current_import.import_id, current.lease_token);
+            (
+                first,
+                queued_update(&f, stale_import.import_id, stale.lease_token),
+            )
+        };
+        hold.release();
+        let first = first.join().expect("first update thread");
+        let second = second.join().expect("second update thread");
+        let (stale_result, current_result) = if stale_first {
+            (first, second)
+        } else {
+            (second, first)
+        };
+
+        // The live holder records its import whichever update the lock
+        // admitted first.
+        let recorded = current_result.expect("the live holder records its import");
+        assert_eq!(recorded.lease_owner, None);
+        assert_eq!(recorded.last_successful_period_end, Some(day(3 + round)));
+        // The stale token writes nothing: it is refused while the live claim
+        // is held, and answered read-only once that claim has been released.
+        if stale_first {
+            assert_eq!(stale_result, Err(E::StaleSourceClaim));
+        } else {
+            assert_eq!(stale_result, Ok(recorded.clone()));
+        }
+
+        // Final durable state: only the live holder's manifest was accepted,
+        // and nothing was written after its update.
+        accepted.push((day(2 + round), digest(u64::from(2 + round))));
+        assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&accepted)));
+        assert_eq!(f.checkpoint(f.account_a), recorded);
+        assert_eq!(
+            recorded.last_completed_at,
+            f.import(current_import.import_id).completed_at
+        );
+    }
 }
