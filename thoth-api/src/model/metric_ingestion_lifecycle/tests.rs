@@ -753,13 +753,19 @@ fn a_claim_carries_each_units_own_locked_platform_code_and_its_decoded_cursor() 
 #[test]
 fn an_unsupported_stored_cursor_fails_the_claim_closed_before_any_lease_is_written() {
     let (_guard, f) = setup();
-    // Bootstrap both checkpoints, then release them.
+    // Bootstrap A's and B's checkpoints, then release them. A third eligible
+    // account, C, has no checkpoint yet.
     assert_eq!(f.claim(10).expect("claim").len(), 2);
     reset_leases(&f);
+    f.sql(&format!("INSERT INTO metric_source_account (code, source_id, platform_id, external_key, expected_publisher_id, configuration, enabled) VALUES ('acct-c', '{}', '{}', 'dist-c', '{}', '{}'::jsonb, TRUE)", f.source_id, f.platform_id, f.publisher_id, cloudfront_configuration("dist-c")));
+    let checkpoints_of_c = "source_account_id = (SELECT source_account_id FROM metric_source_account WHERE code = 'acct-c')";
 
+    // The unsupported cursor is on B. By the time the claim decodes it, the same
+    // transaction has already bootstrapped C's checkpoint and leased A, and the
+    // failure must undo both.
     for (label, unsupported) in unsupported_cursors() {
-        f.store_cursor(f.account_a, &unsupported);
-        let stored = f.stored_cursor_text(f.account_a);
+        f.store_cursor(f.account_b, &unsupported);
+        let stored = f.stored_cursor_text(f.account_b);
         let before = f.snapshot();
         assert_eq!(
             f.claim(10).map(|claims| account_codes(&claims)),
@@ -769,17 +775,35 @@ fn an_unsupported_stored_cursor_fails_the_claim_closed_before_any_lease_is_writt
         assert_eq!(
             f.snapshot(),
             before,
-            "{label}: no lease is written for any unit and nothing is repaired"
+            "{label}: no lease, no bootstrapped checkpoint and no repair survive"
         );
-        assert_eq!(f.stored_cursor_text(f.account_a), stored, "{label}");
+        assert_eq!(f.stored_cursor_text(f.account_b), stored, "{label}");
+        assert_eq!(
+            f.count("metric_source_checkpoint", checkpoints_of_c),
+            0,
+            "{label}"
+        );
     }
+
+    // Non-vacuity: frozen at its first lease write, the claim is proven to have
+    // reached A's lease before B's cursor, and it still leaves nothing behind.
+    f.store_cursor(f.account_b, &json!({}));
+    let before = f.snapshot();
+    let (claims, ()) = claim_while_paused(&f, "UPDATE", |_| ());
+    assert_eq!(
+        claims.map(|claims| account_codes(&claims)),
+        Err(E::Ingestion(Code::InternalStateInconsistency))
+    );
+    assert_eq!(f.snapshot(), before);
 
     // Only a unit the claim may return is decoded. An account skipped at
     // enumeration is never read...
+    f.sql("UPDATE metric_source_checkpoint SET cursor = NULL");
+    f.store_cursor(f.account_a, &json!({}));
     f.sql("UPDATE metric_source_account SET enabled = FALSE WHERE code = 'acct-a'");
     assert_eq!(
         f.claim(10).map(|claims| account_codes(&claims)),
-        Ok(vec![ACCOUNT_B.to_string()])
+        Ok(vec![ACCOUNT_B.to_string(), "acct-c".to_string()])
     );
     reset_leases(&f);
     f.sql("UPDATE metric_source_account SET enabled = TRUE WHERE code = 'acct-a'");
@@ -788,7 +812,7 @@ fn an_unsupported_stored_cursor_fails_the_claim_closed_before_any_lease_is_writt
     let (claims, ()) = claim_while_paused(&f, "INSERT", |f| disable_account_a(&f.pool));
     assert_eq!(
         claims.map(|claims| account_codes(&claims)),
-        Ok(vec![ACCOUNT_B.to_string()])
+        Ok(vec![ACCOUNT_B.to_string(), "acct-c".to_string()])
     );
     assert_eq!(f.checkpoint(f.account_a).lease_owner, None);
 }
@@ -2353,6 +2377,64 @@ fn an_unsupported_cursor_or_import_envelope_fails_the_update_with_no_partial_wri
     let error = E::Ingestion(Code::InternalStateInconsistency);
     assert_eq!(error.code(), "INTERNAL_STATE_INCONSISTENCY");
     assert_eq!(error.message(), "The metric ingestion request was refused.");
+}
+
+#[test]
+fn a_failed_cursor_write_commits_no_progress_and_no_release_either() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f.run_unit_with(
+        claim.lease_token,
+        "report-1",
+        day(1),
+        &digest(1),
+        "10",
+        vec![complete_day(day(1))],
+    );
+
+    // A failure injected into the checkpoint write whenever it would change the
+    // cursor. The trigger exists only in this test's disposable database.
+    struct Cleanup(Arc<PgPool>);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            if let Ok(mut c) = self.0.get() {
+                let _ = sql_query(
+                    "DROP TRIGGER IF EXISTS wp2_03_test_fail_cursor ON metric_source_checkpoint",
+                )
+                .execute(&mut c);
+                let _ =
+                    sql_query("DROP FUNCTION IF EXISTS wp2_03_test_fail_cursor()").execute(&mut c);
+            }
+        }
+    }
+    let cleanup = Cleanup(Arc::clone(&f.pool));
+    f.sql("CREATE FUNCTION wp2_03_test_fail_cursor() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.cursor IS DISTINCT FROM OLD.cursor THEN RAISE EXCEPTION 'injected cursor write failure'; END IF; RETURN NEW; END $$");
+    f.sql("CREATE TRIGGER wp2_03_test_fail_cursor BEFORE UPDATE ON metric_source_checkpoint FOR EACH ROW EXECUTE FUNCTION wp2_03_test_fail_cursor()");
+
+    let before = f.snapshot();
+    assert_eq!(
+        f.update(import.import_id, claim.lease_token),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_eq!(
+        f.snapshot(),
+        before,
+        "cursor, progress and release commit together or not at all"
+    );
+    assert_eq!(
+        f.checkpoint(f.account_a).lease_owner,
+        Some(claim.lease_token.to_string())
+    );
+
+    // Without the injected failure the same live update records all three.
+    drop(cleanup);
+    let checkpoint = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(1), digest(1))]))
+    );
 }
 
 // --------------------------------------------------------------------------
