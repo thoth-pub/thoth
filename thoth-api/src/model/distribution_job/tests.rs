@@ -621,8 +621,13 @@ fn only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_speci
             // BE-06 actionable uniqueness (R52B section 18.1).
             "distribution_job_one_actionable_work_upsert_idx",
             "distribution_job_pkey",
+            // BE-06 lineage keys' ON DELETE SET NULL support (the CTO-approved Migration 2 amendment, P3).
+            "distribution_job_predecessor_job_idx",
             "distribution_job_publisher_latest_idx",
+            "distribution_job_superseded_by_job_idx",
             "distribution_job_target_pkey",
+            // BE-06 terminal-job resolution support (the CTO-approved Migration 2 amendment, P2).
+            "distribution_job_work_upsert_resolution_idx",
         ]
     );
 }

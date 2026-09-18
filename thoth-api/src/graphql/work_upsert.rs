@@ -33,9 +33,8 @@ use crate::model::work_upsert::crud as work_upsert_crud;
 use crate::model::work_upsert::{
     MaterializeWorkUpsertJobsResult, SeedCrossrefWorkUpsertResult, WorkUpsertAdmission,
     WorkUpsertBlockedByRecoveryRow, WorkUpsertControl, WorkUpsertEligibilityClause,
-    WorkUpsertMaterialization, WorkUpsertMaterializationOutcome, WorkUpsertResidueClass,
-    WorkUpsertResidueRow, WorkUpsertResolutionRow, WorkUpsertResolutionState,
-    WorkUpsertStaleBindingRow,
+    WorkUpsertMaterializationOutcome, WorkUpsertResidueClass, WorkUpsertResidueRow,
+    WorkUpsertResolutionRow, WorkUpsertResolutionState, WorkUpsertStaleBindingRow,
 };
 use crate::model::{Generation, Timestamp};
 use crate::policy::PolicyContext;
@@ -472,8 +471,22 @@ impl CrossrefVersionFloorAdvance {
     }
 }
 
-#[juniper::graphql_object(Context = Context, description = "How one work-level materialization unit ended")]
-impl WorkUpsertMaterialization {
+/// The result of `materializeWorkUpsertJob` (GraphQL `WorkUpsertMaterialization`):
+/// the unit's end, and the job it created or found with that job's targets and
+/// attempts already read inside the unit's transaction, so that no child of the
+/// job resolves through the released request loaders (Amendment 3 section 10.3).
+pub struct MaterializedWorkUpsertJob {
+    outcome: WorkUpsertMaterializationOutcome,
+    rebound: bool,
+    job: Option<DistributionJobPayload>,
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    name = "WorkUpsertMaterialization",
+    description = "How one work-level materialization unit ended"
+)]
+impl MaterializedWorkUpsertJob {
     fn outcome(&self) -> WorkUpsertMaterializationOutcome {
         self.outcome
     }
@@ -483,7 +496,7 @@ impl WorkUpsertMaterialization {
     }
     #[graphql(description = "The created job, or the actionable job the unit found")]
     fn job(&self) -> Option<DistributionJobPayload> {
-        self.job.clone().map(DistributionJobPayload::lazy)
+        self.job.clone()
     }
 }
 
@@ -822,14 +835,19 @@ pub(crate) fn advance_floor(
 pub(crate) fn materialize_one(
     context: &Context,
     data: &MaterializeWorkUpsertJobInput,
-) -> ThothResult<WorkUpsertMaterialization> {
+) -> ThothResult<MaterializedWorkUpsertJob> {
     context.require_superuser()?;
-    work_upsert_crud::materialize_work_upsert_job(
+    let (unit, job) = work_upsert_crud::materialize_work_upsert_job_with_payload(
         &context.db,
         data.work_id,
         data.execution_profile,
         data.force,
-    )
+    )?;
+    Ok(MaterializedWorkUpsertJob {
+        outcome: unit.outcome,
+        rebound: unit.rebound,
+        job,
+    })
 }
 
 pub(crate) fn permit_filter(

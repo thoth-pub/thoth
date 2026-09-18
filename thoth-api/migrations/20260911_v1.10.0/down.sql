@@ -1,7 +1,8 @@
 -- BE-06 Migration 2 (20260911_v1.10.0) down.sql: a stage-1 rollback only (R52B §23.3, §23.5).
 --
 -- It drops every BE-06 object -- the 35 triggers, the 27 functions, the 8 tables (the capture queue and the generation
--- table among them), the actionable-uniqueness index, and the constraints and columns added to the two released tables --
+-- table among them), the actionable-uniqueness index, the supporting-index amendment's four indexes (one of them on the
+-- released work_relation table), and the constraints and columns added to the two released tables --
 -- restores distribution_job_work_id_fkey to ON DELETE CASCADE, drops the 5 enum types, and leaves the three Migration 1
 -- labels in place. Dropping the profile tables requires dropping their TRUNCATE and permanence guards first, in the same
 -- transaction.
@@ -59,6 +60,10 @@ DROP FUNCTION public.crossref_refuse_truncate(), public.crossref_write_permit_do
               public.crossref_deposit_membership(uuid), public.crossref_roots(uuid), public.crossref_doi_set_digest(text[]),
               public.crossref_allocate_timestamp(bigint, bigint, bigint), public.crossref_ts_now(), public.crossref_ts_next(bigint),
               public.crossref_ts_decode(bigint), public.crossref_ts_encode(timestamptz), public.crossref_canonical_doi(text);
+DROP INDEX IF EXISTS public.distribution_job_superseded_by_job_idx;
+DROP INDEX IF EXISTS public.distribution_job_predecessor_job_idx;
+DROP INDEX IF EXISTS public.distribution_job_work_upsert_resolution_idx;
+DROP INDEX IF EXISTS public.work_relation_related_work_id_relation_type_idx;
 DROP INDEX IF EXISTS public.distribution_job_one_actionable_work_upsert_idx;
 ALTER TABLE public.distribution_job
     DROP CONSTRAINT distribution_job_work_id_fkey,

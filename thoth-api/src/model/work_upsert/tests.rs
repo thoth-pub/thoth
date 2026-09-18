@@ -467,7 +467,7 @@ fn g2_the_migrated_and_released_inventories_are_exactly_the_specified_counts() {
             migrated.enum_types,
             migrated.partial_indexes
         ),
-        (68, 92, 191, 57, 33, 24)
+        (68, 92, 195, 57, 33, 27)
     );
 }
 
@@ -7281,4 +7281,970 @@ fn t166_the_released_paths_and_the_be06_entry_points_are_inert_while_the_control
                  || (SELECT count(*) FROM distribution_job WHERE kind = 'WORK_UPSERT')::text AS value"),
         vec!["1|0"]
     );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The independent-review correction of `290f168b`. C1: reports 3 and 4 read one bounded page in one statement and
+// classify it in Rust with no further read. C2: `materializeWorkUpsertJob` returns its job with the job's targets and
+// attempts loaded inside the unit's own transaction, so no child of it resolves through the released loaders. P1-P3: the
+// four supporting indexes of the CTO-approved Migration 2 amendment.
+// ---------------------------------------------------------------------------------------------------------------------
+
+mod independent_review_correction {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use diesel::connection::InstrumentationEvent;
+    use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool};
+    use diesel::{ExpressionMethods, QueryDsl};
+    use serde_json::{json, Value as JsonValue};
+    use zitadel::actix::introspection::IntrospectedUser;
+
+    use super::*;
+    use crate::graphql::{create_schema, GraphQLRequest, Schema};
+    use crate::model::distribution_job::{DistributionJob, DistributionJobCreation};
+    use crate::model::work_upsert::{
+        WorkUpsertEligibilityClause as Clause, WorkUpsertResidueClass as Class,
+        WorkUpsertResidueRow, WorkUpsertStaleBindingRow,
+    };
+    use crate::policy::Role;
+
+    /// Every statement a measured connection starts, in order, installed on that pool's connection only.
+    #[derive(Debug)]
+    struct StatementLog(Arc<Mutex<Vec<String>>>);
+
+    impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for StatementLog {
+        fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+            let log = Arc::clone(&self.0);
+            connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+                if let InstrumentationEvent::StartQuery { query, .. } = event {
+                    log.lock().expect("statement log").push(query.to_string());
+                }
+            });
+            Ok(())
+        }
+    }
+
+    /// A one-connection pool over the test database, and the log of what its connection runs.
+    fn measured_pool() -> (crate::db::PgPool, Arc<Mutex<Vec<String>>>) {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let pool = Pool::builder()
+            .max_size(1)
+            .test_on_check_out(false)
+            .connection_customizer(Box::new(StatementLog(Arc::clone(&log))))
+            .build(ConnectionManager::<PgConnection>::new(
+                test_db::test_db_url(),
+            ))
+            .expect("measured pool");
+        (pool, log)
+    }
+
+    /// `run`'s result and the statements it started, in order.
+    fn measured<T>(log: &Mutex<Vec<String>>, run: impl FnOnce() -> T) -> (T, Vec<String>) {
+        log.lock().expect("statement log").clear();
+        let result = run();
+        let statements = log.lock().expect("statement log").clone();
+        (result, statements)
+    }
+
+    /// The statements that read or write data: not transaction control, and not Diesel's one-time lookup of a custom
+    /// type's oid on a fresh connection.
+    fn data_statements(statements: &[String]) -> Vec<&String> {
+        statements
+            .iter()
+            .filter(|statement| {
+                let statement = statement.trim();
+                !matches!(statement, "BEGIN" | "COMMIT" | "ROLLBACK")
+                    && !statement.starts_with("SELECT \"pg_type\"")
+            })
+            .collect()
+    }
+
+    fn crossref() -> &'static crate::model::work_upsert::registry::WorkLevelExecutionProfile {
+        registry::execution_profile(DistributionPlatform::Crossref).expect("registered")
+    }
+
+    /// Report 3 exactly as `290f168b` computed it: the drain's full candidate read, the page cut in Rust, and the
+    /// failing clause probed one statement at a time. The oracle of the corrected report's results.
+    fn residue_at_290f168b(
+        connection: &mut PgConnection,
+        limit: i32,
+        offset: i32,
+    ) -> Vec<WorkUpsertResidueRow> {
+        #[derive(QueryableByName)]
+        struct Holds {
+            #[diesel(sql_type = diesel::sql_types::Bool)]
+            holds: bool,
+        }
+        let rows = work_upsert_crud::candidate_rows(connection, &[crossref()]).expect("candidates");
+        let mut residue = Vec::new();
+        for row in rows
+            .into_iter()
+            .filter(|row| row.class == "RESIDUE")
+            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
+            .take(usize::try_from(limit.max(0)).unwrap_or_default())
+        {
+            let eligible = row.sql_eligible && row.abstracts_normalise();
+            let (class, failing_clause) = if !eligible {
+                let mut failing = None;
+                let coverage = policy::crossref_route_is_automatic_push()
+                    && match work_upsert_crud::current_publisher(connection, row.work_id)
+                        .expect("publisher")
+                    {
+                        Some(publisher) => {
+                            work_upsert_crud::crossref_publisher_covered(connection, publisher)
+                                .expect("coverage")
+                        }
+                        None => false,
+                    };
+                if !coverage {
+                    failing = Some(Clause::PublisherCoverage);
+                }
+                for (clause, sql) in policy::CROSSREF_SQL_CLAUSES {
+                    if failing.is_some() {
+                        break;
+                    }
+                    let holds = diesel::sql_query(format!(
+                        "SELECT COALESCE((SELECT {sql} FROM public.work w WHERE w.work_id = $1), false) AS holds"
+                    ))
+                    .bind::<SqlUuid, _>(row.work_id)
+                    .get_result::<Holds>(connection)
+                    .expect("clause")
+                    .holds;
+                    if !holds {
+                        failing = Some(clause);
+                    }
+                }
+                (
+                    Class::Ineligible,
+                    Some(failing.unwrap_or(Clause::AbstractNormalisation)),
+                )
+            } else if row.admitted {
+                (Class::Materializable, None)
+            } else {
+                (Class::NotAdmitted, None)
+            };
+            residue.push(WorkUpsertResidueRow {
+                work_id: row.work_id,
+                execution_profile: row.execution_profile,
+                class,
+                failing_clause,
+            });
+        }
+        residue
+    }
+
+    /// Report 4 exactly as `290f168b` computed it: the drain's full candidate read, the page cut in Rust, then the job,
+    /// the Work's publisher and the job's binding read per row, with the reason rule of the drain's step 7.
+    fn stale_bindings_at_290f168b(
+        connection: &mut PgConnection,
+        limit: i32,
+        offset: i32,
+    ) -> Vec<WorkUpsertStaleBindingRow> {
+        use crate::schema::{
+            distribution_job as job, distribution_job_target as target,
+            publisher_distribution_platform as assignment,
+        };
+        let rows = work_upsert_crud::candidate_rows(connection, &[crossref()]).expect("candidates");
+        let mut stale = Vec::new();
+        for row in rows
+            .into_iter()
+            .filter(|row| row.class == "STALE_PENDING")
+            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
+            .take(usize::try_from(limit.max(0)).unwrap_or_default())
+        {
+            let Some(found) = job::table
+                .filter(
+                    job::kind.eq(crate::model::distribution_job::DistributionJobKind::WorkUpsert),
+                )
+                .filter(job::work_id.eq(row.work_id))
+                .filter(job::execution_profile.eq(row.execution_profile))
+                .filter(job::status.eq(DistributionJobStatus::Pending))
+                .first::<DistributionJob>(connection)
+                .optional()
+                .expect("job")
+            else {
+                continue;
+            };
+            let Some(current) =
+                work_upsert_crud::current_publisher(connection, row.work_id).expect("publisher")
+            else {
+                continue;
+            };
+            let reason = if found.publisher_id != current {
+                Some(DistributionJobCancellationReason::BindingSuperseded)
+            } else {
+                let targets: Vec<DistributionPlatform> = target::table
+                    .filter(target::distribution_job_id.eq(found.distribution_job_id))
+                    .select(target::platform)
+                    .load(connection)
+                    .expect("targets");
+                let enabled: Vec<(DistributionPlatform, Uuid)> = assignment::table
+                    .filter(assignment::publisher_id.eq(found.publisher_id))
+                    .filter(assignment::enabled.eq(true))
+                    .select((assignment::platform, assignment::activation_id))
+                    .load(connection)
+                    .expect("assignments");
+                if targets
+                    .iter()
+                    .all(|target| enabled.contains(&(*target, found.activation_id)))
+                {
+                    None
+                } else if enabled
+                    .iter()
+                    .any(|(platform, _)| *platform == DistributionPlatform::Crossref)
+                {
+                    Some(DistributionJobCancellationReason::BindingSuperseded)
+                } else {
+                    Some(DistributionJobCancellationReason::AssignmentDisabled)
+                }
+            };
+            if let Some(reason) = reason {
+                stale.push(WorkUpsertStaleBindingRow {
+                    distribution_job_id: found.distribution_job_id,
+                    work_id: row.work_id,
+                    execution_profile: row.execution_profile,
+                    reason,
+                });
+            }
+        }
+        stale
+    }
+
+    /// Residue in every class and under every reachable first failing clause, and stale `PENDING` jobs under every reason
+    /// the drain uses.
+    struct Population {
+        materializable: Uuid,
+        not_admitted: Uuid,
+        failing: Vec<(Clause, Uuid)>,
+        stale: Vec<(Uuid, DistributionJobCancellationReason)>,
+    }
+
+    /// A Work of `imprint` changed by `sql` (`{w}` is its id) so that exactly `clause` is its first failing clause.
+    fn failing_work(connection: &mut PgConnection, imprint: Uuid, sql: &str) -> Uuid {
+        let work = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        execute(connection, &sql.replace("{w}", &work.to_string()));
+        work
+    }
+
+    fn population(pool: &crate::db::PgPool, connection: &mut PgConnection) -> Population {
+        // An admitted, covered publisher: one materializable Work, and one Work failing each reachable clause alone.
+        // E6's publication-date clause is never the first failure: every Work without a publication date is either
+        // forthcoming, which E5 refuses first, or refused by the released work CHECKs.
+        let (_publisher, imprint, _activation, materializable) =
+            drainable_work(pool, connection, 1);
+        let mut failing = vec![
+            (
+                Clause::DepositableIdentity,
+                failing_work(connection, imprint, "UPDATE work SET doi = NULL WHERE work_id = '{w}'"),
+            ),
+            (
+                Clause::WorkStatus,
+                failing_work(
+                    connection,
+                    imprint,
+                    "UPDATE work SET work_status = 'forthcoming', publication_date = NULL WHERE work_id = '{w}'",
+                ),
+            ),
+            (
+                Clause::Isbn,
+                failing_work(connection, imprint, "UPDATE publication SET isbn = NULL WHERE work_id = '{w}'"),
+            ),
+            (
+                Clause::LandingPage,
+                failing_work(connection, imprint, "UPDATE work SET landing_page = NULL WHERE work_id = '{w}'"),
+            ),
+            (
+                Clause::Title,
+                failing_work(connection, imprint, "DELETE FROM title WHERE work_id = '{w}'"),
+            ),
+            (
+                Clause::AbstractNormalisation,
+                failing_work(
+                    connection,
+                    imprint,
+                    &format!(
+                        "INSERT INTO abstract (work_id, content, locale_code, abstract_type, canonical) \
+                         VALUES ('{{w}}', '{NON_NORMALISING_ABSTRACT}', 'en', 'long', true)"
+                    ),
+                ),
+            ),
+        ];
+        // A parent whose emitted chapter has no landing page; the chapter itself fails E6's landing-page clause.
+        let parent = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        let chapter = insert_eligible_work(connection, imprint, Uuid::new_v4());
+        relate_child(connection, parent, chapter, 1);
+        execute(
+            connection,
+            &format!("UPDATE work SET landing_page = NULL WHERE work_id = '{chapter}'"),
+        );
+        failing.push((Clause::EmittedChildren, parent));
+        failing.push((Clause::LandingPage, chapter));
+        // A publisher with no CROSSREF assignment.
+        let (_uncovered, uncovered_imprint) = publisher_and_imprint(pool);
+        failing.push((
+            Clause::PublisherCoverage,
+            insert_eligible_work(connection, uncovered_imprint, Uuid::new_v4()),
+        ));
+        // Covered, eligible, never admitted.
+        let (_unadmitted, _imprint, _activation, works) = admissible_publisher(pool, connection, 1);
+
+        // Stale PENDING jobs: an activation superseded, an assignment disabled, and a Work moved to another publisher.
+        let mut stale = Vec::new();
+        let (superseded, superseded_imprint, _activation, first) =
+            drainable_work(pool, connection, 1);
+        let second = insert_eligible_work(connection, superseded_imprint, Uuid::new_v4());
+        for work in [first, second] {
+            assert_eq!(materialize(pool, work, false).outcome, Outcome::Created);
+            stale.push((work, DistributionJobCancellationReason::BindingSuperseded));
+        }
+        cover_crossref(connection, superseded);
+        let (disabled, _imprint, _activation, work) = drainable_work(pool, connection, 1);
+        assert_eq!(materialize(pool, work, false).outcome, Outcome::Created);
+        disable_crossref(connection, disabled);
+        stale.push((work, DistributionJobCancellationReason::AssignmentDisabled));
+        let (_moved_from, _imprint, _activation, moved) = drainable_work(pool, connection, 1);
+        assert_eq!(materialize(pool, moved, false).outcome, Outcome::Created);
+        let (_moved_to, destination) = publisher_and_imprint(pool);
+        execute(
+            connection,
+            &format!("UPDATE work SET imprint_id = '{destination}' WHERE work_id = '{moved}'"),
+        );
+        stale.push((moved, DistributionJobCancellationReason::BindingSuperseded));
+
+        Population {
+            materializable,
+            not_admitted: works[0],
+            failing,
+            stale,
+        }
+    }
+
+    /// Pages that cover the start, the middle, the end, past the end, and the zero, negative and extreme arguments.
+    fn windows(total: usize) -> Vec<(i32, i32)> {
+        let total = i32::try_from(total).expect("small population");
+        vec![
+            (100, 0),
+            (1, 0),
+            (2, 1),
+            (3, 4),
+            (1, total - 1),
+            (2, total - 1),
+            (5, total),
+            (5, total + 3),
+            (0, 0),
+            (-1, 0),
+            (3, -2),
+            (i32::MAX, 0),
+            (1, i32::MAX),
+        ]
+    }
+
+    #[test]
+    fn c1_reports_3_and_4_return_exactly_what_290f168b_returned_on_every_page() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let population = population(pool.as_ref(), &mut connection);
+
+        let all = work_upsert_crud::work_upsert_residue(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            1000,
+            0,
+        )
+        .expect("report 3");
+        let class_of = |work: Uuid| {
+            all.iter()
+                .find(|row| row.work_id == work)
+                .map(|row| (row.class, row.failing_clause))
+        };
+        assert_eq!(
+            class_of(population.materializable),
+            Some((Class::Materializable, None))
+        );
+        assert_eq!(
+            class_of(population.not_admitted),
+            Some((Class::NotAdmitted, None))
+        );
+        for (clause, work) in &population.failing {
+            assert_eq!(
+                class_of(*work),
+                Some((Class::Ineligible, Some(*clause))),
+                "{clause:?}"
+            );
+        }
+        let stale = work_upsert_crud::work_upsert_stale_bindings(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            1000,
+            0,
+        )
+        .expect("report 4");
+        let mut expected: Vec<(Uuid, DistributionJobCancellationReason)> = population.stale.clone();
+        expected.sort_by_key(|(work, _)| *work);
+        assert_eq!(
+            stale
+                .iter()
+                .map(|row| (row.work_id, row.reason))
+                .collect::<Vec<_>>(),
+            expected
+        );
+
+        let residue_total = residue_at_290f168b(&mut connection, i32::MAX, 0).len();
+        let stale_total = stale_bindings_at_290f168b(&mut connection, i32::MAX, 0).len();
+        // One materializable, one never admitted and nine failing Works; four stale jobs.
+        assert_eq!((residue_total, stale_total), (11, 4));
+        for (limit, offset) in windows(residue_total) {
+            assert_eq!(
+                work_upsert_crud::work_upsert_residue(
+                    pool.as_ref(),
+                    DistributionPlatform::Crossref,
+                    limit,
+                    offset
+                ),
+                Ok(residue_at_290f168b(&mut connection, limit, offset)),
+                "report 3, limit {limit}, offset {offset}"
+            );
+        }
+        for (limit, offset) in windows(stale_total) {
+            assert_eq!(
+                work_upsert_crud::work_upsert_stale_bindings(
+                    pool.as_ref(),
+                    DistributionPlatform::Crossref,
+                    limit,
+                    offset
+                ),
+                Ok(stale_bindings_at_290f168b(&mut connection, limit, offset)),
+                "report 4, limit {limit}, offset {offset}"
+            );
+        }
+    }
+
+    /// The drain and report 3 classify the same rows the same way: a residue row is `MATERIALIZABLE` exactly when the
+    /// drain's own filter would examine it (Amendment 3 section 9.4, M15).
+    #[test]
+    fn c1_report_3_classification_is_the_drains() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        population(pool.as_ref(), &mut connection);
+        let candidates: Vec<_> = work_upsert_crud::candidate_rows(&mut connection, &[crossref()])
+            .expect("candidates")
+            .into_iter()
+            .filter(|row| row.class == "RESIDUE")
+            .collect();
+        let report = work_upsert_crud::work_upsert_residue(
+            pool.as_ref(),
+            DistributionPlatform::Crossref,
+            1000,
+            0,
+        )
+        .expect("report 3");
+        assert_eq!(
+            report.iter().map(|row| row.work_id).collect::<Vec<_>>(),
+            candidates.iter().map(|row| row.work_id).collect::<Vec<_>>()
+        );
+        for (row, candidate) in report.iter().zip(&candidates) {
+            assert_eq!(
+                row.class == Class::Materializable,
+                candidate.drainable(),
+                "{:?}",
+                row.work_id
+            );
+            assert_eq!(
+                row.class == Class::Ineligible,
+                !(candidate.sql_eligible && candidate.abstracts_normalise()),
+                "{:?}",
+                row.work_id
+            );
+        }
+    }
+
+    /// C1's regression: a page of report 3 or 4 is one bounded statement, whatever it holds and however large it is.
+    #[test]
+    fn c1_each_report_page_is_one_bounded_statement_with_no_follow_up_read() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        population(pool.as_ref(), &mut connection);
+        let (measured_db, log) = measured_pool();
+
+        for (limit, offset) in [(1000, 0), (1, 0), (2, 3)] {
+            let (page, statements) = measured(&log, || {
+                work_upsert_crud::work_upsert_residue(
+                    &measured_db,
+                    DistributionPlatform::Crossref,
+                    limit,
+                    offset,
+                )
+            });
+            let page = page.expect("report 3");
+            let data = data_statements(&statements);
+            assert_eq!(
+                data.len(),
+                1,
+                "report 3 ({limit}, {offset}) over {} rows: {statements:#?}",
+                page.len()
+            );
+            assert!(
+                data[0].contains("LIMIT") && data[0].contains("OFFSET"),
+                "report 3 pages in SQL: {}",
+                data[0]
+            );
+
+            let (page, statements) = measured(&log, || {
+                work_upsert_crud::work_upsert_stale_bindings(
+                    &measured_db,
+                    DistributionPlatform::Crossref,
+                    limit,
+                    offset,
+                )
+            });
+            let page = page.expect("report 4");
+            let data = data_statements(&statements);
+            assert_eq!(
+                data.len(),
+                1,
+                "report 4 ({limit}, {offset}) over {} rows: {statements:#?}",
+                page.len()
+            );
+            assert!(
+                data[0].contains("LIMIT") && data[0].contains("OFFSET"),
+                "report 4 pages in SQL: {}",
+                data[0]
+            );
+        }
+        let (all, _) = measured(&log, || {
+            work_upsert_crud::work_upsert_residue(
+                &measured_db,
+                DistributionPlatform::Crossref,
+                1000,
+                0,
+            )
+        });
+        assert!(
+            all.expect("report 3")
+                .iter()
+                .filter(|row| row.class == Class::Ineligible)
+                .count()
+                >= 9,
+            "the large page holds a row failing each clause"
+        );
+    }
+
+    /// Both reports are empty, in one statement each, over a database with no BE-06 state.
+    #[test]
+    fn c1_both_reports_are_empty_over_no_residue_and_no_stale_job() {
+        let (_guard, _pool) = test_db::setup_test_db();
+        let (measured_db, log) = measured_pool();
+        let (residue, statements) = measured(&log, || {
+            work_upsert_crud::work_upsert_residue(
+                &measured_db,
+                DistributionPlatform::Crossref,
+                100,
+                0,
+            )
+        });
+        assert_eq!(residue, Ok(Vec::new()));
+        assert_eq!(data_statements(&statements).len(), 1, "{statements:#?}");
+        let (stale, statements) = measured(&log, || {
+            work_upsert_crud::work_upsert_stale_bindings(
+                &measured_db,
+                DistributionPlatform::Crossref,
+                100,
+                0,
+            )
+        });
+        assert_eq!(stale, Ok(Vec::new()));
+        assert_eq!(data_statements(&statements).len(), 1, "{statements:#?}");
+        assert_eq!(
+            work_upsert_crud::work_upsert_residue(
+                &measured_db,
+                DistributionPlatform::Figshare,
+                100,
+                0
+            ),
+            Err(ThothError::WorkUpsertProfileNotImplemented)
+        );
+        assert_eq!(
+            work_upsert_crud::work_upsert_stale_bindings(
+                &measured_db,
+                DistributionPlatform::Figshare,
+                100,
+                0
+            ),
+            Err(ThothError::WorkUpsertProfileNotImplemented)
+        );
+    }
+
+    fn superuser_context(pool: Arc<crate::db::PgPool>) -> crate::graphql::Context {
+        let mut project_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        project_roles
+            .entry(Role::Superuser.as_ref().to_string())
+            .or_default()
+            .insert("org".to_string(), "role".to_string());
+        let user = IntrospectedUser {
+            user_id: "superuser".to_string(),
+            username: None,
+            name: None,
+            given_name: None,
+            family_name: None,
+            preferred_username: None,
+            email: None,
+            email_verified: None,
+            locale: None,
+            project_roles: Some(project_roles),
+            metadata: None,
+        };
+        test_db::test_context_with_job_creation(
+            pool,
+            Some(user),
+            DistributionJobCreation::default(),
+        )
+    }
+
+    async fn run(schema: &Schema, context: &crate::graphql::Context, query: &str) -> JsonValue {
+        let request: GraphQLRequest =
+            serde_json::from_value(json!({ "query": query })).expect("request");
+        serde_json::to_value(request.execute(schema, context).await).expect("response")
+    }
+
+    /// C2's regression, through the GraphQL field path: for `CREATED`, `PENDING_CURRENT` and `RUNNING_IN_FLIGHT`,
+    /// `job { targets attempts }` returns the job's children as the job report reads them, and every statement of the
+    /// request runs inside the unit's one transaction. At `290f168b` the children resolved afterwards, through the
+    /// released loaders, outside the BE-06 error boundary.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn c2_materialize_work_upsert_job_returns_its_job_loaded_inside_the_units_transaction() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (_publisher, _imprint, _activation, residue) =
+            drainable_work(pool.as_ref(), &mut connection, 1);
+        let (_publisher, _imprint, running, running_job, _token) =
+            claimed(pool.as_ref(), &mut connection);
+        let (measured_db, log) = measured_pool();
+        let context = superuser_context(Arc::new(measured_db));
+        let schema = create_schema();
+
+        for (case, work, outcome, status) in [
+            ("CREATED", residue, "CREATED", "PENDING"),
+            ("PENDING_CURRENT", residue, "PENDING_CURRENT", "PENDING"),
+            ("RUNNING_IN_FLIGHT", running, "RUNNING_IN_FLIGHT", "RUNNING"),
+        ] {
+            let query = format!(
+                "mutation {{ materializeWorkUpsertJob(data: {{workId: \"{work}\", executionProfile: CROSSREF}}) \
+                 {{ outcome rebound job {{ distributionJobId status workIdentity targets {{ platform }} \
+                 attempts {{ attemptNumber result claimedGeneration }} }} }} }}"
+            );
+            log.lock().expect("statement log").clear();
+            let response = run(&schema, &context, &query).await;
+            let statements = log.lock().expect("statement log").clone();
+            assert!(response.get("errors").is_none(), "{case}: {response}");
+            let result = &response["data"]["materializeWorkUpsertJob"];
+            assert_eq!(result["outcome"], json!(outcome), "{case}");
+            assert_eq!(result["job"]["status"], json!(status), "{case}");
+            assert_eq!(
+                result["job"]["workIdentity"],
+                json!(work.to_string()),
+                "{case}"
+            );
+
+            // The job's children are the job report's, which reads them set-based inside its own transaction.
+            let report =
+                work_upsert_crud::work_upsert_job(pool.as_ref(), work).expect("job report");
+            let job_id: Uuid = result["job"]["distributionJobId"]
+                .as_str()
+                .and_then(|id| id.parse().ok())
+                .expect("a job");
+            let reported = report
+                .iter()
+                .find(|payload| payload.job.distribution_job_id == job_id)
+                .expect("the reported job");
+            assert_eq!(
+                result["job"]["targets"],
+                json!(reported
+                    .preloaded_targets
+                    .as_ref()
+                    .expect("targets")
+                    .iter()
+                    .map(|target| json!({ "platform": format!("{:?}", target.platform).to_uppercase() }))
+                    .collect::<Vec<_>>()),
+                "{case}"
+            );
+            assert_eq!(
+                result["job"]["attempts"].as_array().map(|attempts| attempts
+                    .iter()
+                    .map(|attempt| attempt["attemptNumber"].as_i64().expect("number"))
+                    .collect::<Vec<_>>()),
+                Some(
+                    reported
+                        .preloaded_attempts
+                        .as_ref()
+                        .expect("attempts")
+                        .iter()
+                        .map(|attempt| i64::from(attempt.attempt_number))
+                        .collect()
+                ),
+                "{case}"
+            );
+            if case == "RUNNING_IN_FLIGHT" {
+                assert_eq!(job_id, running_job);
+                assert_eq!(result["job"]["attempts"].as_array().map(Vec::len), Some(1));
+            }
+
+            // Every statement of the request, the children's included, is inside the unit's one transaction.
+            assert_eq!(
+                statements.first().map(String::as_str),
+                Some("BEGIN"),
+                "{case}: {statements:#?}"
+            );
+            assert_eq!(
+                statements.last().map(String::as_str),
+                Some("COMMIT"),
+                "{case}: {statements:#?}"
+            );
+            assert_eq!(
+                statements
+                    .iter()
+                    .filter(|statement| statement.as_str() == "BEGIN")
+                    .count(),
+                1,
+                "{case}: {statements:#?}"
+            );
+            assert_eq!(
+                statements
+                    .iter()
+                    .filter(|statement| statement.as_str() == "COMMIT")
+                    .count(),
+                1,
+                "{case}: {statements:#?}"
+            );
+        }
+    }
+
+    /// C2's static guard: no BE-06 GraphQL result hands the released loaders a job to resolve.
+    #[test]
+    fn c2_no_work_level_graphql_result_resolves_a_job_through_the_released_loaders() {
+        let graphql = source("src/graphql/work_upsert.rs");
+        assert!(
+            !graphql.contains("DistributionJobPayload::lazy"),
+            "a BE-06 GraphQL result builds a lazy job payload"
+        );
+    }
+
+    /// The four supporting indexes of the CTO-approved Migration 2 amendment, exactly as `pg_indexes` renders them.
+    const AMENDMENT_INDEXES: [(&str, &str); 4] = [
+        (
+            "work_relation_related_work_id_relation_type_idx",
+            "CREATE INDEX work_relation_related_work_id_relation_type_idx ON public.work_relation USING btree (related_work_id, relation_type)",
+        ),
+        (
+            "distribution_job_work_upsert_resolution_idx",
+            "CREATE INDEX distribution_job_work_upsert_resolution_idx ON public.distribution_job USING btree (work_id, execution_profile) WHERE (kind = 'WORK_UPSERT'::distribution_job_kind)",
+        ),
+        (
+            "distribution_job_predecessor_job_idx",
+            "CREATE INDEX distribution_job_predecessor_job_idx ON public.distribution_job USING btree (predecessor_job_id) WHERE (predecessor_job_id IS NOT NULL)",
+        ),
+        (
+            "distribution_job_superseded_by_job_idx",
+            "CREATE INDEX distribution_job_superseded_by_job_idx ON public.distribution_job USING btree (superseded_by_job_id) WHERE (superseded_by_job_id IS NOT NULL)",
+        ),
+    ];
+
+    fn amendment_indexes(connection: &mut PgConnection) -> Vec<String> {
+        let names = AMENDMENT_INDEXES
+            .iter()
+            .map(|(name, _)| format!("'{name}'"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        texts(
+            connection,
+            &format!(
+                "SELECT indexdef AS value FROM pg_indexes WHERE schemaname = 'public' \
+                 AND indexname IN ({names}) ORDER BY indexname"
+            ),
+        )
+    }
+
+    fn expected_amendment_indexes() -> Vec<String> {
+        let mut expected: Vec<(&str, &str)> = AMENDMENT_INDEXES.to_vec();
+        expected.sort();
+        expected
+            .into_iter()
+            .map(|(_, def)| def.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn p1_p2_p3_the_amendment_indexes_exist_exactly_while_migration_2_is_applied() {
+        let db = TempMigrationDb::new();
+        let mut connection = db.conn();
+        migrate_to_released(&mut connection);
+        assert!(amendment_indexes(&mut connection).is_empty(), "released");
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up M1, up M2");
+        assert_eq!(
+            amendment_indexes(&mut connection),
+            expected_amendment_indexes()
+        );
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("down M2");
+        assert!(
+            amendment_indexes(&mut connection).is_empty(),
+            "after down M2"
+        );
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up M2 again");
+        assert_eq!(
+            amendment_indexes(&mut connection),
+            expected_amendment_indexes()
+        );
+    }
+
+    /// Each index serves the query shape it exists for, as that shape is actually executed: the flush's root lookup
+    /// (`crossref_roots`), the resolution function's job read (`work_upsert_resolution`), and the two lineage keys'
+    /// `ON DELETE SET NULL` actions. Sequential scans are disabled and plans are generic, so the planner must reach each
+    /// shape through its index, whatever the table sizes.
+    #[test]
+    fn p1_p2_p3_each_amendment_index_serves_the_query_shape_it_supports() {
+        let (_guard, _pool) = test_db::setup_test_db();
+        let mut connection =
+            PgConnection::establish(&test_db::test_db_url()).expect("dedicated connection");
+        connection
+            .batch_execute(
+                "BEGIN; SET LOCAL enable_seqscan = off; \
+                 CREATE FUNCTION pg_temp.plan_of(query text) RETURNS text LANGUAGE plpgsql AS $$ \
+                 DECLARE line record; plan text := ''; \
+                 BEGIN FOR line IN EXECUTE query LOOP plan := plan || line.\"QUERY PLAN\" || E'\\n'; END LOOP; \
+                 RETURN plan; END $$;",
+            )
+            .expect("planner settings");
+        for (index, shape) in [
+            (
+                "work_relation_related_work_id_relation_type_idx",
+                "SELECT relator_work_id FROM public.work_relation WHERE related_work_id = $1 AND relation_type = 'has-child'",
+            ),
+            (
+                "distribution_job_work_upsert_resolution_idx",
+                "SELECT j.status, j.cancellation_reason FROM public.distribution_job j \
+                 WHERE j.kind = 'WORK_UPSERT' AND j.work_id = $1 AND j.execution_profile = $2",
+            ),
+            (
+                "distribution_job_predecessor_job_idx",
+                "UPDATE ONLY public.distribution_job SET predecessor_job_id = NULL \
+                 WHERE $1 OPERATOR(pg_catalog.=) predecessor_job_id",
+            ),
+            (
+                "distribution_job_superseded_by_job_idx",
+                "UPDATE ONLY public.distribution_job SET superseded_by_job_id = NULL \
+                 WHERE $1 OPERATOR(pg_catalog.=) superseded_by_job_id",
+            ),
+        ] {
+            let plan = texts(
+                &mut connection,
+                &format!(
+                    "SELECT pg_temp.plan_of($shape$EXPLAIN (GENERIC_PLAN) {shape}$shape$) AS value"
+                ),
+            )
+            .join("");
+            assert!(plan.contains(index), "{index} does not serve `{shape}`:\n{plan}");
+        }
+        connection.batch_execute("ROLLBACK").expect("rollback");
+    }
+
+    /// Migration 2, its rollback and its re-application over a released database that already holds Works, has-child
+    /// relations, an enabled Crossref assignment and a back-catalogue job with its target.
+    #[test]
+    fn p1_p2_p3_migration_2_applies_reverts_and_reapplies_over_a_populated_released_database() {
+        let db = TempMigrationDb::new();
+        let mut connection = db.conn();
+        migrate_to_released(&mut connection);
+        let publisher = Uuid::new_v4();
+        let imprint = Uuid::new_v4();
+        let activation = Uuid::new_v4();
+        execute(
+            &mut connection,
+            &format!(
+                "INSERT INTO publisher (publisher_id, publisher_name) VALUES ('{publisher}', 'Populated'); \
+                 INSERT INTO imprint (imprint_id, publisher_id, imprint_name) VALUES ('{imprint}', '{publisher}', 'Populated'); \
+                 INSERT INTO work (work_id, work_type, work_status, edition, imprint_id, publication_date) \
+                   SELECT md5('{publisher}p' || g)::uuid, 'monograph', 'active', 1, '{imprint}', '2026-01-01' \
+                     FROM generate_series(1, 40) g; \
+                 INSERT INTO work (work_id, work_type, work_status, imprint_id, publication_date) \
+                   SELECT md5('{publisher}c' || g)::uuid, 'book-chapter', 'active', '{imprint}', '2026-01-01' \
+                     FROM generate_series(1, 80) g; \
+                 INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, relation_ordinal) \
+                   SELECT md5('{publisher}p' || ((g + 1) / 2))::uuid, md5('{publisher}c' || g)::uuid, \
+                          'has-child'::relation_type, 2 - (g % 2) FROM generate_series(1, 80) g \
+                   UNION ALL \
+                   SELECT md5('{publisher}c' || g)::uuid, md5('{publisher}p' || ((g + 1) / 2))::uuid, \
+                          'is-child-of'::relation_type, 1 FROM generate_series(1, 80) g; \
+                 INSERT INTO publisher_distribution_platform (publisher_id, platform, enabled, activation_id, enabled_at) \
+                   VALUES ('{publisher}', 'CROSSREF', true, '{activation}', now()); \
+                 INSERT INTO distribution_job (kind, publisher_id, activation_id, deduplication_key) \
+                   VALUES ('PUBLISHER_BACK_CATALOGUE', '{publisher}', '{activation}', \
+                           'PUBLISHER_BACK_CATALOGUE:{publisher}:{activation}'); \
+                 INSERT INTO distribution_job_target (distribution_job_id, platform) \
+                   SELECT distribution_job_id, 'CROSSREF' FROM distribution_job;"
+            ),
+        );
+        let fingerprint = |connection: &mut PgConnection| {
+            texts(
+                connection,
+                "SELECT (SELECT count(*) FROM work)::text || '|' \
+                     || (SELECT md5(string_agg(relator_work_id::text || related_work_id::text || relation_type::text, ',' \
+                                   ORDER BY relator_work_id, related_work_id)) FROM work_relation) || '|' \
+                     || (SELECT string_agg(distribution_job_id::text || kind::text || status::text, ',') FROM distribution_job) || '|' \
+                     || (SELECT count(*) FROM distribution_job_target)::text AS value",
+            )
+        };
+        let released_catalog = catalog(&mut connection);
+        let released_rows = fingerprint(&mut connection);
+
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up M1, up M2 over populated data");
+        assert_eq!(
+            amendment_indexes(&mut connection),
+            expected_amendment_indexes()
+        );
+        assert_eq!(
+            fingerprint(&mut connection),
+            released_rows,
+            "Migration 2 changes no released row"
+        );
+
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("down M2");
+        let reverted = catalog(&mut connection);
+        let added: BTreeSet<String> = reverted.difference(&released_catalog).cloned().collect();
+        assert_eq!(
+            added,
+            [
+                "label:distribution_job_cancellation_reason.BINDING_SUPERSEDED",
+                "label:distribution_job_cancellation_reason.WORK_DELETED",
+                "label:distribution_job_kind.WORK_UPSERT",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>()
+        );
+        assert!(released_catalog.difference(&reverted).next().is_none());
+        assert_eq!(
+            fingerprint(&mut connection),
+            released_rows,
+            "the rollback changes no released row"
+        );
+
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up M2 again over populated data");
+        assert_eq!(
+            amendment_indexes(&mut connection),
+            expected_amendment_indexes()
+        );
+        assert_eq!(fingerprint(&mut connection), released_rows);
+    }
 }

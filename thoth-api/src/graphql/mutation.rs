@@ -398,7 +398,7 @@ impl MutationRoot {
     fn materialize_work_upsert_job(
         context: &Context,
         data: work_upsert::MaterializeWorkUpsertJobInput,
-    ) -> FieldResult<crate::model::work_upsert::WorkUpsertMaterialization> {
+    ) -> FieldResult<work_upsert::MaterializedWorkUpsertJob> {
         work_upsert::field(work_upsert::materialize_one(context, &data))
     }
 

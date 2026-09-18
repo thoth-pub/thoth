@@ -5,8 +5,9 @@
 -- Amendment 3 §3.3. Amendment 3 removes the baseline table, its enum, its guard and its code (CTO R-3 decision,
 -- #848 comment 5686341130) and adds the two generic TRUNCATE guards (R-8).
 --
--- Inventory created here (Amendment 3 §3.3): 8 tables, 5 enum types, 27 functions, 35 triggers, 18 indexes
--- (8 primary keys and 10 others), 75 columns, and 2 seed rows. One released object changes:
+-- Inventory created here (Amendment 3 §3.3, as amended by the CTO-approved supporting-index amendment that followed the
+-- independent review of 290f168b): 8 tables, 5 enum types, 27 functions, 35 triggers, 22 indexes (8 primary keys, the
+-- 10 of R52B §18.9 and the amendment's 4 supporting indexes), 75 columns, and 2 seed rows. One released object changes:
 -- distribution_job_work_id_fkey becomes ON DELETE SET NULL. Migration 1 (20260910_v1.10.0) added the three enum labels
 -- this migration uses; PostgreSQL forbids using a label added in the same transaction, hence two directories.
 --
@@ -543,8 +544,9 @@ CREATE TRIGGER work_upsert_admission_no_truncate BEFORE TRUNCATE ON public.work_
     FOR EACH STATEMENT EXECUTE FUNCTION public.work_upsert_refuse_truncate('WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE');
 
 -- =====================================================================================================================
--- Step 7. The ten indexes of R52B §18.9, then the four functions that read BE-06 types, columns or tables, with their
--- assertions. PostgreSQL validates a LANGUAGE sql body at CREATE FUNCTION, so none of these can precede its objects.
+-- Step 7. The ten indexes of R52B §18.9 and the amendment's four supporting indexes, then the four functions that read
+-- BE-06 types, columns or tables, with their assertions. PostgreSQL validates a LANGUAGE sql body at CREATE FUNCTION, so
+-- none of these can precede its objects.
 -- =====================================================================================================================
 
 CREATE INDEX work_upsert_generation_profile_idx
@@ -567,6 +569,25 @@ CREATE INDEX crossref_write_permit_attempt_idx ON public.crossref_write_permit (
 CREATE UNIQUE INDEX crossref_version_floor_audit_one_advance_per_g6_attempt_idx
     ON public.crossref_version_floor_audit (g6_attempt_id)
     WHERE mutation_kind = 'ADVANCE_VERSION_FLOOR';
+
+-- The supporting-index amendment (CTO-approved after the independent review of 290f168b). Each index lets an existing
+-- statement reach its rows without a sequential scan; no predicate, statement, lock order or result changes.
+-- P1: crossref_roots(w), which the commit-time flush evaluates once per owner (R52B §8.4 rule 2, §8.6), reads
+--     work_relation by related_work_id and relation_type.
+CREATE INDEX work_relation_related_work_id_relation_type_idx
+    ON public.work_relation (related_work_id, relation_type);
+-- P2: work_upsert_resolution(w, p) (R52B §9.1) reads every WORK_UPSERT job of (w, p), terminal ones included, which the
+--     actionable-uniqueness index above does not cover.
+CREATE INDEX distribution_job_work_upsert_resolution_idx
+    ON public.distribution_job (work_id, execution_profile)
+    WHERE kind = 'WORK_UPSERT';
+-- P3: the lineage keys' ON DELETE SET NULL actions find the jobs that name a deleted job.
+CREATE INDEX distribution_job_predecessor_job_idx
+    ON public.distribution_job (predecessor_job_id)
+    WHERE predecessor_job_id IS NOT NULL;
+CREATE INDEX distribution_job_superseded_by_job_idx
+    ON public.distribution_job (superseded_by_job_id)
+    WHERE superseded_by_job_id IS NOT NULL;
 
 -- §16.9: CALLED ON NULL INPUT is load-bearing. A STRICT variant returns NULL for AUTHORIZED + NULL, which must block.
 CREATE FUNCTION public.crossref_is_blocking_write_permit(

@@ -865,6 +865,55 @@ pub fn materialize_work_upsert_job(
     })
 }
 
+/// `materializeWorkUpsertJob` as its GraphQL result needs it: the unit of
+/// [`materialize_work_upsert_job`], and the job the unit created or found with
+/// that job's targets and attempts, read by BE-06 statements inside the unit's
+/// own transaction (Amendment 3 section 10.3, EB1 and X11). No child of the
+/// returned job is left to the released request loaders.
+pub fn materialize_work_upsert_job_with_payload(
+    db: &PgPool,
+    work_id: uuid::Uuid,
+    platform: DistributionPlatform,
+    force: bool,
+) -> ThothResult<(
+    super::WorkUpsertMaterialization,
+    Option<crate::model::distribution_job::DistributionJobPayload>,
+)> {
+    use crate::model::distribution_job::{
+        DistributionJobAttempt, DistributionJobPayload, DistributionJobTarget,
+    };
+    use crate::schema::{distribution_job_attempt, distribution_job_target};
+    let profile = registered(platform)?;
+    work_upsert_transaction(db, |connection| {
+        let unit = materialization_unit(connection, work_id, profile, force)?;
+        let payload = match &unit.job {
+            Some(job) => {
+                // The released job payload's orders: targets in canonical
+                // platform order, attempts most recent first.
+                let targets = distribution_job_target::table
+                    .filter(
+                        distribution_job_target::distribution_job_id.eq(job.distribution_job_id),
+                    )
+                    .order(distribution_job_target::platform.asc())
+                    .load::<DistributionJobTarget>(connection)?;
+                let attempts = distribution_job_attempt::table
+                    .filter(
+                        distribution_job_attempt::distribution_job_id.eq(job.distribution_job_id),
+                    )
+                    .order(distribution_job_attempt::attempt_number.desc())
+                    .load::<DistributionJobAttempt>(connection)?;
+                Some(DistributionJobPayload::preloaded(
+                    job.clone(),
+                    targets,
+                    attempts,
+                ))
+            }
+            None => None,
+        };
+        Ok((unit, payload))
+    })
+}
+
 /// One row of the drain selector: a member of R52B section 9.2's candidate set
 /// with the inputs of Amendment 3 section 9.4's filter.
 #[derive(QueryableByName)]
@@ -1176,131 +1225,215 @@ pub fn work_upsert_resolution_count(
 /// Report 3, `workUpsertResidue`: residue candidates classified as the drain
 /// classifies them, with the first failing eligibility clause of an ineligible
 /// one, ascending by `work_id`.
+///
+/// One statement reads the page: the residue half of R52B section 9.2's
+/// candidate set for the profile, ordered and paged in SQL, with everything the
+/// classification needs projected per row: whether the current binding is
+/// admitted, the drain's own SQL-eligibility expression, the publisher coverage
+/// of E1-E3, each SQL clause of E4-E6 and the evaluated abstracts. The page is
+/// then classified in Rust with no further read, through the expression and the
+/// abstract function the drain uses (Amendment 3 section 9.4, M15).
 pub fn work_upsert_residue(
     db: &PgPool,
     platform: DistributionPlatform,
     limit: i32,
     offset: i32,
 ) -> ThothResult<Vec<super::WorkUpsertResidueRow>> {
+    use super::policy::{self, CROSSREF_SQL_CLAUSES};
     use super::{
         WorkUpsertEligibilityClause as Clause, WorkUpsertResidueClass as Class,
         WorkUpsertResidueRow,
     };
-    use diesel::sql_types::{Bool, Uuid as SqlUuid};
+    use diesel::sql_types::{Array, BigInt, Bool, Text};
+    #[derive(QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = diesel::sql_types::Uuid)]
+        work_id: uuid::Uuid,
+        #[diesel(sql_type = crate::schema::sql_types::DistributionPlatform)]
+        execution_profile: DistributionPlatform,
+        #[diesel(sql_type = Bool)]
+        admitted: bool,
+        #[diesel(sql_type = Bool)]
+        sql_eligible: bool,
+        #[diesel(sql_type = Bool)]
+        covered: bool,
+        #[diesel(sql_type = Array<Bool>)]
+        clauses: Vec<bool>,
+        #[diesel(sql_type = Array<Text>)]
+        abstracts: Vec<String>,
+    }
     let profile = registered(platform)?;
-    work_upsert_transaction(db, |connection| {
-        let rows = candidate_rows(connection, &[profile])?;
-        let mut residue = Vec::new();
-        for row in rows
-            .into_iter()
-            .filter(|row| row.class == "RESIDUE")
-            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
-            .take(usize::try_from(limit.max(0)).unwrap_or_default())
-        {
-            let eligible = row.sql_eligible && row.abstracts_normalise();
+    let clauses = CROSSREF_SQL_CLAUSES
+        .iter()
+        .map(|(_, clause)| {
+            format!(
+                "COALESCE((SELECT {clause} FROM public.work w WHERE w.work_id = r.work_id), false)"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let rows = work_upsert_transaction(db, |connection| {
+        Ok(diesel::sql_query(format!(
+            "WITH r AS ( \
+                 SELECT g.work_id, g.execution_profile \
+                   FROM public.work_upsert_generation g \
+                  WHERE g.execution_profile = $1 \
+                    AND NOT EXISTS (SELECT 1 FROM public.distribution_job j \
+                                     WHERE j.kind = 'WORK_UPSERT' AND j.work_id = g.work_id \
+                                       AND j.execution_profile = g.execution_profile \
+                                       AND j.status IN ('PENDING', 'RUNNING')) \
+                    AND (g.source_generation = 0 \
+                         OR g.source_generation > public.work_upsert_resolution(g.work_id, g.execution_profile)) \
+                  ORDER BY g.work_id, g.execution_profile \
+                  LIMIT $3 OFFSET $4) \
+             SELECT r.work_id, r.execution_profile, \
+                    EXISTS (SELECT 1 FROM public.work w \
+                              JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+                              JOIN public.publisher_distribution_platform a \
+                                ON a.publisher_id = i.publisher_id AND a.platform = r.execution_profile AND a.enabled \
+                              JOIN public.work_upsert_admission ad \
+                                ON ad.execution_profile = r.execution_profile AND ad.publisher_id = a.publisher_id \
+                               AND ad.activation_id = a.activation_id \
+                             WHERE w.work_id = r.work_id) AS admitted, \
+                    ($2 AND COALESCE((SELECT {coverage} AND {eligibility} \
+                                       FROM public.work w JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+                                      WHERE w.work_id = r.work_id), false)) AS sql_eligible, \
+                    ($2 AND COALESCE((SELECT {coverage} \
+                                       FROM public.work w JOIN public.imprint i ON i.imprint_id = w.imprint_id \
+                                      WHERE w.work_id = r.work_id), false)) AS covered, \
+                    ARRAY[{clauses}] AS clauses, \
+                    COALESCE((SELECT {abstracts} FROM public.work w WHERE w.work_id = r.work_id), ARRAY[]::text[]) AS abstracts \
+               FROM r \
+              ORDER BY r.work_id, r.execution_profile",
+            coverage = policy::CROSSREF_PUBLISHER_COVERAGE_SQL.replace("{publisher}", "i.publisher_id"),
+            eligibility = policy::CROSSREF_SQL_ELIGIBILITY,
+            abstracts = policy::CROSSREF_EVALUATED_ABSTRACTS_SQL,
+        ))
+        .bind::<crate::schema::sql_types::DistributionPlatform, _>(profile.key)
+        .bind::<Bool, _>(policy::crossref_route_is_automatic_push())
+        .bind::<BigInt, _>(i64::from(limit.max(0)))
+        .bind::<BigInt, _>(i64::from(offset.max(0)))
+        .load::<Row>(connection)?)
+    })?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let eligible = row.sql_eligible && policy::crossref_abstracts_normalise(&row.abstracts);
             let (class, failing_clause) = if !eligible {
-                #[derive(QueryableByName)]
-                struct Holds {
-                    #[diesel(sql_type = Bool)]
-                    holds: bool,
-                }
-                let mut failing = None;
-                let coverage = super::policy::crossref_route_is_automatic_push()
-                    && crossref_publisher_covered_for_work(connection, row.work_id)?;
-                if !coverage {
-                    failing = Some(Clause::PublisherCoverage);
-                }
-                for (clause, sql) in super::policy::CROSSREF_SQL_CLAUSES {
-                    if failing.is_some() {
-                        break;
-                    }
-                    let holds = diesel::sql_query(format!(
-                        "SELECT COALESCE((SELECT {sql} FROM public.work w WHERE w.work_id = $1), false) AS holds"
-                    ))
-                    .bind::<SqlUuid, _>(row.work_id)
-                    .get_result::<Holds>(connection)?
-                    .holds;
-                    if !holds {
-                        failing = Some(clause);
-                    }
-                }
-                (
-                    Class::Ineligible,
-                    Some(failing.unwrap_or(Clause::AbstractNormalisation)),
-                )
+                let failing = if !row.covered {
+                    Clause::PublisherCoverage
+                } else {
+                    CROSSREF_SQL_CLAUSES
+                        .iter()
+                        .zip(&row.clauses)
+                        .find(|(_, holds)| !**holds)
+                        .map_or(Clause::AbstractNormalisation, |((clause, _), _)| *clause)
+                };
+                (Class::Ineligible, Some(failing))
             } else if row.admitted {
                 (Class::Materializable, None)
             } else {
                 (Class::NotAdmitted, None)
             };
-            residue.push(WorkUpsertResidueRow {
+            WorkUpsertResidueRow {
                 work_id: row.work_id,
                 execution_profile: row.execution_profile,
                 class,
                 failing_clause,
-            });
-        }
-        Ok(residue)
-    })
-}
-
-/// Whether the Work's current publisher is covered (E2, E3), by MVCC.
-fn crossref_publisher_covered_for_work(
-    connection: &mut PgConnection,
-    work_id: uuid::Uuid,
-) -> QueryResult<bool> {
-    match current_publisher(connection, work_id)? {
-        Some(publisher_id) => crossref_publisher_covered(connection, publisher_id),
-        None => Ok(false),
-    }
+            }
+        })
+        .collect())
 }
 
 /// Report 4, `workUpsertStaleBindings`: `PENDING` jobs whose binding is obsolete,
 /// with the cancellation reason the drain will use.
+///
+/// One statement reads the page: the stale-binding half of R52B section 9.2's
+/// candidate set for the profile, ordered and paged in SQL, with the job's
+/// binding, the Work's current publisher, whether every target of the job is
+/// enabled under the job's activation and whether the profile's assignment is
+/// enabled at all. The reason is then decided in Rust with no further read, by
+/// the rule of the unit's step 7 (R52B section 9.4).
 pub fn work_upsert_stale_bindings(
     db: &PgPool,
     platform: DistributionPlatform,
     limit: i32,
     offset: i32,
 ) -> ThothResult<Vec<super::WorkUpsertStaleBindingRow>> {
-    use crate::model::distribution_job::{
-        DistributionJob, DistributionJobKind, DistributionJobStatus,
-    };
-    use crate::schema::distribution_job;
+    use crate::model::distribution_job::DistributionJobCancellationReason as Reason;
+    use diesel::sql_types::{BigInt, Bool, Nullable, Uuid as SqlUuid};
+    #[derive(QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = SqlUuid)]
+        distribution_job_id: uuid::Uuid,
+        #[diesel(sql_type = SqlUuid)]
+        work_id: uuid::Uuid,
+        #[diesel(sql_type = crate::schema::sql_types::DistributionPlatform)]
+        execution_profile: DistributionPlatform,
+        #[diesel(sql_type = SqlUuid)]
+        job_publisher_id: uuid::Uuid,
+        #[diesel(sql_type = Nullable<SqlUuid>)]
+        current_publisher_id: Option<uuid::Uuid>,
+        #[diesel(sql_type = Bool)]
+        targets_current: bool,
+        #[diesel(sql_type = Bool)]
+        profile_enabled: bool,
+    }
     let profile = registered(platform)?;
-    work_upsert_transaction(db, |connection| {
-        let rows = candidate_rows(connection, &[profile])?;
-        let mut stale = Vec::new();
-        for row in rows
-            .into_iter()
-            .filter(|row| row.class == "STALE_PENDING")
-            .skip(usize::try_from(offset.max(0)).unwrap_or_default())
-            .take(usize::try_from(limit.max(0)).unwrap_or_default())
-        {
-            let Some(job) = distribution_job::table
-                .filter(distribution_job::kind.eq(DistributionJobKind::WorkUpsert))
-                .filter(distribution_job::work_id.eq(row.work_id))
-                .filter(distribution_job::execution_profile.eq(row.execution_profile))
-                .filter(distribution_job::status.eq(DistributionJobStatus::Pending))
-                .first::<DistributionJob>(connection)
-                .optional()?
-            else {
-                continue;
+    let rows = work_upsert_transaction(db, |connection| {
+        Ok(diesel::sql_query(
+            "SELECT s.distribution_job_id, s.work_id, s.execution_profile, s.publisher_id AS job_publisher_id, \
+                    s.current_publisher_id, \
+                    NOT EXISTS (SELECT 1 FROM public.distribution_job_target t \
+                                 WHERE t.distribution_job_id = s.distribution_job_id \
+                                   AND NOT EXISTS (SELECT 1 FROM public.publisher_distribution_platform p \
+                                                    WHERE p.publisher_id = s.publisher_id AND p.platform = t.platform \
+                                                      AND p.enabled AND p.activation_id = s.activation_id)) AS targets_current, \
+                    EXISTS (SELECT 1 FROM public.publisher_distribution_platform p \
+                             WHERE p.publisher_id = s.publisher_id AND p.platform = $1 AND p.enabled) AS profile_enabled \
+               FROM (SELECT j.distribution_job_id, j.work_id, j.execution_profile, j.publisher_id, j.activation_id, \
+                            (SELECT i.publisher_id FROM public.work w JOIN public.imprint i USING (imprint_id) \
+                              WHERE w.work_id = j.work_id) AS current_publisher_id \
+                       FROM public.distribution_job j \
+                      WHERE j.kind = 'WORK_UPSERT' AND j.execution_profile = $1 \
+                        AND j.status = 'PENDING' AND j.work_id IS NOT NULL \
+                        AND ((SELECT i.publisher_id FROM public.work w JOIN public.imprint i USING (imprint_id) \
+                               WHERE w.work_id = j.work_id) IS DISTINCT FROM j.publisher_id \
+                             OR EXISTS (SELECT 1 FROM public.distribution_job_target t \
+                                         WHERE t.distribution_job_id = j.distribution_job_id \
+                                           AND NOT EXISTS (SELECT 1 FROM public.publisher_distribution_platform p \
+                                                            WHERE p.publisher_id = j.publisher_id AND p.platform = t.platform \
+                                                              AND p.enabled AND p.activation_id = j.activation_id))) \
+                      ORDER BY j.work_id, j.execution_profile \
+                      LIMIT $2 OFFSET $3) s \
+              ORDER BY s.work_id, s.execution_profile",
+        )
+        .bind::<crate::schema::sql_types::DistributionPlatform, _>(profile.key)
+        .bind::<BigInt, _>(i64::from(limit.max(0)))
+        .bind::<BigInt, _>(i64::from(offset.max(0)))
+        .load::<Row>(connection)?)
+    })?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            let current = row.current_publisher_id?;
+            let reason = if row.job_publisher_id != current {
+                Reason::BindingSuperseded
+            } else if row.targets_current {
+                return None;
+            } else if row.profile_enabled {
+                Reason::BindingSuperseded
+            } else {
+                Reason::AssignmentDisabled
             };
-            let Some(current) = current_publisher(connection, row.work_id)? else {
-                continue;
-            };
-            if let Some(reason) = stale_binding_reason(connection, &job, current, profile)? {
-                stale.push(super::WorkUpsertStaleBindingRow {
-                    distribution_job_id: job.distribution_job_id,
-                    work_id: row.work_id,
-                    execution_profile: row.execution_profile,
-                    reason,
-                });
-            }
-        }
-        Ok(stale)
-    })
+            Some(super::WorkUpsertStaleBindingRow {
+                distribution_job_id: row.distribution_job_id,
+                work_id: row.work_id,
+                execution_profile: row.execution_profile,
+                reason,
+            })
+        })
+        .collect())
 }
 
 /// The released job payload of `jobs`, preloaded with the released target and

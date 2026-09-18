@@ -16,6 +16,11 @@ executed. It is evidence for the independent exact-head CRITICAL review, not a s
 > **Merge-readiness correction.** Section 18's head `86917f9f` was approved on independent review (#848 comment
 > `5715923725`) and PR #925 was opened. The merge-readiness review then required changes; sections 1-18 are preserved
 > as written. Section 19 records the correction authorized by #848 comment `5718898530`.
+>
+> **Independent-review correction.** Section 19's head `290f168b` was returned CHANGES REQUIRED on independent review;
+> sections 1-19 are preserved as written. Section 20 records the correction pass the engineering control plane then
+> authorized: reports 3 and 4 and mutation 17 within the approved specification, and the CTO-approved supporting-index
+> amendment of Migration 2.
 
 ## 1. Repository state
 
@@ -1323,3 +1328,203 @@ independently of this file.
   historical once this commit is pushed. The pushed head requires a fresh independent cold-start CRITICAL review of
   the entire BE-06 implementation, not only this correction, before any new merge authorization. Both automated
   review threads on PR #925 remain open for the control plane.
+
+## 20. Independent-review correction
+
+### 20.1 Findings and authority
+
+The independent exact-head CRITICAL review of `290f168bd6f7e284de4f2459007c4c30019304a7` (tree
+`2f215b0b7fab72451ebe8f5c3398021fc232a7aa`) returned CHANGES REQUIRED. It confirmed the section 19 correction and found:
+
+- **C1.** Reports 3 and 4, `workUpsertResidue` and `workUpsertStaleBindings`, read the drain's whole candidate set with
+  no `LIMIT` (every candidate's abstracts included), cut the page in Rust, and then ran statements per row: for an
+  ineligible residue row the Work's publisher, its coverage and up to seven clause probes (up to nine statements), and
+  for a stale job the job, the Work's publisher, the job's targets and the publisher's assignments (four statements).
+  These are the two Codex P2 threads on PR #925 and their sibling in report 4. Amendment 3 section 9.4 requires the
+  unbounded read of the drain selector only; nothing requires it, or a per-row read, of a report
+  (`thoth-api/AGENTS.md` section 6).
+- **C2.** `materializeWorkUpsertJob` (mutation 17) returned its job as `DistributionJobPayload::lazy`, so a request
+  selecting `job { targets attempts }` resolved them after the unit's commit through the released request loaders,
+  whose pool and statement errors carry released text: outside the BE-06 error boundary of Amendment 3 section 10.3 (X11,
+  and section 11.4 criteria 50 and 51).
+- **P1-P3.** Three costs of the approved design, each a sequential scan the approved index inventory left: the flush's
+  per-owner `crossref_roots` read of `work_relation` by `related_work_id` (P1), `work_upsert_resolution`'s read of every
+  `WORK_UPSERT` job of a Work (P2), and the lineage keys' `ON DELETE SET NULL` actions (P3).
+
+The engineering control plane authorized this correction pass: C1 in `work_upsert/crud.rs` and `work_upsert/tests.rs`,
+C2 in `graphql/work_upsert.rs` with a regression through the GraphQL field path, and Migration 2 changes limited to the
+CTO-approved specification amendment for P1-P3 (supporting `work_relation` root lookup, `WORK_UPSERT` terminal-job
+resolution and the lineage keys' lifecycle), with the migration inventory updated and the migration tested on an empty
+database, a populated database and up/down/up. The drain selector, `candidate_rows`, `drainable_set` and the
+materialization selection logic were excluded from change. **No #848 ledger comment records this authorization or the
+P1-P3 amendment at the time of this correction**; both were given directly by the engineering control plane.
+
+### 20.2 Preflight
+
+`origin/feature/publisher-services-v1-10--be-06` and the local task branch were `290f168b…`, tree `2f215b0b…`; the
+integration branch was `b23ba05c…`; PR #925 was OPEN, ready for review, mergeable `CLEAN` and unmerged; #848 had no
+record after `5718898530`; the worktree was clean; the Git identity was the established one.
+
+### 20.3 C1: reports 3 and 4 read one bounded page
+
+`work_upsert_residue` now runs one statement per call: the residue half of R52B section 9.2's candidate set for the
+profile, with its predicate text unchanged, `ORDER BY work_id, execution_profile` and `LIMIT`/`OFFSET` in SQL (the same
+`max(0)` treatment of the arguments), and, per returned row, the admission of the current binding (the drain
+selector's expression), the drain's own SQL-eligibility expression (`CROSSREF_PUBLISHER_COVERAGE_SQL` and
+`CROSSREF_SQL_ELIGIBILITY`), the E1-E3 coverage, each clause of `CROSSREF_SQL_CLAUSES` as an element of one boolean
+array, and `CROSSREF_EVALUATED_ABSTRACTS_SQL`. The page is classified in Rust with no further read: ineligible exactly
+when the SQL eligibility or `crossref_abstracts_normalise` fails, the failing clause being `PUBLISHER_COVERAGE` when
+coverage fails, else the first clause false in `CROSSREF_SQL_CLAUSES` order, else `ABSTRACT_NORMALISATION`; then
+`MATERIALIZABLE` or `NOT_ADMITTED` by admission. That is the rule `290f168b` applied, now evaluated on one snapshot.
+
+`work_upsert_stale_bindings` likewise runs one statement: the stale-binding half of R52B section 9.2 with its predicate
+text unchanged, ordered and paged in SQL, projecting the job, its publisher, the Work's current publisher, whether every
+target of the job is enabled under the job's activation and whether the profile's assignment is enabled at all. The
+reason is then decided in Rust by the rule of the unit's step 7 (`stale_binding_reason`), unchanged: a Work whose
+publisher is not the job's is `BINDING_SUPERSEDED`; a job whose targets are all enabled under its activation is not
+reported; otherwise `BINDING_SUPERSEDED` when the profile's assignment is enabled under another activation and
+`ASSIGNMENT_DISABLED` when it is not enabled at all.
+
+The now-unused private helper `crossref_publisher_covered_for_work` is removed. `candidate_rows`, `drainable_set`,
+`materialize_work_upsert_jobs`, `materialization_unit` and `stale_binding_reason` are byte-identical.
+
+### 20.4 C2: mutation 17 returns its job loaded inside the unit's transaction
+
+`materialize_work_upsert_job_with_payload` runs the unchanged unit and, when the unit returns a job, reads that job's
+targets (`platform` ascending) and attempts (`attempt_number` descending), the orders of the released payload, with
+BE-06 statements in the same `work_upsert_transaction`, and returns a preloaded `DistributionJobPayload`. It calls no
+released helper (X11). `graphql/work_upsert.rs`'s result type for the mutation is now `MaterializedWorkUpsertJob`, with
+GraphQL name `WorkUpsertMaterialization` and the same description, fields, field descriptions and field order, so the
+generated SDL is byte-identical to `290f168b`'s (SHA-256 `6ee55071f58a7593163118ce1e9522e655bbcb6750b18225a726c90a147c2311`).
+`graphql/mutation.rs` changes only that resolver's Rust return type. `materialize_work_upsert_job` is unchanged.
+
+### 20.5 P1-P3: the supporting-index amendment of Migration 2
+
+Four indexes are added in step 7 of `20260911_v1.10.0/up.sql`, after the ten of R52B section 18.9, and dropped
+explicitly by `down.sql`:
+
+| | Index | Serves |
+|---|---|---|
+| P1 | `work_relation_related_work_id_relation_type_idx` on `work_relation (related_work_id, relation_type)` | `crossref_roots(w)`, once per owner at every commit-time flush |
+| P2 | `distribution_job_work_upsert_resolution_idx` on `distribution_job (work_id, execution_profile) WHERE kind = 'WORK_UPSERT'` | `work_upsert_resolution(w, p)`: the drain selector, report 1, capture lag |
+| P3 | `distribution_job_predecessor_job_idx` on `(predecessor_job_id) WHERE predecessor_job_id IS NOT NULL` and `distribution_job_superseded_by_job_idx` on `(superseded_by_job_id) WHERE superseded_by_job_id IS NOT NULL` | the lineage keys' `ON DELETE SET NULL` actions |
+
+No predicate, function, trigger, constraint, column or lock changes. Inventory: Migration 2 now creates 22 indexes
+(8 primary keys, the 10 of R52B section 18.9 and these 4), one of them on the released `work_relation` table; the
+migrated catalog has 195 indexes, 27 of them partial (G2); every other count is unchanged. The migration's own header
+and `down.sql`'s header say so.
+
+### 20.6 Tests
+
+Module `independent_review_correction` in `thoth-api/src/model/work_upsert/tests.rs` adds nine tests; two inventory
+assertions change:
+
+- `c1_reports_3_and_4_return_exactly_what_290f168b_returned_on_every_page`: a population with residue in every class
+  and under every reachable first-failing clause, and stale jobs under all three reasons; reports 3 and 4 equal
+  oracles that reproduce `290f168b`'s implementation exactly, on thirteen pages each (start, middle, end, past the end,
+  zero, negative and extreme arguments).
+- `c1_report_3_classification_is_the_drains`: a residue row is `MATERIALIZABLE` exactly when `CandidateRow::drainable`
+  holds, and `INELIGIBLE` exactly when the drain's eligibility fails (M15).
+- `c1_each_report_page_is_one_bounded_statement_with_no_follow_up_read` and
+  `c1_both_reports_are_empty_over_no_residue_and_no_stale_job`: on a measured one-connection pool, every page of either
+  report is exactly one data statement, carrying `LIMIT` and `OFFSET`.
+- `c2_materialize_work_upsert_job_returns_its_job_loaded_inside_the_units_transaction`: through the GraphQL schema, for
+  `CREATED`, `PENDING_CURRENT` and `RUNNING_IN_FLIGHT`, `job { targets attempts }` equals the job report's and every
+  statement of the request runs between the unit's one `BEGIN` and one `COMMIT`.
+- `c2_no_work_level_graphql_result_resolves_a_job_through_the_released_loaders`: no `DistributionJobPayload::lazy` in
+  `graphql/work_upsert.rs`.
+- `p1_p2_p3_the_amendment_indexes_exist_exactly_while_migration_2_is_applied`,
+  `p1_p2_p3_each_amendment_index_serves_the_query_shape_it_supports` (generic plans with sequential scans disabled,
+  over the exact shapes: `crossref_roots`'s read, the resolution read, and the two `SET NULL` actions) and
+  `p1_p2_p3_migration_2_applies_reverts_and_reapplies_over_a_populated_released_database`.
+- G2 now expects the migrated inventory `(68, 92, 195, 57, 33, 27)`; `distribution_job/tests.rs`'s index list adds the
+  three new `distribution_job` indexes.
+
+### 20.7 RED
+
+With the tests above and the production code of `290f168b` unchanged, `cargo test -p thoth-api --features backend --lib`
+over the twelve affected tests: `8 failed; 4 passed`. The four that passed are the behaviour tests (C1 parity, drain
+parity, empty reports) and G1. The eight failures: the index list and G2 (`191`/`24` against `195`/`27`); report 3's page
+of eleven rows ran one candidate statement without `LIMIT` and then the per-row publisher, coverage and clause probes;
+C2's `CREATED` request logged the unit's `BEGIN`…`COMMIT` and then the released loaders' `distribution_job_attempt` and
+`distribution_job_target` selects; `DistributionJobPayload::lazy` present; and the index tests (no index; the root
+lookup planned onto a full scan of `idx_work_relation_relation_ordinal_related_relation_type_asc`).
+
+### 20.8 GREEN and validation
+
+- The twelve affected tests with the corrected source: `12 passed; 0 failed`. The recreated disposable test database
+  applied the amended Migration 2.
+- On the worktree of this correction (the report aside, which changes no code):
+
+```text
+cargo fmt --all -- --check                                      exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings  exit 0 (proc-macro-error2 notice only)
+cargo test --workspace --no-fail-fast                           exit 0; 1738 passed, 0 failed, 8 ignored
+thoth (bin)                                          31 passed
+thoth-api lib                                      1467 passed (1458 + 9)
+thoth-api tests/crossref_permit_concurrency           3 passed
+thoth-api tests/crossref_serializer_dependency_guard  4 passed
+thoth-api tests/graphql_permissions                  13 passed
+thoth-api tests/work_upsert_capture                  31 passed
+thoth-api tests/work_upsert_deletion                  4 passed
+thoth-api tests/work_upsert_lifecycle                 7 passed
+thoth-api-server lib 3; thoth-client lib 4; thoth-errors lib 11; thoth-export-server lib 152
+doc-tests: thoth_client 6; thoth_export_server 2; thoth_api 0 passed, 8 ignored
+```
+
+- **API.** The generated SDL is byte-identical to `290f168b`'s: SHA-256
+  `6ee55071f58a7593163118ce1e9522e655bbcb6750b18225a726c90a147c2311`.
+- **Deadlocks.** `pg_stat_database.deadlocks` rose from 0 to 1 over the workspace run; the one `deadlock detected`
+  entry is the pair of `UPDATE title` statements of `t319_negative_control_without_the_defence_deadlocks`.
+- **Migration, empty database** (psql, each migration file in its own transaction, as Diesel runs them): released ->
+  M1 -> M2 up -> down -> up -> down -> up. After each down the catalog equals the released one (object fingerprint
+  `81a5cc2b…`, 2,936 objects, Migration 1's three labels aside); each up reproduces the migrated one (`1414b8f3…`,
+  3,197 objects) with the four indexes. M1 and M2 in one transaction are refused `unsafe use of new value
+  "WORK_UPSERT"`, as before.
+- **Migration, populated database**: 5,000 Works, 4,000 `has-child`/`is-child-of` rows, a Crossref assignment and a
+  back-catalogue job with its target, loaded on the released schema. M2 up took 107 ms; up, down and up again each
+  left the released rows' fingerprint unchanged, and the down restored the released catalog exactly.
+- **Effect** on that database with 5,000 terminal `WORK_UPSERT` jobs, measured without and then with the four
+  indexes: P1 publisher-rename `COMMIT` (5,000 owners) 706 ms -> 95 ms; P2 residue predicate over 5,000 generation
+  rows 2,408 ms -> 45 ms; P3 deleting 2,000 jobs 1,573 ms -> 27 ms.
+- Tests ran only against a disposable local PostgreSQL 17.4 and Redis. `THOTH_EXPORT_API`, a compile-time string, was
+  set; `CARGO_INCREMENTAL=0` and `CARGO_PROFILE_DEV_DEBUG=line-tables-only` were set because the host volume was nearly
+  full, and change build artifacts only. Nothing contacted Crossref, a provider or production.
+
+### 20.9 Diff
+
+`git diff --name-status 290f168bd6f7e284de4f2459007c4c30019304a7..HEAD`:
+
+```text
+M	docs/engineering/ai-delivery/implementation-reports/BE-06-implementation-report.md
+M	thoth-api/migrations/20260911_v1.10.0/down.sql
+M	thoth-api/migrations/20260911_v1.10.0/up.sql
+M	thoth-api/src/graphql/mutation.rs
+M	thoth-api/src/graphql/work_upsert.rs
+M	thoth-api/src/model/distribution_job/tests.rs
+M	thoth-api/src/model/work_upsert/crud.rs
+M	thoth-api/src/model/work_upsert/tests.rs
+```
+
+Eight existing BE-06 paths, all modifications, all within the 43-path allowlist; the PR still changes 41 paths. The
+correction is one commit whose only parent is `290f168bd6f7e284de4f2459007c4c30019304a7`; its SHA and tree are the head
+of PR #925 after the push and are given in the handoff.
+
+### 20.10 Deviations, residual risks and remaining gate
+
+- **Paths beyond the named areas.** `graphql/mutation.rs` (the mutation's Rust return type, required by C2; no SDL
+  change), `distribution_job/tests.rs` (the migration inventory the amendment changes) and this report (repository
+  doctrine). All are within the 43-path allowlist; no path is added to the PR.
+- **Ledger.** No #848 record of this authorization or of the P1-P3 amendment exists at this correction; recording them,
+  and reconciling Amendment 3's inventory counts (18 indexes) with the amended Migration 2 (22), is the control plane's.
+- **Databases that already ran the pre-amendment Migration 2.** Diesel does not re-run `20260911`; such a database (for
+  example one migrated by a `staging-pr-925` image) lacks the four indexes until Migration 2 is reverted and re-applied,
+  which R52B section 23.5 permits only before any BE-06 job or permit exists. None was inspected: no such access is
+  authorized.
+- **Scans the amendment does not cover.** The creation helper's `job_ordinal` count and report 5's `workUpsertJob`
+  filter `distribution_job` by `work_identity`; the permit link keys' `SET NULL` actions and report 1's per-row job
+  aggregates are unindexed. None is quadratic in the paths P1-P3 corrected; each is outside the approved amendment.
+- **Independence.** The implementing session performed the independent review of `290f168b` that found these defects;
+  it is not independent for any review of this correction.
+- **Gate.** A fresh independent exact-head CRITICAL review of the whole BE-06 implementation. Merge, release,
+  deployment, production migration, G-6, G-7, provider access and activation remain separate gates.
