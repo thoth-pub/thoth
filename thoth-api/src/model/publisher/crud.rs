@@ -9,7 +9,7 @@ use crate::schema::{publisher, publisher_history};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
 };
-use thoth_errors::ThothResult;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 impl Crud for Publisher {
@@ -123,7 +123,75 @@ impl Crud for Publisher {
             .map_err(Into::into)
     }
 
-    crud_methods!(publisher::table, publisher::dsl::publisher);
+    crud_methods!(publisher::table, publisher::dsl::publisher, without_delete);
+
+    /// Deletes the Publisher through BE-06's publisher-set-first deletion unit
+    /// (R52B section 13.4), which retires its Works' actionable work-level jobs
+    /// first.
+    fn delete(self, db: &crate::db::PgPool) -> ThothResult<Self> {
+        work_upsert_delete_publisher(db, self.publisher_id).map(|_| self)
+    }
+}
+
+/// `deletePublisher` (R52B section 13.4): one ascending pass over the publisher
+/// set taking this publisher `FOR UPDATE` and every other `FOR SHARE`, then its
+/// imprints and their Works `FOR UPDATE` ascending, then retirement. The
+/// released cascade removes the publisher's jobs and sets its permits' links
+/// `NULL`.
+fn work_upsert_delete_publisher(db: &crate::db::PgPool, publisher_id: Uuid) -> ThothResult<()> {
+    use crate::model::work::crud::{
+        lock_publisher_set, retire_actionable_work_upsert_jobs, run_work_upsert_deletion_unit,
+        within_locked_set, work_upsert_bound_publishers,
+    };
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::{imprint, work};
+    use diesel::OptionalExtension;
+    run_work_upsert_deletion_unit(db, |connection| {
+        let works = work::table
+            .inner_join(imprint::table)
+            .filter(imprint::publisher_id.eq(publisher_id))
+            .select(work::work_id)
+            .load::<Uuid>(connection)
+            .work_upsert()?;
+        let exists = publisher::table
+            .filter(publisher::publisher_id.eq(publisher_id))
+            .select(publisher::publisher_id)
+            .first::<Uuid>(connection)
+            .optional()
+            .work_upsert()?;
+        if exists.is_none() {
+            return Ok(());
+        }
+        let mut locked = work_upsert_bound_publishers(connection, &works)?;
+        locked.push(publisher_id);
+        locked.sort();
+        locked.dedup();
+        lock_publisher_set(connection, &locked, Some(publisher_id))?;
+        let imprints = imprint::table
+            .filter(imprint::publisher_id.eq(publisher_id))
+            .select(imprint::imprint_id)
+            .order(imprint::imprint_id.asc())
+            .for_update()
+            .load::<Uuid>(connection)
+            .work_upsert()?;
+        let works = work::table
+            .filter(work::imprint_id.eq_any(&imprints))
+            .select(work::work_id)
+            .order(work::work_id.asc())
+            .for_update()
+            .load::<Uuid>(connection)
+            .work_upsert()?;
+        let mut now = work_upsert_bound_publishers(connection, &works)?;
+        now.push(publisher_id);
+        if !within_locked_set(&locked, &now) {
+            return Err(ThothError::WorkDeleteBindingDrift);
+        }
+        retire_actionable_work_upsert_jobs(connection, &works)?;
+        diesel::delete(publisher::table.find(publisher_id))
+            .execute(connection)
+            .map(|_| ())
+            .map_err(Into::into)
+    })
 }
 
 impl Publisher {

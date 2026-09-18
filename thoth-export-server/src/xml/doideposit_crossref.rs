@@ -41,44 +41,110 @@ const CROSSREF_NS: &[(&str, &str)] = &[
 // (retrieved via https://www.crossref.org/documentation/member-setup/direct-deposit-xml/testing-your-xml/).
 impl XmlSpecification for DoiDepositCrossref {
     fn handle_event<W: Write>(w: &mut EventWriter<W>, works: &[Work]) -> ThothResult<()> {
-        match works {
-            [] => Err(ThothError::IncompleteMetadataRecord(
-                DEPOSIT_ERROR.to_string(),
-                "Not enough data".to_string(),
-            )),
-            [work] => {
-                let timestamp = Utc::now().format("%Y%m%d%H%M%S").to_string();
-                let work_id = format!("{}_{}", work.work_id, timestamp);
+        // The released route keeps its 14-digit, generation-time timestamp.
+        write_deposit(w, works, &Utc::now().format("%Y%m%d%H%M%S").to_string())
+    }
+}
 
-                write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
-                    write_element_block("head", w, |w| {
-                        write_element_block("doi_batch_id", w, |w| {
-                            w.write(XmlEvent::Characters(&work_id))
-                                .map_err(|e| e.into())
-                        })?;
-                        write_element_block("timestamp", w, |w| {
-                            w.write(XmlEvent::Characters(&timestamp))
-                                .map_err(|e| e.into())
-                        })?;
-                        write_element_block("depositor", w, |w| {
-                            write_element_block("depositor_name", w, |w| {
-                                w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
-                            })?;
-                            write_element_block("email_address", w, |w| {
-                                w.write(XmlEvent::Characters("distribution@thoth.pub"))
-                                    .map_err(|e| e.into())
-                            })
-                        })?;
-                        write_element_block("registrant", w, |w| {
+impl DoiDepositCrossref {
+    /// Whether `value` is a valid 17-digit Crossref deposit timestamp; see
+    /// [`is_valid_crossref_timestamp`].
+    pub(crate) fn is_valid_timestamp(value: &str) -> bool {
+        is_valid_crossref_timestamp(value)
+    }
+
+    /// Generate the prepared deposit for BE-06's permit protocol (R52B section
+    /// 15.3): the released document, with the API-allocated 17-digit
+    /// `timestamp` in `<timestamp>` and the `doi_batch_id` suffix. A value that
+    /// is not the exact encoding of an instant is refused.
+    pub(crate) fn generate_prepared(
+        &self,
+        works: &[Work],
+        deposit_timestamp: &str,
+    ) -> ThothResult<String> {
+        if !is_valid_crossref_timestamp(deposit_timestamp) {
+            return Err(ThothError::CrossrefTimestampNotDecodable);
+        }
+        let mut buffer = crate::record::XML_DECLARATION.as_bytes().to_vec();
+        let mut writer = xml::writer::EmitterConfig::new()
+            .write_document_declaration(false)
+            .perform_indent(true)
+            .create_writer(&mut buffer);
+        write_deposit(&mut writer, works, deposit_timestamp)?;
+        String::from_utf8(buffer)
+            .map_err(|_| ThothError::InternalError("Could not parse XML".to_string()))
+    }
+}
+
+/// Whether `value` is a 17-digit Crossref deposit timestamp that is the exact
+/// UTC encoding, `YYYYMMDDHHMMSSmmm`, of an instant (R52B section 17.2): the
+/// same domain as the API's `crossref_ts_decode`.
+pub(crate) fn is_valid_crossref_timestamp(value: &str) -> bool {
+    if value.len() != 17 || !value.bytes().all(|b| b.is_ascii_digit()) || value.starts_with('0') {
+        return false;
+    }
+    let field = |range: std::ops::Range<usize>| value[range].parse::<u32>().ok();
+    let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second), Some(milli)) = (
+        field(0..4),
+        field(4..6),
+        field(6..8),
+        field(8..10),
+        field(10..12),
+        field(12..14),
+        field(14..17),
+    ) else {
+        return false;
+    };
+    let Ok(year) = i32::try_from(year) else {
+        return false;
+    };
+    second < 60
+        && chrono::NaiveDate::from_ymd_opt(year, month, day).is_some()
+        && chrono::NaiveTime::from_hms_milli_opt(hour, minute, second, milli).is_some()
+}
+
+/// The deposit document for one Work, with the supplied `timestamp`.
+fn write_deposit<W: Write>(
+    w: &mut EventWriter<W>,
+    works: &[Work],
+    timestamp: &str,
+) -> ThothResult<()> {
+    match works {
+        [] => Err(ThothError::IncompleteMetadataRecord(
+            DEPOSIT_ERROR.to_string(),
+            "Not enough data".to_string(),
+        )),
+        [work] => {
+            let work_id = format!("{}_{}", work.work_id, timestamp);
+
+            write_full_element_block("doi_batch", Some(CROSSREF_NS.to_vec()), w, |w| {
+                write_element_block("head", w, |w| {
+                    write_element_block("doi_batch_id", w, |w| {
+                        w.write(XmlEvent::Characters(&work_id))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("timestamp", w, |w| {
+                        w.write(XmlEvent::Characters(timestamp))
+                            .map_err(|e| e.into())
+                    })?;
+                    write_element_block("depositor", w, |w| {
+                        write_element_block("depositor_name", w, |w| {
                             w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
+                        })?;
+                        write_element_block("email_address", w, |w| {
+                            w.write(XmlEvent::Characters("distribution@thoth.pub"))
+                                .map_err(|e| e.into())
                         })
                     })?;
-                    XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
-                })
-            }
-            // handler::by_publisher() prevents generation of output for multiple records
-            _ => unreachable!(),
+                    write_element_block("registrant", w, |w| {
+                        w.write(XmlEvent::Characters("Thoth")).map_err(|e| e.into())
+                    })
+                })?;
+                XmlElementBlock::<DoiDepositCrossref>::xml_element(work, w)
+            })
         }
+        // handler::by_publisher() prevents generation of output for multiple records
+        _ => unreachable!(),
     }
 }
 
@@ -3077,5 +3143,805 @@ mod tests {
         assert!(output.contains(r#"xmlns:ai="http://www.crossref.org/AccessIndicators.xsd""#));
         assert!(output.contains(r#"xmlns:fr="http://www.crossref.org/fundref.xsd""#));
         assert!(output.contains(r#"xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance""#));
+    }
+
+    // -----------------------------------------------------------------------
+    // BE-06 (#848; R52B sections 15.3 and 17.2): the prepared deposit
+    // -----------------------------------------------------------------------
+
+    fn prepared_fixture_work() -> Work {
+        Work {
+            work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+            work_status: WorkStatus::ACTIVE,
+            titles: vec![thoth_client::WorkTitles {
+                title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000001").unwrap(),
+                locale_code: thoth_client::LocaleCode::EN,
+                full_title: "Book Title".to_string(),
+                title: "Book Title".to_string(),
+                subtitle: None,
+                canonical: true,
+            }],
+            abstracts: vec![thoth_client::WorkAbstracts {
+                abstract_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000002").unwrap(),
+                work_id: Uuid::from_str("00000000-0000-0000-AAAA-000000000001").unwrap(),
+                content:
+                    r#"<p>See <ext-link xlink:href="https://example.org">a link</ext-link>.</p>"#
+                        .to_string(),
+                locale_code: thoth_client::LocaleCode::EN,
+                abstract_type: thoth_client::AbstractType::LONG,
+                canonical: true,
+            }],
+            work_type: WorkType::MONOGRAPH,
+            reference: None,
+            edition: Some(1),
+            doi: Some(Doi::from_str("https://doi.org/10.00001/BOOK.0001").unwrap()),
+            publication_date: chrono::NaiveDate::from_ymd_opt(1999, 12, 31),
+            withdrawn_date: None,
+            license: None,
+            copyright_holder: None,
+            general_note: None,
+            bibliography_note: None,
+            place: None,
+            page_count: None,
+            page_breakdown: None,
+            first_page: None,
+            last_page: None,
+            page_interval: None,
+            image_count: None,
+            table_count: None,
+            audio_count: None,
+            video_count: None,
+            landing_page: Some("https://www.book.com".to_string()),
+            toc: None,
+            lccn: None,
+            oclc: None,
+            cover_url: None,
+            cover_caption: None,
+            imprint: WorkImprint {
+                imprint_name: "OA Editions Imprint".to_string(),
+                imprint_url: None,
+                crossmark_doi: None,
+                default_currency: None,
+                default_place: None,
+                default_locale: None,
+                publisher: WorkImprintPublisher {
+                    publisher_name: "OA Editions".to_string(),
+                    publisher_shortname: None,
+                    publisher_url: None,
+                    accessibility_statement: None,
+                    contacts: vec![],
+                },
+            },
+            issues: vec![],
+            contributions: vec![],
+            languages: vec![],
+            publications: vec![WorkPublications {
+                publication_id: Uuid::from_str("00000000-0000-0000-DDDD-000000000004").unwrap(),
+                publication_type: PublicationType::PDF,
+                isbn: Some(Isbn::from_str("978-3-16-148410-0").unwrap()),
+                width_mm: None,
+                width_cm: None,
+                width_in: None,
+                height_mm: None,
+                height_cm: None,
+                height_in: None,
+                depth_mm: None,
+                depth_cm: None,
+                depth_in: None,
+                weight_g: None,
+                weight_oz: None,
+                accessibility_standard: None,
+                accessibility_additional_standard: None,
+                accessibility_exception: None,
+                accessibility_report_url: None,
+                prices: vec![],
+                locations: vec![WorkPublicationsLocations {
+                    landing_page: Some("https://www.book.com/pdf_landing".to_string()),
+                    full_text_url: Some("https://www.book.com/pdf_fulltext".to_string()),
+                    location_platform: LocationPlatform::OTHER,
+                    canonical: true,
+                }],
+            }],
+            subjects: vec![],
+            fundings: vec![],
+            relations: vec![],
+            references: vec![],
+        }
+    }
+
+    /// The 13 calendar-boundary vectors embedded in Migration 2's assertions.
+    fn migration_timestamp_vectors() -> Vec<(String, String)> {
+        let sql = include_str!("../../../thoth-api/migrations/20260911_v1.10.0/up.sql");
+        let block = sql
+            .split_once("-- BE06_TS_VECTORS_BEGIN")
+            .expect("vectors begin")
+            .1
+            .split_once("-- BE06_TS_VECTORS_END")
+            .expect("vectors end")
+            .0;
+        block
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let values: Vec<String> = line
+                    .trim_end_matches(',')
+                    .trim_start_matches('(')
+                    .trim_end_matches(')')
+                    .split(", ")
+                    .map(|value| value.trim_end_matches("::bigint").to_string())
+                    .collect();
+                (values[0].clone(), values[1].clone())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn t111_the_prepared_timestamp_validator_accepts_exactly_the_encodings() {
+        let vectors = migration_timestamp_vectors();
+        assert_eq!(vectors.len(), 13);
+        for (input, successor) in &vectors {
+            assert!(is_valid_crossref_timestamp(input), "{input}");
+            assert!(is_valid_crossref_timestamp(successor), "{successor}");
+        }
+        for valid in [
+            "10000101000000000",
+            "99991231235959999",
+            "20240229235959999",
+        ] {
+            assert!(is_valid_crossref_timestamp(valid), "{valid}");
+        }
+        for invalid in [
+            "20260904120060000",  // second 60
+            "20260904240000000",  // hour 24
+            "20261304120000000",  // month 13
+            "20260932120000000",  // day 32
+            "20250229120000000",  // 29 February in a non-leap year
+            "20260431120000000",  // 31 April
+            "02026090412000000",  // a leading-zero year
+            "99999999999999",     // the 14-digit floor sentinel
+            "2026090412000000",   // 16 digits
+            "202609041200000000", // 18 digits
+            "2026090412000000a",
+            " 20260904120000000",
+            "+2026090412000000",
+            "",
+            "２0260904120000000",
+        ] {
+            assert!(!is_valid_crossref_timestamp(invalid), "{invalid:?}");
+        }
+    }
+
+    #[test]
+    fn t246_the_prepared_document_is_the_released_document_with_the_supplied_timestamp() {
+        let work = prepared_fixture_work();
+        let released = generate_test_document(&work);
+        let stamp = regex::Regex::new(r"<timestamp>(\d{14})</timestamp>")
+            .expect("regex")
+            .captures(&released)
+            .expect("a 14-digit timestamp")[1]
+            .to_string();
+        let supplied = "20260904120000123";
+        let prepared = DoiDepositCrossref {}
+            .generate_prepared(std::slice::from_ref(&work), supplied)
+            .expect("prepared");
+        let expected = released
+            .replace(
+                &format!("<timestamp>{stamp}</timestamp>"),
+                &format!("<timestamp>{supplied}</timestamp>"),
+            )
+            .replace(
+                &format!("_{stamp}</doi_batch_id>"),
+                &format!("_{supplied}</doi_batch_id>"),
+            );
+        assert_eq!(prepared, expected);
+        assert!(prepared.contains(&format!(
+            "<doi_batch_id>{}_{supplied}</doi_batch_id>",
+            work.work_id
+        )));
+        assert!(prepared.starts_with(crate::record::XML_DECLARATION));
+        assert!(!prepared.contains("<!DOCTYPE"));
+
+        for invalid in [
+            "20260904120060000",
+            "20250229120000000",
+            "2026090412000000",
+            "abc",
+        ] {
+            assert!(
+                DoiDepositCrossref {}
+                    .generate_prepared(std::slice::from_ref(&work), invalid)
+                    .is_err(),
+                "{invalid}"
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+    // BE-06 R52B section 16.11: the registration-membership extraction contract, ported from its normative reference
+    // implementation (T242, T243), and the Rust half of the timestamp-validity parity of section 17.2 (T248).
+    // -----------------------------------------------------------------------------------------------------------------
+
+    const CROSSREF_SCHEMA_NS: &str = "http://www.crossref.org/schema/5.4.0";
+
+    /// R52B section 16.3's canonical form, as the reference extractor applies it.
+    fn canonical_doi(raw: &str) -> Option<String> {
+        if raw.is_empty() {
+            return None;
+        }
+        let prefix =
+            regex::Regex::new(r"(?i)^(https?://)?(www\.)?(dx\.)?doi\.org/").expect("regex");
+        let ident = prefix.replacen(raw, 1, "");
+        let pattern =
+            regex::Regex::new(r"^10\.[0-9]{4,9}/[-._;()/:a-zA-Z0-9<>+\[\]]+$").expect("regex");
+        pattern
+            .is_match(&ident)
+            .then(|| format!("https://doi.org/{}", ident.to_lowercase()))
+    }
+
+    /// `observed_dois` of R52B section 16.11, behaviour for behaviour.
+    fn observed_dois(bytes: &[u8]) -> Result<Vec<String>, String> {
+        use quick_xml::events::Event;
+        use quick_xml::name::ResolveResult;
+        use quick_xml::NsReader;
+
+        let contains = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+        if contains(b"<!DOCTYPE") || contains(b"<!ENTITY") {
+            return Err("refused: DTD".to_string());
+        }
+        let mut reader = NsReader::from_reader(bytes);
+        reader.config_mut().trim_text(false);
+        let mut stack: Vec<Option<String>> = Vec::new();
+        let (mut bodies, mut books, mut metas) = (0, 0, 0);
+        let mut root_seen = false;
+        let mut registration: Option<String> = None;
+        let mut out = std::collections::BTreeSet::new();
+        let registration_path = |stack: &[Option<String>]| {
+            let names: Vec<&str> = stack.iter().map(|n| n.as_deref().unwrap_or("")).collect();
+            matches!(
+                names.as_slice(),
+                [
+                    "doi_batch",
+                    "body",
+                    "book",
+                    "book_metadata" | "book_series_metadata" | "content_item",
+                    "doi_data",
+                    "doi"
+                ]
+            )
+        };
+        let mut buffer = Vec::new();
+        loop {
+            match reader.read_resolved_event_into(&mut buffer) {
+                Err(error) => return Err(format!("refused: not well-formed: {error}")),
+                Ok((resolved, Event::Start(start))) => {
+                    let local = String::from_utf8(start.local_name().as_ref().to_vec())
+                        .map_err(|e| e.to_string())?;
+                    let in_ns = matches!(resolved, ResolveResult::Bound(ns) if ns.as_ref() == CROSSREF_SCHEMA_NS.as_bytes());
+                    if !root_seen {
+                        root_seen = true;
+                        if !(in_ns && local == "doi_batch") {
+                            return Err("refused: root/namespace".to_string());
+                        }
+                    }
+                    stack.push(in_ns.then_some(local));
+                    let names: Vec<&str> =
+                        stack.iter().map(|n| n.as_deref().unwrap_or("")).collect();
+                    match names.as_slice() {
+                        ["doi_batch", "body"] => bodies += 1,
+                        ["doi_batch", "body", "book"] => books += 1,
+                        ["doi_batch", "body", "book", "book_metadata" | "book_series_metadata"] => {
+                            metas += 1
+                        }
+                        _ => {}
+                    }
+                    if registration_path(&stack) {
+                        registration = Some(String::new());
+                    }
+                }
+                Ok((resolved, Event::Empty(start))) => {
+                    let local = String::from_utf8(start.local_name().as_ref().to_vec())
+                        .map_err(|e| e.to_string())?;
+                    let in_ns = matches!(resolved, ResolveResult::Bound(ns) if ns.as_ref() == CROSSREF_SCHEMA_NS.as_bytes());
+                    if !root_seen {
+                        return Err("refused: root/namespace".to_string());
+                    }
+                    stack.push(in_ns.then_some(local));
+                    let names: Vec<&str> =
+                        stack.iter().map(|n| n.as_deref().unwrap_or("")).collect();
+                    match names.as_slice() {
+                        ["doi_batch", "body"] => bodies += 1,
+                        ["doi_batch", "body", "book"] => books += 1,
+                        ["doi_batch", "body", "book", "book_metadata" | "book_series_metadata"] => {
+                            metas += 1
+                        }
+                        _ => {}
+                    }
+                    if registration_path(&stack) {
+                        // An empty element's text is None in the reference implementation: not canonicalisable.
+                        return Err("refused: registration doi not canonicalisable".to_string());
+                    }
+                    stack.pop();
+                }
+                Ok((_, Event::Text(text))) => {
+                    if let Some(value) = registration.as_mut() {
+                        value.push_str(&text.unescape().map_err(|e| e.to_string())?);
+                    }
+                }
+                Ok((_, Event::CData(data))) => {
+                    if let Some(value) = registration.as_mut() {
+                        value.push_str(
+                            &String::from_utf8(data.into_inner().to_vec())
+                                .map_err(|e| e.to_string())?,
+                        );
+                    }
+                }
+                Ok((_, Event::End(_))) => {
+                    if registration_path(&stack) {
+                        let raw = registration.take().unwrap_or_default();
+                        match canonical_doi(&raw) {
+                            Some(doi) => {
+                                out.insert(doi);
+                            }
+                            None => {
+                                return Err(
+                                    "refused: registration doi not canonicalisable".to_string()
+                                )
+                            }
+                        }
+                    }
+                    stack.pop();
+                }
+                Ok((_, Event::DocType(_))) => return Err("refused: DTD".to_string()),
+                Ok((_, Event::Eof)) => break,
+                Ok(_) => {}
+            }
+            buffer.clear();
+        }
+        if bodies != 1 || books != 1 || metas != 1 {
+            return Err("refused: container count".to_string());
+        }
+        if out.is_empty() {
+            return Err("refused: no registration doi".to_string());
+        }
+        Ok(out.into_iter().collect())
+    }
+
+    /// Every DOI-shaped value in the document, the naive collection §16.11 rejects.
+    fn naive_dois(document: &str) -> std::collections::BTreeSet<String> {
+        regex::Regex::new(r"10\.[0-9]{4,9}/[-._;()/:a-zA-Z0-9<>+\[\]]+")
+            .expect("regex")
+            .find_iter(document)
+            .map(|m| format!("https://doi.org/{}", m.as_str().to_lowercase()))
+            .collect()
+    }
+
+    fn synthetic_artifact(
+        metadata_element: &str,
+        registration: &str,
+        content_items: &str,
+        extras: &str,
+    ) -> String {
+        format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<doi_batch xmlns="http://www.crossref.org/schema/5.4.0" xmlns:jats="http://www.ncbi.nlm.nih.gov/JATS1" xmlns:fr="http://www.crossref.org/fundref.xsd" xmlns:ai="http://www.crossref.org/AccessIndicators.xsd" version="5.4.0">
+  <head><doi_batch_id>fixture_20260904120000000</doi_batch_id><timestamp>20260904120000000</timestamp></head>
+  <body>
+    <book book_type="monograph">
+      <{metadata_element} language="en">
+        <titles><title>Mentions 10.99999/in-title</title></titles>
+        <jats:abstract><jats:p>See https://doi.org/10.99999/in-abstract</jats:p></jats:abstract>
+        {extras}
+        {registration}
+        <citation_list><citation key="ref1"><doi>10.99999/citation</doi></citation></citation_list>
+      </{metadata_element}>
+      {content_items}
+    </book>
+  </body>
+</doi_batch>"#
+        )
+    }
+
+    const EXTRAS: &str = r#"<crossmark><crossmark_policy>10.99999/policy</crossmark_policy>
+          <custom_metadata><fr:program name="fundref"><fr:assertion name="fundgroup"><fr:assertion name="funder_name">F<fr:assertion name="funder_identifier">https://doi.org/10.13039/501100000780</fr:assertion></fr:assertion></fr:assertion></fr:program></custom_metadata></crossmark>
+        <publisher><publisher_name>P</publisher_name></publisher>
+        <institution_id type="ror">10.99999/institution-shaped</institution_id>"#;
+
+    #[test]
+    fn t242_synthetic_fixtures_yield_exactly_the_registration_set() {
+        let doi_data = |doi: &str| {
+            format!(
+                "<doi_data><doi>{doi}</doi><resource>https://example.org</resource>\
+                 <collection property=\"crawler-based\"><item crawler=\"google\"><resource mime_type=\"application/pdf\">https://example.org/10.99999/in-collection</resource></item></collection></doi_data>"
+            )
+        };
+        let chapter = |doi: &str| {
+            format!(
+                "<content_item component_type=\"chapter\"><titles><title>C</title></titles>{}\
+                 <citation_list><citation key=\"c1\"><doi>10.99999/chapter-citation</doi></citation></citation_list></content_item>",
+                doi_data(doi)
+            )
+        };
+        let fixtures = vec![
+            (
+                "book_metadata",
+                synthetic_artifact("book_metadata", &doi_data("10.00001/BOOK.0001"), "", EXTRAS),
+                vec!["https://doi.org/10.00001/book.0001"],
+            ),
+            (
+                "book_series_metadata",
+                synthetic_artifact("book_series_metadata", &doi_data("10.00001/SERIES.BOOK"), "", EXTRAS),
+                vec!["https://doi.org/10.00001/series.book"],
+            ),
+            (
+                "root without a landing page",
+                synthetic_artifact("book_metadata", "", &(chapter("10.00001/CH.1") + chapter("10.00001/CH.2").as_str()), EXTRAS),
+                vec!["https://doi.org/10.00001/ch.1", "https://doi.org/10.00001/ch.2"],
+            ),
+            (
+                "root without a DOI",
+                synthetic_artifact("book_metadata", "", &chapter("https://doi.org/10.00001/CH.3"), EXTRAS),
+                vec!["https://doi.org/10.00001/ch.3"],
+            ),
+            (
+                "a withdrawal whose crossmark update carries the root's own DOI",
+                synthetic_artifact(
+                    "book_metadata",
+                    &doi_data("10.00001/WITHDRAWN"),
+                    "",
+                    &format!("{EXTRAS}<crossmark><updates><update type=\"withdrawal\" date=\"2026-01-01\">10.00001/WITHDRAWN</update><update type=\"new_edition\">10.99999/replaced</update></updates></crossmark>"),
+                ),
+                vec!["https://doi.org/10.00001/withdrawn"],
+            ),
+            (
+                "mixed case",
+                synthetic_artifact("book_metadata", &doi_data("https://DX.DOI.ORG/10.00001/MiXeD"), &chapter("http://www.doi.org/10.00001/ChApTeR"), EXTRAS),
+                vec!["https://doi.org/10.00001/chapter", "https://doi.org/10.00001/mixed"],
+            ),
+        ];
+        for (name, document, expected) in fixtures {
+            let observed =
+                observed_dois(document.as_bytes()).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(observed, expected, "{name}");
+            assert!(
+                naive_dois(&document).len() >= expected.len() + 3,
+                "{name}: naive collection over-collects foreign DOIs"
+            );
+        }
+        let base = synthetic_artifact("book_metadata", &doi_data("10.00001/BOOK.0001"), "", EXTRAS);
+        for (name, malformed) in [
+            (
+                "a DTD",
+                base.replacen("<doi_batch ", "<!DOCTYPE doi_batch>\n<doi_batch ", 1),
+            ),
+            (
+                "whitespace inside a registration doi",
+                base.replace(
+                    "<doi>10.00001/BOOK.0001</doi>",
+                    "<doi> 10.00001/BOOK.0001</doi>",
+                ),
+            ),
+            (
+                "the wrong schema namespace",
+                base.replace(
+                    "http://www.crossref.org/schema/5.4.0",
+                    "http://www.crossref.org/schema/5.3.1",
+                ),
+            ),
+        ] {
+            assert!(
+                observed_dois(malformed.as_bytes()).is_err(),
+                "{name} is refused"
+            );
+        }
+    }
+
+    fn chapter_relation(doi: &str, landing_page: Option<&str>) -> WorkRelations {
+        WorkRelations {
+            relation_type: RelationType::HAS_CHILD,
+            relation_ordinal: 1,
+            related_work: WorkRelationsRelatedWork {
+                work_status: WorkStatus::ACTIVE,
+                titles: vec![thoth_client::WorkRelationsRelatedWorkTitles {
+                    title_id: Uuid::from_str("00000000-0000-0000-CCCC-000000000009").unwrap(),
+                    locale_code: thoth_client::LocaleCode::EN,
+                    full_title: "Chapter".to_string(),
+                    title: "Chapter".to_string(),
+                    subtitle: None,
+                    canonical: true,
+                }],
+                abstracts: vec![],
+                edition: None,
+                doi: Some(Doi::from_str(doi).unwrap()),
+                publication_date: chrono::NaiveDate::from_ymd_opt(2000, 2, 28),
+                withdrawn_date: None,
+                license: None,
+                copyright_holder: None,
+                general_note: None,
+                place: None,
+                first_page: Some("1".to_string()),
+                last_page: Some("9".to_string()),
+                page_count: None,
+                page_interval: None,
+                landing_page: landing_page.map(str::to_string),
+                imprint: WorkRelationsRelatedWorkImprint {
+                    crossmark_doi: None,
+                    publisher: WorkRelationsRelatedWorkImprintPublisher {
+                        publisher_name: "OA Editions".to_string(),
+                    },
+                },
+                contributions: vec![],
+                publications: vec![],
+                references: vec![],
+                fundings: vec![],
+                languages: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn t243_real_serializer_output_yields_exactly_the_registration_set() {
+        let root = "https://doi.org/10.00001/book.0001";
+        let base = prepared_fixture_work();
+        let mut with_reference = base.clone();
+        with_reference.references = vec![WorkReferences {
+            reference_ordinal: 1,
+            doi: Some(Doi::from_str("https://doi.org/10.00001/reference").unwrap()),
+            unstructured_citation: Some("Author, A. (2022) Article, Journal.".to_string()),
+            issn: None,
+            isbn: None,
+            journal_title: Some("Journal".to_string()),
+            article_title: Some("Article".to_string()),
+            series_title: None,
+            volume_title: None,
+            edition: None,
+            author: Some("Author, A".to_string()),
+            volume: None,
+            issue: None,
+            first_page: None,
+            component_number: None,
+            standard_designator: None,
+            standards_body_name: None,
+            standards_body_acronym: None,
+            publication_date: chrono::NaiveDate::from_ymd_opt(2022, 1, 1),
+            retrieval_date: None,
+        }];
+        let mut with_funder = base.clone();
+        with_funder.fundings = vec![WorkFundings {
+            program: None,
+            project_name: None,
+            project_shortname: None,
+            grant_number: Some("12345".to_string()),
+            institution: FundingInstitution {
+                institution_name: "Some Funder".to_string(),
+                institution_doi: Some(Doi::from_str("https://doi.org/10.00001/funder").unwrap()),
+                ror: None,
+                country_code: None,
+            },
+        }];
+        let mut with_crossmark = with_funder.clone();
+        with_crossmark.imprint.crossmark_doi =
+            Some(Doi::from_str("https://doi.org/10.00001/crossmark").unwrap());
+        let mut with_chapter = base.clone();
+        with_chapter.relations = vec![chapter_relation(
+            "https://doi.org/10.00001/CHAPTER.1",
+            Some("https://www.book.com/ch1"),
+        )];
+        let mut root_without_landing_page = base.clone();
+        root_without_landing_page.landing_page = None;
+        root_without_landing_page.relations = vec![chapter_relation(
+            "https://doi.org/10.00001/CHAPTER.3",
+            Some("https://www.book.com/ch3"),
+        )];
+        let mut root_without_doi = base.clone();
+        root_without_doi.doi = None;
+        root_without_doi.relations = vec![chapter_relation(
+            "https://doi.org/10.00001/CHAPTER.4",
+            Some("https://www.book.com/ch4"),
+        )];
+        let mut registers_nothing = base.clone();
+        registers_nothing.landing_page = None;
+
+        let released = |work: &Work| generate_test_document(work);
+        let prepared = |work: &Work| {
+            DoiDepositCrossref {}
+                .generate_prepared(std::slice::from_ref(work), "20260904120000123")
+                .expect("prepared")
+        };
+        let cases: Vec<(&str, String, Vec<&str>)> = vec![
+            ("released base", released(&base), vec![root]),
+            ("prepared base", prepared(&base), vec![root]),
+            ("references", released(&with_reference), vec![root]),
+            ("funders", released(&with_funder), vec![root]),
+            (
+                "crossmark and funders",
+                released(&with_crossmark),
+                vec![root],
+            ),
+            (
+                "a chapter",
+                released(&with_chapter),
+                vec![root, "https://doi.org/10.00001/chapter.1"],
+            ),
+            (
+                "a root without a landing page",
+                released(&root_without_landing_page),
+                vec!["https://doi.org/10.00001/chapter.3"],
+            ),
+            (
+                "a root without a DOI",
+                prepared(&root_without_doi),
+                vec!["https://doi.org/10.00001/chapter.4"],
+            ),
+        ];
+        let mut over_collected = 0;
+        for (name, document, expected) in &cases {
+            assert_eq!(
+                observed_dois(document.as_bytes()).unwrap_or_else(|e| panic!("{name}: {e}")),
+                expected.iter().map(|d| d.to_string()).collect::<Vec<_>>(),
+                "{name}"
+            );
+            if naive_dois(document).len() > expected.len() {
+                over_collected += 1;
+            }
+        }
+        assert!(
+            over_collected >= 3,
+            "naive collection over-collects on the documents with references, funders or crossmark"
+        );
+        // The tenth registers nothing and is refused.
+        let nothing = released(&registers_nothing);
+        assert!(observed_dois(nothing.as_bytes()).is_err());
+    }
+
+    /// FNV-1a over newline-terminated strings, so both halves of the parity use one well-defined digest.
+    fn fnv1a(strings: impl Iterator<Item = String>) -> u64 {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for string in strings {
+            for byte in string.bytes().chain(std::iter::once(b'\n')) {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+        hash
+    }
+
+    /// The parity corpus of R52B section 17.2 (T248), generated deterministically. `thoth-api`'s PostgreSQL half
+    /// regenerates it with the same algorithm and checks the recorded digests below.
+    pub(crate) fn t248_corpus() -> Vec<String> {
+        use chrono::{Duration, NaiveDate};
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut corpus: Vec<String> = [
+            "10000101000000000",
+            "99991231235959999",
+            "99991231235959998",
+            "20240229235959999",
+            "20250228235959999",
+            "20241231235959999",
+            "20260904120000000",
+            "20260904120059999",
+            "20260904120060000",
+            "20260904240000000",
+            "20261304120000000",
+            "20260932120000000",
+            "20250229120000000",
+            "20260431120000000",
+            "02026090412000000",
+            "09991231235959999",
+            "99999999999999",
+            "2026090412000000",
+            "202609041200000000",
+            "2026090412000000a",
+            " 20260904120000000",
+            "+2026090412000000",
+            "",
+            "20000229120000000",
+            "21000229120000000",
+            "19000228235959999",
+            "20001231235959999",
+            "20260101000000000",
+            "20260100000000000",
+            "20260001000000000",
+            "20260904126000000",
+            "20260904125959999",
+            "20260630235959999",
+            "20260631000000000",
+            "20261131000000000",
+            "20260228000000000",
+            "20260229000000000",
+            "99991231240000000",
+            "99991231235960000",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        for _ in 0..100_000 {
+            corpus.push(format!("{:017}", next() % 100_000_000_000_000_000));
+        }
+        let mut instants = Vec::new();
+        for _ in 0..100_000 {
+            let year = 1000 + (next() % 9000) as i32;
+            let month = 1 + (next() % 12) as u32;
+            let day = 1 + (next() % 31) as u32;
+            let Some(date) = NaiveDate::from_ymd_opt(year, month, day) else {
+                continue;
+            };
+            let at = date
+                .and_hms_milli_opt(
+                    (next() % 24) as u32,
+                    (next() % 60) as u32,
+                    (next() % 60) as u32,
+                    (next() % 1000) as u32,
+                )
+                .expect("valid");
+            instants.push(at);
+            corpus.push(at.format("%Y%m%d%H%M%S%3f").to_string());
+            let successor = at + Duration::milliseconds(1);
+            corpus.push(successor.format("%Y%m%d%H%M%S%3f").to_string());
+        }
+        for (index, at) in instants.iter().take(60_000).enumerate() {
+            let text = at.format("%Y%m%d%H%M%S%3f").to_string();
+            let corrupted = match index % 3 {
+                0 => format!("{}60{}", &text[..12], &text[14..]),
+                1 => format!("{}24{}", &text[..8], &text[10..]),
+                _ => format!("{}32{}", &text[..6], &text[8..]),
+            };
+            corpus.push(corrupted);
+        }
+        corpus
+    }
+
+    const T248_CORPUS_LEN: usize = 356483;
+    const T248_CORPUS_DIGEST: u64 = 6860244389184108336;
+    const T248_VALID_LEN: usize = 196763;
+    const T248_VALID_DIGEST: u64 = 7442931097035189911;
+
+    #[test]
+    fn t248_the_rust_validity_verdict_over_the_parity_corpus_is_recorded() {
+        let corpus = t248_corpus();
+        let valid: Vec<String> = corpus
+            .iter()
+            .filter(|s| is_valid_crossref_timestamp(s))
+            .cloned()
+            .collect();
+        let recorded = (
+            corpus.len(),
+            fnv1a(corpus.iter().cloned()),
+            valid.len(),
+            fnv1a(valid.iter().cloned()),
+        );
+        assert_eq!(
+            recorded,
+            (
+                T248_CORPUS_LEN,
+                T248_CORPUS_DIGEST,
+                T248_VALID_LEN,
+                T248_VALID_DIGEST
+            ),
+            "the recorded Rust verdict"
+        );
+        // The naive round-trip rule is not equivalent: it accepts leap-second 60.
+        let naive = |s: &str| {
+            chrono::NaiveDateTime::parse_from_str(s, "%Y%m%d%H%M%S%3f")
+                .map(|t| t.format("%Y%m%d%H%M%S%3f").to_string() == s)
+                .unwrap_or(false)
+        };
+        assert!(corpus
+            .iter()
+            .any(|s| naive(s) != is_valid_crossref_timestamp(s)));
+    }
+
+    #[test]
+    fn the_released_route_keeps_its_14_digit_timestamp() {
+        let released = generate_test_document(&prepared_fixture_work());
+        assert!(regex::Regex::new(r"<timestamp>\d{14}</timestamp>")
+            .expect("regex")
+            .is_match(&released));
     }
 }

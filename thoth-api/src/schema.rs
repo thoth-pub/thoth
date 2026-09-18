@@ -114,6 +114,30 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "distribution_job_cancellation_reason"))]
     pub struct DistributionJobCancellationReason;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "crossref_write_route"))]
+    pub struct CrossrefWriteRoute;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "crossref_write_permit_state"))]
+    pub struct CrossrefWritePermitState;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "crossref_reconciliation_state"))]
+    pub struct CrossrefReconciliationState;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "crossref_write_scope"))]
+    pub struct CrossrefWriteScope;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "crossref_void_reason"))]
+    pub struct CrossrefVoidReason;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "xid8"))]
+    pub struct Xid8;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -363,6 +387,7 @@ table! {
     use diesel::sql_types::*;
     use super::sql_types::{
         DistributionJobCancellationReason, DistributionJobKind, DistributionJobStatus,
+        DistributionPlatform,
     };
 
     distribution_job (distribution_job_id) {
@@ -385,6 +410,12 @@ table! {
         last_error_detail -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        execution_profile -> Nullable<DistributionPlatform>,
+        work_identity -> Nullable<Uuid>,
+        created_generation -> Nullable<Int8>,
+        job_ordinal -> Nullable<Int4>,
+        predecessor_job_id -> Nullable<Uuid>,
+        superseded_by_job_id -> Nullable<Uuid>,
     }
 }
 
@@ -403,6 +434,10 @@ table! {
         result -> Nullable<DistributionJobAttemptResult>,
         error_code -> Nullable<Text>,
         error_detail -> Nullable<Text>,
+        claimed_generation -> Nullable<Int8>,
+        fenced_at -> Nullable<Timestamptz>,
+        recovery_cleared_at -> Nullable<Timestamptz>,
+        recovery_clearance_reference -> Nullable<Text>,
     }
 }
 
@@ -1051,6 +1086,135 @@ table! {
     }
 }
 
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{
+        CrossrefReconciliationState, CrossrefVoidReason, CrossrefWritePermitState,
+        CrossrefWriteRoute, CrossrefWriteScope,
+    };
+
+    crossref_write_permit (permit_id) {
+        permit_id -> Uuid,
+        route -> CrossrefWriteRoute,
+        scope -> CrossrefWriteScope,
+        state -> CrossrefWritePermitState,
+        reconciliation_state -> Nullable<CrossrefReconciliationState>,
+        reservation_token -> Uuid,
+        publisher_id -> Nullable<Uuid>,
+        publisher_identity -> Uuid,
+        root_work_identity -> Uuid,
+        distribution_job_id -> Nullable<Uuid>,
+        distribution_job_attempt_id -> Nullable<Uuid>,
+        job_identity -> Nullable<Uuid>,
+        attempt_identity -> Nullable<Uuid>,
+        permit_generation -> Nullable<Int8>,
+        source_generation_witness -> Int8,
+        doi_set_digest -> Text,
+        doi_set_cardinality -> Int4,
+        crossref_timestamp -> Int8,
+        doi_batch_id -> Text,
+        payload_digest -> Nullable<Text>,
+        operator_authorization_reference -> Nullable<Text>,
+        reconciliation_annotation_reference -> Nullable<Text>,
+        reconciliation_authorization_reference -> Nullable<Text>,
+        void_reason -> Nullable<CrossrefVoidReason>,
+        void_detail -> Nullable<Text>,
+        void_authorization_reference -> Nullable<Text>,
+        issued_at -> Timestamptz,
+        authorized_at -> Nullable<Timestamptz>,
+        provider_reported_at -> Nullable<Timestamptz>,
+        reconciliation_annotated_at -> Nullable<Timestamptz>,
+        reconciled_at -> Nullable<Timestamptz>,
+        closed_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    crossref_write_permit_doi (permit_id, doi) {
+        permit_id -> Uuid,
+        doi -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    crossref_version_floor_audit (audit_id) {
+        audit_id -> Uuid,
+        mutation_kind -> Text,
+        before_value -> Nullable<Int8>,
+        after_value -> Nullable<Int8>,
+        g6_attempt_id -> Nullable<Uuid>,
+        observation_id -> Nullable<Uuid>,
+        g7_authorization_reference -> Nullable<Text>,
+        authorization_register_digest -> Nullable<Text>,
+        actor -> Text,
+        occurred_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    work_crossref_version_floor (floor_id) {
+        floor_id -> Bool,
+        floor_value -> Int8,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    work_upsert_admission (execution_profile, publisher_id, activation_id) {
+        execution_profile -> DistributionPlatform,
+        publisher_id -> Uuid,
+        activation_id -> Uuid,
+        evidence_reference -> Text,
+        admitted_at -> Timestamptz,
+        actor -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::Xid8;
+
+    work_upsert_capture_queue (entry_id) {
+        entry_id -> Int8,
+        txid -> Xid8,
+        entry_kind -> Text,
+        work_ids -> Nullable<Array<Uuid>>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    work_upsert_control (execution_profile) {
+        execution_profile -> DistributionPlatform,
+        capture_enabled -> Bool,
+        execution_enabled -> Bool,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::DistributionPlatform;
+
+    work_upsert_generation (work_id, execution_profile) {
+        work_id -> Uuid,
+        execution_profile -> DistributionPlatform,
+        source_generation -> Int8,
+        updated_at -> Timestamptz,
+    }
+}
+
 joinable!(abstract_history -> work_abstract (abstract_id));
 joinable!(additional_resource -> work (work_id));
 joinable!(additional_resource_history -> additional_resource (additional_resource_id));
@@ -1069,6 +1233,10 @@ joinable!(contribution -> contributor (contributor_id));
 joinable!(contribution -> work (work_id));
 joinable!(contribution_history -> contribution (contribution_id));
 joinable!(contributor_history -> contributor (contributor_id));
+joinable!(crossref_write_permit -> distribution_job (distribution_job_id));
+joinable!(crossref_write_permit -> distribution_job_attempt (distribution_job_attempt_id));
+joinable!(crossref_write_permit -> publisher (publisher_id));
+joinable!(crossref_write_permit_doi -> crossref_write_permit (permit_id));
 joinable!(distribution_job -> publisher (publisher_id));
 joinable!(distribution_job -> work (work_id));
 joinable!(distribution_job_attempt -> distribution_job (distribution_job_id));
@@ -1119,6 +1287,7 @@ joinable!(work_featured_video_history -> work_featured_video (work_featured_vide
 joinable!(work_relation -> work (relator_work_id));
 joinable!(work_relation_history -> work_relation (work_relation_id));
 joinable!(work_title -> work (work_id));
+joinable!(work_upsert_admission -> publisher (publisher_id));
 
 allow_tables_to_appear_in_same_query!(
     abstract_history,
@@ -1138,6 +1307,9 @@ allow_tables_to_appear_in_same_query!(
     contribution_history,
     contributor,
     contributor_history,
+    crossref_version_floor_audit,
+    crossref_write_permit,
+    crossref_write_permit_doi,
     distribution_job,
     distribution_job_attempt,
     distribution_job_target,
@@ -1180,4 +1352,9 @@ allow_tables_to_appear_in_same_query!(
     work_relation,
     work_relation_history,
     work_title,
+    work_crossref_version_floor,
+    work_upsert_admission,
+    work_upsert_capture_queue,
+    work_upsert_control,
+    work_upsert_generation,
 );

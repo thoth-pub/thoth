@@ -277,9 +277,10 @@ fn every_enum_label_exists_in_pg_enum_with_the_exact_spelling_and_order() {
         )
     };
 
+    // BE-06 Migration 1 appends `WORK_UPSERT` (R52B section 18.8).
     assert_eq!(
         labels("distribution_job_kind"),
-        vec!["PUBLISHER_BACK_CATALOGUE"]
+        vec!["PUBLISHER_BACK_CATALOGUE", "WORK_UPSERT"]
     );
     assert_eq!(
         labels("distribution_job_status"),
@@ -289,9 +290,15 @@ fn every_enum_label_exists_in_pg_enum_with_the_exact_spelling_and_order() {
         labels("distribution_job_attempt_result"),
         vec!["SUCCEEDED", "FAILED", "CANCELLED", "ABANDONED"]
     );
+    // BE-06 Migration 1 appends `BINDING_SUPERSEDED` and `WORK_DELETED`.
     assert_eq!(
         labels("distribution_job_cancellation_reason"),
-        vec!["ADMINISTRATIVE", "ASSIGNMENT_DISABLED"]
+        vec![
+            "ADMINISTRATIVE",
+            "ASSIGNMENT_DISABLED",
+            "BINDING_SUPERSEDED",
+            "WORK_DELETED"
+        ]
     );
 }
 
@@ -319,13 +326,21 @@ fn every_rust_enum_round_trips_through_the_database() {
 
     let (_guard, pool) = test_db::setup_test_db();
 
-    // `distribution_job_kind` carries exactly one value today.
-    assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
-        &pool,
-        "'PUBLISHER_BACK_CATALOGUE'::distribution_job_kind",
-        DistributionJobKind::PublisherBackCatalogue,
-    );
-    assert_graphql_enum_roundtrip(DistributionJobKind::PublisherBackCatalogue);
+    for (literal, expected) in [
+        (
+            "'PUBLISHER_BACK_CATALOGUE'::distribution_job_kind",
+            DistributionJobKind::PublisherBackCatalogue,
+        ),
+        (
+            "'WORK_UPSERT'::distribution_job_kind",
+            DistributionJobKind::WorkUpsert,
+        ),
+    ] {
+        assert_db_enum_roundtrip::<DistributionJobKind, sql_types::DistributionJobKind>(
+            &pool, literal, expected,
+        );
+        assert_graphql_enum_roundtrip(expected);
+    }
 
     for (literal, expected) in [
         (
@@ -389,6 +404,14 @@ fn every_rust_enum_round_trips_through_the_database() {
             "'ASSIGNMENT_DISABLED'::distribution_job_cancellation_reason",
             DistributionJobCancellationReason::AssignmentDisabled,
         ),
+        (
+            "'BINDING_SUPERSEDED'::distribution_job_cancellation_reason",
+            DistributionJobCancellationReason::BindingSuperseded,
+        ),
+        (
+            "'WORK_DELETED'::distribution_job_cancellation_reason",
+            DistributionJobCancellationReason::WorkDeleted,
+        ),
     ] {
         assert_db_enum_roundtrip::<
             DistributionJobCancellationReason,
@@ -403,7 +426,8 @@ fn an_unrecognised_value_fails_rather_than_resolving_to_a_nearest_one() {
     use std::str::FromStr;
 
     // String / serde.
-    assert!(DistributionJobKind::from_str("WORK_UPSERT").is_err());
+    assert!(DistributionJobKind::from_str("OTHER").is_err());
+    assert!(DistributionJobKind::from_str("work_upsert").is_err());
     assert!(DistributionJobStatus::from_str("UNKNOWN").is_err());
     assert!(DistributionJobStatus::from_str("pending").is_err());
     assert!(DistributionJobAttemptResult::from_str("TIMED_OUT").is_err());
@@ -473,6 +497,13 @@ fn schema_rs_matches_the_migration_for_all_three_relations() {
             "last_error_detail text YES",
             "created_at timestamptz NO",
             "updated_at timestamptz NO",
+            // BE-06 (R52B section 18.1).
+            "execution_profile distribution_platform YES",
+            "work_identity uuid YES",
+            "created_generation int8 YES",
+            "job_ordinal int4 YES",
+            "predecessor_job_id uuid YES",
+            "superseded_by_job_id uuid YES",
         ]
     );
     assert_eq!(
@@ -496,6 +527,11 @@ fn schema_rs_matches_the_migration_for_all_three_relations() {
             "result distribution_job_attempt_result YES",
             "error_code text YES",
             "error_detail text YES",
+            // BE-06 (R52B section 18.2).
+            "claimed_generation int8 YES",
+            "fenced_at timestamptz YES",
+            "recovery_cleared_at timestamptz YES",
+            "recovery_clearance_reference text YES",
         ]
     );
 
@@ -537,23 +573,35 @@ fn only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_speci
         catalog_values(
             &pool,
             "SELECT tgname AS value FROM pg_trigger \
-             WHERE tgrelid = 'public.distribution_job'::regclass AND NOT tgisinternal"
+             WHERE tgrelid = 'public.distribution_job'::regclass AND NOT tgisinternal \
+             ORDER BY tgname"
         ),
-        vec!["set_updated_at"]
+        // `set_updated_at` is the one Diesel-managed trigger; the other two are
+        // BE-06's reference guard and deferred target-set check (R52B 11.4, 18.1).
+        vec![
+            "distribution_job_work_reference_guard",
+            "set_updated_at",
+            "work_upsert_target_set_job",
+        ]
     );
-    for append_only in ["distribution_job_target", "distribution_job_attempt"] {
-        assert!(
-            catalog_values(
-                &pool,
-                &format!(
-                    "SELECT tgname AS value FROM pg_trigger \
-                     WHERE tgrelid = 'public.{append_only}'::regclass AND NOT tgisinternal"
-                )
-            )
-            .is_empty(),
-            "{append_only} is append-only and has no updated_at to manage"
-        );
-    }
+    let triggers = |table: &str| {
+        catalog_values(
+            &pool,
+            &format!(
+                "SELECT tgname AS value FROM pg_trigger \
+                 WHERE tgrelid = 'public.{table}'::regclass AND NOT tgisinternal"
+            ),
+        )
+    };
+    assert_eq!(
+        triggers("distribution_job_target"),
+        vec!["work_upsert_target_set_target"],
+        "distribution_job_target is append-only; its one trigger is BE-06's target-set check"
+    );
+    assert!(
+        triggers("distribution_job_attempt").is_empty(),
+        "distribution_job_attempt is append-only and has no updated_at to manage"
+    );
 
     assert_eq!(
         catalog_values(
@@ -570,9 +618,16 @@ fn only_distribution_job_is_diesel_managed_and_the_indexes_are_exactly_the_speci
             "distribution_job_claimable_idx",
             "distribution_job_deduplication_key_key",
             "distribution_job_lease_idx",
+            // BE-06 actionable uniqueness (R52B section 18.1).
+            "distribution_job_one_actionable_work_upsert_idx",
             "distribution_job_pkey",
+            // BE-06 lineage keys' ON DELETE SET NULL support (the CTO-approved Migration 2 amendment, P3).
+            "distribution_job_predecessor_job_idx",
             "distribution_job_publisher_latest_idx",
+            "distribution_job_superseded_by_job_idx",
             "distribution_job_target_pkey",
+            // BE-06 terminal-job resolution support (the CTO-approved Migration 2 amendment, P2).
+            "distribution_job_work_upsert_resolution_idx",
         ]
     );
 }
@@ -611,6 +666,24 @@ fn every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog() {
         "distribution_job_target_distribution_job_id_fkey",
         "distribution_job_target_pkey",
         "distribution_job_work_id_fkey",
+        // BE-06 (R52B sections 11.4, 18.1 and 18.2).
+        "distribution_job_actionable_work_present_check",
+        "distribution_job_attempt_claimed_generation_check",
+        "distribution_job_attempt_recovery_clearance_pairing_check",
+        "distribution_job_attempt_recovery_reference_check",
+        "distribution_job_attempt_recovery_requires_fence_check",
+        "distribution_job_no_self_predecessor_check",
+        "distribution_job_no_self_successor_check",
+        "distribution_job_predecessor_fkey",
+        "distribution_job_successor_fkey",
+        "distribution_job_work_identity_agreement_check",
+        "distribution_job_work_upsert_dedup_formula_check",
+        "distribution_job_work_upsert_generation_check",
+        "distribution_job_work_upsert_identity_check",
+        "distribution_job_work_upsert_ordinal_check",
+        "distribution_job_work_upsert_profile_check",
+        "work_upsert_target_set_job",
+        "work_upsert_target_set_target",
     ];
     expected.sort_unstable();
 
@@ -634,11 +707,14 @@ fn every_named_constraint_of_sections_7_2_to_7_4_exists_in_the_catalog() {
         cascades,
         vec![
             "distribution_job_attempt_distribution_job_id_fkey c",
+            "distribution_job_predecessor_fkey n",
             "distribution_job_publisher_id_fkey c",
+            "distribution_job_successor_fkey n",
             "distribution_job_target_distribution_job_id_fkey c",
-            "distribution_job_work_id_fkey c",
+            // BE-06 replaces BE-04's deferred CASCADE with SET NULL (R52B section 13.2).
+            "distribution_job_work_id_fkey n",
         ],
-        "every foreign key must remain ON DELETE CASCADE and validated"
+        "every released foreign key other than work_id must remain ON DELETE CASCADE and validated"
     );
     assert!(
         catalog_values(
@@ -3842,6 +3918,10 @@ fn the_migration_directory_sorts_after_every_existing_one() {
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
+    // BE-06's two directories are the only ones that sort after BE-04's.
+    let be06 = ["20260910_v1.10.0", "20260911_v1.10.0"];
+    assert_eq!(&names[names.len() - 2..], be06);
+    names.truncate(names.len() - 2);
 
     let ours = names
         .iter()
@@ -4387,4 +4467,157 @@ fn code_owned_bounds_are_the_specified_values() {
         vec![300, 600, 1_200, 2_400]
     );
     assert_eq!(backoff(10), DISTRIBUTION_JOB_RETRY_MAX_SECONDS);
+}
+
+// ---------------------------------------------------------------------------
+// BE-06 Amendment 3 section 10.3 EB3 (X12): the released paths BE-06 extends
+// keep their released pool, statement and commit error behaviour.
+// ---------------------------------------------------------------------------
+
+mod x12_released_error_behaviour {
+    use diesel::connection::SimpleConnection;
+    use diesel::r2d2::{ConnectionManager, Pool};
+    use diesel::PgConnection;
+    use uuid::Uuid;
+
+    use super::complete_distribution_job;
+    use crate::model::crossref_write_permit::crud as permit_crud;
+    use crate::model::crossref_write_permit::CrossrefWriteOutcome;
+    use crate::model::tests::db as test_db;
+    use crate::model::work_upsert::tests as fx;
+
+    /// A fenced WORK_UPSERT attempt with an ACCEPTED permit: completion's BE-06 guards all pass.
+    fn completable(pool: &crate::db::PgPool, connection: &mut PgConnection) -> (Uuid, Uuid) {
+        let (_publisher, _imprint, _activation, _work, job) = fx::claimable_job(pool, connection);
+        fx::enable_execution(pool);
+        let token = fx::claim(pool)
+            .into_iter()
+            .find(|claimed| claimed.job.job.distribution_job_id == job)
+            .map(|claimed| claimed.claim_token)
+            .expect("claimed");
+        let reservation =
+            permit_crud::reserve_work_upsert_crossref_write(pool, job, token).expect("reserve");
+        let input = permit_crud::FinaliseCrossrefWrite {
+            permit_id: reservation.permit_id,
+            reservation_token: reservation.reservation_token,
+            claim_token: Some(token),
+            observed_dois: reservation.dois.clone(),
+            observed_doi_batch_id: reservation.doi_batch_id.clone(),
+            observed_crossref_timestamp: reservation.crossref_timestamp,
+            payload_digest: "0".repeat(64),
+        };
+        let allow = |_route| Ok(());
+        permit_crud::finalise_crossref_write(pool, &input, &allow).expect("finalise");
+        permit_crud::report_crossref_write(
+            pool,
+            reservation.permit_id,
+            reservation.reservation_token,
+            CrossrefWriteOutcome::Accepted,
+            &allow,
+        )
+        .expect("report");
+        (job, token)
+    }
+
+    /// A test-only trigger, removed when dropped.
+    struct TestTrigger {
+        connection: PgConnection,
+        drop_sql: String,
+    }
+
+    impl TestTrigger {
+        fn install(sql: &str, drop_sql: &str) -> Self {
+            let mut connection = fx::race::dedicated();
+            connection.batch_execute(sql).expect("install");
+            TestTrigger {
+                connection,
+                drop_sql: drop_sql.to_string(),
+            }
+        }
+    }
+
+    impl Drop for TestTrigger {
+        fn drop(&mut self) {
+            let _ = self.connection.batch_execute(&self.drop_sql);
+        }
+    }
+
+    #[test]
+    fn x12_an_exhausted_pool_keeps_the_released_internal_error() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        let small: crate::db::PgPool = Pool::builder()
+            .max_size(1)
+            .connection_timeout(std::time::Duration::from_millis(300))
+            .build(ConnectionManager::<PgConnection>::new(
+                test_db::test_db_url(),
+            ))
+            .expect("pool");
+        let _held = small.get().expect("the only connection");
+        let error = complete_distribution_job(&small, job, token).expect_err("exhausted");
+        assert_eq!(
+            error.to_string(),
+            "Internal error: timed out waiting for connection"
+        );
+    }
+
+    #[test]
+    fn x12_a_released_statement_failure_keeps_database_error_with_its_message() {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        let _trigger = TestTrigger::install(
+            &format!(
+                "CREATE SCHEMA IF NOT EXISTS be06_test;
+                 CREATE OR REPLACE FUNCTION be06_test.x12_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+                 BEGIN RAISE EXCEPTION 'x12 released statement failure'; END $$;
+                 CREATE TRIGGER be06_test_x12_fail BEFORE UPDATE ON public.distribution_job
+                     FOR EACH ROW WHEN (OLD.distribution_job_id = '{job}') EXECUTE FUNCTION be06_test.x12_fail();"
+            ),
+            "DROP TRIGGER IF EXISTS be06_test_x12_fail ON public.distribution_job",
+        );
+        let error = complete_distribution_job(pool.as_ref(), job, token).expect_err("failure");
+        assert_eq!(
+            error.to_string(),
+            "Database error: x12 released statement failure"
+        );
+    }
+
+    #[test]
+    fn x12_a_commit_time_be06_trigger_in_a_released_transaction_keeps_database_error_with_its_code()
+    {
+        let (_guard, pool) = test_db::setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let (job, token) = completable(pool.as_ref(), &mut connection);
+        // The released completion statement's own row write removes the job's target, so the deferred BE-06
+        // target-set trigger fails at the released transaction's COMMIT.
+        let _trigger = TestTrigger::install(
+            &format!(
+                "CREATE SCHEMA IF NOT EXISTS be06_test;
+                 CREATE OR REPLACE FUNCTION be06_test.x12_detarget() RETURNS trigger LANGUAGE plpgsql AS $$
+                 BEGIN DELETE FROM public.distribution_job_target WHERE distribution_job_id = NEW.distribution_job_id;
+                       RETURN NULL; END $$;
+                 CREATE TRIGGER be06_test_x12_detarget AFTER UPDATE ON public.distribution_job
+                     FOR EACH ROW WHEN (OLD.distribution_job_id = '{job}' AND NEW.status = 'SUCCEEDED')
+                     EXECUTE FUNCTION be06_test.x12_detarget();"
+            ),
+            "DROP TRIGGER IF EXISTS be06_test_x12_detarget ON public.distribution_job",
+        );
+        let error = complete_distribution_job(pool.as_ref(), job, token).expect_err("commit");
+        assert!(
+            error
+                .to_string()
+                .starts_with("Database error: WORK_UPSERT_"),
+            "{error}"
+        );
+        assert_eq!(
+            fx::texts(
+                &mut connection,
+                &format!("SELECT status::text AS value FROM distribution_job WHERE distribution_job_id = '{job}'")
+            ),
+            vec!["RUNNING"],
+            "the released transaction rolled back"
+        );
+    }
 }

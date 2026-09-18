@@ -67,10 +67,11 @@ pub(crate) const DISTRIBUTION_JOB_ERROR_DETAIL_MAX_CHARS: usize = 2048;
 /// no `Default`: an unrecognised database, serde, string or GraphQL value must
 /// fail rather than resolve to a nearest kind.
 ///
-/// Exactly one value exists today. The enum exists so that **this programme's**
-/// own deferred job kinds reuse one relation and one deduplication index under
-/// their own approved tasks, and so the deduplication key is kind-scoped from
-/// the first row. It is not an extension point for another programme.
+/// `PUBLISHER_BACK_CATALOGUE` is the released kind; `BE-06` adds `WORK_UPSERT`,
+/// which the released `claimDistributionJobs` never claims. The enum exists so
+/// that **this programme's** own job kinds reuse one relation and one
+/// deduplication index, and so the deduplication key is kind-scoped from the
+/// first row. It is not an extension point for another programme.
 #[cfg_attr(
     feature = "backend",
     derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
@@ -89,6 +90,14 @@ pub enum DistributionJobKind {
         )
     )]
     PublisherBackCatalogue,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WORK_UPSERT",
+        graphql(
+            description = "Registration of one Work's current metadata with one work-level execution profile"
+        )
+    )]
+    WorkUpsert,
 }
 
 /// The lifecycle state of one durable distribution job.
@@ -229,6 +238,20 @@ pub enum DistributionJobCancellationReason {
         )
     )]
     AssignmentDisabled,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "BINDING_SUPERSEDED",
+        graphql(
+            description = "The publisher or activation a work-level job was created under is no longer the Work's current binding"
+        )
+    )]
+    BindingSuperseded,
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "WORK_DELETED",
+        graphql(description = "The Work a work-level job was created for was deleted")
+    )]
+    WorkDeleted,
 }
 
 /// Whether a qualifying activation may create a durable distribution job.
@@ -337,6 +360,20 @@ pub struct DistributionJob {
     pub last_error_detail: Option<String>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+    /// The work-level execution profile of a `WORK_UPSERT` job; `None` for
+    /// every other kind (`distribution_job_work_upsert_profile_check`).
+    pub execution_profile: Option<DistributionPlatform>,
+    /// The immutable identity of the Work a `WORK_UPSERT` job was created
+    /// for. Unlike `work_id` it survives deletion of the Work.
+    pub work_identity: Option<Uuid>,
+    /// The source generation a `WORK_UPSERT` job was created at.
+    pub created_generation: Option<i64>,
+    /// The per-`(work_identity, execution_profile)` ordinal of a `WORK_UPSERT` job.
+    pub job_ordinal: Option<i32>,
+    /// The job this job replaced or succeeded, if any.
+    pub predecessor_job_id: Option<Uuid>,
+    /// The successor or replacement created for this job, if any.
+    pub superseded_by_job_id: Option<Uuid>,
 }
 
 impl DistributionJob {
@@ -395,6 +432,14 @@ pub struct DistributionJobAttempt {
     pub result: Option<DistributionJobAttemptResult>,
     pub error_code: Option<String>,
     pub error_detail: Option<String>,
+    /// The source generation a `WORK_UPSERT` claim observed.
+    pub claimed_generation: Option<i64>,
+    /// When the in-transaction fence passed for this attempt, if it did.
+    pub fenced_at: Option<Timestamp>,
+    /// When profile reconciliation cleared a fenced abandonment of this attempt.
+    pub recovery_cleared_at: Option<Timestamp>,
+    /// The reference recorded with [`Self::recovery_cleared_at`].
+    pub recovery_clearance_reference: Option<String>,
 }
 
 /// One durable job as the GraphQL `DistributionJob` type exposes it.

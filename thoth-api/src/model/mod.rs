@@ -99,6 +99,75 @@ impl Timestamp {
     }
 }
 
+/// A `BE-06` source generation or Crossref deposit timestamp (R52B section
+/// 19.3): PostgreSQL `bigint`, Rust `i64`, and on the wire a decimal string
+/// matching `0|[1-9][0-9]*` in the domain `0` to `9223372036854775807`.
+///
+/// It is never a GraphQL `Int`, whose range is `i32`, and never a JSON number.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLScalar),
+    graphql(
+        description = "A source generation or Crossref deposit timestamp: a decimal string matching 0|[1-9][0-9]*, domain 0 to 9223372036854775807",
+        to_output_with = Self::to_output,
+        from_input_with = Self::from_input,
+        parse_token(String)
+    )
+)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Generation(String);
+
+impl Generation {
+    /// The generation of a non-negative `bigint`; `None` for a negative value.
+    pub fn from_i64(value: i64) -> Option<Generation> {
+        (value >= 0).then(|| Generation(value.to_string()))
+    }
+
+    /// The generation's value.
+    pub fn value(&self) -> i64 {
+        // Every constructor has proved the text is an `i64` in the domain.
+        self.0.parse().unwrap_or_default()
+    }
+
+    #[cfg(feature = "backend")]
+    fn to_output<S: juniper::ScalarValue>(value: &Generation) -> juniper::Value<S> {
+        juniper::Value::scalar(value.0.clone())
+    }
+
+    #[cfg(feature = "backend")]
+    fn from_input<S: juniper::ScalarValue>(input: &juniper::InputValue<S>) -> Result<Self, String> {
+        input
+            .as_string_value()
+            .ok_or_else(|| "Expected a Generation string".to_string())
+            .and_then(|text| {
+                Generation::from_str(text).map_err(|_| "Invalid Generation".to_string())
+            })
+    }
+}
+
+impl FromStr for Generation {
+    type Err = ThothError;
+
+    fn from_str(input: &str) -> ThothResult<Generation> {
+        let canonical = input == "0"
+            || (input
+                .as_bytes()
+                .first()
+                .is_some_and(|b| (b'1'..=b'9').contains(b))
+                && input.bytes().all(|b| b.is_ascii_digit()));
+        match (canonical, input.parse::<i64>()) {
+            (true, Ok(value)) => Ok(Generation(value.to_string())),
+            _ => Err(ThothError::InternalError(String::new())),
+        }
+    }
+}
+
+impl fmt::Display for Generation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl Default for Timestamp {
     fn default() -> Timestamp {
         Timestamp(TimeZone::timestamp_opt(&Utc, 0, 0).unwrap())
@@ -592,6 +661,22 @@ where
 #[macro_export]
 macro_rules! crud_methods {
     ($table_dsl:expr, $entity_dsl:expr) => {
+        $crate::crud_methods!($table_dsl, $entity_dsl, without_delete);
+
+        fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
+            use diesel::{QueryDsl, RunQueryDsl};
+
+            let mut connection = db.get()?;
+            diesel::delete($entity_dsl.find(&self.pk()))
+                .execute(&mut connection)
+                .map(|_| self)
+                .map_err(Into::into)
+        }
+    };
+    // BE-06 (R52B section 24.2): Work, Imprint and Publisher replace the
+    // generated `delete` with their own deletion unit and keep every other
+    // generated method.
+    ($table_dsl:expr, $entity_dsl:expr, without_delete) => {
         fn from_id(db: &$crate::db::PgPool, entity_id: &Uuid) -> ThothResult<Self> {
             use diesel::{QueryDsl, RunQueryDsl};
 
@@ -632,16 +717,6 @@ macro_rules! crud_methods {
                     })
                     .map_err(Into::into)
             })
-        }
-
-        fn delete(self, db: &$crate::db::PgPool) -> ThothResult<Self> {
-            use diesel::{QueryDsl, RunQueryDsl};
-
-            let mut connection = db.get()?;
-            diesel::delete($entity_dsl.find(&self.pk()))
-                .execute(&mut connection)
-                .map(|_| self)
-                .map_err(Into::into)
         }
     };
 }
@@ -887,6 +962,7 @@ pub mod contact;
 pub mod contribution;
 pub mod contributor;
 pub mod country;
+pub mod crossref_write_permit;
 pub mod distribution_job;
 pub mod endorsement;
 pub mod file;
@@ -909,3 +985,4 @@ pub mod title;
 pub mod work;
 pub mod work_featured_video;
 pub mod work_relation;
+pub mod work_upsert;

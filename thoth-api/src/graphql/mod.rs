@@ -15,6 +15,7 @@ mod query;
 pub(crate) mod sdl_support;
 #[cfg(test)]
 mod service_configuration_tests;
+pub(crate) mod work_upsert;
 
 pub use juniper::http::GraphQLRequest;
 

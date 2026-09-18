@@ -57,7 +57,7 @@ use crate::model::{
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::WorkFeaturedVideo,
     work_relation::{RelationType, WorkRelation, WorkRelationOrderBy},
-    CountryCode, Crud, Doi, Isbn, Orcid, Ror, Timestamp,
+    CountryCode, Crud, Doi, Generation, Isbn, Orcid, Ror, Timestamp,
 };
 use crate::policy::PolicyContext;
 use crate::storage::{CloudFrontClient, S3Client};
@@ -1659,6 +1659,40 @@ impl DistributionJobPayload {
     pub fn updated_at(&self) -> Timestamp {
         self.job.updated_at
     }
+
+    #[graphql(description = "Work-level execution profile of a WORK_UPSERT job; null otherwise")]
+    pub fn execution_profile(&self) -> Option<DistributionPlatform> {
+        self.job.execution_profile
+    }
+
+    #[graphql(
+        description = "Immutable identity of the Work a WORK_UPSERT job was created for, kept after the Work is deleted; null otherwise"
+    )]
+    pub fn work_identity(&self) -> Option<Uuid> {
+        self.job.work_identity
+    }
+
+    #[graphql(description = "Source generation a WORK_UPSERT job was created at; null otherwise")]
+    pub fn created_generation(&self) -> Option<Generation> {
+        self.job.created_generation.and_then(Generation::from_i64)
+    }
+
+    #[graphql(
+        description = "Ordinal of a WORK_UPSERT job among the jobs of its Work under the same execution key; null otherwise"
+    )]
+    pub fn job_ordinal(&self) -> Option<i32> {
+        self.job.job_ordinal
+    }
+
+    #[graphql(description = "Thoth ID of the job this job replaced or succeeded, if any")]
+    pub fn predecessor_job_id(&self) -> Option<Uuid> {
+        self.job.predecessor_job_id
+    }
+
+    #[graphql(description = "Thoth ID of the job that replaced or succeeded this job, if any")]
+    pub fn superseded_by_job_id(&self) -> Option<Uuid> {
+        self.job.superseded_by_job_id
+    }
 }
 
 #[juniper::graphql_object(
@@ -1715,6 +1749,23 @@ impl DistributionJobAttempt {
     #[graphql(description = "Bounded sanitized diagnostic, present only on a failed attempt")]
     pub fn error_detail(&self) -> Option<&String> {
         self.error_detail.as_ref()
+    }
+
+    #[graphql(description = "Source generation a WORK_UPSERT claim observed; null otherwise")]
+    pub fn claimed_generation(&self) -> Option<Generation> {
+        self.claimed_generation.and_then(Generation::from_i64)
+    }
+
+    #[graphql(
+        description = "When the attempt passed the fence and its external write was authorised, if it did"
+    )]
+    pub fn fenced_at(&self) -> Option<Timestamp> {
+        self.fenced_at
+    }
+
+    #[graphql(description = "When reconciliation cleared this fenced abandoned attempt, if it has")]
+    pub fn recovery_cleared_at(&self) -> Option<Timestamp> {
+        self.recovery_cleared_at
     }
 }
 

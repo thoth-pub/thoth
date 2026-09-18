@@ -101,13 +101,46 @@ pub(crate) mod db {
         (Arc::clone(s3_client), Arc::clone(cloudfront_client))
     }
 
-    pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
-        let mut connection = pool.get().expect("Failed to get DB connection");
-        let sql = r#"
+    /// The one test-harness reset statement (BE-06 Amendment 3 section 5.2).
+    ///
+    /// It verifies the 15-trigger permanence manifest before any bypass, truncates
+    /// every public table under a transaction-local `replica` mode, restores
+    /// `origin`, reseeds the two BE-06 permanent rows and verifies that no
+    /// protection was left disabled. `thoth-api/tests/support/mod.rs` carries a
+    /// byte-identical copy, asserted by test H6.
+    pub(crate) const TEST_RESET_SQL: &str = r#"
 DO $$
 DECLARE
     tbls TEXT;
 BEGIN
+    IF current_setting('session_replication_role') <> 'origin' THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
+    END IF;
+
+    IF (SELECT count(*)
+          FROM pg_trigger t
+          JOIN pg_class c ON c.oid = t.tgrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled = 'O'
+           AND (c.relname, t.tgname) IN (
+               ('crossref_write_permit', 'crossref_write_permit_insert_guard'),
+               ('crossref_write_permit', 'crossref_write_permit_fsm'),
+               ('crossref_write_permit', 'crossref_write_permit_no_truncate'),
+               ('crossref_write_permit', 'crossref_permit_membership_agreement_p'),
+               ('crossref_write_permit_doi', 'crossref_write_permit_doi_immutable'),
+               ('crossref_write_permit_doi', 'crossref_write_permit_doi_no_truncate'),
+               ('crossref_write_permit_doi', 'crossref_permit_membership_agreement_d'),
+               ('work_crossref_version_floor', 'work_crossref_version_floor_guard'),
+               ('work_crossref_version_floor', 'work_crossref_version_floor_no_truncate'),
+               ('crossref_version_floor_audit', 'crossref_version_floor_audit_append_only'),
+               ('crossref_version_floor_audit', 'crossref_version_floor_audit_no_truncate'),
+               ('work_upsert_control', 'work_upsert_control_guard'),
+               ('work_upsert_control', 'work_upsert_control_no_truncate'),
+               ('work_upsert_admission', 'work_upsert_admission_guard'),
+               ('work_upsert_admission', 'work_upsert_admission_no_truncate'))) <> 15 THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
+    END IF;
+
     SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
     INTO tbls
     FROM pg_tables
@@ -115,11 +148,32 @@ BEGIN
       AND tablename != '__diesel_schema_migrations';
 
     IF tbls IS NOT NULL THEN
+        PERFORM set_config('session_replication_role', 'replica', true);
         EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE';
+        PERFORM set_config('session_replication_role', 'origin', true);
+    END IF;
+
+    INSERT INTO public.work_upsert_control (execution_profile, capture_enabled, execution_enabled)
+    VALUES ('CROSSREF', false, false);
+    INSERT INTO public.work_crossref_version_floor (floor_id, floor_value)
+    VALUES (true, 0);
+
+    IF current_setting('session_replication_role') <> 'origin'
+       OR EXISTS (SELECT 1
+                    FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled <> 'O') THEN
+        RAISE EXCEPTION 'BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED';
     END IF;
 END $$;
 "#;
-        diesel::sql_query(sql).execute(&mut connection).map(|_| ())
+
+    pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        diesel::sql_query(TEST_RESET_SQL)
+            .execute(&mut connection)
+            .map(|_| ())
     }
 
     pub(crate) fn setup_test_db() -> (TestDbGuard, Arc<PgPool>) {
@@ -937,4 +991,564 @@ fn test_timestamp_round_trip_rfc3339_conversion() {
 
     let round_trip_timestamp = Timestamp::parse_from_rfc3339(&converted_string).unwrap();
     assert_eq!(timestamp, round_trip_timestamp);
+}
+
+/// BE-06 test-harness reset contract (Amendment 3 section 5, tests H1-H7 and H9).
+///
+/// Every database test here resets through the harness statement, never through
+/// ad-hoc SQL, and every statement that changes the replication mode or a
+/// trigger runs inside a transaction that is rolled back.
+#[cfg(feature = "backend")]
+mod be06_reset {
+    use diesel::connection::SimpleConnection;
+    use diesel::pg::PgConnection;
+    use diesel::sql_types::{BigInt, Text, Uuid as SqlUuid};
+    use diesel::{Connection, QueryableByName, RunQueryDsl};
+    use uuid::Uuid;
+
+    use crate::model::tests::db::{create_publisher, reset_db, setup_test_db, TEST_RESET_SQL};
+
+    const INJECTED: &str = "BE06_H4_INJECTED_FAILURE";
+    const NOT_RESTORED: &str = "BE06_TEST_RESET_PROTECTIONS_NOT_RESTORED";
+
+    #[derive(QueryableByName)]
+    struct TextRow {
+        #[diesel(sql_type = Text)]
+        value: String,
+    }
+
+    #[derive(QueryableByName)]
+    struct CountRow {
+        #[diesel(sql_type = BigInt)]
+        count: i64,
+    }
+
+    fn text(connection: &mut PgConnection, sql: &str) -> String {
+        diesel::sql_query(sql)
+            .get_result::<TextRow>(connection)
+            .unwrap_or_else(|error| panic!("query `{sql}` failed: {error}"))
+            .value
+    }
+
+    fn count(connection: &mut PgConnection, sql: &str) -> i64 {
+        diesel::sql_query(sql)
+            .get_result::<CountRow>(connection)
+            .unwrap_or_else(|error| panic!("query `{sql}` failed: {error}"))
+            .count
+    }
+
+    fn error_message(error: &diesel::result::Error) -> String {
+        match error {
+            diesel::result::Error::DatabaseError(_, info) => info.message().to_string(),
+            other => other.to_string(),
+        }
+    }
+
+    /// Run `sql` in a transaction that is always rolled back, and return the
+    /// database error it raised. Panics if the statement succeeded.
+    fn refusal(connection: &mut PgConnection, sql: &str) -> String {
+        let outcome = connection.transaction::<(), diesel::result::Error, _>(|connection| {
+            connection.batch_execute(sql)?;
+            Err(diesel::result::Error::RollbackTransaction)
+        });
+        match outcome {
+            Err(diesel::result::Error::RollbackTransaction) => {
+                panic!("`{sql}` was expected to be refused but succeeded")
+            }
+            Err(error) => error_message(&error),
+            Ok(()) => unreachable!("the closure never commits"),
+        }
+    }
+
+    fn assert_refused(connection: &mut PgConnection, sql: &str, code: &str) {
+        let message = refusal(connection, sql);
+        assert!(
+            message.contains(code),
+            "`{sql}` must be refused with {code}, got: {message}"
+        );
+    }
+
+    /// Residue in every BE-06 table: a permit with membership, the floor at the
+    /// G-7 target, an audit row, control `(true, true)`, a generation row, an
+    /// admission row and an orphaned capture-queue row.
+    fn seed_residue(connection: &mut PgConnection, publisher_id: Uuid) {
+        connection
+            .transaction::<(), diesel::result::Error, _>(|connection| {
+                diesel::sql_query(
+                    "INSERT INTO crossref_write_permit \
+                         (route, scope, publisher_id, publisher_identity, root_work_identity, \
+                          source_generation_witness, doi_set_digest, doi_set_cardinality, \
+                          crossref_timestamp, doi_batch_id) \
+                     VALUES ('LEGACY_SCHEDULED', 'SINGLE_ROOT_WORK', $1, $1, gen_random_uuid(), 0, \
+                             public.crossref_doi_set_digest(ARRAY['https://doi.org/10.12345/be06-residue']), \
+                             1, 20260904120000000, 'be06-residue')",
+                )
+                .bind::<SqlUuid, _>(publisher_id)
+                .execute(connection)?;
+                connection.batch_execute(
+                    "INSERT INTO crossref_write_permit_doi (permit_id, doi) \
+                     SELECT permit_id, 'https://doi.org/10.12345/be06-residue' FROM crossref_write_permit",
+                )?;
+                Ok(())
+            })
+            .expect("seed a permit with membership");
+        connection
+            .batch_execute(
+                "UPDATE work_crossref_version_floor SET floor_value = 99999999999999; \
+                 INSERT INTO crossref_version_floor_audit \
+                     (mutation_kind, before_value, after_value, g6_attempt_id, observation_id, \
+                      g7_authorization_reference, authorization_register_digest, actor) \
+                 VALUES ('ADVANCE_VERSION_FLOOR', 0, 99999999999999, gen_random_uuid(), gen_random_uuid(), \
+                         'G7-AUTH-RESIDUE', repeat('a', 64), 'be06-residue'); \
+                 UPDATE work_upsert_control SET capture_enabled = true, execution_enabled = true \
+                  WHERE execution_profile = 'CROSSREF'; \
+                 INSERT INTO work_upsert_generation (work_id, execution_profile, source_generation) \
+                 VALUES (gen_random_uuid(), 'CROSSREF', 3); \
+                 INSERT INTO work_upsert_capture_queue (entry_kind, work_ids) \
+                 VALUES ('OWNERS', ARRAY[gen_random_uuid()]);",
+            )
+            .expect("seed floor, audit, control, generation and queue residue");
+        diesel::sql_query(
+            "INSERT INTO work_upsert_admission \
+                 (execution_profile, publisher_id, activation_id, evidence_reference, actor) \
+             VALUES ('CROSSREF', $1, gen_random_uuid(), 'EV-RESIDUE', 'be06-residue')",
+        )
+        .bind::<SqlUuid, _>(publisher_id)
+        .execute(connection)
+        .expect("seed an admission row");
+    }
+
+    fn residue_fingerprint(connection: &mut PgConnection) -> String {
+        text(
+            connection,
+            "SELECT concat_ws('|', \
+                 (SELECT count(*) FROM crossref_write_permit), \
+                 (SELECT count(*) FROM crossref_write_permit_doi), \
+                 (SELECT floor_value FROM work_crossref_version_floor), \
+                 (SELECT count(*) FROM crossref_version_floor_audit), \
+                 (SELECT capture_enabled::text || execution_enabled::text FROM work_upsert_control), \
+                 (SELECT count(*) FROM work_upsert_generation), \
+                 (SELECT count(*) FROM work_upsert_admission), \
+                 (SELECT count(*) FROM work_upsert_capture_queue)) AS value",
+        )
+    }
+
+    const RESIDUE: &str = "1|1|99999999999999|1|truetrue|1|1|1";
+
+    fn assert_protections_active(connection: &mut PgConnection) {
+        assert_eq!(
+            text(
+                connection,
+                "SELECT current_setting('session_replication_role') AS value"
+            ),
+            "origin"
+        );
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS count FROM pg_trigger t \
+                 JOIN pg_class c ON c.oid = t.tgrelid \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE n.nspname = 'public' AND NOT t.tgisinternal AND t.tgenabled <> 'O'"
+            ),
+            0,
+            "no public user trigger may be disabled after a reset"
+        );
+    }
+
+    /// Section 5.1 items 5 and 6 exactly: the two seed rows, every other public
+    /// table empty, identities restarted, the migration ledger untouched.
+    fn assert_clean_state(connection: &mut PgConnection) {
+        assert_eq!(
+            text(
+                connection,
+                "SELECT string_agg(execution_profile::text || ':' || capture_enabled::text || ':' \
+                     || execution_enabled::text, ',') AS value FROM work_upsert_control"
+            ),
+            "CROSSREF:false:false"
+        );
+        assert_eq!(
+            text(
+                connection,
+                "SELECT string_agg(floor_id::text || ':' || floor_value::text, ',') AS value \
+                 FROM work_crossref_version_floor"
+            ),
+            "true:0"
+        );
+        assert_eq!(
+            text(
+                connection,
+                "SELECT coalesce(string_agg(table_name || '=' || n, ',' ORDER BY table_name), '') AS value \
+                 FROM (SELECT table_name::text AS table_name, \
+                              (xpath('/row/n/text()', query_to_xml( \
+                                  format('SELECT count(*) AS n FROM public.%I', table_name), \
+                                  false, true, '')))[1]::text::bigint AS n \
+                         FROM information_schema.tables \
+                        WHERE table_schema = 'public' AND table_type = 'BASE TABLE' \
+                          AND table_name NOT IN ('__diesel_schema_migrations', \
+                                                 'work_upsert_control', \
+                                                 'work_crossref_version_floor')) s \
+                WHERE n > 0"
+            ),
+            "",
+            "every other public table must be empty after a reset"
+        );
+        assert_eq!(
+            text(
+                connection,
+                "SELECT coalesce(pg_sequence_last_value( \
+                     pg_get_serial_sequence('public.work_upsert_capture_queue', 'entry_id'))::text, \
+                     'restarted') AS value"
+            ),
+            "restarted",
+            "identities are restarted"
+        );
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS count FROM __diesel_schema_migrations \
+                 WHERE version IN ('20260910', '20260911')"
+            ),
+            2,
+            "the migration ledger is untouched"
+        );
+        assert_protections_active(connection);
+    }
+
+    #[test]
+    fn h1_the_reset_removes_residue_from_every_be06_table_and_restores_the_seed_rows() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("connection");
+        seed_residue(&mut connection, publisher.publisher_id);
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+
+        reset_db(pool.as_ref()).expect("the reset succeeds over BE-06 residue");
+        assert_clean_state(&mut connection);
+    }
+
+    #[test]
+    fn h2_consecutive_resets_and_a_reset_between_two_writers_are_identical() {
+        let (_guard, pool) = setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let publisher = create_publisher(pool.as_ref());
+        seed_residue(&mut connection, publisher.publisher_id);
+
+        reset_db(pool.as_ref()).expect("first reset");
+        reset_db(pool.as_ref()).expect("second reset");
+        assert_clean_state(&mut connection);
+
+        connection
+            .batch_execute(
+                "INSERT INTO work_upsert_generation (work_id, execution_profile, source_generation) \
+                 VALUES (gen_random_uuid(), 'CROSSREF', 1)",
+            )
+            .expect("first writer");
+        reset_db(pool.as_ref()).expect("reset between writers");
+        assert_clean_state(&mut connection);
+        connection
+            .batch_execute(
+                "INSERT INTO work_upsert_generation (work_id, execution_profile, source_generation) \
+                 VALUES (gen_random_uuid(), 'CROSSREF', 2)",
+            )
+            .expect("second writer");
+        reset_db(pool.as_ref()).expect("reset after the second writer");
+        assert_clean_state(&mut connection);
+    }
+
+    #[test]
+    fn h3_after_a_reset_every_permanence_protection_refuses_ordinary_sql() {
+        let (_guard, pool) = setup_test_db();
+        let mut reset_connection = pool.get().expect("reset connection");
+        diesel::sql_query(TEST_RESET_SQL)
+            .execute(&mut reset_connection)
+            .expect("reset on a held connection");
+        assert_protections_active(&mut reset_connection);
+
+        let mut other = pool.get().expect("another pooled connection");
+        assert_protections_active(&mut other);
+
+        let publisher = create_publisher(pool.as_ref());
+        seed_residue(&mut other, publisher.publisher_id);
+
+        // Permits and membership.
+        assert_refused(
+            &mut other,
+            "DELETE FROM crossref_write_permit",
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        );
+        assert_refused(
+            &mut other,
+            "TRUNCATE crossref_write_permit CASCADE",
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        );
+        assert_refused(
+            &mut other,
+            "TRUNCATE crossref_write_permit, crossref_write_permit_doi",
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        );
+        assert_refused(
+            &mut other,
+            "TRUNCATE crossref_write_permit_doi",
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        );
+        assert_refused(
+            &mut other,
+            "TRUNCATE work CASCADE",
+            "CROSSREF_PERMIT_DELETE_REFUSED",
+        );
+        assert_refused(
+            &mut other,
+            "DO $$ BEGIN TRUNCATE crossref_write_permit; \
+             EXCEPTION WHEN SQLSTATE '0A000' THEN RAISE EXCEPTION 'SQLSTATE_0A000'; END $$",
+            "SQLSTATE_0A000",
+        );
+        assert_refused(
+            &mut other,
+            "UPDATE crossref_write_permit_doi SET doi = doi",
+            "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE",
+        );
+        assert_refused(
+            &mut other,
+            "DELETE FROM crossref_write_permit_doi",
+            "CROSSREF_PERMIT_MEMBERSHIP_IMMUTABLE",
+        );
+        // The version floor and its audit.
+        assert_refused(
+            &mut other,
+            "DELETE FROM work_crossref_version_floor",
+            "CROSSREF_VERSION_FLOOR_PERMANENT",
+        );
+        assert_refused(
+            &mut other,
+            "TRUNCATE work_crossref_version_floor",
+            "CROSSREF_VERSION_FLOOR_PERMANENT",
+        );
+        assert_refused(
+            &mut other,
+            "UPDATE work_crossref_version_floor SET floor_value = 0",
+            "CROSSREF_VERSION_FLOOR_NOT_DECREASING",
+        );
+        for statement in [
+            "UPDATE crossref_version_floor_audit SET actor = 'changed'",
+            "DELETE FROM crossref_version_floor_audit",
+            "TRUNCATE crossref_version_floor_audit",
+        ] {
+            assert_refused(
+                &mut other,
+                statement,
+                "CROSSREF_VERSION_FLOOR_AUDIT_APPEND_ONLY",
+            );
+        }
+        // The generic control and admission tables (R-8 included).
+        for statement in [
+            "DELETE FROM work_upsert_control",
+            "TRUNCATE work_upsert_control",
+        ] {
+            assert_refused(
+                &mut other,
+                statement,
+                "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT",
+            );
+        }
+        assert_refused(
+            &mut other,
+            "UPDATE work_upsert_admission SET evidence_reference = 'changed'",
+            "WORK_UPSERT_ADMISSION_IMMUTABLE",
+        );
+        for statement in [
+            "DELETE FROM work_upsert_admission",
+            "TRUNCATE work_upsert_admission",
+        ] {
+            assert_refused(
+                &mut other,
+                statement,
+                "WORK_UPSERT_ADMISSION_DELETE_ONLY_BY_PUBLISHER_CASCADE",
+            );
+        }
+
+        assert_eq!(residue_fingerprint(&mut other), RESIDUE);
+        assert_protections_active(&mut reset_connection);
+        assert_protections_active(&mut other);
+    }
+
+    #[test]
+    fn h4_a_failure_after_the_truncate_rolls_everything_back_with_protections_active() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("connection");
+        seed_residue(&mut connection, publisher.publisher_id);
+
+        let truncate = "EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE';";
+        assert_eq!(TEST_RESET_SQL.matches(truncate).count(), 1);
+        let injected = TEST_RESET_SQL.replacen(
+            truncate,
+            &format!("{truncate}\n        RAISE EXCEPTION '{INJECTED}';"),
+            1,
+        );
+        assert_eq!(injected.matches(INJECTED).count(), 1);
+
+        let error = diesel::sql_query(injected.as_str())
+            .execute(&mut connection)
+            .expect_err("the injected failure aborts the reset");
+        assert!(error_message(&error).contains(INJECTED));
+
+        assert_protections_active(&mut connection);
+        assert_refused(
+            &mut connection,
+            "TRUNCATE work_upsert_control",
+            "WORK_UPSERT_CONTROL_ROW_IS_PERMANENT",
+        );
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+
+        reset_db(pool.as_ref()).expect("the next reset succeeds");
+        assert_clean_state(&mut connection);
+    }
+
+    #[test]
+    fn h5_the_reset_fails_closed_when_a_protection_is_missing_or_the_mode_is_wrong() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("connection");
+        seed_residue(&mut connection, publisher.publisher_id);
+
+        // A permanence guard disabled inside the reset's own transaction.
+        let message = refusal(
+            &mut connection,
+            &format!(
+                "ALTER TABLE work_upsert_control DISABLE TRIGGER work_upsert_control_no_truncate;\n{TEST_RESET_SQL}"
+            ),
+        );
+        assert!(message.contains(NOT_RESTORED), "got: {message}");
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+        assert_protections_active(&mut connection);
+
+        // The statement without its origin restore.
+        let restore = "        PERFORM set_config('session_replication_role', 'origin', true);\n";
+        assert_eq!(TEST_RESET_SQL.matches(restore).count(), 1);
+        let without_restore = TEST_RESET_SQL.replacen(restore, "", 1);
+        let message = refusal(&mut connection, &without_restore);
+        assert!(message.contains(NOT_RESTORED), "got: {message}");
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+        assert_protections_active(&mut connection);
+
+        // A connection left in session-level replica mode, reset afterwards.
+        connection
+            .batch_execute("SET session_replication_role = replica")
+            .expect("enter replica mode for the negative control");
+        let outcome = diesel::sql_query(TEST_RESET_SQL).execute(&mut connection);
+        connection
+            .batch_execute("SET session_replication_role = origin")
+            .expect("leave replica mode");
+        let message = error_message(&outcome.expect_err("refused in replica mode"));
+        assert!(message.contains(NOT_RESTORED), "got: {message}");
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+        assert_protections_active(&mut connection);
+
+        // One manifest trigger dropped in a rolled-back transaction.
+        let message = refusal(
+            &mut connection,
+            &format!(
+                "DROP TRIGGER crossref_version_floor_audit_no_truncate ON crossref_version_floor_audit;\n{TEST_RESET_SQL}"
+            ),
+        );
+        assert!(message.contains(NOT_RESTORED), "got: {message}");
+        assert_eq!(
+            count(
+                &mut connection,
+                "SELECT count(*) AS count FROM pg_trigger \
+                 WHERE tgname = 'crossref_version_floor_audit_no_truncate'"
+            ),
+            1,
+            "the rolled-back drop restored the trigger"
+        );
+        assert_eq!(residue_fingerprint(&mut connection), RESIDUE);
+        assert_protections_active(&mut connection);
+
+        reset_db(pool.as_ref()).expect("a good reset succeeds afterwards");
+        assert_clean_state(&mut connection);
+    }
+
+    #[test]
+    fn h6_the_integration_test_reset_statement_is_byte_identical() {
+        let support =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/mod.rs"))
+                .expect("read tests/support/mod.rs");
+        let body = support
+            .split_once("let sql = r#\"")
+            .expect("tests/support/mod.rs declares its reset statement as a raw string")
+            .1;
+        let statement = body
+            .split_once("\"#;")
+            .expect("the raw string is terminated")
+            .0;
+        assert_eq!(statement, TEST_RESET_SQL);
+    }
+
+    fn files_under(root: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(root).expect("read directory") {
+            let path = entry.expect("directory entry").path();
+            if path.is_dir() {
+                files_under(&path, out);
+            } else {
+                out.push(path);
+            }
+        }
+    }
+
+    #[test]
+    fn h7_the_replication_mode_bypass_exists_only_in_test_sources() {
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut sources = Vec::new();
+        files_under(&manifest.join("src"), &mut sources);
+        for path in sources {
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            if content.contains("session_replication_role") {
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                assert!(
+                    name == "tests.rs" || name.ends_with("_tests.rs"),
+                    "{} mentions session_replication_role outside a test source",
+                    path.display()
+                );
+            }
+        }
+        let mut migrations = Vec::new();
+        files_under(&manifest.join("migrations"), &mut migrations);
+        for path in migrations {
+            let content = std::fs::read_to_string(&path).expect("read migration file");
+            assert!(
+                !content.contains("session_replication_role"),
+                "{} mentions session_replication_role",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    fn h9_the_test_database_runs_the_suite_over_the_migrated_schema() {
+        let (_guard, pool) = setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        assert_eq!(
+            count(
+                &mut connection,
+                "SELECT count(*) AS count FROM __diesel_schema_migrations \
+                 WHERE version IN ('20260910', '20260911')"
+            ),
+            2
+        );
+        assert_eq!(
+            count(
+                &mut connection,
+                "SELECT count(*) AS count FROM pg_tables WHERE schemaname = 'public' \
+                 AND tablename IN ('work_upsert_generation', 'work_upsert_capture_queue', \
+                                   'work_upsert_control', 'work_upsert_admission', \
+                                   'crossref_write_permit', 'crossref_write_permit_doi', \
+                                   'work_crossref_version_floor', 'crossref_version_floor_audit')"
+            ),
+            8
+        );
+        assert_clean_state(&mut connection);
+    }
 }

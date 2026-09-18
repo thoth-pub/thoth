@@ -1,8 +1,10 @@
 use juniper::FieldResult;
 use uuid::Uuid;
 
+use crate::graphql::work_upsert;
 use crate::graphql::Context;
 use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
+use crate::model::publisher_distribution_platform::DistributionPlatform;
 use crate::model::{
     additional_resource::{
         AdditionalResource, AdditionalResourcePolicy, NewAdditionalResource,
@@ -233,6 +235,171 @@ impl MutationRoot {
         #[graphql(description = "Which job to cancel")] data: CancelDistributionJobInput,
     ) -> FieldResult<DistributionJobPayload> {
         cancel_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Run one bounded drain of work-level residue for the given execution profiles. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn materialize_work_upsert_jobs(
+        context: &Context,
+        data: work_upsert::MaterializeWorkUpsertJobsInput,
+    ) -> FieldResult<crate::model::work_upsert::MaterializeWorkUpsertJobsResult> {
+        work_upsert::field(work_upsert::materialize_work_upsert_jobs(context, &data))
+    }
+
+    #[graphql(
+        description = "Claim a bounded batch of due work-level jobs for the given execution profiles. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn claim_work_upsert_jobs(
+        context: &Context,
+        data: work_upsert::ClaimWorkUpsertJobsInput,
+    ) -> FieldResult<Vec<ClaimedDistributionJob>> {
+        work_upsert::field(work_upsert::claim_work_upsert(context, &data))
+    }
+
+    #[graphql(
+        description = "Reserve a Crossref write for a claimed WORK_UPSERT job. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn reserve_work_upsert_crossref_write(
+        context: &Context,
+        data: work_upsert::ReserveWorkUpsertCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWriteReservation> {
+        work_upsert::field(work_upsert::reserve_work_upsert(context, &data))
+    }
+
+    #[graphql(
+        description = "Reserve a Crossref write for one unit of a claimed back-catalogue job. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn reserve_back_catalogue_crossref_write(
+        context: &Context,
+        data: work_upsert::ReserveBackCatalogueCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWriteReservation> {
+        work_upsert::field(work_upsert::reserve_back_catalogue(context, &data))
+    }
+
+    #[graphql(
+        description = "Reserve a Crossref write for the legacy scheduled route. Requires the DISSEMINATION_WORKER role."
+    )]
+    fn reserve_legacy_scheduled_crossref_write(
+        context: &Context,
+        data: work_upsert::ReserveLegacyScheduledCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWriteReservation> {
+        work_upsert::field(work_upsert::reserve_legacy_scheduled(context, &data))
+    }
+
+    #[graphql(description = "Reserve a Crossref write for manual recovery. Superuser only.")]
+    fn reserve_manual_recovery_crossref_write(
+        context: &Context,
+        data: work_upsert::ReserveManualRecoveryCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWriteReservation> {
+        work_upsert::field(work_upsert::reserve_manual_recovery(context, &data))
+    }
+
+    #[graphql(
+        description = "Finalise a reserved Crossref write. The required role is derived from the permit's route."
+    )]
+    fn finalise_crossref_write(
+        context: &Context,
+        data: work_upsert::FinaliseCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefFinalisationResult> {
+        work_upsert::field(work_upsert::finalise(context, &data))
+    }
+
+    #[graphql(
+        description = "Report the provider outcome of an authorised Crossref write. The required role is derived from the permit's route."
+    )]
+    fn report_crossref_write(
+        context: &Context,
+        data: work_upsert::ReportCrossrefWriteInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWritePermitWithDois> {
+        work_upsert::field(work_upsert::report(context, &data))
+    }
+
+    #[graphql(
+        description = "Release a reserved Crossref write as its route owner. The required role is derived from the permit's route."
+    )]
+    fn void_crossref_write_reservation(
+        context: &Context,
+        data: work_upsert::VoidCrossrefWriteReservationInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWritePermitWithDois> {
+        work_upsert::field(work_upsert::void_reservation(context, &data))
+    }
+
+    #[graphql(description = "Release a reserved Crossref write on any route. Superuser only.")]
+    fn void_crossref_write_reservation_as_superuser(
+        context: &Context,
+        data: work_upsert::VoidCrossrefWriteReservationAsSuperuserInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWritePermitWithDois> {
+        work_upsert::field(work_upsert::void_reservation_as_superuser(context, &data))
+    }
+
+    #[graphql(description = "Reconcile a Crossref write permit. Superuser only.")]
+    fn reconcile_crossref_write_permit(
+        context: &Context,
+        data: work_upsert::ReconcileCrossrefWritePermitInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefWritePermitWithDois> {
+        work_upsert::field(work_upsert::reconcile(context, &data))
+    }
+
+    #[graphql(description = "Enable work-level capture for an execution profile. Superuser only.")]
+    fn enable_work_upsert_capture(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+    ) -> FieldResult<crate::model::work_upsert::WorkUpsertControl> {
+        work_upsert::field(work_upsert::enable_capture(context, execution_profile))
+    }
+
+    #[graphql(
+        description = "Enable or pause work-level execution for an execution profile. Superuser only."
+    )]
+    fn set_work_upsert_execution(
+        context: &Context,
+        execution_profile: DistributionPlatform,
+        enabled: bool,
+    ) -> FieldResult<crate::model::work_upsert::WorkUpsertControl> {
+        work_upsert::field(work_upsert::set_execution(
+            context,
+            execution_profile,
+            enabled,
+        ))
+    }
+
+    #[graphql(
+        description = "Run one bounded batch of the Crossref bootstrap seed for a publisher. Superuser only."
+    )]
+    fn seed_crossref_work_upsert(
+        context: &Context,
+        data: work_upsert::SeedCrossrefWorkUpsertInput,
+    ) -> FieldResult<crate::model::work_upsert::SeedCrossrefWorkUpsertResult> {
+        work_upsert::field(work_upsert::seed(context, &data))
+    }
+
+    #[graphql(
+        description = "Admit a publisher's current Crossref binding after a passing census. Superuser only."
+    )]
+    fn admit_crossref_work_upsert(
+        context: &Context,
+        data: work_upsert::AdmitCrossrefWorkUpsertInput,
+    ) -> FieldResult<crate::model::work_upsert::WorkUpsertAdmission> {
+        work_upsert::field(work_upsert::admit(context, &data))
+    }
+
+    #[graphql(
+        description = "Advance the Crossref version floor once per G-6 attempt. Superuser only."
+    )]
+    fn advance_crossref_version_floor(
+        context: &Context,
+        data: work_upsert::AdvanceCrossrefVersionFloorInput,
+    ) -> FieldResult<crate::model::crossref_write_permit::CrossrefVersionFloorAdvance> {
+        work_upsert::field(work_upsert::advance_floor(context, &data))
+    }
+
+    #[graphql(description = "Run one work-level materialization unit for a Work. Superuser only.")]
+    fn materialize_work_upsert_job(
+        context: &Context,
+        data: work_upsert::MaterializeWorkUpsertJobInput,
+    ) -> FieldResult<work_upsert::MaterializedWorkUpsertJob> {
+        work_upsert::field(work_upsert::materialize_one(context, &data))
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]

@@ -48,7 +48,8 @@ const JOB_COLUMNS_QUALIFIED: &str = "\
     j.status, j.deduplication_key, j.attempt_count, j.available_at, j.claim_token, \
     j.claimed_by, j.claimed_at, j.lease_expires_at, j.completed_at, \
     j.cancellation_reason, j.last_error_code, j.last_error_detail, j.created_at, \
-    j.updated_at";
+    j.updated_at, j.execution_profile, j.work_identity, j.created_generation, \
+    j.job_ordinal, j.predecessor_job_id, j.superseded_by_job_id";
 
 /// The same columns projected out of the `claimed` CTE.
 const JOB_COLUMNS_FROM_CLAIMED: &str = "\
@@ -56,7 +57,8 @@ const JOB_COLUMNS_FROM_CLAIMED: &str = "\
     c.status, c.deduplication_key, c.attempt_count, c.available_at, c.claim_token, \
     c.claimed_by, c.claimed_at, c.lease_expires_at, c.completed_at, \
     c.cancellation_reason, c.last_error_code, c.last_error_detail, c.created_at, \
-    c.updated_at";
+    c.updated_at, c.execution_profile, c.work_identity, c.created_generation, \
+    c.job_ordinal, c.predecessor_job_id, c.superseded_by_job_id";
 
 /// The claim statement's row: the whole job plus the ordinal of the attempt this
 /// claim started.
@@ -224,6 +226,18 @@ pub(crate) fn claim_distribution_jobs(
     lease_seconds: i32,
     kinds: &[DistributionJobKind],
 ) -> ThothResult<Vec<ClaimedDistributionJob>> {
+    // BE-06 (R52B section 19.1): this mutation is permanently bound to the
+    // legacy-claimable kind set. A list naming `WORK_UPSERT` is refused as a
+    // whole, and an empty list means exactly the legacy set, bound into the
+    // released statement's own kind parameter.
+    if kinds.contains(&DistributionJobKind::WorkUpsert) {
+        return Err(ThothError::DistributionJobKindNotClaimable);
+    }
+    let kinds: &[DistributionJobKind] = if kinds.is_empty() {
+        &LEGACY_CLAIMABLE_KINDS
+    } else {
+        kinds
+    };
     if limit <= 0 {
         // An explicit request for nothing claims nothing, and performs no
         // database work at all.
@@ -349,6 +363,196 @@ pub(crate) fn claim_distribution_jobs(
     })
 }
 
+/// The kinds `claimDistributionJobs` may ever claim (R52B section 19.1).
+const LEGACY_CLAIMABLE_KINDS: [DistributionJobKind; 1] =
+    [DistributionJobKind::PublisherBackCatalogue];
+
+/// `claimWorkUpsertJobs` (R52B sections 10.7 and 19.2): the work-level claim.
+///
+/// One transaction, through the BE-06 boundary: the released lease recovery;
+/// the execution gate `Q` in SHARE mode for each requested registered profile,
+/// deduplicated and ascending by key; then the released claim statement with
+/// `kind` hard-bound to `WORK_UPSERT`, the added clauses 1-7 and the
+/// `claimed_generation` projection; then the released payload reads. Released
+/// helpers' errors pass through unchanged (Amendment 3 section 10.3, EB1's
+/// enumerated exception); every BE-06 statement is converted by the scoped
+/// conversion.
+pub(crate) fn claim_work_upsert_jobs(
+    db: &PgPool,
+    worker: &str,
+    execution_profiles: &[DistributionPlatform],
+    limit: i32,
+    lease_seconds: i32,
+) -> ThothResult<Vec<ClaimedDistributionJob>> {
+    use crate::model::work_upsert::registry::FencedRecovery;
+    use crate::model::work_upsert::{policy, take_execution_gates, work_upsert_transaction};
+
+    let profiles = policy::registered_profiles(execution_profiles)?;
+    if limit <= 0 {
+        return Ok(Vec::new());
+    }
+    let batch = limit.min(DISTRIBUTION_JOB_CLAIM_MAX_BATCH);
+    let lease = lease_seconds.clamp(
+        DISTRIBUTION_JOB_LEASE_MIN_SECONDS,
+        DISTRIBUTION_JOB_LEASE_MAX_SECONDS,
+    );
+    let profile_labels: Vec<String> = profiles
+        .iter()
+        .map(|profile| profile.key.to_string())
+        .collect();
+    let replay_safe_labels: Vec<String> = profiles
+        .iter()
+        .filter(|profile| profile.fenced_recovery == FencedRecovery::ReplaySafe)
+        .map(|profile| profile.key.to_string())
+        .collect();
+    let worker = worker.to_string();
+
+    work_upsert_transaction(db, |connection| {
+        recover_expired_leases(connection)?;
+        take_execution_gates(connection, &profiles)?;
+
+        let claim_sql = format!(
+            "WITH eligible AS ( \
+                 SELECT j.distribution_job_id \
+                 FROM distribution_job j \
+                 WHERE j.status = 'PENDING' \
+                   AND j.available_at <= CURRENT_TIMESTAMP \
+                   AND j.attempt_count < $1 \
+                   AND j.kind = 'WORK_UPSERT' \
+                   AND j.execution_profile = ANY($2::text[]::public.distribution_platform[]) \
+                   AND j.work_id IS NOT NULL \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_generation g \
+                       WHERE g.work_id = j.work_id AND g.execution_profile = j.execution_profile \
+                   ) \
+                   AND ( \
+                       SELECT i.publisher_id FROM work w JOIN imprint i ON i.imprint_id = w.imprint_id \
+                       WHERE w.work_id = j.work_id \
+                   ) = j.publisher_id \
+                   AND NOT EXISTS ( \
+                       SELECT 1 \
+                       FROM distribution_job_target t \
+                       WHERE t.distribution_job_id = j.distribution_job_id \
+                         AND NOT EXISTS ( \
+                             SELECT 1 \
+                             FROM publisher_distribution_platform p \
+                             WHERE p.publisher_id = j.publisher_id \
+                               AND p.platform = t.platform \
+                               AND p.enabled \
+                               AND p.activation_id = j.activation_id \
+                         ) \
+                   ) \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_admission ad \
+                       WHERE ad.execution_profile = j.execution_profile \
+                         AND ad.publisher_id = j.publisher_id \
+                         AND ad.activation_id = j.activation_id \
+                   ) \
+                   AND EXISTS ( \
+                       SELECT 1 FROM work_upsert_control k \
+                       WHERE k.execution_profile = j.execution_profile AND k.execution_enabled \
+                   ) \
+                   AND ( \
+                       j.execution_profile = ANY($6::text[]::public.distribution_platform[]) \
+                       OR NOT EXISTS ( \
+                           SELECT 1 \
+                           FROM distribution_job oj \
+                           JOIN distribution_job_attempt oa ON oa.distribution_job_id = oj.distribution_job_id \
+                           WHERE oj.kind = 'WORK_UPSERT' \
+                             AND oj.work_identity = j.work_identity \
+                             AND oj.execution_profile = j.execution_profile \
+                             AND oa.result = 'ABANDONED' \
+                             AND oa.fenced_at IS NOT NULL \
+                             AND oa.recovery_cleared_at IS NULL \
+                       ) \
+                   ) \
+                   AND ( \
+                       j.execution_profile <> 'CROSSREF' \
+                       OR NOT EXISTS ( \
+                           SELECT 1 \
+                           FROM crossref_write_permit x \
+                           JOIN crossref_write_permit_doi d ON d.permit_id = x.permit_id \
+                           WHERE public.crossref_is_blocking_write_permit(x.state, x.reconciliation_state) \
+                             AND d.doi = ANY(public.crossref_deposit_membership(j.work_id)) \
+                       ) \
+                   ) \
+                 ORDER BY j.available_at ASC, j.distribution_job_id ASC \
+                 FOR UPDATE OF j SKIP LOCKED \
+                 LIMIT $3 \
+             ), \
+             claimed AS ( \
+                 UPDATE distribution_job j \
+                 SET status = 'RUNNING', \
+                     claim_token = public.uuid_generate_v4(), \
+                     claimed_by = $4, \
+                     claimed_at = CURRENT_TIMESTAMP, \
+                     lease_expires_at = CURRENT_TIMESTAMP + ($5 * interval '1 second'), \
+                     attempt_count = j.attempt_count + 1 \
+                 FROM eligible e \
+                 WHERE j.distribution_job_id = e.distribution_job_id \
+                 RETURNING {JOB_COLUMNS_QUALIFIED} \
+             ), \
+             inserted_attempts AS ( \
+                 INSERT INTO distribution_job_attempt \
+                     (distribution_job_id, attempt_number, claim_token, claimed_by, started_at, \
+                      claimed_generation) \
+                 SELECT c.distribution_job_id, c.attempt_count, c.claim_token, \
+                        c.claimed_by, c.claimed_at, g.source_generation \
+                 FROM claimed c \
+                 JOIN work_upsert_generation g \
+                   ON g.work_id = c.work_id AND g.execution_profile = c.execution_profile \
+                 RETURNING distribution_job_id, attempt_number \
+             ) \
+             SELECT {JOB_COLUMNS_FROM_CLAIMED}, a.attempt_number \
+             FROM claimed c \
+             JOIN inserted_attempts a ON a.distribution_job_id = c.distribution_job_id \
+             ORDER BY c.available_at ASC, c.distribution_job_id ASC"
+        );
+
+        let rows: Vec<ClaimRow> = diesel::sql_query(claim_sql)
+            .bind::<Integer, _>(DISTRIBUTION_JOB_MAX_ATTEMPTS)
+            .bind::<Array<Text>, _>(&profile_labels)
+            .bind::<BigInt, _>(i64::from(batch))
+            .bind::<Text, _>(&worker)
+            .bind::<Integer, _>(lease)
+            .bind::<Array<Text>, _>(&replay_safe_labels)
+            .load(connection)?;
+
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let job_ids: Vec<Uuid> = rows.iter().map(|row| row.job.distribution_job_id).collect();
+        let mut targets = partition_by_job(targets_for_jobs(connection, &job_ids)?, |target| {
+            target.distribution_job_id
+        });
+        let mut attempts = partition_by_job(attempts_for_jobs(connection, &job_ids)?, |attempt| {
+            attempt.distribution_job_id
+        });
+
+        let mut claimed = Vec::with_capacity(rows.len());
+        for row in rows {
+            let (Some(claim_token), Some(lease_expires_at)) =
+                (row.job.claim_token, row.job.lease_expires_at)
+            else {
+                return Err(ThothError::WorkUpsertDatabaseFailure.into());
+            };
+            let job_id = row.job.distribution_job_id;
+            claimed.push(ClaimedDistributionJob {
+                job: DistributionJobPayload::preloaded(
+                    row.job,
+                    targets.remove(&job_id).unwrap_or_default(),
+                    attempts.remove(&job_id).unwrap_or_default(),
+                ),
+                claim_token,
+                lease_expires_at,
+                attempt_number: row.attempt_number,
+            });
+        }
+        Ok(claimed)
+    })
+}
+
 /// Recover every expired lease this call is willing to handle (`T5a`/`T5b`).
 ///
 /// Expiry is not self-executing: PostgreSQL runs no timer, and `BE-04` adds no
@@ -422,6 +626,13 @@ pub(crate) fn complete_distribution_job(
 ) -> ThothResult<DistributionJob> {
     let mut connection = db.get()?;
     connection.transaction(|connection| {
+        // BE-06 (R52B sections 10.8, 11.5, 14.4 and 18.10): the completion guards,
+        // and for WORK_UPSERT the P -> W -> G prefix that T2 needs. Any other job's
+        // permit guard takes the job row first and it stays held through the
+        // statements below.
+        let work_upsert =
+            work_upsert_completion_guard(connection, distribution_job_id, claim_token)?;
+
         let sql = format!(
             "UPDATE distribution_job j \
              SET status = 'SUCCEEDED', \
@@ -451,6 +662,9 @@ pub(crate) fn complete_distribution_job(
         };
 
         close_open_attempt(connection, claim_token, "SUCCEEDED", None, None)?;
+        if let Some(prefix) = work_upsert {
+            complete_work_upsert_successor(connection, &job, prefix)?;
+        }
         Ok(job)
     })
 }
@@ -483,6 +697,16 @@ pub(crate) fn fail_distribution_job(
 
     let mut connection = db.get()?;
     connection.transaction(|connection| {
+        // BE-06 (R52B sections 10.8 and 18.10): a worker may not give up an attempt
+        // over an open reservation or an unreported authorization. The guard takes
+        // the job row first and it stays held through the statements below.
+        attempt_permit_guard(
+            connection,
+            distribution_job_id,
+            claim_token,
+            Some(retryable),
+        )?;
+
         let sql = format!(
             "UPDATE distribution_job j \
              SET status = CASE \
@@ -557,6 +781,10 @@ pub(crate) fn cancel_distribution_job(
 ) -> ThothResult<DistributionJob> {
     let mut connection = db.get()?;
     connection.transaction(|connection| {
+        // BE-06 (R52B section 12.3): a fenced WORK_UPSERT attempt refuses
+        // administrative cancellation.
+        work_upsert_cancellation_guard(connection, distribution_job_id)?;
+
         let sql = format!(
             "WITH target AS ( \
                  SELECT distribution_job_id, claim_token \
@@ -593,6 +821,275 @@ pub(crate) fn cancel_distribution_job(
 
         updated.ok_or_else(|| classify_worker_write_failure(connection, distribution_job_id))
     })
+}
+
+/// What `complete_distribution_job` holds for a `WORK_UPSERT` job after its
+/// BE-06 prefix.
+struct WorkUpsertCompletionPrefix {
+    work_id: Uuid,
+    profile: DistributionPlatform,
+    publisher_id: Uuid,
+    bound_publisher: Option<Uuid>,
+    generation: i64,
+    claimed_generation: i64,
+}
+
+/// The permits of the attempt bound to a current claim, read by MVCC, refused in
+/// order: an unreported authorization, an open reservation, and — for an outer
+/// back-catalogue attempt terminally closing — a blocking unit permit.
+/// `retryable` is `None` for completion. A claim that is not current passes, so
+/// the released statement classifies it.
+///
+/// The job row `J` is taken `FOR UPDATE` first; the claim is re-checked, the
+/// attempt found and its permits read in later statements (#848 comment
+/// 5703204194 section 2). A reservation or finalisation that holds `J` has
+/// therefore committed its permit before those reads, and one that reaches `J`
+/// after this lock finds the claim stale once this transaction commits. `J` is
+/// held to the end of the transaction, through the released job and attempt
+/// statements or the refusal. No permit row is locked.
+fn attempt_permit_guard(
+    connection: &mut PgConnection,
+    distribution_job_id: Uuid,
+    claim_token: Uuid,
+    retryable: Option<bool>,
+) -> ThothResult<()> {
+    use crate::model::crossref_write_permit::CrossrefWritePermitState as State;
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::crossref_write_permit as permit;
+
+    let locked = distribution_job::table
+        .filter(distribution_job::distribution_job_id.eq(distribution_job_id))
+        .select((distribution_job::status, distribution_job::claim_token))
+        .for_update()
+        .first::<(DistributionJobStatus, Option<Uuid>)>(connection)
+        .optional()
+        .work_upsert()?;
+    if locked != Some((DistributionJobStatus::Running, Some(claim_token))) {
+        return Ok(());
+    }
+    let Some((kind, attempt_count, attempt_id)) = distribution_job::table
+        .inner_join(distribution_job_attempt::table)
+        .filter(distribution_job::distribution_job_id.eq(distribution_job_id))
+        .filter(distribution_job::status.eq(DistributionJobStatus::Running))
+        .filter(distribution_job::claim_token.eq(claim_token))
+        .filter(distribution_job_attempt::claim_token.eq(claim_token))
+        .filter(distribution_job_attempt::finished_at.is_null())
+        .select((
+            distribution_job::kind,
+            distribution_job::attempt_count,
+            distribution_job_attempt::distribution_job_attempt_id,
+        ))
+        .first::<(DistributionJobKind, i32, Uuid)>(connection)
+        .optional()
+        .work_upsert()?
+    else {
+        return Ok(());
+    };
+    let permits = permit::table
+        .filter(permit::attempt_identity.eq(attempt_id))
+        .select((permit::state, permit::reconciliation_state))
+        .load::<(
+            State,
+            Option<crate::model::crossref_write_permit::CrossrefReconciliationState>,
+        )>(connection)
+        .work_upsert()?;
+    if permits.iter().any(|(state, _)| *state == State::Authorized) {
+        return Err(ThothError::AttemptHasAuthorizedPermit);
+    }
+    if permits.iter().any(|(state, _)| *state == State::Reserved) {
+        return Err(ThothError::AttemptHasOpenReservation);
+    }
+    let terminal = match retryable {
+        None => true,
+        Some(retryable) => !retryable || attempt_count >= DISTRIBUTION_JOB_MAX_ATTEMPTS,
+    };
+    let blocking_indeterminate = permits.iter().any(|(state, reconciliation)| {
+        *state == State::Indeterminate
+            && *reconciliation
+                != Some(
+                    crate::model::crossref_write_permit::CrossrefReconciliationState::Reconciled,
+                )
+    });
+    if kind == DistributionJobKind::PublisherBackCatalogue && terminal && blocking_indeterminate {
+        return Err(ThothError::OuterAttemptHasOpenPermits);
+    }
+    Ok(())
+}
+
+/// The BE-06 completion prefix and guards (R52B sections 10.4, 10.8, 11.5 and
+/// 17.7). For a `WORK_UPSERT` job with a current claim: `P FOR SHARE` on the
+/// job's publisher, `W FOR SHARE`, the binding re-resolved under `W`, `G FOR
+/// UPDATE`; then the fence and the accepted permit at the claimed generation.
+/// Every other job gets the universal attempt-permit guard only.
+fn work_upsert_completion_guard(
+    connection: &mut PgConnection,
+    distribution_job_id: Uuid,
+    claim_token: Uuid,
+) -> ThothResult<Option<WorkUpsertCompletionPrefix>> {
+    use crate::model::crossref_write_permit::{CrossrefWritePermitState, CrossrefWriteRoute};
+    use crate::model::work_upsert::crud as substrate;
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+    use crate::schema::crossref_write_permit as permit;
+
+    let job = distribution_job::table
+        .filter(distribution_job::distribution_job_id.eq(distribution_job_id))
+        .select((
+            distribution_job::kind,
+            distribution_job::publisher_id,
+            distribution_job::work_id,
+            distribution_job::execution_profile,
+        ))
+        .first::<(
+            DistributionJobKind,
+            Uuid,
+            Option<Uuid>,
+            Option<DistributionPlatform>,
+        )>(connection)
+        .optional()
+        .work_upsert()?;
+    let Some((DistributionJobKind::WorkUpsert, publisher_id, Some(work_id), Some(profile))) = job
+    else {
+        attempt_permit_guard(connection, distribution_job_id, claim_token, None)?;
+        return Ok(None);
+    };
+
+    substrate::share_publisher(connection, publisher_id).work_upsert()?;
+    if !substrate::share_work(connection, work_id).work_upsert()? {
+        return Ok(None);
+    }
+    let bound_publisher = substrate::current_publisher(connection, work_id).work_upsert()?;
+    let generation = substrate::lock_generation(connection, work_id, profile).work_upsert()?;
+
+    let Some((attempt_id, fenced, claimed_generation)) = distribution_job::table
+        .inner_join(distribution_job_attempt::table)
+        .filter(distribution_job::distribution_job_id.eq(distribution_job_id))
+        .filter(distribution_job::status.eq(DistributionJobStatus::Running))
+        .filter(distribution_job::claim_token.eq(claim_token))
+        .filter(distribution_job_attempt::claim_token.eq(claim_token))
+        .filter(distribution_job_attempt::finished_at.is_null())
+        .select((
+            distribution_job_attempt::distribution_job_attempt_id,
+            distribution_job_attempt::fenced_at.is_not_null(),
+            distribution_job_attempt::claimed_generation,
+        ))
+        .first::<(Uuid, bool, Option<i64>)>(connection)
+        .optional()
+        .work_upsert()?
+    else {
+        return Ok(None);
+    };
+    if !fenced {
+        return Err(ThothError::WorkUpsertCompletionRequiresFence);
+    }
+    let accepted = permit::table
+        .filter(permit::route.eq(CrossrefWriteRoute::WorkUpsert))
+        .filter(permit::attempt_identity.eq(attempt_id))
+        .filter(permit::state.eq(CrossrefWritePermitState::Accepted))
+        .filter(permit::permit_generation.eq(claimed_generation))
+        .select(permit::permit_id)
+        .first::<Uuid>(connection)
+        .optional()
+        .work_upsert()?;
+    let Some(claimed_generation) = claimed_generation.filter(|_| accepted.is_some()) else {
+        return Err(ThothError::WorkUpsertCompletionRequiresAcceptedPermit);
+    };
+    Ok(Some(WorkUpsertCompletionPrefix {
+        work_id,
+        profile,
+        publisher_id,
+        bound_publisher,
+        generation,
+        claimed_generation,
+    }))
+}
+
+/// T2's successor (R52B section 10.8 row 1), creation site 3: only when the
+/// source generation exceeds the claimed generation and the binding re-resolved
+/// under `W` is the held publisher, eligible and admitted.
+fn complete_work_upsert_successor(
+    connection: &mut PgConnection,
+    job: &DistributionJob,
+    prefix: WorkUpsertCompletionPrefix,
+) -> ThothResult<()> {
+    use crate::model::work_upsert::crud as substrate;
+    use crate::model::work_upsert::registry;
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+
+    if prefix.generation <= prefix.claimed_generation
+        || prefix.bound_publisher != Some(prefix.publisher_id)
+    {
+        return Ok(());
+    }
+    let Some(profile) = registry::execution_profile(prefix.profile) else {
+        return Ok(());
+    };
+    if !substrate::profile_eligible(connection, prefix.work_id, profile).work_upsert()? {
+        return Ok(());
+    }
+    let Some(activation_id) =
+        substrate::crossref_activation(connection, prefix.publisher_id).work_upsert()?
+    else {
+        return Ok(());
+    };
+    if substrate::admission_row(connection, prefix.publisher_id, activation_id)
+        .work_upsert()?
+        .is_none()
+    {
+        return Ok(());
+    }
+    substrate::work_upsert_create_job(
+        connection,
+        prefix.publisher_id,
+        prefix.work_id,
+        activation_id,
+        prefix.profile,
+        prefix.generation,
+        Some(job.distribution_job_id),
+    )?;
+    Ok(())
+}
+
+/// The fenced-cancellation refusal (R52B section 12.3): the job row `FOR
+/// UPDATE`, then for a `WORK_UPSERT` job whose current attempt is fenced,
+/// `WORK_UPSERT_CANCELLATION_REFUSED_FENCED_ATTEMPT` with nothing written.
+fn work_upsert_cancellation_guard(
+    connection: &mut PgConnection,
+    distribution_job_id: Uuid,
+) -> ThothResult<()> {
+    use crate::model::work_upsert::WorkUpsertQueryResultExt;
+
+    #[derive(QueryableByName)]
+    struct Current {
+        #[diesel(sql_type = Bool)]
+        fenced_work_upsert: bool,
+    }
+    // The lock, then the fence in a later statement: under READ COMMITTED a
+    // statement that waited for the job row still reads the attempt with the
+    // snapshot it started with, and would miss a fence committed while it waited.
+    diesel::sql_query(
+        "SELECT j.distribution_job_id FROM distribution_job j \
+          WHERE j.distribution_job_id = $1 AND j.status IN ('PENDING', 'RUNNING') \
+          FOR UPDATE OF j",
+    )
+    .bind::<SqlUuid, _>(distribution_job_id)
+    .execute(connection)
+    .work_upsert()?;
+    let current = diesel::sql_query(
+        "SELECT (j.kind = 'WORK_UPSERT' AND j.status = 'RUNNING' AND EXISTS ( \
+                     SELECT 1 FROM distribution_job_attempt a \
+                      WHERE a.claim_token = j.claim_token AND a.finished_at IS NULL \
+                        AND a.fenced_at IS NOT NULL)) AS fenced_work_upsert \
+           FROM distribution_job j \
+          WHERE j.distribution_job_id = $1 AND j.status IN ('PENDING', 'RUNNING')",
+    )
+    .bind::<SqlUuid, _>(distribution_job_id)
+    .get_result::<Current>(connection)
+    .optional()
+    .work_upsert()?;
+    if current.is_some_and(|current| current.fenced_work_upsert) {
+        return Err(ThothError::WorkUpsertCancellationRefusedFencedAttempt);
+    }
+    Ok(())
 }
 
 /// Close the one open attempt bound to `claim_token`.
