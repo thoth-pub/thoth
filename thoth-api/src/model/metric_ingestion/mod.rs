@@ -54,13 +54,31 @@
 //!    signed key;
 //! 8. existing `metric_record` / `metric_record_revision` rows `FOR UPDATE`,
 //!    only after their cell lock, and the same-cell half-open overlap lookup;
-//! 9. batch row, provenance, import errors, canonical writes, rollup deltas,
-//!    coverage and counters, then commit.
+//! 9. batch row, provenance, import errors, unresolved-DOI quarantine,
+//!    canonical writes, rollup deltas, coverage and counters, then commit.
 //!
 //! Row-level validation failures do not fail the batch: they become
 //! `REJECTED` provenance plus one sanitized `metric_import_error`. Request-level
 //! failures, including any invalid coverage assertion and any database
 //! failure, commit nothing.
+//!
+//! # Unresolved-DOI quarantine (`MET-WP7-PREREQ-02`)
+//!
+//! An observation that passed every input check, whose DOI therefore parsed,
+//! but that resolved to no work at the locked re-resolution barrier is
+//! `REJECTED` / `UNKNOWN_DOI` exactly as before. When the locked source's
+//! `driver_key` is exactly
+//! [`CLOUDFRONT_DRIVER_KEY`](crate::model::metric_source_account::CLOUDFRONT_DRIVER_KEY)
+//! and the observation carries none of `publication_isbn`, `publication_type`,
+//! `institution_ror`, `source_record_id` and `source_row_number`, the same
+//! transaction also writes exactly one
+//! [`metric_identifier_quarantine`](crate::model::metric_identifier_quarantine)
+//! row linked to that rejected provenance. Quarantine is not acceptance: the
+//! row's outcome, import error and invalid counter are unchanged, and nothing
+//! canonical is written. Eligibility is decided only from the locked source
+//! row and the observation itself; no caller flag, source or account code,
+//! hostname or routing value participates. A replay writes nothing, so it
+//! never creates a second quarantine row.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::str::FromStr;
@@ -86,15 +104,15 @@ use crate::model::metric_record_provenance::{
 };
 use crate::model::metric_record_revision::{MetricRecordRevision, MetricRecordRevisionStatus};
 use crate::model::metric_source::{MetricSource, MetricSourceAcquisitionType};
-use crate::model::metric_source_account::MetricSourceAccount;
+use crate::model::metric_source_account::{MetricSourceAccount, CLOUDFRONT_DRIVER_KEY};
 use crate::model::publication::PublicationType;
 use crate::model::publisher::{PublisherCapability, ThothPackage};
 use crate::model::{Doi, Isbn, Ror, ROR_DOMAIN};
 use crate::schema::{
-    imprint, institution, metric_coverage, metric_import, metric_import_batch, metric_import_error,
-    metric_measure, metric_platform, metric_platform_measure, metric_record,
-    metric_record_provenance, metric_record_revision, metric_rollup_delta, metric_source,
-    metric_source_account, publication, publisher, work,
+    imprint, institution, metric_coverage, metric_identifier_quarantine, metric_import,
+    metric_import_batch, metric_import_error, metric_measure, metric_platform,
+    metric_platform_measure, metric_record, metric_record_provenance, metric_record_revision,
+    metric_rollup_delta, metric_source, metric_source_account, publication, publisher, work,
 };
 
 pub mod country;
@@ -286,6 +304,10 @@ impl From<MetricIngestionErrorCode> for AttemptError {
 struct RequestScope {
     import: MetricImport,
     account: MetricSourceAccount,
+    /// The account's source, retained from its existing `FOR SHARE` lock so
+    /// quarantine eligibility is decided from locked canonical authority
+    /// without taking any further lock.
+    source: MetricSource,
     platform: MetricPlatform,
     /// The expected publisher, equal to both `account.expected_publisher_id`
     /// and `import.publisher_id`.
@@ -344,8 +366,19 @@ enum RowPlan<'a> {
         code: MetricIngestionErrorCode,
         identity_hash: Option<String>,
         content_hash: Option<String>,
+        /// `Some` only for an eligible CloudFront `UNKNOWN_DOI` rejection.
+        quarantine: Option<QuarantinePlan<'a>>,
     },
     Candidate(Box<Candidate<'a>>),
+}
+
+/// The canonical references one eligible unresolved-DOI rejection is
+/// quarantined under, beyond what its observation and the request scope carry.
+struct QuarantinePlan<'a> {
+    /// The batch envelope's validated normalized schema version.
+    schema_version: &'a str,
+    /// The locked measure the observation validated against.
+    measure_id: Uuid,
 }
 
 /// Import counter increments accumulated over one first-time batch.
@@ -446,12 +479,19 @@ fn run_attempt(
                 code,
                 identity_hash: None,
                 content_hash: None,
+                quarantine: None,
             },
             Ok(input) => match resolve(connection, &input)? {
                 Err(code) => RowPlan::Rejected {
                     code,
                     identity_hash: None,
                     content_hash: None,
+                    quarantine: quarantine_eligible(&scope, input.observation, code).then(|| {
+                        QuarantinePlan {
+                            schema_version: &batch.schema_version,
+                            measure_id: input.measure.measure_id,
+                        }
+                    }),
                 },
                 Ok(resolution) => {
                     let imprint_publisher = locked_imprints.get(&resolution.imprint_id);
@@ -487,6 +527,7 @@ fn run_attempt(
                             code: Code::PublisherScopeMismatch,
                             identity_hash: Some(identity_hash),
                             content_hash: Some(content_hash),
+                            quarantine: None,
                         }
                     } else {
                         let cell_key = cell_lock_key(&identity);
@@ -539,6 +580,7 @@ fn run_attempt(
                 code,
                 identity_hash,
                 content_hash,
+                quarantine,
             } => write_rejected(
                 connection,
                 &scope,
@@ -548,6 +590,7 @@ fn run_attempt(
                 code,
                 identity_hash,
                 content_hash,
+                quarantine,
                 &mut counters,
             )?,
             RowPlan::Candidate(candidate) => apply_candidate(
@@ -702,9 +745,33 @@ fn lock_request_scope(
     Ok(RequestScope {
         import,
         account,
+        source,
         platform,
         publisher_id,
     })
+}
+
+/// Whether one row-level rejection is eligible for unresolved-DOI quarantine.
+///
+/// Called only for an observation that passed every input check, including
+/// `Doi::from_str`, and then failed resolution at the locked barrier. The
+/// policy is CloudFront-only and is proven solely by the locked source's exact
+/// `driver_key`: no code, hostname, routing value or caller flag is consulted.
+/// An observation carrying any of the five optional fields the reduced
+/// quarantine representation cannot hold losslessly stays an ordinary
+/// rejection.
+fn quarantine_eligible(
+    scope: &RequestScope,
+    observation: &NormalizedMetricObservation,
+    code: MetricIngestionErrorCode,
+) -> bool {
+    code == Code::UnknownDoi
+        && scope.source.driver_key.as_deref() == Some(CLOUDFRONT_DRIVER_KEY)
+        && observation.publication_isbn.is_none()
+        && observation.publication_type.is_none()
+        && observation.institution_ror.is_none()
+        && observation.source_record_id.is_none()
+        && observation.source_row_number.is_none()
 }
 
 /// Locks 6-7: every referenced measure and its mapping for the account's
@@ -1139,7 +1206,8 @@ fn overlap_exists(
     Ok(existing.is_some())
 }
 
-/// Insert the provenance row for one processed observation.
+/// Insert the provenance row for one processed observation, returning its
+/// generated id.
 #[allow(clippy::too_many_arguments)]
 fn insert_provenance(
     connection: &mut PgConnection,
@@ -1152,7 +1220,7 @@ fn insert_provenance(
     content_hash: Option<&str>,
     classification: MetricRecordProvenanceClassification,
     reason_code: Option<MetricIngestionErrorCode>,
-) -> Result<(), DieselError> {
+) -> Result<Uuid, DieselError> {
     let details = json!({
         "schema": PROVENANCE_DETAILS_SCHEMA,
         "reason_code": reason_code.map(|code| code.to_string()),
@@ -1171,8 +1239,8 @@ fn insert_provenance(
             metric_record_provenance::import_batch_id.eq(import_batch_id),
             metric_record_provenance::batch_row_index.eq(row_index),
         ))
-        .execute(connection)?;
-    Ok(())
+        .returning(metric_record_provenance::record_provenance_id)
+        .get_result(connection)
 }
 
 /// Insert one `PENDING` rollup delta for one canonical revision.
@@ -1194,7 +1262,9 @@ fn insert_delta(
 }
 
 /// Record one `REJECTED` observation: provenance, exactly one sanitized
-/// import error, and the invalid counter.
+/// import error, the eligible unresolved-DOI quarantine row when planned, and
+/// the invalid counter. The row's outcome is the same with or without
+/// quarantine.
 #[allow(clippy::too_many_arguments)]
 fn write_rejected(
     connection: &mut PgConnection,
@@ -1205,9 +1275,10 @@ fn write_rejected(
     code: MetricIngestionErrorCode,
     identity_hash: Option<String>,
     content_hash: Option<String>,
+    quarantine: Option<QuarantinePlan<'_>>,
     counters: &mut Counters,
 ) -> Result<MetricIngestionRowOutcome, DieselError> {
-    insert_provenance(
+    let record_provenance_id = insert_provenance(
         connection,
         scope,
         import_batch_id,
@@ -1231,6 +1302,27 @@ fn write_rejected(
             metric_import_error::raw_value.eq(None::<String>),
         ))
         .execute(connection)?;
+    if let Some(quarantine) = quarantine {
+        // The DOI is stored exactly as supplied: it already passed
+        // `Doi::from_str`, and it is not lowercased or re-prefixed here.
+        diesel::insert_into(metric_identifier_quarantine::table)
+            .values((
+                metric_identifier_quarantine::record_provenance_id.eq(record_provenance_id),
+                metric_identifier_quarantine::source_account_id.eq(scope.account.source_account_id),
+                metric_identifier_quarantine::platform_id.eq(scope.platform.platform_id),
+                metric_identifier_quarantine::measure_id.eq(quarantine.measure_id),
+                metric_identifier_quarantine::schema_version.eq(quarantine.schema_version),
+                metric_identifier_quarantine::work_doi.eq(&observation.work_doi),
+                metric_identifier_quarantine::period_start.eq(observation.period_start),
+                metric_identifier_quarantine::period_end.eq(observation.period_end),
+                metric_identifier_quarantine::reporting_grain.eq(observation.reporting_grain),
+                metric_identifier_quarantine::country_code.eq(observation.country_code.as_deref()),
+                metric_identifier_quarantine::value.eq(observation.value),
+                metric_identifier_quarantine::methodology_version
+                    .eq(&observation.methodology_version),
+            ))
+            .execute(connection)?;
+    }
     counters.invalid += 1;
     Ok(MetricIngestionRowOutcome {
         batch_row_index: row_index,
@@ -1271,6 +1363,7 @@ fn apply_candidate(
                 Code::OverlappingPeriod,
                 Some(candidate.identity_hash.clone()),
                 Some(candidate.content_hash.clone()),
+                None,
                 counters,
             )?);
         }
@@ -1405,6 +1498,7 @@ fn apply_candidate(
             Code::InvalidValue,
             Some(candidate.identity_hash.clone()),
             Some(candidate.content_hash.clone()),
+            None,
             counters,
         )?);
     };

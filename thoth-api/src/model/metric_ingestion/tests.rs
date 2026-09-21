@@ -990,6 +990,18 @@ impl Fixture {
         }
     }
 
+    /// An observation eligible for unresolved-DOI quarantine: a syntactically
+    /// valid DOI no work carries, and none of the five optional fields the
+    /// reduced quarantine representation cannot hold.
+    fn unresolved(&self, doi: &str) -> NormalizedMetricObservation {
+        NormalizedMetricObservation {
+            work_doi: doi.into(),
+            source_record_id: None,
+            source_row_number: None,
+            ..self.observation()
+        }
+    }
+
     /// The same observation as presented by account B.
     fn observation_b(&self) -> NormalizedMetricObservation {
         NormalizedMetricObservation {
@@ -1065,6 +1077,7 @@ struct DurableState {
     deltas: i64,
     counters: Vec<String>,
     institutions: i64,
+    quarantine: i64,
 }
 
 impl DurableState {
@@ -1092,6 +1105,7 @@ impl DurableState {
             deltas: count(pool, "metric_rollup_delta", "TRUE"),
             counters,
             institutions: count(pool, "institution", "TRUE"),
+            quarantine: count(pool, "metric_identifier_quarantine", "TRUE"),
         }
     }
 }
@@ -3920,4 +3934,477 @@ fn repeated_lock_set_drift_through_three_attempts_fails_closed_and_stays_retryab
     let retry = f.accept(&f.batch("b1", vec![f.observation()]));
     assert!(!retry.replayed);
     assert_eq!(retry.rows[0].classification, Class::Winner);
+}
+
+// ---------------------------------------------------------------------------
+// Unresolved-DOI quarantine (MET-WP7-PREREQ-02)
+// ---------------------------------------------------------------------------
+
+/// A syntactically valid DOI no work carries, in a deliberately non-canonical
+/// spelling, so byte-exact storage is observable.
+const UNRESOLVED_DOI: &str = "HTTP://DX.DOI.ORG/10.12345/Unresolved-Case";
+
+/// The number of quarantine rows linked to one committed batch row.
+fn quarantined_rows(f: &Fixture, import_batch_id: Uuid, batch_row_index: i64) -> i64 {
+    count(
+        &f.pool,
+        "metric_identifier_quarantine q JOIN metric_record_provenance p \
+         ON p.record_provenance_id = q.record_provenance_id",
+        &format!(
+            "p.import_batch_id = '{import_batch_id}' AND p.batch_row_index = {batch_row_index} \
+             AND p.classification = 'REJECTED' AND p.details->>'reason_code' = 'UNKNOWN_DOI'"
+        ),
+    )
+}
+
+#[test]
+fn an_eligible_cloudfront_unknown_doi_is_rejected_with_exactly_one_quarantine_row() {
+    let (_guard, f) = setup_fixture();
+    let observation = NormalizedMetricObservation {
+        country_code: Some("GB".into()),
+        value: 42,
+        ..f.unresolved(UNRESOLVED_DOI)
+    };
+    let before = f.snapshot();
+    let outcome = f.accept(&f.batch("b1", vec![observation]));
+
+    // The external outcome is the ordinary rejection, unchanged.
+    let row = &outcome.rows[0];
+    assert_eq!(row.classification, Class::Rejected);
+    assert_eq!(row.reason_code, Some(Code::UnknownDoi));
+    assert_eq!(row.record_id, None);
+    assert_eq!(row.identity_hash, None);
+    assert_eq!(row.content_hash, None);
+
+    // Nothing canonical, one provenance row, one sanitized error, the invalid
+    // counter, and exactly one quarantine row.
+    let after = f.snapshot();
+    assert_eq!(after.records, before.records);
+    assert_eq!(after.revisions, before.revisions);
+    assert_eq!(after.deltas, before.deltas);
+    assert_eq!(after.batches, before.batches + 1);
+    assert_eq!(after.provenance, before.provenance + 1);
+    assert_eq!(after.errors, before.errors + 1);
+    assert_eq!(after.quarantine, before.quarantine + 1);
+    assert_eq!(f.counters(f.import_a), [1, 0, 0, 0, 0, 1]);
+    assert_eq!(count(&f.pool, "metric_record_provenance", &format!("classification = 'REJECTED' AND record_id IS NULL AND identity_hash IS NULL AND content_hash IS NULL AND source_record_id IS NULL AND source_row_number IS NULL AND details->>'reason_code' = 'UNKNOWN_DOI' AND import_batch_id = '{}' AND batch_row_index = 0", outcome.import_batch_id)), 1);
+    assert_eq!(count(&f.pool, "metric_import_error", &format!("import_id = '{}' AND row_number IS NULL AND error_code = 'UNKNOWN_DOI' AND severity = 'ERROR' AND field_name = 'work_doi' AND raw_value IS NULL AND message = '{}'", f.import_a, Code::UnknownDoi.message())), 1);
+
+    // The quarantine row carries exactly the approved reduced observation,
+    // resolved to the locked canonical rows, linked to that provenance row.
+    assert_eq!(quarantined_rows(&f, outcome.import_batch_id, 0), 1);
+    assert_eq!(count(&f.pool, "metric_identifier_quarantine", &format!("source_account_id = '{}' AND platform_id = '{}' AND measure_id = '{}' AND schema_version = '{SUPPORTED_SCHEMA_VERSION}' AND period_start = DATE '2026-03-01' AND period_end = DATE '2026-03-02' AND reporting_grain = 'DAY' AND country_code = 'GB' AND value = 42 AND methodology_version = '{TITLE_SESSIONS_METHODOLOGY}' AND created_at IS NOT NULL", f.account_a, f.platform_id, f.title_sessions_id)), 1);
+    // The DOI is stored byte for byte as supplied: not lowercased, not
+    // re-prefixed and not converted to the canonical work-table form.
+    assert_eq!(
+        text(
+            &f.pool,
+            "(SELECT work_doi FROM metric_identifier_quarantine)"
+        )
+        .as_deref(),
+        Some(UNRESOLVED_DOI)
+    );
+}
+
+#[test]
+fn a_known_cloudfront_doi_is_unchanged_and_never_quarantined() {
+    let (_guard, f) = setup_fixture();
+    // A known DOI with every quarantine-excluded field absent.
+    let known = NormalizedMetricObservation {
+        source_record_id: None,
+        source_row_number: None,
+        ..f.observation()
+    };
+    let winner = f.accept(&f.batch("b1", vec![known.clone()]));
+    assert_eq!(classes(&winner), vec![Class::Winner]);
+    let duplicate = f.accept(&f.batch("b2", vec![known.clone()]));
+    assert_eq!(classes(&duplicate), vec![Class::Duplicate]);
+    let revision = f.accept(&f.batch(
+        "b3",
+        vec![NormalizedMetricObservation { value: 11, ..known }],
+    ));
+    assert_eq!(classes(&revision), vec![Class::Revision]);
+    let state = f.snapshot();
+    assert_eq!(
+        (state.records, state.revisions, state.deltas),
+        (1, 2, 2),
+        "known-DOI canonical writes are unchanged"
+    );
+    assert_eq!(state.errors, 0);
+    assert_eq!(state.quarantine, 0, "a resolved DOI is never quarantined");
+    assert_eq!(f.counters(f.import_a), [3, 1, 1, 1, 0, 0]);
+}
+
+#[test]
+fn a_replayed_quarantine_batch_writes_nothing_and_never_duplicates_quarantine() {
+    let (_guard, f) = setup_fixture();
+    let batch = MetricIngestionBatch {
+        coverage: vec![coverage(MetricCoverageStatus::Complete)],
+        ..f.batch("b1", vec![f.observation(), f.unresolved(UNRESOLVED_DOI)])
+    };
+    let first = f.accept(&batch);
+    let state = f.snapshot();
+    assert_eq!(state.quarantine, 1);
+    let fresh_pool = pool_of(2);
+    for replay in [
+        f.accept(&batch),
+        ingest_metric_batch(&fresh_pool, &batch).unwrap(),
+        f.accept(&batch),
+    ] {
+        assert!(replay.replayed);
+        assert_eq!(replay.import_batch_id, first.import_batch_id);
+        assert_eq!(replay.rows, first.rows);
+        assert_eq!(replay.rows[1].reason_code, Some(Code::UnknownDoi));
+        assert_eq!(f.snapshot(), state, "a replay writes nothing");
+    }
+
+    // The same eligible batch submitted twice concurrently commits once and
+    // replays once: exactly one more quarantine row.
+    let concurrent = f.batch("b2", vec![f.unresolved("10.12345/concurrent")]);
+    let (one, two) = race(&f, concurrent.clone(), concurrent);
+    let (one, two) = (one.unwrap(), two.unwrap());
+    assert_eq!(one.rows, two.rows);
+    assert_ne!(one.replayed, two.replayed, "exactly one call commits");
+    assert_eq!(count(&f.pool, "metric_identifier_quarantine", "TRUE"), 2);
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_identifier_quarantine",
+            "work_doi = '10.12345/concurrent'"
+        ),
+        1
+    );
+    assert_eq!(f.counters(f.import_a), [3, 1, 0, 0, 0, 2]);
+}
+
+#[test]
+fn a_failed_quarantine_write_commits_no_provenance_error_counter_or_batch() {
+    let (_guard, f) = setup_fixture();
+    let batch = f.batch("b1", vec![f.observation(), f.unresolved(UNRESOLVED_DOI)]);
+    {
+        let _trigger = TestTrigger::failing(
+            &f.pool,
+            "BEFORE INSERT",
+            "metric_identifier_quarantine",
+            None,
+        );
+        assert_database_failure_leaves_nothing(&f, &batch);
+    }
+    {
+        // Raised at COMMIT, after every write of the attempt has been issued.
+        let _trigger =
+            TestTrigger::failing_at_commit(&f.pool, "INSERT", "metric_identifier_quarantine");
+        assert_database_failure_leaves_nothing(&f, &batch);
+    }
+    {
+        // A failed rejected-provenance or import-error write leaves no
+        // orphaned quarantine row either.
+        let _trigger = TestTrigger::failing(
+            &f.pool,
+            "BEFORE INSERT",
+            "metric_record_provenance",
+            Some("NEW.classification = 'REJECTED'"),
+        );
+        assert_database_failure_leaves_nothing(&f, &batch);
+    }
+    {
+        let _trigger = TestTrigger::failing(&f.pool, "BEFORE INSERT", "metric_import_error", None);
+        assert_database_failure_leaves_nothing(&f, &batch);
+    }
+    {
+        let _trigger = TestTrigger::failing_at_commit(&f.pool, "UPDATE", "metric_import");
+        assert_database_failure_leaves_nothing(&f, &batch);
+    }
+    let state = f.snapshot();
+    assert_eq!(
+        (
+            state.batches,
+            state.provenance,
+            state.errors,
+            state.records,
+            state.quarantine
+        ),
+        (0, 0, 0, 0, 0)
+    );
+    assert_eq!(f.counters(f.import_a), [0, 0, 0, 0, 0, 0]);
+
+    // Without an injected failure the same batch commits every part together.
+    let outcome = f.accept(&batch);
+    assert!(!outcome.replayed);
+    assert_eq!(quarantined_rows(&f, outcome.import_batch_id, 1), 1);
+    assert_eq!(f.snapshot().quarantine, 1);
+    assert_eq!(f.snapshot().errors, 1);
+    assert_eq!(f.counters(f.import_a), [2, 1, 0, 0, 0, 1]);
+}
+
+#[test]
+fn an_invalid_doi_is_never_quarantined() {
+    let (_guard, f) = setup_fixture();
+    for (index, doi) in [
+        "",
+        "not-a-doi",
+        "10.123/registrant-too-short",
+        "https://doi.org/11.12345/wrong-directory",
+        " 10.12345/leading-space",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let outcome = f.accept(&f.batch(&format!("b{index}"), vec![f.unresolved(doi)]));
+        assert_eq!(outcome.rows[0].classification, Class::Rejected, "{doi:?}");
+        assert_eq!(
+            outcome.rows[0].reason_code,
+            Some(Code::InvalidDoi),
+            "{doi:?}"
+        );
+    }
+    assert_eq!(
+        count(&f.pool, "metric_import_error", "error_code = 'INVALID_DOI'"),
+        5
+    );
+    assert_eq!(f.snapshot().quarantine, 0);
+    assert_eq!(f.counters(f.import_a), [5, 0, 0, 0, 0, 5]);
+}
+
+#[test]
+fn a_non_cloudfront_driver_unknown_doi_is_never_quarantined() {
+    let (_guard, f) = setup_fixture();
+    // Only the exact locked driver key proves the CloudFront policy: a
+    // different key, a case variant or a whitespace variant never qualifies.
+    for (index, driver_key) in [
+        "crossref-events",
+        "CloudFront",
+        "CLOUDFRONT",
+        "cloudfront ",
+        " cloudfront",
+        "cloudfront/2",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        f.sql(&format!(
+            "UPDATE metric_source SET driver_key = '{driver_key}'"
+        ));
+        let outcome = f.accept(&f.batch(&format!("b{index}"), vec![f.unresolved(UNRESOLVED_DOI)]));
+        assert_eq!(
+            outcome.rows[0].classification,
+            Class::Rejected,
+            "{driver_key}"
+        );
+        assert_eq!(
+            outcome.rows[0].reason_code,
+            Some(Code::UnknownDoi),
+            "{driver_key}"
+        );
+        assert_eq!(
+            f.snapshot().quarantine,
+            0,
+            "{driver_key:?} must not quarantine"
+        );
+    }
+    assert_eq!(f.counters(f.import_a), [6, 0, 0, 0, 0, 6]);
+
+    // Codes and routing play no part: renaming the source and changing the
+    // account's external key leave an exact `cloudfront` key eligible.
+    f.sql("UPDATE metric_source SET driver_key = 'cloudfront', code = 'generic-source'");
+    f.sql(&format!(
+        "UPDATE metric_source_account SET external_key = 'not-a-distribution' WHERE source_account_id = '{}'",
+        f.account_a
+    ));
+    let outcome = f.accept(&f.batch("eligible", vec![f.unresolved(UNRESOLVED_DOI)]));
+    assert_eq!(outcome.rows[0].reason_code, Some(Code::UnknownDoi));
+    assert_eq!(quarantined_rows(&f, outcome.import_batch_id, 0), 1);
+}
+
+#[test]
+fn a_mixed_batch_keeps_every_valid_canonical_row_and_quarantines_only_eligible_unknowns() {
+    let (_guard, f) = setup_fixture();
+    let batch = f.batch(
+        "b1",
+        vec![
+            f.observation(),
+            f.unresolved(UNRESOLVED_DOI),
+            NormalizedMetricObservation {
+                work_doi: OTHER_DOI.into(),
+                ..f.observation()
+            },
+            f.unresolved("not-a-doi"),
+            NormalizedMetricObservation {
+                source_row_number: Some(9),
+                ..f.unresolved("10.12345/ineligible-row-number")
+            },
+            NormalizedMetricObservation {
+                country_code: Some("FR".into()),
+                ..f.unresolved("10.12345/second-unresolved")
+            },
+        ],
+    );
+    let outcome = f.accept(&batch);
+    assert_eq!(
+        classes(&outcome),
+        vec![
+            Class::Winner,
+            Class::Rejected,
+            Class::Winner,
+            Class::Rejected,
+            Class::Rejected,
+            Class::Rejected
+        ]
+    );
+    assert_eq!(
+        outcome
+            .rows
+            .iter()
+            .map(|row| row.reason_code)
+            .collect::<Vec<_>>(),
+        vec![
+            None,
+            Some(Code::UnknownDoi),
+            None,
+            Some(Code::InvalidDoi),
+            Some(Code::UnknownDoi),
+            Some(Code::UnknownDoi)
+        ]
+    );
+    // Both valid rows are canonical, with their records, revisions and deltas.
+    let state = f.snapshot();
+    assert_eq!((state.records, state.revisions, state.deltas), (2, 2, 2));
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_record",
+            &format!("work_id IN ('{}', '{}')", f.work_id, f.other_work_id)
+        ),
+        2
+    );
+    assert_eq!((state.provenance, state.errors), (6, 4));
+    // Only the two eligible unknowns are quarantined.
+    assert_eq!(state.quarantine, 2);
+    for (index, quarantined) in [(1, 1), (3, 0), (4, 0), (5, 1)] {
+        assert_eq!(
+            quarantined_rows(&f, outcome.import_batch_id, index)
+                + count(&f.pool, "metric_identifier_quarantine q JOIN metric_record_provenance p ON p.record_provenance_id = q.record_provenance_id", &format!("p.import_batch_id = '{}' AND p.batch_row_index = {index} AND p.details->>'reason_code' <> 'UNKNOWN_DOI'", outcome.import_batch_id)),
+            quarantined,
+            "row {index}"
+        );
+    }
+    assert_eq!(f.counters(f.import_a), [6, 2, 0, 0, 0, 4]);
+}
+
+#[test]
+fn each_quarantine_excluded_optional_field_keeps_an_ordinary_rejection() {
+    let (_guard, f) = setup_fixture();
+    let cases: Vec<(&str, NormalizedMetricObservation)> = vec![
+        (
+            "publication_isbn",
+            NormalizedMetricObservation {
+                publication_isbn: Some(PDF_ISBN.into()),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+        ),
+        (
+            "publication_type",
+            NormalizedMetricObservation {
+                publication_type: Some(PublicationType::Pdf),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+        ),
+        (
+            "institution_ror",
+            NormalizedMetricObservation {
+                institution_ror: Some(ROR.into()),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+        ),
+        (
+            "source_record_id",
+            NormalizedMetricObservation {
+                source_record_id: Some("row-7".into()),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+        ),
+        (
+            "source_row_number",
+            NormalizedMetricObservation {
+                source_row_number: Some(0),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+        ),
+    ];
+    for (index, (field, observation)) in cases.into_iter().enumerate() {
+        let before = f.snapshot();
+        let counters_before = f.counters(f.import_a);
+        let outcome = f.accept(&f.batch(&format!("excluded-{index}"), vec![observation]));
+        // Still the ordinary UNKNOWN_DOI rejection with its normal evidence...
+        assert_eq!(outcome.rows[0].classification, Class::Rejected, "{field}");
+        assert_eq!(
+            outcome.rows[0].reason_code,
+            Some(Code::UnknownDoi),
+            "{field}"
+        );
+        let after = f.snapshot();
+        assert_eq!(after.provenance, before.provenance + 1, "{field}");
+        assert_eq!(after.errors, before.errors + 1, "{field}");
+        assert_eq!(after.records, before.records, "{field}");
+        let [received, _, _, _, _, invalid] = counters_before;
+        assert_eq!(f.counters(f.import_a)[0], received + 1, "{field}");
+        assert_eq!(f.counters(f.import_a)[5], invalid + 1, "{field}");
+        // ...but never quarantined.
+        assert_eq!(after.quarantine, 0, "{field} must prevent quarantine");
+    }
+    // The same observation without any excluded field is quarantined.
+    let outcome = f.accept(&f.batch("eligible", vec![f.unresolved(UNRESOLVED_DOI)]));
+    assert_eq!(quarantined_rows(&f, outcome.import_batch_id, 0), 1);
+    assert_eq!(f.snapshot().quarantine, 1);
+}
+
+#[test]
+fn only_unknown_doi_rejections_are_ever_quarantined() {
+    let (_guard, f) = setup_fixture();
+    f.sql(&format!(
+        "UPDATE work SET imprint_id = '{}' WHERE work_id = '{}'",
+        f.other_imprint_id, f.other_work_id
+    ));
+    let cases: Vec<(NormalizedMetricObservation, Code)> = vec![
+        (
+            NormalizedMetricObservation {
+                work_doi: OTHER_DOI.into(),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+            Code::PublisherScopeMismatch,
+        ),
+        (
+            NormalizedMetricObservation {
+                country_code: Some("gb".into()),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+            Code::InvalidCountry,
+        ),
+        (
+            NormalizedMetricObservation {
+                value: -1,
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+            Code::InvalidValue,
+        ),
+        (
+            NormalizedMetricObservation {
+                methodology_version: "cloudfront-title-session/1".into(),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+            Code::MethodologyMismatch,
+        ),
+        (
+            NormalizedMetricObservation {
+                measure_code: "orphan".into(),
+                ..f.unresolved(UNRESOLVED_DOI)
+            },
+            Code::PlatformMeasureNotFound,
+        ),
+    ];
+    for (index, (observation, code)) in cases.into_iter().enumerate() {
+        let outcome = f.accept(&f.batch(&format!("b{index}"), vec![observation]));
+        assert_eq!(outcome.rows[0].reason_code, Some(code));
+    }
+    assert_eq!(f.snapshot().quarantine, 0);
 }

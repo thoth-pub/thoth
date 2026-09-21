@@ -480,10 +480,11 @@ Contract:
   import's `period_start`, using the `manifestDigest` of its strict
   `thoth-managed-driver-import/1` envelope, and evicts the chronologically
   oldest entries beyond 64. `COMPLETED_WITH_ERRORS`, zero coverage rows, a
-  mismatched period, `PARTIAL` and `UNKNOWN` leave the cursor unchanged;
-  non-terminal and `FAILED` imports and stale, expired, reclaimed or foreign
-  tokens change nothing. Successful reprocessing of an older period may replace
-  its digest and never moves `last_successful_period_end` backwards.
+  mismatched period, `PARTIAL` and `UNKNOWN` leave the cursor unchanged, with
+  the single narrow exception of the section 3.4 CloudFront quarantine-only
+  import; non-terminal and `FAILED` imports and stale, expired, reclaimed or
+  foreign tokens change nothing. Successful reprocessing of an older period may
+  replace its digest and never moves `last_successful_period_end` backwards.
 - **Replay.** A repeat after release stays read-only. It returns the checkpoint
   without writing when progress is already recorded, the cursor plays no part in
   that decision, and an entry evicted later is never resurrected.
@@ -501,6 +502,72 @@ Contract:
 An existing stored cursor outside the representation is neither migrated nor
 rewritten; a claim of its eligible unit fails closed until a separately
 authorized repair.
+
+### 3.4 CloudFront unresolved-DOI quarantine (`MET-WP7-PREREQ-02`)
+
+`MET-WP7-PREREQ-02` (#930) makes Thoth the owner of durable evidence for a
+CloudFront observation whose DOI is syntactically valid but resolves to no
+Thoth work, and adds one narrow source-progress exception for it. It adds no
+operation, field, input, enum value, error code, role or entitlement, and no
+consumer SDL regeneration is required. This is a CloudFront-specific source
+policy, not a universal Metrics identifier rule.
+
+Contract:
+
+- **Unchanged classification.** Such an observation is still `REJECTED` with
+  reason `UNKNOWN_DOI` in the batch result and in `metric_record_provenance`,
+  which remains the sole authoritative per-row classification. It creates no
+  `metric_record`, `metric_record_revision` or rollup delta, it is counted in
+  `invalid_count`, and its import is still `COMPLETED_WITH_ERRORS`. Quarantine
+  is not canonical acceptance.
+- **Durable quarantine.** When, and only when, the coordinator's locked source
+  has `driver_key` exactly `cloudfront` and the observation carries none of
+  `publicationIsbn`, `publicationType`, `institutionRor`, `sourceRecordId` or
+  `sourceRowNumber`, the same transaction that writes the rejected provenance,
+  its sanitized import error and the invalid counter also writes exactly one
+  `metric_identifier_quarantine` row linked to that provenance. It keeps the
+  source account, platform, measure, schema version, the DOI byte for byte as
+  supplied, the period, grain, optional country, value and methodology, and no
+  request identity, raw log row, routing or credential. No caller flag, code,
+  hostname or routing value can request or infer quarantine. `INVALID_DOI`,
+  every other rejection and every non-CloudFront source are never quarantined.
+  A batch replay writes nothing and never duplicates a quarantine row.
+- **Quarantine-only manifest acceptance.** For a CloudFront
+  `COMPLETED_WITH_ERRORS` import only, `updateMetricSourceCheckpoint` derives
+  its rejected, `UNKNOWN_DOI`, quarantine and quarantined-`UNKNOWN_DOI` counts
+  from provenance and quarantine rows. When nothing conflicted, every invalid
+  row is a quarantined `UNKNOWN_DOI` rejection, and every coverage row is
+  `COMPLETE` for exactly the import's one-day period, the update records
+  `last_completed_at`, records or replaces that period's entry in the
+  section 3.3 cursor under its unchanged rules, and releases the lease, while
+  the import remains canonically unsuccessful and `last_successful_period_end`
+  does not move. Coverage keeps describing source evidence, so
+  `COMPLETE` source evidence with pending identifier quarantine is a valid
+  state.
+- **Everything else is unchanged.** A conflict, any other rejection reason, or
+  any `UNKNOWN_DOI` rejection without quarantine keeps the ordinary
+  `COMPLETED_WITH_ERRORS` release: progress recorded, lease released, cursor
+  and successful period untouched. `COMPLETED_WITH_ERRORS` in general never
+  records cursor progress, and non-CloudFront imports never evaluate this
+  exception.
+- **Fail-closed evidence.** A rejected-row count different from
+  `invalid_count`, a quarantine row linked to anything other than a `REJECTED`
+  / `UNKNOWN_DOI` provenance row, or a rejected row whose reason is absent,
+  null, not a string or outside the closed `MetricIngestionErrorCode`
+  vocabulary fails the update as `INTERNAL_STATE_INCONSISTENCY` with no
+  progress, cursor, successful-period or lease write, and the message carries
+  no stored value.
+- **Locks and replay.** The update locks the checkpoint `FOR UPDATE`, then the
+  import, the source account and the source, each `FOR SHARE`. The whole
+  predicate is derived before the live/released split: a repeat after release
+  stays read-only and recognizes a recorded quarantine-only import from
+  `last_completed_at` alone, never from the cursor.
+
+Still deferred, and required before production CloudFront activation:
+automatic quarantine reconciliation (detecting that a DOI now resolves,
+revalidating the preserved evidence, idempotently applying canonical metrics
+and recording resolution state) and identifier-quality read warnings. The
+dashboard read contract of section 4.1 is unchanged.
 
 ## 4. Dashboard/widget
 

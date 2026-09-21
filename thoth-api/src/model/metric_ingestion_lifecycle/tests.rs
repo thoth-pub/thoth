@@ -3259,3 +3259,719 @@ fn a_current_and_a_stale_checkpoint_update_race_to_one_durable_outcome() {
         );
     }
 }
+
+// --------------------------------------------------------------------------
+// MET-WP7-PREREQ-02: CloudFront quarantine-only manifest acceptance
+// --------------------------------------------------------------------------
+
+/// A syntactically valid DOI no work carries.
+const UNRESOLVED_DOI: &str = "https://doi.org/10.12345/unresolved-a";
+const SECOND_UNRESOLVED_DOI: &str = "10.12345/Unresolved-B";
+
+/// An observation of `start` eligible for quarantine: an unresolved DOI and
+/// none of the five quarantine-excluded optional fields.
+fn unresolved(doi: &str, start: NaiveDate) -> NormalizedMetricObservationInput {
+    NormalizedMetricObservationInput {
+        work_doi: doi.into(),
+        source_record_id: None,
+        source_row_number: None,
+        ..observation("1", start)
+    }
+}
+
+impl Fixture {
+    /// Run one single-batch unit of `observations` and `coverage` for `start`
+    /// under `token`, returning the terminal import.
+    fn run_batch_unit(
+        &self,
+        token: Uuid,
+        upstream: &str,
+        start: NaiveDate,
+        manifest_digest: &str,
+        observations: Vec<NormalizedMetricObservationInput>,
+        coverage: Vec<NormalizedMetricCoverageAssertionInput>,
+    ) -> MetricImport {
+        let input = BeginMetricImportInput {
+            expected_batch_keys: vec!["only".into()],
+            manifest_digest: manifest_digest.into(),
+            ..begin_input(token, upstream, start)
+        };
+        let import = begin_metric_import(&self.pool, ACTOR, &input).expect("begin");
+        self.ingest(import.import_id, token, "only", observations, coverage)
+            .expect("batch");
+        self.complete(import.import_id, token).expect("complete")
+    }
+
+    /// Quarantine rows linked to provenance of `import_id`.
+    fn quarantined(&self, import_id: Uuid) -> i64 {
+        self.count(
+            "metric_identifier_quarantine q JOIN metric_record_provenance p \
+             ON p.record_provenance_id = q.record_provenance_id",
+            &format!("p.import_id = '{import_id}'"),
+        )
+    }
+
+    /// Claim account A and run one eligible quarantine-only unit for `start`.
+    fn quarantine_only_unit(
+        &self,
+        upstream: &str,
+        start: NaiveDate,
+        manifest_digest: &str,
+    ) -> (Uuid, MetricImport) {
+        let claim = self.claim_a();
+        let import = self.run_batch_unit(
+            claim.lease_token,
+            upstream,
+            start,
+            manifest_digest,
+            vec![
+                unresolved(UNRESOLVED_DOI, start),
+                unresolved(SECOND_UNRESOLVED_DOI, start),
+            ],
+            vec![complete_day(start)],
+        );
+        assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+        assert_eq!((import.invalid_count, import.conflict_count), (2, 0));
+        assert_eq!(self.quarantined(import.import_id), 2);
+        (claim.lease_token, import)
+    }
+}
+
+#[test]
+fn an_eligible_quarantine_only_import_records_its_manifest_but_never_claims_success() {
+    let (_guard, f) = setup();
+
+    // On a fresh checkpoint: the manifest is accepted, success is not.
+    let (token, import) = f.quarantine_only_unit("report-q5", day(5), &digest(5));
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(
+        f.import(import.import_id).status,
+        MetricImportStatus::CompletedWithErrors,
+        "quarantine is not canonical acceptance"
+    );
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(
+        (checkpoint.lease_owner.clone(), checkpoint.lease_expires_at),
+        (None, None),
+        "released"
+    );
+    assert_eq!(checkpoint.last_error, None);
+    let expected = Some(cursor_json(&[(day(5), digest(5))]));
+    assert_eq!(f.stored_cursor(f.account_a), expected);
+    assert_eq!(checkpoint.cursor, expected);
+    assert_eq!(
+        f.count("metric_record", "TRUE"),
+        0,
+        "quarantine creates no canonical record"
+    );
+
+    // A released replay is read-only and recognizes the recorded completion
+    // from last_completed_at alone.
+    let settled = f.snapshot();
+    assert_eq!(f.update(import.import_id, token).unwrap(), checkpoint);
+    assert_eq!(f.snapshot(), settled);
+
+    // Alongside canonical success: a later clean day advances the successful
+    // period, and a later quarantine-only day adds its manifest without moving
+    // the successful period.
+    f.record_success("report-d7", day(7), &digest(7), "10");
+    let (token, later) = f.quarantine_only_unit("report-q9", day(9), &digest(9));
+    let checkpoint = f.update(later.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(8)));
+    assert_eq!(checkpoint.last_completed_at, later.completed_at);
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[
+            (day(5), digest(5)),
+            (day(7), digest(7)),
+            (day(9), digest(9))
+        ]))
+    );
+}
+
+#[test]
+fn a_quarantine_only_manifest_replaces_its_period_and_keeps_the_retention_bound() {
+    let (_guard, f) = setup();
+    // A period accepted by a clean import is replaced by a quarantine-only
+    // reprocessing of the same period under a changed manifest.
+    f.record_success("report-d3", day(3), &digest(3), "10");
+    let (token, reprocessed) = f.quarantine_only_unit("report-d3-q", day(3), &digest(33));
+    let checkpoint = f.update(reprocessed.import_id, token).unwrap();
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(3), digest(33))]))
+    );
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(4)));
+
+    // With 64 retained periods, a newer quarantine-only period evicts exactly
+    // the chronologically oldest entry.
+    let period = |offset: u64| {
+        date(2026, 1, 1)
+            .checked_add_days(Days::new(offset))
+            .unwrap()
+    };
+    let mut retained: Vec<(NaiveDate, String)> = (0..64)
+        .map(|offset| (period(offset), digest(offset)))
+        .collect();
+    f.store_cursor(f.account_a, &cursor_json(&retained));
+    let (token, newest) = f.quarantine_only_unit("report-newest-q", period(64), &digest(64));
+    let recorded = f.update(newest.import_id, token).unwrap();
+    retained.remove(0);
+    retained.push((period(64), digest(64)));
+    assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&retained)));
+    assert_eq!(recorded.last_successful_period_end, Some(day(4)));
+
+    // Released replays of either quarantine-only import never resurrect or
+    // re-encode anything.
+    let settled = f.snapshot();
+    for import_id in [reprocessed.import_id, newest.import_id] {
+        assert_eq!(f.update(import_id, token).unwrap(), recorded);
+        assert_eq!(f.snapshot(), settled);
+    }
+}
+
+#[test]
+fn a_consistent_but_ineligible_completed_with_errors_import_releases_without_a_manifest() {
+    let (_guard, f) = setup();
+    f.record_success("report-accepted", day(1), &digest(1), "10");
+    let accepted = f.stored_cursor_text(f.account_a);
+    assert!(accepted.is_some());
+
+    type Case = fn(
+        NaiveDate,
+    ) -> (
+        Vec<NormalizedMetricObservationInput>,
+        Vec<NormalizedMetricCoverageAssertionInput>,
+    );
+    let cases: Vec<(&str, Case, i64)> = vec![
+        (
+            "an unknown DOI the coordinator did not quarantine",
+            |d| {
+                (
+                    vec![NormalizedMetricObservationInput {
+                        work_doi: UNRESOLVED_DOI.into(),
+                        ..observation("1", d)
+                    }],
+                    vec![complete_day(d)],
+                )
+            },
+            0,
+        ),
+        (
+            "a quarantined unknown DOI and an invalid DOI",
+            |d| {
+                (
+                    vec![unresolved(UNRESOLVED_DOI, d), unresolved("not-a-doi", d)],
+                    vec![complete_day(d)],
+                )
+            },
+            1,
+        ),
+        (
+            "a quarantined unknown DOI and an unquarantined one",
+            |d| {
+                (
+                    vec![
+                        unresolved(UNRESOLVED_DOI, d),
+                        NormalizedMetricObservationInput {
+                            source_record_id: Some("row-2".into()),
+                            ..unresolved(SECOND_UNRESOLVED_DOI, d)
+                        },
+                    ],
+                    vec![complete_day(d)],
+                )
+            },
+            1,
+        ),
+        (
+            "quarantine only, PARTIAL coverage",
+            |d| {
+                (
+                    vec![unresolved(UNRESOLVED_DOI, d)],
+                    vec![coverage(
+                        MetricCoverageStatus::Partial,
+                        d,
+                        d.succ_opt().unwrap(),
+                    )],
+                )
+            },
+            1,
+        ),
+        (
+            "quarantine only, UNKNOWN coverage",
+            |d| {
+                (
+                    vec![unresolved(UNRESOLVED_DOI, d)],
+                    vec![coverage(
+                        MetricCoverageStatus::Unknown,
+                        d,
+                        d.succ_opt().unwrap(),
+                    )],
+                )
+            },
+            1,
+        ),
+        (
+            "quarantine only, zero coverage rows",
+            |d| (vec![unresolved(UNRESOLVED_DOI, d)], vec![]),
+            1,
+        ),
+        (
+            "quarantine only, COMPLETE and PARTIAL",
+            |d| {
+                (
+                    vec![unresolved(UNRESOLVED_DOI, d)],
+                    vec![
+                        complete_day(d),
+                        coverage(MetricCoverageStatus::Partial, d, d.succ_opt().unwrap()),
+                    ],
+                )
+            },
+            1,
+        ),
+        (
+            "quarantine only, COMPLETE over a mismatched period",
+            |d| {
+                (
+                    vec![unresolved(UNRESOLVED_DOI, d)],
+                    vec![coverage(
+                        MetricCoverageStatus::Complete,
+                        d,
+                        d.succ_opt().unwrap().succ_opt().unwrap(),
+                    )],
+                )
+            },
+            1,
+        ),
+    ];
+    for (index, (label, case, quarantined)) in cases.into_iter().enumerate() {
+        let claim = f.claim_a();
+        let unit_day = day(10 + index as u32);
+        let (observations, assertions) = case(unit_day);
+        let import = f.run_batch_unit(
+            claim.lease_token,
+            &format!("report-{index}"),
+            unit_day,
+            &digest(100 + index as u64),
+            observations,
+            assertions,
+        );
+        assert_eq!(
+            import.status,
+            MetricImportStatus::CompletedWithErrors,
+            "{label}"
+        );
+        assert_eq!(f.quarantined(import.import_id), quarantined, "{label}");
+        let checkpoint = f
+            .update(import.import_id, claim.lease_token)
+            .unwrap_or_else(|error| panic!("{label}: {error:?}"));
+        assert_eq!(checkpoint.last_completed_at, import.completed_at, "{label}");
+        assert_eq!(checkpoint.lease_owner, None, "{label}: released");
+        assert_eq!(
+            checkpoint.last_successful_period_end,
+            Some(day(2)),
+            "{label}"
+        );
+        assert_eq!(
+            f.stored_cursor_text(f.account_a),
+            accepted,
+            "{label}: no manifest is accepted"
+        );
+    }
+
+    // A conflict: account B wins the cell first, then account A's import of
+    // the same day conflicts with it while its only rejection is quarantined.
+    let claims = f.claim(10).unwrap();
+    assert_eq!(claims.len(), 2);
+    let (claim_a, claim_b) = (&claims[0], &claims[1]);
+    assert_eq!(claim_b.source_account.source_account_id, f.account_b);
+    let conflict_day = day(25);
+    let winner = begin_metric_import(
+        &f.pool,
+        ACTOR,
+        &BeginMetricImportInput {
+            source_account_code: ACCOUNT_B.into(),
+            expected_batch_keys: vec!["only".into()],
+            ..begin_input(claim_b.lease_token, "report-b", conflict_day)
+        },
+    )
+    .unwrap();
+    f.ingest(
+        winner.import_id,
+        claim_b.lease_token,
+        "only",
+        vec![NormalizedMetricObservationInput {
+            source_account_code: ACCOUNT_B.into(),
+            ..observation("10", conflict_day)
+        }],
+        vec![],
+    )
+    .unwrap();
+    let import = f.run_batch_unit(
+        claim_a.lease_token,
+        "report-conflict",
+        conflict_day,
+        &digest(250),
+        vec![
+            observation("11", conflict_day),
+            unresolved(UNRESOLVED_DOI, conflict_day),
+        ],
+        vec![complete_day(conflict_day)],
+    );
+    assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    assert_eq!((import.invalid_count, import.conflict_count), (1, 1));
+    assert_eq!(f.quarantined(import.import_id), 1);
+    let checkpoint = f.update(import.import_id, claim_a.lease_token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(f.stored_cursor_text(f.account_a), accepted, "a conflict");
+}
+
+#[test]
+fn provably_inconsistent_quarantine_evidence_fails_closed_with_no_write() {
+    let (_guard, f) = setup();
+    let refused = Err(E::Ingestion(Code::InternalStateInconsistency));
+    let claim = f.claim_a();
+    let import = f.run_batch_unit(
+        claim.lease_token,
+        "report-1",
+        day(1),
+        &digest(1),
+        vec![
+            observation("10", day(1)),
+            unresolved(UNRESOLVED_DOI, day(1)),
+            unresolved(SECOND_UNRESOLVED_DOI, day(1)),
+        ],
+        vec![complete_day(day(1))],
+    );
+    assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    let id = import.import_id;
+    let rejected_row = format!(
+        "record_provenance_id = (SELECT record_provenance_id FROM metric_record_provenance \
+          WHERE import_id = '{id}' AND classification = 'REJECTED' ORDER BY batch_row_index LIMIT 1)"
+    );
+    let set_reason = |details: &str| {
+        format!("UPDATE metric_record_provenance SET details = {details} WHERE {rejected_row}")
+    };
+    let restore_reason = set_reason("jsonb_set(details, '{reason_code}', '\"UNKNOWN_DOI\"', true)");
+    let foreign_quarantine = format!(
+        "INSERT INTO metric_identifier_quarantine \
+             (record_provenance_id, source_account_id, platform_id, measure_id, schema_version, \
+              work_doi, period_start, period_end, reporting_grain, value, methodology_version) \
+         SELECT p.record_provenance_id, q.source_account_id, q.platform_id, q.measure_id, \
+                q.schema_version, q.work_doi, q.period_start, q.period_end, q.reporting_grain, \
+                q.value, q.methodology_version \
+           FROM metric_record_provenance p, \
+                (SELECT * FROM metric_identifier_quarantine LIMIT 1) q \
+          WHERE p.import_id = '{id}' AND p.classification = 'WINNER'"
+    );
+    let cases: Vec<(&str, String, String)> = vec![
+        (
+            "invalid_count above the rejected rows",
+            format!("UPDATE metric_import SET invalid_count = invalid_count + 1 WHERE import_id = '{id}'"),
+            format!("UPDATE metric_import SET invalid_count = invalid_count - 1 WHERE import_id = '{id}'"),
+        ),
+        (
+            "invalid_count below the rejected rows",
+            format!("UPDATE metric_import SET invalid_count = invalid_count - 1 WHERE import_id = '{id}'"),
+            format!("UPDATE metric_import SET invalid_count = invalid_count + 1 WHERE import_id = '{id}'"),
+        ),
+        (
+            "a quarantine row on WINNER provenance",
+            foreign_quarantine,
+            format!("DELETE FROM metric_identifier_quarantine WHERE record_provenance_id IN (SELECT record_provenance_id FROM metric_record_provenance WHERE import_id = '{id}' AND classification = 'WINNER')"),
+        ),
+        (
+            "a quarantine row on a rejection of another reason",
+            set_reason("jsonb_set(details, '{reason_code}', '\"INVALID_DOI\"')"),
+            restore_reason.clone(),
+        ),
+        (
+            "a missing rejection reason",
+            set_reason("details - 'reason_code'"),
+            restore_reason.clone(),
+        ),
+        (
+            "a JSON null rejection reason",
+            set_reason("jsonb_set(details, '{reason_code}', 'null')"),
+            restore_reason.clone(),
+        ),
+        (
+            "a non-string rejection reason",
+            set_reason("jsonb_set(details, '{reason_code}', '7')"),
+            restore_reason.clone(),
+        ),
+        (
+            "an unparseable rejection reason",
+            set_reason("jsonb_set(details, '{reason_code}', '\"NOT_A_CODE\"')"),
+            restore_reason.clone(),
+        ),
+        (
+            "a rejection reason outside the exact vocabulary spelling",
+            set_reason("jsonb_set(details, '{reason_code}', '\"unknown_doi\"')"),
+            restore_reason.clone(),
+        ),
+        (
+            "rejection details that are not an object",
+            set_reason("'[\"UNKNOWN_DOI\"]'::jsonb"),
+            set_reason(
+                "'{\"schema\": \"thoth-metric-provenance-details/1\", \"reason_code\": \"UNKNOWN_DOI\", \"reporting_grain\": \"DAY\"}'::jsonb",
+            ),
+        ),
+    ];
+    let quarantine_state = |f: &Fixture| {
+        text(
+            &f.pool,
+            "(SELECT string_agg(record_provenance_id::text, ',' ORDER BY record_provenance_id) \
+               FROM metric_identifier_quarantine)",
+        )
+    };
+    for (label, corrupt, restore) in &cases {
+        f.sql(corrupt);
+        let before = (f.snapshot(), quarantine_state(&f));
+        assert_eq!(f.update(id, claim.lease_token), refused, "{label}");
+        assert_eq!(
+            (f.snapshot(), quarantine_state(&f)),
+            before,
+            "{label}: no progress, cursor, successful-period or release write"
+        );
+        assert_eq!(
+            f.checkpoint(f.account_a).lease_owner,
+            Some(claim.lease_token.to_string()),
+            "{label}: the lease stays held"
+        );
+        f.sql(restore);
+    }
+
+    // Restored, the same live update records the quarantine-only manifest.
+    let checkpoint = f.update(id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(1), digest(1))]))
+    );
+
+    // A released replay derives the same predicate first, so it fails closed
+    // the same way and stays read-only.
+    for (label, corrupt, restore) in &cases {
+        f.sql(corrupt);
+        let before = (f.snapshot(), quarantine_state(&f));
+        assert_eq!(
+            f.update(id, claim.lease_token),
+            refused,
+            "released: {label}"
+        );
+        assert_eq!(
+            (f.snapshot(), quarantine_state(&f)),
+            before,
+            "released: {label}"
+        );
+        f.sql(restore);
+    }
+    assert_eq!(f.update(id, claim.lease_token).unwrap(), checkpoint);
+}
+
+#[test]
+fn a_non_cloudfront_completed_with_errors_import_keeps_its_existing_behaviour() {
+    let (_guard, f) = setup();
+    // A managed DRIVER source that is not CloudFront, with the configuration
+    // such a source requires.
+    f.sql("UPDATE metric_source SET driver_key = 'crossref-events'");
+    f.sql("UPDATE metric_source_account SET configuration = '{}'::jsonb");
+    f.record_success("report-accepted", day(1), &digest(1), "10");
+    let accepted = f.stored_cursor_text(f.account_a);
+
+    // An eligible-shaped unknown DOI is an ordinary rejection: no quarantine,
+    // and the update releases without a manifest.
+    let claim = f.claim_a();
+    let import = f.run_batch_unit(
+        claim.lease_token,
+        "report-2",
+        day(2),
+        &digest(2),
+        vec![unresolved(UNRESOLVED_DOI, day(2))],
+        vec![complete_day(day(2))],
+    );
+    assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    assert_eq!(f.quarantined(import.import_id), 0);
+    let checkpoint = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(f.stored_cursor_text(f.account_a), accepted);
+
+    // The quarantine predicate never runs for it: evidence that would be
+    // provably inconsistent for CloudFront neither fails nor accepts anything.
+    let claim = f.claim_a();
+    let import = f.run_batch_unit(
+        claim.lease_token,
+        "report-3",
+        day(3),
+        &digest(3),
+        vec![unresolved(UNRESOLVED_DOI, day(3))],
+        vec![complete_day(day(3))],
+    );
+    f.sql(&format!(
+        "UPDATE metric_import SET invalid_count = invalid_count + 5 WHERE import_id = '{}'",
+        import.import_id
+    ));
+    let checkpoint = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(f.stored_cursor_text(f.account_a), accepted);
+}
+
+#[test]
+fn stale_expired_reclaimed_and_foreign_tokens_never_record_a_quarantine_only_manifest() {
+    let (_guard, f) = setup();
+    let (first, import) = f.quarantine_only_unit("report-1", day(1), &digest(1));
+
+    // Expired, not yet reclaimed.
+    f.expire(f.account_a);
+    let before = f.snapshot();
+    assert_eq!(f.update(import.import_id, first), Err(E::StaleSourceClaim));
+    assert_eq!(f.snapshot(), before);
+
+    // Reclaimed: the old token and a foreign token are both stale.
+    let second = f.claim_a();
+    let before = f.snapshot();
+    for token in [first, Uuid::new_v4()] {
+        assert_eq!(f.update(import.import_id, token), Err(E::StaleSourceClaim));
+    }
+    assert_eq!(f.snapshot(), before);
+    assert_eq!(f.stored_cursor(f.account_a), None);
+
+    // Only the live holder records the same terminal import.
+    let checkpoint = f.update(import.import_id, second.lease_token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(checkpoint.lease_owner, None);
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(day(1), digest(1))]))
+    );
+}
+
+/// A session holding the rows `query` selects `FOR UPDATE` in an open
+/// transaction, as a canonical authority writer would.
+struct RowHold {
+    connection: PgConnection,
+}
+
+impl RowHold {
+    fn acquire(query: &str) -> Self {
+        let mut connection = PgConnection::establish(&test_db_url()).expect("hold session");
+        sql_query("BEGIN")
+            .execute(&mut connection)
+            .expect("open the hold");
+        sql_query(format!("{query} FOR UPDATE"))
+            .execute(&mut connection)
+            .expect("lock the held row");
+        RowHold { connection }
+    }
+
+    fn release(mut self) {
+        sql_query("COMMIT")
+            .execute(&mut self.connection)
+            .expect("release the hold");
+    }
+}
+
+/// Whether another session can lock the rows `query` selects `FOR UPDATE
+/// NOWAIT` right now. The probe commits at once, releasing what it took.
+fn row_is_free(query: &str) -> bool {
+    let mut connection = PgConnection::establish(&test_db_url()).expect("probe session");
+    connection
+        .transaction::<_, diesel::result::Error, _>(|connection| {
+            sql_query(format!("{query} FOR UPDATE NOWAIT")).execute(connection)?;
+            Ok(())
+        })
+        .is_ok()
+}
+
+#[test]
+fn the_checkpoint_update_locks_checkpoint_import_account_then_source() {
+    let (_guard, f) = setup();
+    let checkpoint_row = format!(
+        "SELECT 1 FROM metric_source_checkpoint WHERE source_account_id = '{}'",
+        f.account_a
+    );
+    let account_row = format!(
+        "SELECT 1 FROM metric_source_account WHERE source_account_id = '{}'",
+        f.account_a
+    );
+    let source_row = format!(
+        "SELECT 1 FROM metric_source WHERE source_id = '{}'",
+        f.source_id
+    );
+    // Each round holds one authority row the way a canonical writer would,
+    // lets the update queue on it, and probes which rows the queued update
+    // already holds and which it has not yet reached.
+    let rounds: [(&str, &str, [bool; 3]); 3] = [
+        // (held row, label, [import free, account free, source free])
+        ("import", "the import", [false, true, true]),
+        ("account", "the source account", [false, false, true]),
+        ("source", "the source", [false, false, false]),
+    ];
+    for (index, (held, label, [import_free, account_free, source_free])) in
+        rounds.into_iter().enumerate()
+    {
+        let (token, import) = f.quarantine_only_unit(
+            &format!("report-lock-{index}"),
+            day(1 + index as u32),
+            &digest(1 + index as u64),
+        );
+        let import_row = format!(
+            "SELECT 1 FROM metric_import WHERE import_id = '{}'",
+            import.import_id
+        );
+        let hold = RowHold::acquire(match held {
+            "import" => &import_row,
+            "account" => &account_row,
+            _ => &source_row,
+        });
+        let deadlocks_before = scalar_i64(
+            &f.pool,
+            "(SELECT deadlocks FROM pg_stat_database WHERE datname = current_database())",
+        );
+        let update = queued_update(&f, import.import_id, token);
+        assert!(
+            !row_is_free(&checkpoint_row),
+            "{label}: the checkpoint is locked first"
+        );
+        if held != "import" {
+            assert_eq!(row_is_free(&import_row), import_free, "{label}: import");
+        }
+        if held != "account" {
+            assert_eq!(row_is_free(&account_row), account_free, "{label}: account");
+        }
+        if held != "source" {
+            assert_eq!(row_is_free(&source_row), source_free, "{label}: source");
+        }
+        hold.release();
+        let checkpoint = update
+            .join()
+            .expect("update thread")
+            .unwrap_or_else(|error| panic!("{label}: {error:?}"));
+        assert_eq!(checkpoint.lease_owner, None, "{label}");
+        assert_eq!(
+            scalar_i64(
+                &f.pool,
+                "(SELECT deadlocks FROM pg_stat_database WHERE datname = current_database())",
+            ),
+            deadlocks_before,
+            "{label}: no deadlock"
+        );
+    }
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[
+            (day(1), digest(1)),
+            (day(2), digest(2)),
+            (day(3), digest(3))
+        ]))
+    );
+}
