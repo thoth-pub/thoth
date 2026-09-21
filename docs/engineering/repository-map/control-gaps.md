@@ -1,7 +1,7 @@
 # Repository Control Gaps
 
 Status: ACTIVE FINDINGS
-Evidence date: 2026-07-29; CG-03 and CG-04 branch-topology language reconciled 2026-09-09 under `ADR-0011`
+Evidence date: 2026-07-29; CG-03 and CG-04 branch-topology language reconciled 2026-09-09 under `ADR-0011`; CG-04 `metrics-dashboard` development-branch language reconciled 2026-09-21 under `BR-DASH-01C-CONTROL-RECONCILIATION` ([#931](https://github.com/thoth-pub/thoth/issues/931))
 
 ## Foundation closeout
 
@@ -62,7 +62,9 @@ Use verified actual branches until the remaining readiness work or an explicit e
 
 Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md) the shared target policy standardizes the **role** of the release branch, written `<release-branch>`, not its spelling. Each repository's established release/default branch is preserved: `main` stays `main` and `master` stays `master`, and neither is created, renamed, moved or substituted merely because another repository uses it. Release-branch conversion is therefore **removed** from BR-APP-01, BR-DIS-01, BR-SPHINX-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01.
 
-That narrows what the divergence consists of; it does not close this gap. What remains open and unchanged is the genuinely justified work: development-branch normalization where `dev` is still active (App, dashboard, widget, Pyramid), branch protection everywhere it is absent, CI filter and coverage gaps under [CG-11](#cg-11---ci-gaps), provider and deployment verification for the Vercel-backed projects, npm and crate publication readiness, and Sphinx bootstrap under [CG-03](#cg-03---thoth-sphinx-is-bootstrap-only). Nor does it lower any task's risk: each risk statement in [`branch-topology.md`](./branch-topology.md) section 5 is reassessed from the task's remaining CI, provider, deployment, publishing and external-write effects, and BR-APP-01, BR-DIS-01, BR-DASH-01 and BR-WIDGET-01 all remain HIGH.
+That narrows what the divergence consists of; it does not close this gap. What remains open and unchanged is the genuinely justified work: development-branch normalization where `dev` is still active (App, widget, Pyramid; not `metrics-dashboard`, see below), branch protection everywhere it is absent, CI filter and coverage gaps under [CG-11](#cg-11---ci-gaps), provider and deployment verification for the Vercel-backed projects, npm and crate publication readiness, and Sphinx bootstrap under [CG-03](#cg-03---thoth-sphinx-is-bootstrap-only). Nor does it lower any task's risk: each risk statement in [`branch-topology.md`](./branch-topology.md) section 5 is reassessed from the task's remaining CI, provider, deployment, publishing and external-write effects, and BR-APP-01, BR-DIS-01, BR-DASH-01 and BR-WIDGET-01 all remain HIGH.
+
+For `metrics-dashboard` the development-branch question is settled rather than open: `dev` is its approved permanent development/integration branch and `main` its release/default branch (`feature/* -> dev -> main`), so no `dev -> develop` normalization is planned. CG-04 remains open for that repository's other work: cleanup of the stale legacy `develop` ref, which is not a workflow branch, has **not** been deleted and may be deleted only under separate authorization; branch protection for `main` and `dev`; Vercel provider verification; and its CI, test and lint gaps under [CG-11](#cg-11---ci-gaps). See [`branch-topology.md`](./branch-topology.md) sections 3.3 and 5.
 
 ### CG-05 - Related repositories lack complete instructions (RESOLVED 2026-08-16)
 

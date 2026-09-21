@@ -8,6 +8,10 @@ Evidence date: 2026-07-24 for `thoth`, `thoth-app`, `thoth-dissemination`,
 added and verified 2026-08-16. Target policy reconciled 2026-09-09 under
 [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md);
 no branch was created, renamed, moved or deleted by that reconciliation.
+`metrics-dashboard` permanent `dev`/`main` topology reconciled and its branch
+heads re-verified 2026-09-21 under `BR-DASH-01C-CONTROL-RECONCILIATION`
+([#931](https://github.com/thoth-pub/thoth/issues/931)); no branch was created,
+renamed, moved or deleted by that reconciliation either.
 
 ## 1. Target repository policy
 
@@ -33,7 +37,7 @@ Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-nam
 - changing an established release/default branch requires a separately scoped repository-local decision and task, justified by a reason other than naming consistency, which assesses GitHub settings and protections, CI filters, deployment and provider routing, release and publication automation, external references, compatibility and rollback as applicable;
 - branch protections, CI, release automation, deployment configuration and publication configuration bind to the repository's verified release branch rather than to a globally assumed `main` or `master`.
 
-Development-branch policy is independent of release-branch naming. A repository-local readiness task may still normalize an active `dev` branch to `develop` where that is separately justified and approved.
+Development-branch policy is independent of release-branch naming. A repository-local readiness task may still normalize an active `dev` branch to `develop` where that is separately justified and approved. That normalization is not a mandate: an approved repository-local decision may instead retain `dev` permanently, as `metrics-dashboard` does (section 3.3).
 
 For `thoth-pub/thoth` those roles resolve to `develop` and `master`, so this repository's own flow remains:
 
@@ -55,7 +59,23 @@ The approved design requires one fresh branch and one PR per task. Each task tar
 
 ### Thoth Metrics
 
-The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches are created from that integration branch and target it, followed by a final repository-local PR to `develop`; they do not target `develop` directly.
+The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches are created from that integration branch and target it, followed by a final repository-local PR to that repository's verified `<development-branch>`; they do not target the `<development-branch>` directly.
+
+```text
+<development-branch>
+  -> feature/metrics
+  -> feature/metrics--<slice>
+  -> feature/metrics
+  -> <development-branch>
+```
+
+`<development-branch>` resolves from each affected repository's own verified,
+approved development branch in section 3, not from `thoth`'s spelling or from
+shared naming convention. For `thoth` it is `develop`; for `metrics-dashboard`
+it is `dev`, that repository's approved permanent development branch. This is
+the resolution `ADR-0009` section 4.3 already states for final programme
+integration, `feature/<programme> -> <repository development branch>`, and it
+changes no substantive Metrics architecture.
 
 Under `ADR-0009` those child branches are spelled:
 
@@ -78,7 +98,7 @@ The `<release-branch>` column records each repository's verified established rel
 | `thoth-client` (standalone `thoth-pub/thoth-client`) | `master` | `develop` | `master` | `develop -> master` (feature PRs merge to `develop`; `develop` is 1 commit ahead of `master` via a release merge) | none; conforms |
 | `thoth-pyramid` | `main` | `dev` | `main` (preserved) | not yet observed as a completed release cycle | any future development-branch normalization is separate; no normalization task is authorized |
 | `thoth-strapi` | `main` | `develop` | `main` (preserved) | not yet observed as a completed release cycle | any future topology or readiness work is separate and must account for its publication-capable pull-request workflow; no normalization task is authorized |
-| `metrics-dashboard` | `main` | `dev` | `main` (preserved, Vercel-backed) | `dev -> main` | reconcile active `dev` history against the stale `develop` and normalize the development branch, with protections and CI (`BR-DASH-01`); Vercel production is **not** moved for branch spelling |
+| `metrics-dashboard` | `main` | `dev` (approved permanent) | `main` (preserved, Vercel-backed) | `dev -> main` | topology settled as permanent `feature/* -> dev -> main`, with no `dev -> develop` normalization (section 3.3); still open and separate: cleanup of the stale legacy `develop` ref (not deleted; deletion separately authorized), protections, and CI/lint/test readiness under CG-11 (`BR-DASH-01`); Vercel production is **not** moved |
 | `metrics-widget` | `main` | `dev` | `main` (preserved) | releases from `main` | development-branch and CI normalization, npm release protection (`BR-WIDGET-01`) |
 | `cc-license` | `main` | `develop` | `main` (preserved) | release branch `main` | publication readiness and protection (`BR-LIC-01`) |
 | `baboon` | `master` | `develop` | `master` | `develop -> release/* -> master`, tagged and merged back into `develop` | none; conforms |
@@ -140,6 +160,26 @@ pull-request-triggered production SFTP scratch write.
 No branch normalization is performed by this record. Rows with remaining
 readiness work describe a gap against the target topology only; the owning task
 remains separately scoped and separately authorized.
+
+### 3.3 2026-09-21 `metrics-dashboard` permanent topology
+
+`thoth-pub/metrics-dashboard` permanently uses `dev` as its
+development/integration branch and its established `main` as its
+release/default branch:
+
+```text
+feature/* -> dev -> main
+```
+
+This approved repository-local decision resolves the development-branch question
+that `ADR-0011` section 4.4 leaves independent of release-branch naming. It
+amends neither `ADR-0011` nor `ADR-0009`. No `dev -> develop` normalization is
+planned. The stale legacy `develop` ref is not a workflow branch and has **not**
+been deleted; its deletion remains a separately authorized action. Live branch
+heads were re-verified on 2026-09-21 and are recorded in
+`repositories/metrics-dashboard.md`. No branch, GitHub setting, protection, CI
+or Vercel configuration was created or changed by this record, and the
+remaining protection, stale-ref and CI readiness work in section 5 stays open.
 
 ## 4. Control rule
 
@@ -221,24 +261,37 @@ by this record.
 
 ### BR-DASH-01 - `metrics-dashboard` branch readiness
 
-- verify `dev`, the stale `develop`, `main`, recent merged pull requests and
-  Vercel branch settings;
-- reconcile the active `dev` history into the target `develop` branch, using a
-  fast-forward only when Git proves it is safe;
-- otherwise use a separately reviewed merge or replacement plan that preserves
-  history;
-- preserve the established Vercel-backed `main` as the release/default branch;
-  do **not** create `master` and do **not** move Vercel production merely to
-  adopt a different branch spelling;
-- update protections and any Vercel preview configuration the development-branch
-  change actually requires, only under this separately approved task;
-- retain `dev` and the old `develop` reference until all external references and
-  rollback requirements are verified;
-- prohibit creation of `feature/metrics` from stale `develop`.
+Topology: **settled** as permanent `feature/* -> dev -> main` (section 3.3).
+`dev` is the approved permanent development/integration branch and the
+established Vercel-backed `main` remains the release/default branch. No
+development-branch normalization and no `dev -> develop` reconciliation is
+required. Do **not** create `master` and do **not** move Vercel production.
 
-Risk: HIGH. Production deployment routing is preserved, but this repository
-serves production from Vercel on `main` and the development-branch reconciliation
-still requires verified rollback before any configuration change.
+Remaining readiness work, still open, each part separately scoped and
+separately authorized:
+
+- verify the live `dev`, stale `develop` and `main` heads, recent merged pull
+  requests and, under separate provider-read authorization, Vercel branch
+  settings before any stale-ref deletion or protection change, with verified
+  rollback for any change that affects Vercel;
+- clean up the stale legacy `develop` ref, which is not a workflow branch and
+  has **not** been deleted: retain it until its deletion is separately
+  authorized, and never use it as a base or pull-request target;
+- update protections for the verified `main` and `dev` branches;
+- add CI, tests and the lint and production-build gate under
+  [CG-11](./control-gaps.md#cg-11---ci-gaps);
+- prohibit creation of `feature/metrics` from stale `develop`; a
+  repository-local `feature/metrics` is created only from a verified `dev`
+  head, under section 6.
+
+The topology decision itself requires no Vercel production or default-routing
+change.
+
+Risk: HIGH, unchanged by the topology decision. This repository serves
+production from Vercel on `main`. Settling the topology removes the
+development-branch reconciliation from this task, but removing work does not by
+itself lower risk; the remaining stale-ref, protection and CI work is reassessed
+by its own separately scoped task.
 
 ### BR-WIDGET-01 - `metrics-widget` branch readiness
 
@@ -271,7 +324,10 @@ Publisher Services tasks may begin only when their repository's actual developme
 
 A repository-local Metrics `feature/metrics` branch may be created only when:
 
-- that repository has a verified `develop` branch;
+- that repository has a verified `<development-branch>` that is its approved
+  development branch under sections 3 and 5 (for example `develop` in `thoth`
+  and `dev` in `metrics-dashboard`), and `feature/metrics` is created from that
+  branch's verified head, never from a stale or legacy ref;
 - the remaining branch-readiness work in section 5 is complete or a CTO
   exception is recorded;
 - Metrics control task `MET-CTRL-01` is merged;
