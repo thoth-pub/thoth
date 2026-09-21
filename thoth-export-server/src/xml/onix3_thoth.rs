@@ -216,8 +216,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                             w.write(XmlEvent::Characters(code)).map_err(|e| e.into())
                         })?;
                     }
-                    if let Some(accessibility_statement) =
-                        &self.imprint.publisher.accessibility_statement
+                    // List 79 type 09 is e-publication accessibility detail: the Publisher's
+                    // accessibility statement and contact describe a digital manifestation only
+                    let is_digital = !is_physical(&publication.publication_type);
+                    if let Some(accessibility_statement) = self
+                        .imprint
+                        .publisher
+                        .accessibility_statement
+                        .as_ref()
+                        .filter(|_| is_digital)
                     {
                         write_element_block("ProductFormFeature", w, |w| {
                             // 09 E-publication accessibility detail
@@ -296,7 +303,7 @@ impl XmlElementBlock<Onix3Thoth> for Work {
                         })?;
                     }
                     for contact in &self.imprint.publisher.contacts {
-                        if contact.contact_type == ContactType::ACCESSIBILITY {
+                        if is_digital && contact.contact_type == ContactType::ACCESSIBILITY {
                             write_element_block("ProductFormFeature", w, |w| {
                                 // 09 E-publication accessibility detail
                                 write_element_block("ProductFormFeatureType", w, |w| {
@@ -1220,6 +1227,15 @@ impl XmlElementBlock<Onix3Thoth> for Work {
         }
         Ok(())
     }
+}
+
+/// Whether a Publication is a print (Paperback/Hardback) manifestation, as the Thoth domain
+/// defines it; every other type is digital.
+fn is_physical(publication_type: &PublicationType) -> bool {
+    matches!(
+        publication_type,
+        PublicationType::PAPERBACK | PublicationType::HARDBACK
+    )
 }
 
 fn get_product_form_codes(publication_type: &PublicationType) -> (&str, Option<&str>) {
@@ -2754,22 +2770,9 @@ mod tests {
     <ProductComposition>00</ProductComposition>
     <ProductForm>BC</ProductForm>"#
         ));
-        assert!(output.contains(
-            r#"
-    <ProductFormFeature>
-      <ProductFormFeatureType>09</ProductFormFeatureType>
-      <ProductFormFeatureValue>00</ProductFormFeatureValue>
-      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
-    </ProductFormFeature>"#
-        ));
-        assert!(output.contains(
-            r#"
-    <ProductFormFeature>
-      <ProductFormFeatureType>09</ProductFormFeatureType>
-      <ProductFormFeatureValue>99</ProductFormFeatureValue>
-      <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
-    </ProductFormFeature>"#
-        ));
+        // A print Product carries no e-publication accessibility detail (List 79 type 09), not
+        // even the Publisher's accessibility statement or contact (thoth#893)
+        assert!(!output.contains("<ProductFormFeatureType>09</ProductFormFeatureType>"));
         assert!(output.contains(
             r#"
     <PrimaryContentType>10</PrimaryContentType>"#
@@ -3406,6 +3409,125 @@ mod tests {
     </ProductFormFeature>"#
         ));
         test_work.publications[0].accessibility_exception = None;
+        test_work.publications[0].publication_type = PublicationType::PAPERBACK;
+
+        // The Publisher accessibility statement and contact are e-publication accessibility
+        // detail (List 79 type 09): output for every digital manifestation, and for no print
+        // one (thoth#893)
+        let statement = r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>00</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>This is an accessibility statement</ProductFormFeatureDescription>
+    </ProductFormFeature>"#;
+        let contact = r#"
+    <ProductFormFeature>
+      <ProductFormFeatureType>09</ProductFormFeatureType>
+      <ProductFormFeatureValue>99</ProductFormFeatureValue>
+      <ProductFormFeatureDescription>contact@accessibility.com</ProductFormFeatureDescription>
+    </ProductFormFeature>"#;
+        for publication_type in &[PublicationType::PAPERBACK, PublicationType::HARDBACK] {
+            test_work.publications[0].publication_type = publication_type.clone();
+            let output = generate_test_output(true, &test_work);
+            assert!(
+                !output.contains("<ProductFormFeatureType>09</ProductFormFeatureType>"),
+                "{publication_type:?}"
+            );
+        }
+        for publication_type in &[
+            PublicationType::PDF,
+            PublicationType::HTML,
+            PublicationType::XML,
+            PublicationType::EPUB,
+            PublicationType::MOBI,
+            PublicationType::AZW3,
+            PublicationType::DOCX,
+            PublicationType::FICTION_BOOK,
+            PublicationType::MP3,
+            PublicationType::WAV,
+        ] {
+            test_work.publications[0].publication_type = publication_type.clone();
+            let output = generate_test_output(true, &test_work);
+            assert!(output.contains(statement), "{publication_type:?}");
+            assert!(output.contains(contact), "{publication_type:?}");
+        }
+
+        // Every accessibility state the API accepts outputs deterministically, in slot order -
+        // statement, primary standard, additional standard, exception, report, contact - with the
+        // exact existing codes, and none reaches a slot-specific `unreachable!()` (thoth#893)
+        let feature_values = |output: &str| -> Vec<String> {
+            output
+                .split("<ProductFormFeatureValue>")
+                .skip(1)
+                .map(|value| value.split('<').next().unwrap_or_default().to_string())
+                .collect()
+        };
+        let standards = [
+            (None, vec![]),
+            (Some(AccessibilityStandard::WCAG21AA), vec!["81", "85"]),
+            (Some(AccessibilityStandard::WCAG21AAA), vec!["81", "86"]),
+            (Some(AccessibilityStandard::WCAG22AA), vec!["82", "85"]),
+            (Some(AccessibilityStandard::WCAG22AAA), vec!["82", "86"]),
+        ];
+        let additional_standards = [
+            (None, vec![]),
+            (Some(AccessibilityStandard::EPUB_A11Y10AA), vec!["03"]),
+            (
+                Some(AccessibilityStandard::EPUB_A11Y10AAA),
+                vec!["03", "86"],
+            ),
+            (Some(AccessibilityStandard::EPUB_A11Y11AA), vec!["04", "85"]),
+            (
+                Some(AccessibilityStandard::EPUB_A11Y11AAA),
+                vec!["04", "86"],
+            ),
+            (Some(AccessibilityStandard::PDF_UA1), vec!["05"]),
+            (Some(AccessibilityStandard::PDF_UA2), vec!["06"]),
+        ];
+        let exceptions = [
+            (None, vec![]),
+            (Some(AccessibilityException::MICRO_ENTERPRISES), vec!["75"]),
+            (
+                Some(AccessibilityException::DISPROPORTIONATE_BURDEN),
+                vec!["76"],
+            ),
+            (
+                Some(AccessibilityException::FUNDAMENTAL_ALTERATION),
+                vec!["77"],
+            ),
+        ];
+        test_work.publications[0].publication_type = PublicationType::EPUB;
+        for (standard, standard_codes) in &standards {
+            for (additional_standard, additional_codes) in &additional_standards {
+                for (exception, exception_codes) in &exceptions {
+                    for report_url in [None, Some("https://report.url".to_string())] {
+                        test_work.publications[0].accessibility_standard = standard.clone();
+                        test_work.publications[0].accessibility_additional_standard =
+                            additional_standard.clone();
+                        test_work.publications[0].accessibility_exception = exception.clone();
+                        test_work.publications[0].accessibility_report_url = report_url.clone();
+                        let output = generate_test_output(true, &test_work);
+                        let expected: Vec<&str> = ["00"]
+                            .into_iter()
+                            .chain(standard_codes.iter().copied())
+                            .chain(additional_codes.iter().copied())
+                            .chain(exception_codes.iter().copied())
+                            .chain(report_url.as_ref().map(|_| "96"))
+                            .chain(["99"])
+                            .collect();
+                        assert_eq!(
+                            feature_values(&output),
+                            expected,
+                            "{standard:?} {additional_standard:?} {exception:?} {report_url:?}"
+                        );
+                    }
+                }
+            }
+        }
+        test_work.publications[0].accessibility_standard = None;
+        test_work.publications[0].accessibility_additional_standard = None;
+        test_work.publications[0].accessibility_exception = None;
+        test_work.publications[0].accessibility_report_url = None;
         test_work.publications[0].publication_type = PublicationType::PAPERBACK;
 
         // Remove/change some values to test (non-)output of optional blocks
