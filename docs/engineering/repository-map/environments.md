@@ -26,10 +26,15 @@ Active development branch observed: `dev`
 Production domain: `metrics.thoth.pub`
 
 Production deployments are associated with `main`. Active development is
-observed on `dev`. The existing `develop` branch is stale and must not be used
-as an implementation base before BR-DASH-01 reconciles it. Vercel production
-and preview branch behaviour must be reverified during BR-DASH-01 rather than
-inferred from Git branch names.
+observed on `dev`, which is the approved permanent development/integration
+branch (`feature/* -> dev -> main`; see
+[`repositories/metrics-dashboard.md`](./repositories/metrics-dashboard.md)).
+The existing `develop` ref is a stale legacy ref, not a workflow branch: it
+must not be used as an implementation base or pull-request target. It has not
+been deleted, and its deletion remains a separately authorized action. Vercel
+production and preview branch behaviour beyond the observations above must be
+reverified under separate provider-read authorization rather than inferred from
+Git branch names.
 
 ### Metrics Widget
 

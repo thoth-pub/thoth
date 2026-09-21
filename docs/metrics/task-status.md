@@ -4,7 +4,13 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-09-09 (`CTRL-BRANCH-RELEASE-01`, issue
+Last updated: 2026-09-21 (`BR-DASH-01C-CONTROL-RECONCILIATION`, issue
+[#931](https://github.com/thoth-pub/thoth/issues/931): the BR-DASH-01 row and
+the branch strategy reconciled to the approved permanent `metrics-dashboard`
+`feature/* -> dev -> main` topology, with each repository's Metrics flow
+resolved through its own verified `<development-branch>`. Task statuses, risks,
+WP entry gates and the other repositories' rows are unchanged). Previously
+2026-09-09 (`CTRL-BRANCH-RELEASE-01`, issue
 [#897](https://github.com/thoth-pub/thoth/issues/897): branch-readiness rows
 reconciled to `ADR-0011`, which preserves each repository's established
 release/default branch, so no `BR-` task converts a release branch. Task
@@ -31,7 +37,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
 | THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | MERGED - REPOSITORY-AUTHORITATIVE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivered ADR-0003 (Architecture A) and directly related cleanup through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`. CG-12 is resolved and the shared Diesel schema-control dependency is satisfied. | #766 |
-| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; `main` preserved as `<release-branch>`; reconcile stale `develop`, then normalize the development branch to `develop` | Vercel rollback. Vercel production stays on `main` and is not moved for branch spelling | #766 |
+| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | permanent `feature/* -> dev -> main`: `dev` is the approved development/integration branch and `main` is preserved as `<release-branch>`; no `dev -> develop` normalization. Stale legacy `develop` is not a workflow branch and has not been deleted | Separately authorized stale `develop` cleanup, branch protections and CI/lint/test readiness (CG-11); Vercel branch settings verified under separate provider-read authorization, with rollback, before any change that affects Vercel. Vercel production stays on `main` and is not moved | #766 |
 | BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | npm release protection | #766 |
 | BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | Vercel branch plan for previews and builds; production stays on `main` | #766 |
 
@@ -113,12 +119,29 @@ Metrics implementation is authorized — by `ADR-0008` or otherwise.
 ## 4. Branch strategy
 
 ```text
+<development-branch>
+  -> feature/metrics
+  -> feature/metrics--<slice>
+  -> feature/metrics
+  -> <development-branch>
+```
+
+`<development-branch>` is each affected repository's own verified, approved
+development branch as recorded in
+[`branch-topology.md`](../engineering/repository-map/branch-topology.md); it is
+not assumed from `thoth`'s spelling. In `thoth` it is `develop`, so the Thoth
+flow is:
+
+```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
 
+In `metrics-dashboard` it is `dev`, that repository's approved permanent
+development branch.
+
 Each affected repository owns its own `feature/metrics` integration branch.
 Focused Metrics child branches are created from it and target it; they do not
-target `develop` directly. Under
+target the `<development-branch>` directly. Under
 [`ADR-0009`](../engineering/decisions/ADR-0009-programme-integration-branch-namespace.md)
 the child branch is a **sibling** of the integration branch, separated by the
 reserved `--` token. `feature/metrics/<slice>` is not usable beneath a live
@@ -133,15 +156,17 @@ that branch is preserved: `main` stays `main` and `master` stays `master`, and
 no `BR-` readiness task converts a release branch. `ADR-0011` changes no Metrics
 architecture and creates no branch.
 
-Do not create integration branches until a verified `develop` branch and release-protection decision exist.
+Do not create a repository's integration branch until its verified, approved `<development-branch>` and a release-protection decision exist.
 
 Before creating any Metrics branch, run the fail-closed namespace preflight in
 `AGENTS.md` section 5.1 against live refs.
 
-For `metrics-dashboard`, do not create `feature/metrics` from the stale
-`develop` branch. BR-DASH-01 must first reconcile active `dev` history into the
-target `develop` branch, or an explicit CTO exception must authorize another
-verified base.
+For `metrics-dashboard`, `feature/metrics` is created only from a verified
+`dev` head, under separate branch-creation authorization, and never from the
+stale legacy `develop` ref. Because `dev` is that repository's approved
+permanent development branch, no `dev -> develop` reconciliation precedes it.
+The stale `develop` ref has not been deleted; its deletion is a separately
+authorized action.
 
 ## 5. Immediate next actions
 
