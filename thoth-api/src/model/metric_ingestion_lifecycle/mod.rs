@@ -46,8 +46,42 @@
 //! derives the one entry it may record from the terminal import's own
 //! `period_start` and the `manifestDigest` of its strict managed envelope, and
 //! records it only under the same successful-period predicate that advances
-//! `last_successful_period_end`, in the one `UPDATE` that also records progress
-//! and releases the claim.
+//! `last_successful_period_end`, or under the one narrow CloudFront
+//! quarantine-only exception below, in the one `UPDATE` that also records
+//! progress and releases the claim.
+//!
+//! # CloudFront quarantine-only manifest acceptance (`MET-WP7-PREREQ-02`)
+//!
+//! A `COMPLETED_WITH_ERRORS` import is never canonically successful and never
+//! advances `last_successful_period_end`. Only when the locked source's
+//! `driver_key` is exactly `cloudfront` does the update derive, from the
+//! import's own durable `metric_record_provenance` and
+//! `metric_identifier_quarantine` rows, how many rows were rejected, how many
+//! of those were `UNKNOWN_DOI`, how many quarantine rows the import has and
+//! how many of those belong to `UNKNOWN_DOI` rejections. Provenance is the
+//! classification authority; `metric_import_error` is never consulted.
+//!
+//! - **Inconsistent**: the rejected count differs from `invalid_count`, a
+//!   quarantine row belongs to any other provenance, or a rejected row's
+//!   `details.reason_code` is absent, null, not a string or outside the closed
+//!   vocabulary. The update fails as `INTERNAL_STATE_INCONSISTENCY` and writes
+//!   no progress, cursor, successful period or release.
+//! - **Consistent but ineligible**: any conflict, any rejection other than
+//!   `UNKNOWN_DOI`, or any `UNKNOWN_DOI` rejection without quarantine (which is
+//!   how an observation the coordinator deliberately did not quarantine
+//!   looks). The ordinary non-success path applies: progress and release, no
+//!   cursor, no successful period.
+//! - **Quarantine-only**: nothing conflicted, every invalid row is a
+//!   quarantined `UNKNOWN_DOI` rejection and coverage is exactly `COMPLETE`
+//!   for the one-day period. The update records `last_completed_at`, records
+//!   or replaces the period's manifest digest under the unchanged cursor
+//!   rules, and releases the claim, but still never advances
+//!   `last_successful_period_end`.
+//!
+//! The whole predicate is derived before the live/released split, so a
+//! released replay stays read-only and recognizes recorded completion from
+//! `last_completed_at` alone; the cursor is never a replay authority. Other
+//! sources never evaluate quarantine evidence.
 //!
 //! # Transactions and lock order
 //!
@@ -57,7 +91,9 @@
 //! authority rows are then read `FOR SHARE` in the canonical coordinator's own
 //! order (account, source, platform, publisher). Because every lease-sensitive
 //! operation on one account queues on that one row first, begin, batch,
-//! completion and checkpoint progress for one account are serialized.
+//! completion and checkpoint progress for one account are serialized. The
+//! checkpoint update's order is fixed as checkpoint `FOR UPDATE`, import
+//! `FOR SHARE`, source account `FOR SHARE`, then source `FOR SHARE`.
 //!
 //! The claim follows the same order with one difference: it takes its
 //! checkpoint rows `FOR UPDATE SKIP LOCKED`, so it never waits on a checkpoint.
@@ -85,6 +121,7 @@
 //! local coordinator call happens inside the guard.
 
 use std::collections::BTreeSet;
+use std::str::FromStr;
 
 use chrono::NaiveDate;
 use diesel::pg::PgConnection;
@@ -110,7 +147,9 @@ use crate::model::metric_platform::MetricPlatform;
 use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::MetricRecordProvenanceClassification;
 use crate::model::metric_source::{MetricSource, MetricSourceAcquisitionType};
-use crate::model::metric_source_account::{check_source_compatibility, MetricSourceAccount};
+use crate::model::metric_source_account::{
+    check_source_compatibility, MetricSourceAccount, CLOUDFRONT_DRIVER_KEY,
+};
 use crate::model::metric_source_checkpoint::{MetricPeriodManifestCursor, MetricSourceCheckpoint};
 use crate::model::publication::PublicationType;
 use crate::model::publisher::{PublisherCapability, ThothPackage};
@@ -1171,6 +1210,126 @@ struct CoverageEvidence {
     complete_for_period: i64,
 }
 
+/// One group of an import's `REJECTED` provenance rows sharing one stored
+/// reason: its JSON type and text, the row count, and how many of those rows
+/// have a quarantine row.
+#[derive(diesel::QueryableByName)]
+struct RejectionGroup {
+    #[diesel(sql_type = Nullable<Text>)]
+    reason_type: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    reason_code: Option<String>,
+    #[diesel(sql_type = BigInt)]
+    rejected: i64,
+    #[diesel(sql_type = BigInt)]
+    quarantined: i64,
+}
+
+#[derive(diesel::QueryableByName)]
+struct QuarantineTotal {
+    #[diesel(sql_type = BigInt)]
+    total: i64,
+}
+
+/// The durable rejection and quarantine evidence of one CloudFront
+/// `COMPLETED_WITH_ERRORS` import, derived only from its provenance and
+/// quarantine rows.
+struct QuarantineEvidence {
+    /// `REJECTED` provenance rows.
+    rejected: i64,
+    /// `REJECTED` provenance rows whose reason is `UNKNOWN_DOI`.
+    unknown_doi: i64,
+    /// Quarantine rows linked to any provenance row of the import.
+    quarantine: i64,
+    /// Quarantine rows linked to a `REJECTED` / `UNKNOWN_DOI` provenance row.
+    quarantined_unknown_doi: i64,
+}
+
+impl QuarantineEvidence {
+    /// Whether every invalid row of the import is a durably quarantined
+    /// `UNKNOWN_DOI` rejection and nothing conflicted.
+    fn is_quarantine_only(&self, import: &MetricImport) -> bool {
+        import.conflict_count == 0
+            && import.invalid_count > 0
+            && self.rejected == import.invalid_count
+            && self.unknown_doi == import.invalid_count
+            && self.quarantined_unknown_doi == import.invalid_count
+            && self.quarantine == self.quarantined_unknown_doi
+    }
+}
+
+/// Derive a CloudFront `COMPLETED_WITH_ERRORS` import's rejection and
+/// quarantine evidence, failing closed on state that contradicts itself.
+///
+/// Provenance is the sole classification authority, so every `REJECTED` row's
+/// `details.reason_code` must be a JSON string in the closed
+/// [`MetricIngestionErrorCode`] vocabulary. The rows must account for exactly
+/// the import's `invalid_count`, and no quarantine row may belong to any
+/// provenance other than a `REJECTED` / `UNKNOWN_DOI` row. Any contradiction is
+/// `INTERNAL_STATE_INCONSISTENCY`, carrying none of the stored values. A
+/// consistent import whose `UNKNOWN_DOI` rows are not all quarantined is not a
+/// contradiction: the coordinator deliberately leaves some unquarantined.
+fn quarantine_evidence(
+    connection: &mut PgConnection,
+    import: &MetricImport,
+) -> LifecycleResult<QuarantineEvidence> {
+    let inconsistent = || {
+        log::error!(
+            "metric import {} holds inconsistent rejection or quarantine evidence",
+            import.import_id
+        );
+        MetricLifecycleError::from(MetricIngestionErrorCode::InternalStateInconsistency)
+    };
+    let groups: Vec<RejectionGroup> = sql_query(
+        "SELECT jsonb_typeof(p.details -> 'reason_code') AS reason_type, \
+                p.details ->> 'reason_code' AS reason_code, \
+                COUNT(*) AS rejected, \
+                COUNT(q.identifier_quarantine_id) AS quarantined \
+           FROM metric_record_provenance p \
+           LEFT JOIN metric_identifier_quarantine q \
+             ON q.record_provenance_id = p.record_provenance_id \
+          WHERE p.import_id = $1 AND p.classification = 'REJECTED' \
+          GROUP BY 1, 2",
+    )
+    .bind::<SqlUuid, _>(import.import_id)
+    .load(connection)?;
+    let quarantine = sql_query(
+        "SELECT COUNT(*) AS total \
+           FROM metric_identifier_quarantine q \
+           JOIN metric_record_provenance p \
+             ON p.record_provenance_id = q.record_provenance_id \
+          WHERE p.import_id = $1",
+    )
+    .bind::<SqlUuid, _>(import.import_id)
+    .get_result::<QuarantineTotal>(connection)?
+    .total;
+
+    let mut evidence = QuarantineEvidence {
+        rejected: 0,
+        unknown_doi: 0,
+        quarantine,
+        quarantined_unknown_doi: 0,
+    };
+    for group in groups {
+        let code = match (group.reason_type.as_deref(), group.reason_code.as_deref()) {
+            (Some("string"), Some(code)) => MetricIngestionErrorCode::from_str(code).ok(),
+            _ => None,
+        }
+        .ok_or_else(inconsistent)?;
+        evidence.rejected += group.rejected;
+        if code == MetricIngestionErrorCode::UnknownDoi {
+            evidence.unknown_doi += group.rejected;
+            evidence.quarantined_unknown_doi += group.quarantined;
+        }
+    }
+    if evidence.rejected != import.invalid_count
+        || evidence.quarantine != evidence.quarantined_unknown_doi
+    {
+        return Err(inconsistent());
+    }
+    Ok(evidence)
+}
+
 /// Record a terminal import on its account's checkpoint and release the claim.
 ///
 /// `last_completed_at` moves forward to the import's `completed_at` and never
@@ -1186,6 +1345,15 @@ struct CoverageEvidence {
 /// (`MET-WP2-03`). A terminal import whose envelope does not decode, or a live
 /// update over a stored cursor outside the closed representation, fails as
 /// `INTERNAL_STATE_INCONSISTENCY` and writes nothing.
+///
+/// The one exception is the CloudFront quarantine-only import described in the
+/// module documentation (`MET-WP7-PREREQ-02`): it records its manifest digest
+/// under the same cursor rules while remaining canonically unsuccessful, so
+/// `last_successful_period_end` does not move. Its evidence is derived only
+/// when the locked source's `driver_key` is exactly `cloudfront`, and provably
+/// inconsistent evidence fails as `INTERNAL_STATE_INCONSISTENCY` with no write
+/// at all. Locks are taken in the fixed order checkpoint `FOR UPDATE`, import
+/// `FOR SHARE`, source account `FOR SHARE`, source `FOR SHARE`.
 ///
 /// A repeat after the claim was already released returns the checkpoint
 /// unchanged when this import's progress is already recorded on it; it never
@@ -1234,6 +1402,19 @@ pub fn update_metric_source_checkpoint(
             .map(|(manifest_digest, _)| manifest_digest.to_string())
             .ok_or(MetricIngestionErrorCode::InternalStateInconsistency)?;
 
+        // Canonical source authority, after the checkpoint and import locks:
+        // the account, then its source, each FOR SHARE. The source's immutable
+        // driver key alone decides whether the CloudFront quarantine-only
+        // policy is available.
+        let account: MetricSourceAccount = metric_source_account::table
+            .find(import.source_account_id)
+            .for_share()
+            .first(connection)?;
+        let source: MetricSource = metric_source::table
+            .find(account.source_id)
+            .for_share()
+            .first(connection)?;
+
         let evidence: CoverageEvidence = sql_query(
             "SELECT COUNT(*) AS total, \
                     COUNT(*) FILTER (WHERE coverage_status = 'COMPLETE' \
@@ -1246,9 +1427,20 @@ pub fn update_metric_source_checkpoint(
         .bind::<SqlDate, _>(period_start)
         .bind::<SqlDate, _>(period_end)
         .get_result(connection)?;
-        let successful = import.status == MetricImportStatus::Completed
-            && evidence.total >= 1
-            && evidence.complete_for_period == evidence.total;
+        let complete_coverage =
+            evidence.total >= 1 && evidence.complete_for_period == evidence.total;
+        let successful = import.status == MetricImportStatus::Completed && complete_coverage;
+        // Derived before the live/released split: inconsistent evidence fails
+        // closed on either side, and a released replay stays read-only.
+        let quarantine_only = if import.status == MetricImportStatus::CompletedWithErrors
+            && source.driver_key.as_deref() == Some(CLOUDFRONT_DRIVER_KEY)
+        {
+            let quarantine = quarantine_evidence(connection, &import)?;
+            complete_coverage && quarantine.is_quarantine_only(&import)
+        } else {
+            false
+        };
+        let record_manifest = successful || quarantine_only;
 
         if !live {
             let checkpoint: MetricSourceCheckpoint = metric_source_checkpoint::table
@@ -1272,7 +1464,7 @@ pub fn update_metric_source_checkpoint(
         // write, and its successor is derived from the import alone.
         let current_cursor =
             locked_period_manifest_cursor(connection, locked.source_checkpoint_id)?;
-        let recorded_cursor = if successful {
+        let recorded_cursor = if record_manifest {
             let recorded = MetricPeriodManifestCursor::record_accepted_manifest(
                 current_cursor.as_ref(),
                 period_start,
@@ -1290,7 +1482,7 @@ pub fn update_metric_source_checkpoint(
                     last_successful_period_end = CASE \
                         WHEN $2 THEN GREATEST(COALESCE(last_successful_period_end, $3), $3) \
                         ELSE last_successful_period_end END, \
-                    cursor = CASE WHEN $2 THEN $5 ELSE cursor END, \
+                    cursor = CASE WHEN $6 THEN $5 ELSE cursor END, \
                     lease_owner = NULL, \
                     lease_expires_at = NULL \
               WHERE source_checkpoint_id = $4",
@@ -1300,6 +1492,7 @@ pub fn update_metric_source_checkpoint(
         .bind::<SqlDate, _>(period_end)
         .bind::<SqlUuid, _>(locked.source_checkpoint_id)
         .bind::<Nullable<Jsonb>, _>(recorded_cursor)
+        .bind::<Bool, _>(record_manifest)
         .execute(connection)?;
         Ok(metric_source_checkpoint::table
             .find(locked.source_checkpoint_id)

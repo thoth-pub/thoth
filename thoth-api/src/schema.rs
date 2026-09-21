@@ -701,6 +701,28 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_identifier_quarantine (identifier_quarantine_id) {
+        identifier_quarantine_id -> Uuid,
+        record_provenance_id -> Uuid,
+        source_account_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        schema_version -> Text,
+        work_doi -> Text,
+        period_start -> Date,
+        period_end -> Date,
+        reporting_grain -> MetricReportingGrain,
+        country_code -> Nullable<Text>,
+        value -> Int8,
+        methodology_version -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricImportStatus;
 
     metric_import (import_id) {
@@ -1571,6 +1593,10 @@ joinable!(metric_coverage -> metric_import (import_id));
 joinable!(metric_coverage -> metric_measure (measure_id));
 joinable!(metric_coverage -> metric_platform (platform_id));
 joinable!(metric_coverage -> metric_source_account (source_account_id));
+joinable!(metric_identifier_quarantine -> metric_measure (measure_id));
+joinable!(metric_identifier_quarantine -> metric_platform (platform_id));
+joinable!(metric_identifier_quarantine -> metric_record_provenance (record_provenance_id));
+joinable!(metric_identifier_quarantine -> metric_source_account (source_account_id));
 joinable!(metric_import -> metric_source_account (source_account_id));
 joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_batch -> metric_import (import_id));
@@ -1665,6 +1691,7 @@ allow_tables_to_appear_in_same_query!(
     location,
     location_history,
     metric_coverage,
+    metric_identifier_quarantine,
     metric_import,
     metric_import_batch,
     metric_import_error,
