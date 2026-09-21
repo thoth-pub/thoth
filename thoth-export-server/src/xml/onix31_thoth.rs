@@ -215,108 +215,108 @@ impl XmlElementBlock<Onix31Thoth> for Work {
                             w.write(XmlEvent::Characters(code)).map_err(Into::into)
                         })?;
                     }
-                    // List 79 type 09 is e-publication accessibility detail: the Publisher's
-                    // accessibility statement and contact describe a digital manifestation only
-                    let is_digital = !is_physical(&publication.publication_type);
-                    if let Some(accessibility_statement) = self
-                        .imprint
-                        .publisher
-                        .accessibility_statement
-                        .as_ref()
-                        .filter(|_| is_digital)
-                    {
-                        write_element_block("ProductFormFeature", w, |w| {
-                            // 09 E-publication accessibility detail
-                            write_element_block("ProductFormFeatureType", w, |w| {
-                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
-                            })?;
-                            // 00 Accessibility summary
-                            write_element_block("ProductFormFeatureValue", w, |w| {
-                                w.write(XmlEvent::Characters("00")).map_err(Into::into)
-                            })?;
-                            write_element_block("ProductFormFeatureDescription", w, |w| {
-                                w.write(XmlEvent::Characters(&accessibility_statement.to_string()))
-                                    .map_err(Into::into)
-                            })
-                        })?;
-                    }
-                    let mut accessibility_codes = vec![];
-                    if let Some(standard) = &publication.accessibility_standard {
-                        let standard_codes = match standard {
-                            AccessibilityStandard::WCAG21AA => vec!["81", "85"],
-                            AccessibilityStandard::WCAG21AAA => vec!["81", "86"],
-                            AccessibilityStandard::WCAG22AA => vec!["82", "85"],
-                            AccessibilityStandard::WCAG22AAA => vec!["82", "86"],
-                            _ => unreachable!(),
-                        };
-                        accessibility_codes.extend(standard_codes);
-                    }
-                    if let Some(additional_standard) =
-                        &publication.accessibility_additional_standard
-                    {
-                        let additional_standard_codes = match additional_standard {
-                            AccessibilityStandard::EPUB_A11Y10AA => vec!["03"],
-                            AccessibilityStandard::EPUB_A11Y10AAA => vec!["03", "86"],
-                            AccessibilityStandard::EPUB_A11Y11AA => vec!["04", "85"],
-                            AccessibilityStandard::EPUB_A11Y11AAA => vec!["04", "86"],
-                            AccessibilityStandard::PDF_UA1 => vec!["05"],
-                            AccessibilityStandard::PDF_UA2 => vec!["06"],
-                            _ => unreachable!(),
-                        };
-                        accessibility_codes.extend(additional_standard_codes);
-                    }
-                    if let Some(exception) = &publication.accessibility_exception {
-                        let exception_code = match exception {
-                            AccessibilityException::MICRO_ENTERPRISES => "75",
-                            AccessibilityException::DISPROPORTIONATE_BURDEN => "76",
-                            AccessibilityException::FUNDAMENTAL_ALTERATION => "77",
-                            AccessibilityException::Other(_) => unreachable!(),
-                        };
-                        accessibility_codes.push(exception_code);
-                    }
-                    for code in accessibility_codes {
-                        write_element_block("ProductFormFeature", w, |w| {
-                            // 09 E-publication accessibility detail
-                            write_element_block("ProductFormFeatureType", w, |w| {
-                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
-                            })?;
-                            write_element_block("ProductFormFeatureValue", w, |w| {
-                                w.write(XmlEvent::Characters(code)).map_err(Into::into)
-                            })
-                        })?;
-                    }
-                    if let Some(report_url) = &publication.accessibility_report_url {
-                        write_element_block("ProductFormFeature", w, |w| {
-                            // 09 E-publication accessibility detail
-                            write_element_block("ProductFormFeatureType", w, |w| {
-                                w.write(XmlEvent::Characters("09")).map_err(Into::into)
-                            })?;
-                            // 96 Publisher’s web page for detailed accessibility information
-                            write_element_block("ProductFormFeatureValue", w, |w| {
-                                w.write(XmlEvent::Characters("96")).map_err(Into::into)
-                            })?;
-                            write_element_block("ProductFormFeatureDescription", w, |w| {
-                                w.write(XmlEvent::Characters(&report_url.to_string()))
-                                    .map_err(Into::into)
-                            })
-                        })?;
-                    }
-                    for contact in &self.imprint.publisher.contacts {
-                        if is_digital && contact.contact_type == ContactType::ACCESSIBILITY {
+                    // List 79 type 09 is e-publication accessibility detail: a print
+                    // (Paperback/Hardback) Product carries none of it - not the Publisher's
+                    // statement or contact, nor any of the Publication's own accessibility fields
+                    if !is_physical(&publication.publication_type) {
+                        if let Some(accessibility_statement) =
+                            &self.imprint.publisher.accessibility_statement
+                        {
                             write_element_block("ProductFormFeature", w, |w| {
                                 // 09 E-publication accessibility detail
                                 write_element_block("ProductFormFeatureType", w, |w| {
                                     w.write(XmlEvent::Characters("09")).map_err(Into::into)
                                 })?;
-                                // 99 Publisher contact for further accessibility information
+                                // 00 Accessibility summary
                                 write_element_block("ProductFormFeatureValue", w, |w| {
-                                    w.write(XmlEvent::Characters("99")).map_err(Into::into)
+                                    w.write(XmlEvent::Characters("00")).map_err(Into::into)
                                 })?;
                                 write_element_block("ProductFormFeatureDescription", w, |w| {
-                                    w.write(XmlEvent::Characters(&contact.email))
+                                    w.write(XmlEvent::Characters(
+                                        &accessibility_statement.to_string(),
+                                    ))
+                                    .map_err(Into::into)
+                                })
+                            })?;
+                        }
+                        let mut accessibility_codes = vec![];
+                        if let Some(standard) = &publication.accessibility_standard {
+                            let standard_codes = match standard {
+                                AccessibilityStandard::WCAG21AA => vec!["81", "85"],
+                                AccessibilityStandard::WCAG21AAA => vec!["81", "86"],
+                                AccessibilityStandard::WCAG22AA => vec!["82", "85"],
+                                AccessibilityStandard::WCAG22AAA => vec!["82", "86"],
+                                _ => unreachable!(),
+                            };
+                            accessibility_codes.extend(standard_codes);
+                        }
+                        if let Some(additional_standard) =
+                            &publication.accessibility_additional_standard
+                        {
+                            let additional_standard_codes = match additional_standard {
+                                AccessibilityStandard::EPUB_A11Y10AA => vec!["03"],
+                                AccessibilityStandard::EPUB_A11Y10AAA => vec!["03", "86"],
+                                AccessibilityStandard::EPUB_A11Y11AA => vec!["04", "85"],
+                                AccessibilityStandard::EPUB_A11Y11AAA => vec!["04", "86"],
+                                AccessibilityStandard::PDF_UA1 => vec!["05"],
+                                AccessibilityStandard::PDF_UA2 => vec!["06"],
+                                _ => unreachable!(),
+                            };
+                            accessibility_codes.extend(additional_standard_codes);
+                        }
+                        if let Some(exception) = &publication.accessibility_exception {
+                            let exception_code = match exception {
+                                AccessibilityException::MICRO_ENTERPRISES => "75",
+                                AccessibilityException::DISPROPORTIONATE_BURDEN => "76",
+                                AccessibilityException::FUNDAMENTAL_ALTERATION => "77",
+                                AccessibilityException::Other(_) => unreachable!(),
+                            };
+                            accessibility_codes.push(exception_code);
+                        }
+                        for code in accessibility_codes {
+                            write_element_block("ProductFormFeature", w, |w| {
+                                // 09 E-publication accessibility detail
+                                write_element_block("ProductFormFeatureType", w, |w| {
+                                    w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                                })?;
+                                write_element_block("ProductFormFeatureValue", w, |w| {
+                                    w.write(XmlEvent::Characters(code)).map_err(Into::into)
+                                })
+                            })?;
+                        }
+                        if let Some(report_url) = &publication.accessibility_report_url {
+                            write_element_block("ProductFormFeature", w, |w| {
+                                // 09 E-publication accessibility detail
+                                write_element_block("ProductFormFeatureType", w, |w| {
+                                    w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                                })?;
+                                // 96 Publisher’s web page for detailed accessibility information
+                                write_element_block("ProductFormFeatureValue", w, |w| {
+                                    w.write(XmlEvent::Characters("96")).map_err(Into::into)
+                                })?;
+                                write_element_block("ProductFormFeatureDescription", w, |w| {
+                                    w.write(XmlEvent::Characters(&report_url.to_string()))
                                         .map_err(Into::into)
                                 })
                             })?;
+                        }
+                        for contact in &self.imprint.publisher.contacts {
+                            if contact.contact_type == ContactType::ACCESSIBILITY {
+                                write_element_block("ProductFormFeature", w, |w| {
+                                    // 09 E-publication accessibility detail
+                                    write_element_block("ProductFormFeatureType", w, |w| {
+                                        w.write(XmlEvent::Characters("09")).map_err(Into::into)
+                                    })?;
+                                    // 99 Publisher contact for further accessibility information
+                                    write_element_block("ProductFormFeatureValue", w, |w| {
+                                        w.write(XmlEvent::Characters("99")).map_err(Into::into)
+                                    })?;
+                                    write_element_block("ProductFormFeatureDescription", w, |w| {
+                                        w.write(XmlEvent::Characters(&contact.email))
+                                            .map_err(Into::into)
+                                    })
+                                })?;
+                            }
                         }
                     }
                     // 10 Text (eye-readable)
@@ -3947,6 +3947,78 @@ mod tests {
                     }
                 }
             }
+        }
+        test_work.publications[0].accessibility_standard = None;
+        test_work.publications[0].accessibility_additional_standard = None;
+        test_work.publications[0].accessibility_exception = None;
+        test_work.publications[0].accessibility_report_url = None;
+        test_work.publications[0].publication_type = PublicationType::PAPERBACK;
+
+        // A print Product carries no type-09 accessibility detail at all (thoth#893 Architecture
+        // Amendment 3): not the Publication's own report URL, which the database allows on a print
+        // Publication, nor any standard or exception an impossible in-memory state might hold,
+        // beside the Publisher statement and contact the fixture carries
+        let print_states = [
+            (None, None, None, Some("https://report.url".to_string())),
+            (Some(AccessibilityStandard::WCAG21AA), None, None, None),
+            (None, Some(AccessibilityStandard::PDF_UA1), None, None),
+            (
+                None,
+                None,
+                Some(AccessibilityException::MICRO_ENTERPRISES),
+                None,
+            ),
+            (
+                Some(AccessibilityStandard::WCAG22AAA),
+                Some(AccessibilityStandard::EPUB_A11Y11AA),
+                Some(AccessibilityException::FUNDAMENTAL_ALTERATION),
+                Some("https://report.url".to_string()),
+            ),
+        ];
+        for publication_type in &[PublicationType::PAPERBACK, PublicationType::HARDBACK] {
+            for (standard, additional_standard, exception, report_url) in &print_states {
+                test_work.publications[0].publication_type = publication_type.clone();
+                test_work.publications[0].accessibility_standard = standard.clone();
+                test_work.publications[0].accessibility_additional_standard =
+                    additional_standard.clone();
+                test_work.publications[0].accessibility_exception = exception.clone();
+                test_work.publications[0].accessibility_report_url = report_url.clone();
+                let output = generate_test_output(true, &test_work);
+                assert_eq!(
+                    output
+                        .matches("<ProductFormFeatureType>09</ProductFormFeatureType>")
+                        .count(),
+                    0,
+                    "{publication_type:?} {standard:?} {additional_standard:?} {exception:?} {report_url:?}"
+                );
+            }
+        }
+        // ...while every digital type, audio included, keeps the same full sequence unchanged
+        let (standard, additional_standard, exception, report_url) = &print_states[4];
+        for publication_type in &[
+            PublicationType::PDF,
+            PublicationType::HTML,
+            PublicationType::XML,
+            PublicationType::EPUB,
+            PublicationType::MOBI,
+            PublicationType::AZW3,
+            PublicationType::DOCX,
+            PublicationType::FICTION_BOOK,
+            PublicationType::MP3,
+            PublicationType::WAV,
+        ] {
+            test_work.publications[0].publication_type = publication_type.clone();
+            test_work.publications[0].accessibility_standard = standard.clone();
+            test_work.publications[0].accessibility_additional_standard =
+                additional_standard.clone();
+            test_work.publications[0].accessibility_exception = exception.clone();
+            test_work.publications[0].accessibility_report_url = report_url.clone();
+            let output = generate_test_output(true, &test_work);
+            assert_eq!(
+                feature_values(&output),
+                ["00", "82", "86", "04", "85", "77", "96", "99"],
+                "{publication_type:?}"
+            );
         }
         test_work.publications[0].accessibility_standard = None;
         test_work.publications[0].accessibility_additional_standard = None;
