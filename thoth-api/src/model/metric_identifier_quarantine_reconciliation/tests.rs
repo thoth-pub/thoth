@@ -140,6 +140,13 @@ fn seed(f: &Fixture, doi: &str, start: NaiveDate, values: &[&str]) -> Seed {
     )
     .expect("complete");
     assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    // Completion intentionally keeps the producer lease. Test fixtures need
+    // further historical imports, so release only the disposable checkpoint
+    // lease without recording progress.
+    f.sql(&format!(
+        "UPDATE metric_source_checkpoint SET lease_owner = NULL, lease_expires_at = NULL WHERE source_account_id = '{}'",
+        f.account_a
+    ));
 
     let mut connection = f.pool.get().expect("connection");
     let rows: Vec<IdRow> = sql_query(
@@ -407,8 +414,10 @@ fn publisher_mismatch_overlap_and_delta_overflow_are_blocked_without_extra_delta
 
     let (_guard, f) = setup();
     f.sql("UPDATE metric_measure SET allow_negative = TRUE WHERE code = 'title_sessions'");
-    let low = seed(&f, DOI, day(1), &[&i64::MIN.to_string()]);
-    let high = seed(&f, DOI, day(1), &[&i64::MAX.to_string()]);
+    let low_value = i64::MIN.to_string();
+    let high_value = i64::MAX.to_string();
+    let low = seed(&f, DOI, day(1), &[low_value.as_str()]);
+    let high = seed(&f, DOI, day(1), &[high_value.as_str()]);
     f.sql(&format!(
         "UPDATE metric_import SET created_at = '2026-01-01 00:00:00+00' WHERE import_id = '{}';          UPDATE metric_import SET created_at = '2026-01-02 00:00:00+00' WHERE import_id = '{}'",
         low.import_id, high.import_id
