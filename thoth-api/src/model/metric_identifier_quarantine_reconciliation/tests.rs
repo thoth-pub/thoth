@@ -180,7 +180,13 @@ fn make_foreign_work(f: &Fixture, doi: &str) -> Uuid {
     let imprint = Uuid::new_v4();
     let work = Uuid::new_v4();
     f.sql(&format!(
-        "INSERT INTO publisher (publisher_id, publisher_name, subscription_package)          VALUES ('{publisher}', 'Foreign reconciliation publisher', 'OBELISK');          INSERT INTO imprint (imprint_id, publisher_id, imprint_name)          VALUES ('{imprint}', '{publisher}', 'Foreign reconciliation imprint');          INSERT INTO work (work_id, work_type, work_status, imprint_id, edition, doi)          VALUES ('{work}', 'monograph', 'forthcoming', '{imprint}', 1, '{doi}')"
+        "INSERT INTO publisher (publisher_id, publisher_name, subscription_package) VALUES ('{publisher}', 'Foreign reconciliation publisher', 'OBELISK')"
+    ));
+    f.sql(&format!(
+        "INSERT INTO imprint (imprint_id, publisher_id, imprint_name) VALUES ('{imprint}', '{publisher}', 'Foreign reconciliation imprint')"
+    ));
+    f.sql(&format!(
+        "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition, doi) VALUES ('{work}', 'monograph', 'forthcoming', '{imprint}', 1, '{doi}')"
     ));
     work
 }
@@ -473,7 +479,7 @@ fn inconsistent_oldest_row_commits_only_blocked_state_and_does_not_starve_later_
         &["20"],
     );
     f.sql(&format!(
-        "UPDATE metric_record_provenance p          SET details = jsonb_set(details, '{{reason_code}}', '"AMBIGUOUS_DOI"', true)          FROM metric_identifier_quarantine q          WHERE q.record_provenance_id = p.record_provenance_id            AND q.identifier_quarantine_id = '{}'",
+        "UPDATE metric_record_provenance p SET details = jsonb_set(details, '{{reason_code}}', to_jsonb('AMBIGUOUS_DOI'::text), true) FROM metric_identifier_quarantine q WHERE q.record_provenance_id = p.record_provenance_id AND q.identifier_quarantine_id = '{}'",
         bad.quarantine_ids[0]
     ));
     let bad_history = history_snapshot(&f, bad.import_id);
