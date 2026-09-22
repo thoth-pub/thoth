@@ -36,6 +36,7 @@ use crate::model::{
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
     metric_import::{MetricImport, MetricImportStatus},
+    metric_identifier_quarantine_reconciliation::MetricIdentifierQuarantineReconciliationBatch,
     metric_ingestion::MetricIngestionErrorCode,
     metric_ingestion_lifecycle::{
         MetricBatchResult, MetricIngestionRowResult, MetricSourceUnitClaim,
@@ -3794,6 +3795,36 @@ impl MetricPlatformMeasure {
     #[graphql(description = "Whether the mapping is currently enabled")]
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+}
+
+// --------------------------------------------------------------------------
+// Identifier-quarantine reconciliation (`MET-WP7-PREREQ-03`)
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Aggregate-only result of one bounded unresolved-DOI reconciliation sweep"
+)]
+impl MetricIdentifierQuarantineReconciliationBatch {
+    #[graphql(description = "How many quarantine rows committed one reconciliation attempt")]
+    pub fn attempted(&self) -> i32 {
+        self.attempted
+    }
+
+    #[graphql(description = "How many attempted rows reached a terminal resolved state")]
+    pub fn resolved(&self) -> i32 {
+        self.resolved
+    }
+
+    #[graphql(description = "How many attempted rows remain pending because the DOI is unresolved")]
+    pub fn pending(&self) -> i32 {
+        self.pending
+    }
+
+    #[graphql(description = "How many attempted rows remain retryable in a blocked state")]
+    pub fn blocked(&self) -> i32 {
+        self.blocked
     }
 }
 
