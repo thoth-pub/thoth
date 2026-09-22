@@ -108,6 +108,29 @@ const BLANK_VALUES: [&str; 6] = [
     "\u{3000} \u{202F}",
 ];
 
+/// Revert every migration newer than the quarantine migration, leaving the
+/// historical MET-WP7-PREREQ-02 schema head applied.
+fn revert_newer_than_quarantine_migration(connection: &mut PgConnection) {
+    assert!(
+        is_applied(connection),
+        "the MET-WP7-PREREQ-02 quarantine migration must be applied before isolating it"
+    );
+    loop {
+        let next = connection
+            .applied_migrations()
+            .expect("Failed to read applied migrations")
+            .first()
+            .expect("the quarantine migration must still be applied")
+            .to_string();
+        if next == MET_WP7_PREREQ_02_MIGRATION_VERSION {
+            return;
+        }
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .unwrap_or_else(|error| panic!("Failed to revert later migration {next}: {error}"));
+    }
+}
+
 /// Revert migrations until the quarantine migration itself has been reverted.
 fn revert_through_quarantine_migration(connection: &mut PgConnection) {
     assert!(
@@ -456,10 +479,11 @@ fn the_quarantine_table_has_exactly_the_approved_constraints_and_no_doi_rule() {
     assert_eq!(
         index_names(&pool, "metric_identifier_quarantine"),
         vec![
+            "metric_identifier_quarantine_created_id_idx",
             "metric_identifier_quarantine_pkey",
             "metric_identifier_quarantine_record_provenance_id_key",
         ],
-        "exactly the primary key and the unique provenance key, with no speculative index"
+        "the original primary/unique keys plus exactly the later MET-WP7-PREREQ-03 scheduling index"
     );
     // The provenance uniqueness covers exactly that one column.
     assert_eq!(
@@ -778,7 +802,13 @@ fn quarantine_rows_map_through_diesel() {
 fn the_migration_applies_from_its_exact_predecessor_and_an_empty_rollback_restores_it() {
     let (_guard, _pool) = setup_registry_db();
     let mut connection = establish();
-    let head = schema_fingerprint(&mut connection);
+    let full_head = schema_fingerprint(&mut connection);
+
+    // Later approved migrations may add objects that reference the quarantine
+    // table. Isolate the historical MET-WP7-PREREQ-02 head before measuring
+    // this migration's own delta.
+    revert_newer_than_quarantine_migration(&mut connection);
+    let quarantine_head = schema_fingerprint(&mut connection);
 
     revert_through_quarantine_migration(&mut connection);
     assert!(!is_applied(&mut connection));
@@ -795,11 +825,11 @@ fn the_migration_applies_from_its_exact_predecessor_and_an_empty_rollback_restor
     // The migration is purely additive: everything it adds names the new
     // table, and it changes or removes nothing that existed before it.
     assert!(
-        predecessor.is_subset(&head),
+        predecessor.is_subset(&quarantine_head),
         "the migration must not alter a predecessor object: {:?}",
-        predecessor.difference(&head).collect::<Vec<_>>()
+        predecessor.difference(&quarantine_head).collect::<Vec<_>>()
     );
-    let added: Vec<&String> = head.difference(&predecessor).collect();
+    let added: Vec<&String> = quarantine_head.difference(&predecessor).collect();
     assert!(!added.is_empty());
     assert!(
         added
@@ -816,16 +846,17 @@ fn the_migration_applies_from_its_exact_predecessor_and_an_empty_rollback_restor
         .map(|version| version.to_string())
         .collect::<Vec<_>>();
     assert!(applied.contains(&MET_WP7_PREREQ_02_MIGRATION_VERSION.to_string()));
-    assert_eq!(schema_fingerprint(&mut connection), head);
+    assert_eq!(schema_fingerprint(&mut connection), full_head);
 
-    // An empty rollback restores the predecessor exactly, and reapplying is
-    // deterministic.
+    // An empty rollback through the later migrations and the quarantine
+    // migration restores the exact historical predecessor, and reapplying the
+    // complete current migration set is deterministic.
     revert_through_quarantine_migration(&mut connection);
     assert_eq!(schema_fingerprint(&mut connection), predecessor);
     connection
         .run_pending_migrations(MIGRATIONS)
-        .expect("Failed to reapply the quarantine migration");
-    assert_eq!(schema_fingerprint(&mut connection), head);
+        .expect("Failed to reapply the migration stack");
+    assert_eq!(schema_fingerprint(&mut connection), full_head);
 }
 
 #[test]
@@ -842,12 +873,7 @@ fn a_populated_quarantine_refuses_rollback_before_dropping_anything() {
         error.contains("metric_identifier_quarantine holds 1 row(s)"),
         "the rollback must refuse to discard quarantine evidence: {error}"
     );
-    assert!(is_applied(&mut connection), "the migration stays applied");
-    assert_eq!(
-        schema_fingerprint(&mut connection),
-        before,
-        "the refused rollback dropped nothing"
-    );
+    assert!(is_applied(&mut connection), "the quarantine migration stays applied");
     assert_eq!(
         on_connection(
             &mut connection,
@@ -859,6 +885,18 @@ fn a_populated_quarantine_refuses_rollback_before_dropping_anything() {
         ),
         1,
         "the refused rollback preserved the evidence row"
+    );
+
+    // The helper may have peeled later migrations before reaching the
+    // quarantine rollback guard. Reapply them and prove the complete schema
+    // returns byte-for-byte to the original head with the evidence intact.
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("Failed to restore later migrations after refused rollback");
+    assert_eq!(
+        schema_fingerprint(&mut connection),
+        before,
+        "the refused rollback plus reapplication preserves the complete schema"
     );
 
     // Once the evidence is gone the same rollback succeeds, so it was the
@@ -956,6 +994,9 @@ fn a_rollback_racing_a_concurrent_insert_waits_for_it_and_then_refuses() {
     );
     assert!(still_applied);
     let mut connection = establish();
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("Failed to restore later migrations after refused racing rollback");
     assert_eq!(schema_fingerprint(&mut connection), before);
     assert_eq!(
         on_connection(
