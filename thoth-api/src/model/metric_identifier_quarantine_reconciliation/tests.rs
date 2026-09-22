@@ -425,7 +425,10 @@ fn unexpected_database_failure_rolls_the_row_transaction_back() {
         "failed attempt state must roll back"
     );
     assert_eq!(historical_snapshot(&f, evidence), before);
-    assert_eq!(scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"), 0);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0
+    );
 }
 
 #[test]
