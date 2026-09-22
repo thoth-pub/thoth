@@ -81,7 +81,7 @@ fn signature(block: &str) -> String {
     for character in block.chars() {
         match character {
             _ if escaped => escaped = false,
-            '\\\\' if in_string => escaped = true,
+            '\\' if in_string => escaped = true,
             '"' => in_string = !in_string,
             _ if in_string => {}
             _ if character.is_whitespace() => {}
