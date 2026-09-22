@@ -107,7 +107,7 @@ use crate::model::metric_source::{MetricSource, MetricSourceAcquisitionType};
 use crate::model::metric_source_account::{MetricSourceAccount, CLOUDFRONT_DRIVER_KEY};
 use crate::model::publication::PublicationType;
 use crate::model::publisher::{PublisherCapability, ThothPackage};
-use crate::model::{Doi, Isbn, Ror, ROR_DOMAIN};
+use crate::model::{Doi, Isbn, Ror, Timestamp, ROR_DOMAIN};
 use crate::schema::{
     imprint, institution, metric_coverage, metric_identifier_quarantine, metric_import,
     metric_import_batch, metric_import_error, metric_measure, metric_platform,
@@ -392,6 +392,72 @@ struct Counters {
     invalid: i64,
 }
 
+/// How the shared canonical application authority orders a same-source
+/// correction. Ordinary ingestion is already in arrival order; quarantine
+/// reconciliation carries historical evidence that may predate the current
+/// revision and therefore supplies the original import timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CanonicalChronology {
+    Arrival,
+    Historical { import_created_at: Timestamp },
+}
+
+/// The source-independent facts required by the one canonical application
+/// authority. Provenance and import counters are deliberately not included:
+/// ordinary ingestion owns those ledgers, while quarantine reconciliation must
+/// leave them byte-for-byte unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CanonicalApplicationCandidate {
+    pub identity: CanonicalIdentity,
+    pub identity_hash: String,
+    pub content_hash: String,
+    pub reporting_grain: MetricReportingGrain,
+    pub source_account_id: Uuid,
+    pub import_id: Uuid,
+    pub value: i64,
+}
+
+/// Every decision the shared canonical authority can make after the
+/// dimensional-cell lock has been acquired.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CanonicalApplicationOutcome {
+    Winner {
+        record_id: Uuid,
+        record_revision_id: Uuid,
+    },
+    Duplicate {
+        record_id: Uuid,
+        record_revision_id: Uuid,
+    },
+    Revision {
+        record_id: Uuid,
+        record_revision_id: Uuid,
+    },
+    Superseded {
+        record_id: Uuid,
+        record_revision_id: Uuid,
+    },
+    SourceConflict,
+    OverlappingPeriod,
+    SameImportOrder,
+    ImportOrderAmbiguous,
+    DeltaOverflow,
+}
+
+/// Failure of the shared canonical authority itself. It never carries a
+/// database detail outside the model layer.
+#[derive(Debug)]
+pub(crate) enum CanonicalApplicationError {
+    Database(DieselError),
+    InternalStateInconsistency,
+}
+
+impl From<DieselError> for CanonicalApplicationError {
+    fn from(error: DieselError) -> Self {
+        Self::Database(error)
+    }
+}
+
 /// One transaction attempt: idempotency check, then either replay or the
 /// complete first-time protocol.
 fn run_attempt(
@@ -459,16 +525,7 @@ fn run_attempt(
     let locked_imprints = lock_imprints(connection, &provisional_imprints)?;
     let locked_publications = lock_publications(connection, &provisional_publications)?;
     let locked_institutions = lock_institutions(connection, &provisional_institutions)?;
-    let mut locked_works = BTreeSet::new();
-    for work_id in &provisional_works {
-        let locked = work::table
-            .filter(work::work_id.eq(work_id))
-            .select(work::work_id)
-            .for_update()
-            .first::<Uuid>(connection)
-            .optional()?;
-        locked_works.extend(locked);
-    }
+    let locked_works = lock_works(connection, &provisional_works)?;
 
     // Step 13: the locked re-resolution barrier. No authority lock may be
     // taken from here on.
@@ -553,11 +610,7 @@ fn run_attempt(
             RowPlan::Rejected { .. } => None,
         })
         .collect();
-    for key in cell_keys {
-        sql_query("SELECT pg_advisory_xact_lock($1)")
-            .bind::<diesel::sql_types::BigInt, _>(key)
-            .execute(connection)?;
-    }
+    lock_cell_keys(connection, &cell_keys)?;
 
     // Step 15 onward: durable writes, in batch_row_index order.
     let import_batch_id: Uuid = diesel::insert_into(metric_import_batch::table)
@@ -1038,6 +1091,30 @@ pub(crate) fn classify_unique<T: Copy>(
     }
 }
 
+/// Resolve one canonical DOI to exactly one Work and its imprint.
+///
+/// This is the shared DOI authority used by both ordinary ingestion and
+/// unresolved-DOI reconciliation. It performs ordinary discovery only; callers
+/// must lock the returned parent/work rows and re-run it before canonical
+/// application.
+pub(crate) fn resolve_doi_work(
+    connection: &mut PgConnection,
+    doi: &Doi,
+) -> Result<Result<(Uuid, Uuid), MetricIngestionErrorCode>, DieselError> {
+    use diesel::dsl::sql;
+    use diesel::sql_types::{Nullable, Text};
+
+    let works: Vec<(Uuid, Uuid)> = work::table
+        .filter(sql::<Nullable<Text>>("lower(doi)").eq(doi.to_lowercase_string()))
+        .select((work::work_id, work::imprint_id))
+        .load(connection)?;
+    Ok(classify_unique(
+        &works,
+        Code::UnknownDoi,
+        Code::AmbiguousDoi,
+    ))
+}
+
 /// Resolve one validated observation's DOI, optional publication and optional
 /// ROR to canonical identities by ordinary reads.
 ///
@@ -1048,16 +1125,7 @@ fn resolve(
     connection: &mut PgConnection,
     input: &ValidatedInput<'_>,
 ) -> Result<Result<Resolution, MetricIngestionErrorCode>, DieselError> {
-    use diesel::dsl::sql;
-    use diesel::sql_types::{Nullable, Text};
-
-    // Case-insensitive, exactly as the existing `Work::from_doi` lookup.
-    let works: Vec<(Uuid, Uuid)> = work::table
-        .filter(sql::<Nullable<Text>>("lower(doi)").eq(input.doi.to_lowercase_string()))
-        .select((work::work_id, work::imprint_id))
-        .load(connection)?;
-    let (work_id, imprint_id) = match classify_unique(&works, Code::UnknownDoi, Code::AmbiguousDoi)
-    {
+    let (work_id, imprint_id) = match resolve_doi_work(connection, &input.doi)? {
         Ok(work) => work,
         Err(code) => return Ok(Err(code)),
     };
@@ -1117,7 +1185,7 @@ fn resolve(
 
 /// Lock the required imprint rows `FOR SHARE` in ascending id order and
 /// return each locked imprint's publisher.
-fn lock_imprints(
+pub(crate) fn lock_imprints(
     connection: &mut PgConnection,
     imprint_ids: &BTreeSet<Uuid>,
 ) -> Result<BTreeMap<Uuid, Uuid>, DieselError> {
@@ -1172,6 +1240,41 @@ fn lock_institutions(
         locked.extend(row);
     }
     Ok(locked)
+}
+
+
+/// Lock Work rows `FOR UPDATE` in ascending id order. Parent metadata must
+/// already be locked by the caller.
+pub(crate) fn lock_works(
+    connection: &mut PgConnection,
+    work_ids: &BTreeSet<Uuid>,
+) -> Result<BTreeSet<Uuid>, DieselError> {
+    let mut locked = BTreeSet::new();
+    for work_id in work_ids {
+        let row: Option<Uuid> = work::table
+            .filter(work::work_id.eq(work_id))
+            .select(work::work_id)
+            .for_update()
+            .first(connection)
+            .optional()?;
+        locked.extend(row);
+    }
+    Ok(locked)
+}
+
+/// Acquire the canonical dimensional-cell advisory locks in ascending signed
+/// key order. A single-cell reconciliation uses the same helper and therefore
+/// the same PostgreSQL lock namespace as ordinary ingestion.
+pub(crate) fn lock_cell_keys(
+    connection: &mut PgConnection,
+    cell_keys: &BTreeSet<i64>,
+) -> Result<(), DieselError> {
+    for key in cell_keys {
+        sql_query("SELECT pg_advisory_xact_lock($1)")
+            .bind::<diesel::sql_types::BigInt, _>(*key)
+            .execute(connection)?;
+    }
+    Ok(())
 }
 
 /// Whether a distinct accepted record in the same dimensional cell overlaps
@@ -1334,18 +1437,17 @@ fn write_rejected(
     })
 }
 
-/// Apply one accepted candidate under its cell lock: first arrival, duplicate,
-/// managed revision, conflict, or the two post-lock rejections (overlap and
-/// revision-delta overflow).
-fn apply_candidate(
+/// Apply one canonical candidate after its dimensional-cell lock.
+///
+/// This is the single winner/duplicate/source-conflict/revision authority used
+/// by ordinary ingestion and quarantine reconciliation. It intentionally does
+/// not write provenance or import counters. The caller's surrounding
+/// transaction owns those route-specific ledgers.
+pub(crate) fn apply_canonical_application(
     connection: &mut PgConnection,
-    scope: &RequestScope,
-    import_batch_id: Uuid,
-    row_index: i64,
-    candidate: &Candidate<'_>,
-    counters: &mut Counters,
-) -> Result<MetricIngestionRowOutcome, AttemptError> {
-    let observation = candidate.input.observation;
+    candidate: &CanonicalApplicationCandidate,
+    chronology: CanonicalChronology,
+) -> Result<CanonicalApplicationOutcome, CanonicalApplicationError> {
     let existing: Option<MetricRecord> = metric_record::table
         .filter(metric_record::identity_hash.eq(&candidate.identity_hash))
         .for_update()
@@ -1354,21 +1456,9 @@ fn apply_candidate(
 
     let Some(record) = existing else {
         if overlap_exists(connection, &candidate.identity)? {
-            return Ok(write_rejected(
-                connection,
-                scope,
-                import_batch_id,
-                row_index,
-                observation,
-                Code::OverlappingPeriod,
-                Some(candidate.identity_hash.clone()),
-                Some(candidate.content_hash.clone()),
-                None,
-                counters,
-            )?);
+            return Ok(CanonicalApplicationOutcome::OverlappingPeriod);
         }
 
-        // First arrival.
         let identity = &candidate.identity;
         let record_id: Uuid = diesel::insert_into(metric_record::table)
             .values((
@@ -1379,10 +1469,10 @@ fn apply_candidate(
                 metric_record::measure_id.eq(identity.measure_id),
                 metric_record::period_start.eq(identity.period_start),
                 metric_record::period_end.eq(identity.period_end),
-                metric_record::reporting_grain.eq(observation.reporting_grain),
+                metric_record::reporting_grain.eq(candidate.reporting_grain),
                 metric_record::country_code.eq(identity.country_code.as_deref()),
                 metric_record::institution_id.eq(identity.institution_id),
-                metric_record::winning_source_account_id.eq(scope.account.source_account_id),
+                metric_record::winning_source_account_id.eq(candidate.source_account_id),
             ))
             .returning(metric_record::record_id)
             .get_result(connection)?;
@@ -1390,8 +1480,8 @@ fn apply_candidate(
             .values((
                 metric_record_revision::record_id.eq(record_id),
                 metric_record_revision::revision_number.eq(1),
-                metric_record_revision::import_id.eq(scope.import.import_id),
-                metric_record_revision::value.eq(observation.value),
+                metric_record_revision::import_id.eq(candidate.import_id),
+                metric_record_revision::value.eq(candidate.value),
                 metric_record_revision::content_hash.eq(&candidate.content_hash),
                 metric_record_revision::status.eq(MetricRecordRevisionStatus::Current),
             ))
@@ -1400,96 +1490,220 @@ fn apply_candidate(
         diesel::update(metric_record::table.find(record_id))
             .set(metric_record::current_revision_id.eq(revision_id))
             .execute(connection)?;
-        insert_provenance(
-            connection,
-            scope,
-            import_batch_id,
-            row_index,
-            observation,
-            Some(record_id),
-            Some(&candidate.identity_hash),
-            Some(&candidate.content_hash),
-            MetricRecordProvenanceClassification::Winner,
-            None,
-        )?;
-        insert_delta(connection, record_id, revision_id, observation.value)?;
-        counters.accepted += 1;
-        return Ok(MetricIngestionRowOutcome {
-            batch_row_index: row_index,
-            classification: MetricRecordProvenanceClassification::Winner,
-            reason_code: None,
-            record_id: Some(record_id),
-            identity_hash: Some(candidate.identity_hash.clone()),
-            content_hash: Some(candidate.content_hash.clone()),
+        insert_delta(connection, record_id, revision_id, candidate.value)?;
+        return Ok(CanonicalApplicationOutcome::Winner {
+            record_id,
+            record_revision_id: revision_id,
         });
     };
 
     let current_revision_id = record
         .current_revision_id
-        .ok_or(Code::InternalStateInconsistency)?;
+        .ok_or(CanonicalApplicationError::InternalStateInconsistency)?;
     let current: MetricRecordRevision = metric_record_revision::table
         .find(current_revision_id)
         .for_update()
         .first(connection)
         .optional()?
-        .ok_or(Code::InternalStateInconsistency)?;
+        .ok_or(CanonicalApplicationError::InternalStateInconsistency)?;
 
     if current.content_hash == candidate.content_hash {
-        // Duplicate: identical canonical content, from any account.
-        insert_provenance(
+        return Ok(CanonicalApplicationOutcome::Duplicate {
+            record_id: record.record_id,
+            record_revision_id: current.record_revision_id,
+        });
+    }
+
+    if record.winning_source_account_id != candidate.source_account_id {
+        return Ok(CanonicalApplicationOutcome::SourceConflict);
+    }
+
+    if let CanonicalChronology::Historical { import_created_at } = chronology {
+        if current.import_id == candidate.import_id {
+            return Ok(CanonicalApplicationOutcome::SameImportOrder);
+        }
+        let current_import_created_at: Timestamp = metric_import::table
+            .find(current.import_id)
+            .select(metric_import::created_at)
+            .first(connection)
+            .optional()?
+            .ok_or(CanonicalApplicationError::InternalStateInconsistency)?;
+        if import_created_at < current_import_created_at {
+            return Ok(CanonicalApplicationOutcome::Superseded {
+                record_id: record.record_id,
+                record_revision_id: current.record_revision_id,
+            });
+        }
+        if import_created_at == current_import_created_at {
+            return Ok(CanonicalApplicationOutcome::ImportOrderAmbiguous);
+        }
+    }
+
+    let Some(delta_value) = candidate.value.checked_sub(current.value) else {
+        return Ok(CanonicalApplicationOutcome::DeltaOverflow);
+    };
+
+    diesel::update(metric_record_revision::table.find(current.record_revision_id))
+        .set(metric_record_revision::status.eq(MetricRecordRevisionStatus::Superseded))
+        .execute(connection)?;
+    let revision_id: Uuid = diesel::insert_into(metric_record_revision::table)
+        .values((
+            metric_record_revision::record_id.eq(record.record_id),
+            metric_record_revision::revision_number.eq(current.revision_number + 1),
+            metric_record_revision::import_id.eq(candidate.import_id),
+            metric_record_revision::value.eq(candidate.value),
+            metric_record_revision::content_hash.eq(&candidate.content_hash),
+            metric_record_revision::status.eq(MetricRecordRevisionStatus::Current),
+            metric_record_revision::supersedes_revision_id.eq(current.record_revision_id),
+        ))
+        .returning(metric_record_revision::record_revision_id)
+        .get_result(connection)?;
+    diesel::update(metric_record::table.find(record.record_id))
+        .set(metric_record::current_revision_id.eq(revision_id))
+        .execute(connection)?;
+    insert_delta(connection, record.record_id, revision_id, delta_value)?;
+    Ok(CanonicalApplicationOutcome::Revision {
+        record_id: record.record_id,
+        record_revision_id: revision_id,
+    })
+}
+
+/// Apply one ordinary ingestion candidate through the shared canonical
+/// authority, then write the ordinary-ingestion provenance/counters that
+/// quarantine reconciliation is forbidden to alter.
+fn apply_candidate(
+    connection: &mut PgConnection,
+    scope: &RequestScope,
+    import_batch_id: Uuid,
+    row_index: i64,
+    candidate: &Candidate<'_>,
+    counters: &mut Counters,
+) -> Result<MetricIngestionRowOutcome, AttemptError> {
+    let observation = candidate.input.observation;
+    let shared = CanonicalApplicationCandidate {
+        identity: candidate.identity.clone(),
+        identity_hash: candidate.identity_hash.clone(),
+        content_hash: candidate.content_hash.clone(),
+        reporting_grain: observation.reporting_grain,
+        source_account_id: scope.account.source_account_id,
+        import_id: scope.import.import_id,
+        value: observation.value,
+    };
+    let outcome = apply_canonical_application(connection, &shared, CanonicalChronology::Arrival)
+        .map_err(|error| match error {
+            CanonicalApplicationError::Database(error) => AttemptError::Database(error),
+            CanonicalApplicationError::InternalStateInconsistency => {
+                AttemptError::Request(Code::InternalStateInconsistency)
+            }
+        })?;
+
+    let successful = |classification, record_id| MetricIngestionRowOutcome {
+        batch_row_index: row_index,
+        classification,
+        reason_code: None,
+        record_id: Some(record_id),
+        identity_hash: Some(candidate.identity_hash.clone()),
+        content_hash: Some(candidate.content_hash.clone()),
+    };
+
+    match outcome {
+        CanonicalApplicationOutcome::Winner { record_id, .. } => {
+            insert_provenance(
+                connection,
+                scope,
+                import_batch_id,
+                row_index,
+                observation,
+                Some(record_id),
+                Some(&candidate.identity_hash),
+                Some(&candidate.content_hash),
+                MetricRecordProvenanceClassification::Winner,
+                None,
+            )?;
+            counters.accepted += 1;
+            Ok(successful(
+                MetricRecordProvenanceClassification::Winner,
+                record_id,
+            ))
+        }
+        CanonicalApplicationOutcome::Duplicate { record_id, .. } => {
+            insert_provenance(
+                connection,
+                scope,
+                import_batch_id,
+                row_index,
+                observation,
+                Some(record_id),
+                Some(&candidate.identity_hash),
+                Some(&candidate.content_hash),
+                MetricRecordProvenanceClassification::Duplicate,
+                None,
+            )?;
+            counters.duplicate += 1;
+            Ok(successful(
+                MetricRecordProvenanceClassification::Duplicate,
+                record_id,
+            ))
+        }
+        CanonicalApplicationOutcome::Revision { record_id, .. } => {
+            insert_provenance(
+                connection,
+                scope,
+                import_batch_id,
+                row_index,
+                observation,
+                Some(record_id),
+                Some(&candidate.identity_hash),
+                Some(&candidate.content_hash),
+                MetricRecordProvenanceClassification::Revision,
+                None,
+            )?;
+            counters.revision += 1;
+            Ok(successful(
+                MetricRecordProvenanceClassification::Revision,
+                record_id,
+            ))
+        }
+        CanonicalApplicationOutcome::SourceConflict => {
+            let record_id: Uuid = metric_record::table
+                .filter(metric_record::identity_hash.eq(&candidate.identity_hash))
+                .select(metric_record::record_id)
+                .first(connection)?;
+            insert_provenance(
+                connection,
+                scope,
+                import_batch_id,
+                row_index,
+                observation,
+                Some(record_id),
+                Some(&candidate.identity_hash),
+                Some(&candidate.content_hash),
+                MetricRecordProvenanceClassification::Conflict,
+                Some(Code::SourceConflict),
+            )?;
+            counters.conflict += 1;
+            Ok(MetricIngestionRowOutcome {
+                batch_row_index: row_index,
+                classification: MetricRecordProvenanceClassification::Conflict,
+                reason_code: Some(Code::SourceConflict),
+                record_id: Some(record_id),
+                identity_hash: Some(candidate.identity_hash.clone()),
+                content_hash: Some(candidate.content_hash.clone()),
+            })
+        }
+        CanonicalApplicationOutcome::OverlappingPeriod => Ok(write_rejected(
             connection,
             scope,
             import_batch_id,
             row_index,
             observation,
-            Some(record.record_id),
-            Some(&candidate.identity_hash),
-            Some(&candidate.content_hash),
-            MetricRecordProvenanceClassification::Duplicate,
+            Code::OverlappingPeriod,
+            Some(candidate.identity_hash.clone()),
+            Some(candidate.content_hash.clone()),
             None,
-        )?;
-        counters.duplicate += 1;
-        return Ok(MetricIngestionRowOutcome {
-            batch_row_index: row_index,
-            classification: MetricRecordProvenanceClassification::Duplicate,
-            reason_code: None,
-            record_id: Some(record.record_id),
-            identity_hash: Some(candidate.identity_hash.clone()),
-            content_hash: Some(candidate.content_hash.clone()),
-        });
-    }
-
-    if record.winning_source_account_id != scope.account.source_account_id {
-        // Conflict: changed content from a DRIVER account that is not the
-        // canonical winner. No canonical mutation.
-        insert_provenance(
-            connection,
-            scope,
-            import_batch_id,
-            row_index,
-            observation,
-            Some(record.record_id),
-            Some(&candidate.identity_hash),
-            Some(&candidate.content_hash),
-            MetricRecordProvenanceClassification::Conflict,
-            Some(Code::SourceConflict),
-        )?;
-        counters.conflict += 1;
-        return Ok(MetricIngestionRowOutcome {
-            batch_row_index: row_index,
-            classification: MetricRecordProvenanceClassification::Conflict,
-            reason_code: Some(Code::SourceConflict),
-            record_id: Some(record.record_id),
-            identity_hash: Some(candidate.identity_hash.clone()),
-            content_hash: Some(candidate.content_hash.clone()),
-        });
-    }
-
-    // Managed revision by the winning account. The delta is checked signed
-    // subtraction (Amendment 5 D2): an unrepresentable difference rejects only
-    // this observation with no revision, pointer or delta consequence.
-    let Some(delta_value) = observation.value.checked_sub(current.value) else {
-        return Ok(write_rejected(
+            counters,
+        )?),
+        CanonicalApplicationOutcome::DeltaOverflow => Ok(write_rejected(
             connection,
             scope,
             import_batch_id,
@@ -1500,46 +1714,11 @@ fn apply_candidate(
             Some(candidate.content_hash.clone()),
             None,
             counters,
-        )?);
-    };
-    diesel::update(metric_record_revision::table.find(current.record_revision_id))
-        .set(metric_record_revision::status.eq(MetricRecordRevisionStatus::Superseded))
-        .execute(connection)?;
-    let revision_id: Uuid = diesel::insert_into(metric_record_revision::table)
-        .values((
-            metric_record_revision::record_id.eq(record.record_id),
-            metric_record_revision::revision_number.eq(current.revision_number + 1),
-            metric_record_revision::import_id.eq(scope.import.import_id),
-            metric_record_revision::value.eq(observation.value),
-            metric_record_revision::content_hash.eq(&candidate.content_hash),
-            metric_record_revision::status.eq(MetricRecordRevisionStatus::Current),
-            metric_record_revision::supersedes_revision_id.eq(current.record_revision_id),
-        ))
-        .returning(metric_record_revision::record_revision_id)
-        .get_result(connection)?;
-    diesel::update(metric_record::table.find(record.record_id))
-        .set(metric_record::current_revision_id.eq(revision_id))
-        .execute(connection)?;
-    insert_provenance(
-        connection,
-        scope,
-        import_batch_id,
-        row_index,
-        observation,
-        Some(record.record_id),
-        Some(&candidate.identity_hash),
-        Some(&candidate.content_hash),
-        MetricRecordProvenanceClassification::Revision,
-        None,
-    )?;
-    insert_delta(connection, record.record_id, revision_id, delta_value)?;
-    counters.revision += 1;
-    Ok(MetricIngestionRowOutcome {
-        batch_row_index: row_index,
-        classification: MetricRecordProvenanceClassification::Revision,
-        reason_code: None,
-        record_id: Some(record.record_id),
-        identity_hash: Some(candidate.identity_hash.clone()),
-        content_hash: Some(candidate.content_hash.clone()),
-    })
+        )?),
+        CanonicalApplicationOutcome::Superseded { .. }
+        | CanonicalApplicationOutcome::SameImportOrder
+        | CanonicalApplicationOutcome::ImportOrderAmbiguous => {
+            Err(Code::InternalStateInconsistency.into())
+        }
+    }
 }
