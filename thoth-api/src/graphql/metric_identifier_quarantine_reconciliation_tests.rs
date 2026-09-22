@@ -75,10 +75,20 @@ fn mutation(limit: i32) -> String {
 }
 
 fn signature(block: &str) -> String {
-    block
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect()
+    let mut out = String::new();
+    let mut in_string = false;
+    let mut escaped = false;
+    for character in block.chars() {
+        match character {
+            _ if escaped => escaped = false,
+            '\\\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            _ if in_string => {}
+            _ if character.is_whitespace() => {}
+            _ => out.push(character),
+        }
+    }
+    out
 }
 
 #[test]
