@@ -7,7 +7,6 @@
 use std::sync::mpsc;
 use std::thread;
 
-use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
 use diesel::sql_types::{Text, Uuid as SqlUuid};
 use diesel::{sql_query, Connection, RunQueryDsl};
@@ -352,7 +351,7 @@ fn skip_locked_never_double_attempts_a_row_owned_by_another_worker() {
     let holder = thread::spawn(move || {
         let mut connection = pool.get().expect("holder connection");
         connection
-            .transaction::<(), DieselError, _>(|connection: &mut PgConnection| {
+            .transaction::<(), DieselError, _>(|connection| {
                 let locked: LockedRow = sql_query(format!(
                     "SELECT identifier_quarantine_id                      FROM metric_identifier_quarantine                      WHERE identifier_quarantine_id = '{quarantine_id}' FOR UPDATE"
                 ))
