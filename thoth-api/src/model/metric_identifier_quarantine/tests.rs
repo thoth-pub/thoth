@@ -873,7 +873,10 @@ fn a_populated_quarantine_refuses_rollback_before_dropping_anything() {
         error.contains("metric_identifier_quarantine holds 1 row(s)"),
         "the rollback must refuse to discard quarantine evidence: {error}"
     );
-    assert!(is_applied(&mut connection), "the quarantine migration stays applied");
+    assert!(
+        is_applied(&mut connection),
+        "the quarantine migration stays applied"
+    );
     assert_eq!(
         on_connection(
             &mut connection,
