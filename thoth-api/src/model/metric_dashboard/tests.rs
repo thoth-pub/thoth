@@ -1301,124 +1301,143 @@ fn projected_values_remain_exact_and_warning_order_is_deterministic() {
 
 #[test]
 fn unresolved_scope_uses_immutable_import_publisher_and_ignores_source_disablement() {
-    let (_guard, fx) = setup();
-    cover(
-        &fx,
-        fx.sessions,
-        d1(),
-        day_n(5),
-        "COMPLETE",
-        "COMPLETED",
-        "'2026-03-10T00:00:00Z'",
-    );
+    // First prove that unresolved evidence outside the selected immutable
+    // publisher/platform/measure/date scope does not leak into this request.
+    {
+        let (_guard, fx) = setup();
+        cover(
+            &fx,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+        );
 
-    // Other publisher, other platform and non-overlapping evidence are all
-    // irrelevant to the selected explicit cell.
-    quarantine(
-        &fx,
-        fx.other_publisher_id,
-        fx.platform_id,
-        fx.sessions,
-        day_n(2),
-        day_n(3),
-        "DAY",
-    );
-    quarantine(
-        &fx,
-        fx.publisher_id,
-        fx.other_platform_id,
-        fx.sessions,
-        day_n(2),
-        day_n(3),
-        "DAY",
-    );
-    quarantine(
-        &fx,
-        fx.publisher_id,
-        fx.platform_id,
-        fx.units,
-        day_n(2),
-        day_n(3),
-        "DAY",
-    );
-    quarantine(
-        &fx,
-        fx.publisher_id,
-        fx.platform_id,
-        fx.sessions,
-        day_n(10),
-        day_n(11),
-        "DAY",
-    );
-    let input = window(&fx, &[fx.sessions]);
-    assert!(
-        read(&fx, &input).warnings.is_empty(),
-        "out-of-scope unresolved evidence must not leak into the request"
-    );
+        quarantine(
+            &fx,
+            fx.other_publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.other_platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.units,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(10),
+            day_n(11),
+            "DAY",
+        );
 
-    let relevant = quarantine(
-        &fx,
-        fx.publisher_id,
-        fx.platform_id,
-        fx.sessions,
-        day_n(2),
-        day_n(3),
-        "DAY",
-    );
-    assert_eq!(
-        codes(&read(&fx, &input)),
-        vec![MetricWarningCode::UnresolvedIdentifiers]
-    );
+        let input = window(&fx, &[fx.sessions]);
+        assert!(
+            read(&fx, &input).warnings.is_empty(),
+            "out-of-scope unresolved evidence must not leak into the request"
+        );
+    }
 
-    // Historical admitted import scope stays authoritative even after the
-    // source account changes publisher and the source/account are disabled.
-    exec(
-        &fx.pool,
-        &format!(
-            "UPDATE metric_source_account \
-                SET expected_publisher_id = '{}', enabled = FALSE \
-              WHERE source_account_id = '{}'; \
-             UPDATE metric_source SET enabled = FALSE \
-              WHERE source_id = (SELECT source_id FROM metric_source_account \
-                                  WHERE source_account_id = '{}');",
-            fx.other_publisher_id, fx.account_id, fx.account_id
-        ),
-    );
-    let after_disable = read(&fx, &input);
-    assert!(codes(&after_disable).contains(&MetricWarningCode::UnresolvedIdentifiers));
-    assert_eq!(
-        total(&after_disable, fx.platform_id, fx.sessions),
-        None,
-        "coverage may become unknown, but immutable unresolved evidence still blocks zero"
-    );
+    // Then use a clean fixture to prove historical import-publisher scope does
+    // not move when the current source-account publisher or enablement changes.
+    {
+        let (_guard, fx) = setup();
+        cover(
+            &fx,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+        );
 
-    // Moving the current account scope to the other publisher does not move
-    // the historical quarantine import with it.
-    let other_input = request(
-        fx.other_publisher_id,
-        d1(),
-        day_n(5),
-        &[fx.platform_id],
-        &[fx.sessions],
-        None,
-    );
-    assert!(
-        !codes(&read(&fx, &other_input)).contains(&MetricWarningCode::UnresolvedIdentifiers),
-        "identifier quality is attributed by immutable import publisher"
-    );
+        let relevant = quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        let input = window(&fx, &[fx.sessions]);
+        assert_eq!(
+            codes(&read(&fx, &input)),
+            vec![MetricWarningCode::UnresolvedIdentifiers]
+        );
 
-    // Keep the variable load-bearing for the fixture and prove the unresolved
-    // row itself was not rewritten by any read.
-    assert_eq!(
-        scalar_i64(
+        // Historical admitted import scope stays authoritative even after the
+        // source account changes publisher and the source/account are disabled.
+        exec(
             &fx.pool,
             &format!(
-                "(SELECT COUNT(*) FROM metric_identifier_quarantine \
-                  WHERE identifier_quarantine_id = '{relevant}')"
-            )
-        ),
-        1
-    );
+                "UPDATE metric_source_account \
+                    SET expected_publisher_id = '{}', enabled = FALSE \
+                  WHERE source_account_id = '{}'; \
+                 UPDATE metric_source SET enabled = FALSE \
+                  WHERE source_id = (SELECT source_id FROM metric_source_account \
+                                      WHERE source_account_id = '{}');",
+                fx.other_publisher_id, fx.account_id, fx.account_id
+            ),
+        );
+        let after_disable = read(&fx, &input);
+        assert!(codes(&after_disable).contains(&MetricWarningCode::UnresolvedIdentifiers));
+        assert_eq!(
+            total(&after_disable, fx.platform_id, fx.sessions),
+            None,
+            "coverage may become unknown, but immutable unresolved evidence still blocks zero"
+        );
+
+        // Moving the current account scope to the other publisher does not
+        // move the historical quarantine import with it.
+        let other_input = request(
+            fx.other_publisher_id,
+            d1(),
+            day_n(5),
+            &[fx.platform_id],
+            &[fx.sessions],
+            None,
+        );
+        assert!(
+            !codes(&read(&fx, &other_input)).contains(&MetricWarningCode::UnresolvedIdentifiers),
+            "identifier quality is attributed by immutable import publisher"
+        );
+
+        // Keep the variable load-bearing for the fixture and prove the
+        // unresolved row itself was not rewritten by any read.
+        assert_eq!(
+            scalar_i64(
+                &fx.pool,
+                &format!(
+                    "(SELECT COUNT(*) FROM metric_identifier_quarantine \
+                      WHERE identifier_quarantine_id = '{relevant}')"
+                )
+            ),
+            1
+        );
+    }
 }
 
 #[test]
