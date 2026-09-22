@@ -1115,7 +1115,10 @@ fn unresolved_identifier_evidence_suppresses_only_unjustified_zeroes() {
         "the whole-range empty total is unknown when any day is identifier-incomplete"
     );
     assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Complete);
-    assert_eq!(item(&dashboard, fx.sessions).status, MetricCoverageStatus::Complete);
+    assert_eq!(
+        item(&dashboard, fx.sessions).status,
+        MetricCoverageStatus::Complete
+    );
     assert_eq!(dashboard.data_through, Some(day_n(4)));
     assert_eq!(
         codes(&dashboard),
@@ -1182,14 +1185,7 @@ fn every_nonterminal_state_warns_and_every_terminal_state_restores_zero_eligibil
         assert_eq!(bucket_values(&dashboard, fx.sessions)[1], None, "{state}");
     }
 
-    let support = commit(
-        &fx,
-        fx.works[0],
-        fx.platform_id,
-        fx.units,
-        day_n(10),
-        1,
-    );
+    let support = commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(10), 1);
     for state in [
         "RESOLVED_WINNER",
         "RESOLVED_DUPLICATE",
@@ -1258,14 +1254,7 @@ fn projected_values_remain_exact_and_warning_order_is_deterministic() {
         "COMPLETED",
         "'2026-03-10T00:00:00Z'",
     );
-    let record = commit(
-        &fx,
-        fx.works[0],
-        fx.platform_id,
-        fx.sessions,
-        day_n(2),
-        9,
-    );
+    let record = commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 9);
     apply_all(&fx.pool);
     revise(&fx, record, 2, 11, 9);
 
@@ -1470,12 +1459,7 @@ fn quarantine_only_pairs_expand_omitted_scope_conservatively_and_obey_bounds() {
     {
         let (_guard, fx) = setup();
         for index in 0..=METRIC_DASHBOARD_MAX_MEASURES {
-            let measure = insert_measure(
-                &fx.pool,
-                &format!("quarantine_only_{index}"),
-                true,
-                true,
-            );
+            let measure = insert_measure(&fx.pool, &format!("quarantine_only_{index}"), true, true);
             quarantine(
                 &fx,
                 fx.publisher_id,
@@ -3987,9 +3971,7 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
         "IDENTIFIER_QUALITY_SQL (366 days, 5 platforms x 5 measures)",
         IDENTIFIER_QUALITY_SQL,
         "uuid[], date, date, uuid[], uuid[]",
-        &format!(
-            "{publishers}, '{start}', '{year_end}', {all_platforms}, {all_measures}"
-        ),
+        &format!("{publishers}, '{start}', '{year_end}', {all_platforms}, {all_measures}"),
     );
 
     // Diagnostic only: the same statements with sequential scans disabled,
