@@ -685,7 +685,12 @@ type MetricCoverageItem {
 }
 enum MetricCoverageStatus { COMPLETE PARTIAL UNKNOWN }
 type MetricWarning { code: MetricWarningCode! message: String! }
-enum MetricWarningCode { PARTIAL_COVERAGE UNKNOWN_COVERAGE ROLLUP_LAG }
+enum MetricWarningCode {
+  PARTIAL_COVERAGE
+  UNKNOWN_COVERAGE
+  UNRESOLVED_IDENTIFIERS
+  ROLLUP_LAG
+}
 ```
 
 The approved design's semantic `UUID` and `DateTime` are the repository's
@@ -724,9 +729,13 @@ Contract properties consumers may rely on:
   truncation. Duplicate IDs are refused, and so is an explicit unknown
   measure or platform. Disabled registry identities stay addressable.
 - **Omitted filters.** An omitted or empty `measures` or `platforms` resolves
-  to every identity represented for the selected publishers and range, either
-  in the work-day projection or in terminal coverage from an eligible managed
-  account, restricted by the other dimension when that one is explicit.
+  to every identity represented for the selected publishers and range in the
+  work-day projection, terminal coverage from an eligible managed account, or
+  identifier-unresolved quarantine evidence. The quarantine branch is scoped
+  by immutable `metric_import.publisher_id`, half-open date overlap and any
+  explicit other dimension; it does not require the historical source or
+  account to remain enabled. Quarantine-derived pairs participate in every
+  ordinary platform/measure/combination/timeline bound and are never truncated.
 - **Additivity.** Totals sum across works and time, so every served measure,
   explicit or resolved, must be `additiveAcrossTime` and
   `additiveAcrossWorks`. Otherwise the whole request is
@@ -747,11 +756,12 @@ Contract properties consumers may rely on:
   later explicit dimension selection.
 - **Values.** Totals and buckets are kept per platform and measure; nothing is
   combined across either. A cell with projected rows returns their exact sum,
-  whatever the coverage. A cell without rows returns `"0"` only when every day
-  of it is effectively `COMPLETE` and no unapplied work-day delta touches it;
-  otherwise `null`. `BigInt` is a canonical base-10 string: no `Int`, no
-  float, signed and exact, with checked arithmetic that fails rather than
-  wraps.
+  whatever the coverage or identifier quality. A cell without rows returns
+  `"0"` only when every day of it is effectively `COMPLETE`, no unapplied
+  work-day delta touches it and no identifier-unresolved quarantine evidence
+  overlaps it; otherwise `null`. `BigInt` is a canonical base-10 string:
+  no `Int`, no float, signed and exact, with checked arithmetic that fails
+  rather than wraps.
 - **Coverage.** Per platform, the eligible source is the one enabled `DRIVER`
   account on an enabled source whose `expected_publisher_id` is the selected
   publisher. Two or more is `MOM1_SOURCE_SCOPE_AMBIGUOUS`. None leaves
@@ -773,10 +783,10 @@ Contract properties consumers may rely on:
   nothing is served.
 - **One snapshot.** Everything is read on one connection in one
   `READ ONLY, REPEATABLE READ` transaction: entitlement, the `MET-WP4-01`
-  frontier, scope, projection, coverage and outstanding rollup work.
-  `asOf` is that transaction's timestamp. `rollupWatermark` is exactly the
-  frontier's `watermark_at`. The read never advances, claims, completes,
-  repairs or records anything.
+  frontier, represented scope, projection, coverage, outstanding rollup work
+  and identifier quality. `asOf` is that transaction's timestamp.
+  `rollupWatermark` is exactly the frontier's `watermark_at`. The read never
+  advances, claims, completes, repairs, reconciles or records anything.
 - **Freshness.** `ROLLUP_LAG` means at least one work-day delta above the
   applied frontier intersects the selected publishers, range, platforms and
   measures. Unrelated backlog is not lag. An item's `dataThrough` is the last
@@ -785,9 +795,24 @@ Contract properties consumers may rely on:
   day fails. Backlog before `startDate` does not reduce it. Top-level
   `dataThrough` is the earliest item value, and `null` unless every item has
   one.
+- **Identifier quality (`MET-WP7-PREREQ-04`).** A quarantine observation is
+  unresolved exactly when no reconciliation row exists or its reconciliation
+  row has `resolved_at IS NULL`. That includes never-attempted evidence,
+  `PENDING_UNKNOWN_DOI` and every `BLOCKED_*` state. The four terminal
+  `RESOLVED_*` states are resolved and no longer warn. Scope is the immutable
+  import publisher plus the quarantine platform, measure and half-open period;
+  current Work ownership, current DOI resolution and current source enablement
+  are deliberately not consulted. Every overlapped served day is marked
+  identifier-incomplete. This read metadata changes neither coverage nor
+  reconciliation/canonical/rollup state.
 - **Warnings.** At most one per code, in the order `UNKNOWN_COVERAGE`,
-  `PARTIAL_COVERAGE`, `ROLLUP_LAG`, with fixed text. `isPartial` is true
-  exactly when a warning is present.
+  `PARTIAL_COVERAGE`, `UNRESOLVED_IDENTIFIERS`, `ROLLUP_LAG`, with fixed
+  text. `UNRESOLVED_IDENTIFIERS` renders exactly "Some source evidence in
+  this request still has unresolved work identifiers, so values may be
+  incomplete and an otherwise empty cell is not a zero." `isPartial` is true
+  exactly when a warning is present. Identifier quality alone does not change
+  coverage status/items, dimension coverage, `dataThrough` or
+  `rollupWatermark`.
 - **Registry lists.** Every row, enabled or disabled, ordered by exact `code`
   compared byte-wise, at most 500. A larger registry is
   `METRIC_REGISTRY_LIMIT_EXCEEDED`, never a truncated list. They return the
@@ -812,10 +837,14 @@ Scope boundaries a consumer must not infer:
 - The read calls no external service. Browser clients must not hold the
   `METRICS_READ_SERVICE` credential; they reach this contract through a
   Thoth-owned server route.
-- The change is strictly additive. No existing type, field, argument,
-  nullability, enum value or authorization changed.
-  `MetricCoverageStatus` is the existing database enum, now exposed to
-  GraphQL without any value change.
+- The read contract remains additive. No existing field, argument, nullability
+  or authorization changed; `MET-WP7-PREREQ-04` adds only the
+  `UNRESOLVED_IDENTIFIERS` value to `MetricWarningCode` and reconciles the
+  documented zero/partial semantics above. `MetricCoverageStatus` is the
+  existing database enum, exposed to GraphQL without any value change.
+  Generated/exhaustive clients must tolerate the new warning enum before
+  CloudFront production activation, and consumers must not coerce `null`
+  Metrics values to zero.
 
 ## 5. Publisher import
 
