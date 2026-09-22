@@ -9,7 +9,7 @@ use std::thread;
 
 use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
-use diesel::sql_types::{BigInt, Text, Uuid as SqlUuid};
+use diesel::sql_types::{Text, Uuid as SqlUuid};
 use diesel::{sql_query, Connection, RunQueryDsl};
 use uuid::Uuid;
 
@@ -38,12 +38,6 @@ struct LockedRow {
     identifier_quarantine_id: Uuid,
 }
 
-fn exec(pool: &PgPool, sql: &str) {
-    let mut connection = pool.get().expect("database connection");
-    sql_query(sql)
-        .execute(&mut connection)
-        .unwrap_or_else(|error| panic!("{sql}: {error}"));
-}
 
 fn text(pool: &PgPool, expression: &str) -> String {
     let mut connection = pool.get().expect("database connection");
