@@ -270,18 +270,27 @@ fn newly_resolvable_winner_is_terminal_creates_one_delta_and_preserves_history()
 
     let batch = reconcile_metric_identifier_quarantine(&f.pool, ACTOR, 1).expect("winner");
     assert_eq!((batch.attempted, batch.resolved), (1, 1));
-    assert_eq!(reconciliation_state(&f, id).as_deref(), Some("RESOLVED_WINNER"));
+    assert_eq!(
+        reconciliation_state(&f, id).as_deref(),
+        Some("RESOLVED_WINNER")
+    );
     assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_record)"), 1);
     assert_eq!(
         scalar_i64(&f, "(SELECT COUNT(*) FROM metric_record_revision)"),
         1
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
     assert_eq!(history_snapshot(&f, seeded.import_id), before);
 
     let replay = reconcile_metric_identifier_quarantine(&f.pool, ACTOR, 1).expect("terminal skip");
     assert_eq!(replay.attempted, 0, "terminal state can never re-apply");
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 }
 
 #[test]
@@ -313,7 +322,10 @@ fn identical_other_source_is_duplicate_but_different_content_is_source_conflict(
         reconciliation_state(&f, conflict.quarantine_ids[0]).as_deref(),
         Some("BLOCKED_SOURCE_CONFLICT")
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 }
 
 #[test]
@@ -336,7 +348,10 @@ fn historical_order_distinguishes_revision_superseded_equal_time_and_same_import
         reconciliation_state(&f, newer.quarantine_ids[0]).as_deref(),
         Some("RESOLVED_REVISION")
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 2);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        2
+    );
 
     let (_guard, f) = setup();
     let old = seed(&f, DOI, day(1), &["10"]);
@@ -377,7 +392,10 @@ fn historical_order_distinguishes_revision_superseded_equal_time_and_same_import
         .collect();
     assert!(states.contains(&"RESOLVED_WINNER".to_string()));
     assert!(states.contains(&"BLOCKED_SAME_IMPORT_ORDER".to_string()));
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 }
 
 #[test]
@@ -391,7 +409,10 @@ fn publisher_mismatch_overlap_and_delta_overflow_are_blocked_without_extra_delta
         reconciliation_state(&f, mismatch.quarantine_ids[0]).as_deref(),
         Some("BLOCKED_PUBLISHER_SCOPE_MISMATCH")
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 0);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        0
+    );
 
     let (_guard, f) = setup();
     let first = seed(&f, DOI, day(1), &["10"]);
@@ -410,7 +431,10 @@ fn publisher_mismatch_overlap_and_delta_overflow_are_blocked_without_extra_delta
         reconciliation_state(&f, overlap.quarantine_ids[0]).as_deref(),
         Some("BLOCKED_OVERLAPPING_PERIOD")
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 
     let (_guard, f) = setup();
     f.sql("UPDATE metric_measure SET allow_negative = TRUE WHERE code = 'title_sessions'");
@@ -432,14 +456,22 @@ fn publisher_mismatch_overlap_and_delta_overflow_are_blocked_without_extra_delta
         reconciliation_state(&f, high.quarantine_ids[0]).as_deref(),
         Some("BLOCKED_DELTA_OVERFLOW")
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 }
 
 #[test]
 fn inconsistent_oldest_row_commits_only_blocked_state_and_does_not_starve_later_due_work() {
     let (_guard, f) = setup();
     let bad = seed(&f, DOI, day(1), &["10"]);
-    let pending = seed(&f, "https://doi.org/10.12345/reconciliation-second", day(2), &["20"]);
+    let pending = seed(
+        &f,
+        "https://doi.org/10.12345/reconciliation-second",
+        day(2),
+        &["20"],
+    );
     f.sql(&format!(
         "UPDATE metric_record_provenance p          SET details = jsonb_set(details, '{{reason_code}}', '"AMBIGUOUS_DOI"', true)          FROM metric_identifier_quarantine q          WHERE q.record_provenance_id = p.record_provenance_id            AND q.identifier_quarantine_id = '{}'",
         bad.quarantine_ids[0]
@@ -448,10 +480,7 @@ fn inconsistent_oldest_row_commits_only_blocked_state_and_does_not_starve_later_
     let pending_history = history_snapshot(&f, pending.import_id);
 
     let batch = reconcile_metric_identifier_quarantine(&f.pool, ACTOR, 2).expect("continue");
-    assert_eq!(
-        (batch.attempted, batch.blocked, batch.pending),
-        (2, 1, 1)
-    );
+    assert_eq!((batch.attempted, batch.blocked, batch.pending), (2, 1, 1));
     assert_eq!(
         reconciliation_state(&f, bad.quarantine_ids[0]).as_deref(),
         Some("BLOCKED_INCONSISTENT_EVIDENCE")
@@ -463,7 +492,10 @@ fn inconsistent_oldest_row_commits_only_blocked_state_and_does_not_starve_later_
     assert_eq!(history_snapshot(&f, bad.import_id), bad_history);
     assert_eq!(history_snapshot(&f, pending.import_id), pending_history);
     assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_record)"), 0);
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 0);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        0
+    );
 }
 
 #[test]
@@ -495,7 +527,10 @@ fn unexpected_internal_failure_rolls_back_the_attempt_row() {
         None,
         "the failed row transaction must not persist an attempt"
     );
-    assert_eq!(scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"), 1);
+    assert_eq!(
+        scalar_i64(&f, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        1
+    );
 }
 
 #[test]
@@ -526,8 +561,7 @@ fn skip_locked_excludes_a_row_held_by_another_worker_without_blocking() {
     });
 
     acquired.wait();
-    let skipped =
-        reconcile_metric_identifier_quarantine(&f.pool, ACTOR, 1).expect("skip locked");
+    let skipped = reconcile_metric_identifier_quarantine(&f.pool, ACTOR, 1).expect("skip locked");
     assert_eq!(skipped.attempted, 0);
     release.wait();
     handle.join().expect("worker");
