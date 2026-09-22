@@ -38,7 +38,6 @@ struct LockedRow {
     identifier_quarantine_id: Uuid,
 }
 
-
 fn text(pool: &PgPool, expression: &str) -> String {
     let mut connection = pool.get().expect("database connection");
     diesel::select(diesel::dsl::sql::<Text>(expression))
