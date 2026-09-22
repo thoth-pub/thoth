@@ -19,7 +19,7 @@
 //!
 //! A value of `"0"` asserts that nothing happened. It is returned for an
 //! empty cell only when every day of that cell is effectively `COMPLETE`,
- //! no unapplied rollup work touches it and no unresolved identifier evidence
+//! no unapplied rollup work touches it and no unresolved identifier evidence
 //! overlaps it; otherwise an empty cell is `null`. A cell that does hold
 //! projected rows always returns their exact sum, and the coverage items and
 //! warnings say whether that sum can be relied on.
