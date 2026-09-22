@@ -76,8 +76,14 @@ fn retry_seconds(f: &Fixture, quarantine_id: Uuid) -> i64 {
 }
 
 fn mark_due(f: &Fixture, quarantine_id: Uuid) {
+    // Preserve the table's temporal invariant while making the row due for
+    // the next deterministic retry inside this disposable test fixture.
     f.sql(&format!(
-        "UPDATE metric_identifier_quarantine_reconciliation          SET next_attempt_at = transaction_timestamp() - interval '1 second'          WHERE identifier_quarantine_id = '{quarantine_id}'"
+        "UPDATE metric_identifier_quarantine_reconciliation \
+         SET first_attempt_at = LEAST(first_attempt_at, transaction_timestamp() - interval '2 seconds'), \
+             last_attempt_at = transaction_timestamp() - interval '2 seconds', \
+             next_attempt_at = transaction_timestamp() - interval '1 second' \
+         WHERE identifier_quarantine_id = '{quarantine_id}'"
     ));
 }
 
