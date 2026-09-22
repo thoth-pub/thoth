@@ -96,7 +96,9 @@ fn sdl_is_exactly_one_bounded_aggregate_only_mutation() {
     let sdl = create_schema().as_sdl();
     let mutation_root = sdl_block(&sdl, "type MutationRoot {");
     assert_eq!(
-        mutation_root.matches("reconcileMetricIdentifierQuarantine(").count(),
+        mutation_root
+            .matches("reconcileMetricIdentifierQuarantine(")
+            .count(),
         1
     );
     assert!(
@@ -124,7 +126,10 @@ fn sdl_is_exactly_one_bounded_aggregate_only_mutation() {
         "attemptCount",
         "lastAttemptedBy",
     ] {
-        assert!(!batch.contains(forbidden), "{forbidden} leaked into {batch}");
+        assert!(
+            !batch.contains(forbidden),
+            "{forbidden} leaked into {batch}"
+        );
     }
 }
 
@@ -152,10 +157,7 @@ async fn only_metrics_ingest_service_can_reach_reconciliation() {
         ),
         (
             "work-lifecycle",
-            Some(user_with(
-                "work-lifecycle",
-                &[(Role::WorkLifecycle, "org")],
-            )),
+            Some(user_with("work-lifecycle", &[(Role::WorkLifecycle, "org")])),
         ),
         (
             "cdn-write",
@@ -163,10 +165,7 @@ async fn only_metrics_ingest_service_can_reach_reconciliation() {
         ),
         (
             "dissemination-worker",
-            Some(user_with(
-                "worker",
-                &[(Role::DisseminationWorker, "org")],
-            )),
+            Some(user_with("worker", &[(Role::DisseminationWorker, "org")])),
         ),
         (
             "metrics-read",
@@ -180,14 +179,15 @@ async fn only_metrics_ingest_service_can_reach_reconciliation() {
     for (label, user) in denied {
         let response = run(&schema, &context_for(&fixture.pool, user), &mutation(1)).await;
         let (message, kind) = only_error(&response);
-        assert_eq!((message.as_str(), kind.as_str()), ("Unauthorized", "NO_ACCESS"), "{label}");
+        assert_eq!(
+            (message.as_str(), kind.as_str()),
+            ("Unauthorized", "NO_ACCESS"),
+            "{label}"
+        );
     }
 
     for user in [
-        user_with(
-            "ingest",
-            &[(Role::MetricsIngestService, "org")],
-        ),
+        user_with("ingest", &[(Role::MetricsIngestService, "org")]),
         user_with(
             "ingest-plus-unrelated",
             &[
@@ -197,7 +197,12 @@ async fn only_metrics_ingest_service_can_reach_reconciliation() {
             ],
         ),
     ] {
-        let response = run(&schema, &context_for(&fixture.pool, Some(user)), &mutation(1)).await;
+        let response = run(
+            &schema,
+            &context_for(&fixture.pool, Some(user)),
+            &mutation(1),
+        )
+        .await;
         assert!(
             response.get("errors").is_none()
                 || response["errors"].as_array().is_some_and(Vec::is_empty),
@@ -217,10 +222,7 @@ async fn limit_is_rejected_outside_one_through_fifty_without_truncation() {
         let schema = create_schema();
         let context = context_for(
             &fixture.pool,
-            Some(user_with(
-                "ingest",
-                &[(Role::MetricsIngestService, "org")],
-            )),
+            Some(user_with("ingest", &[(Role::MetricsIngestService, "org")])),
         );
         let response = run(&schema, &context, &mutation(limit)).await;
         let (message, _kind) = only_error(&response);
@@ -259,10 +261,7 @@ async fn authorization_precedes_database_access_and_internal_failures_are_redact
         &schema,
         &context_for(
             &fixture.pool,
-            Some(user_with(
-                "ingest",
-                &[(Role::MetricsIngestService, "org")],
-            )),
+            Some(user_with("ingest", &[(Role::MetricsIngestService, "org")])),
         ),
         &mutation(1),
     )
