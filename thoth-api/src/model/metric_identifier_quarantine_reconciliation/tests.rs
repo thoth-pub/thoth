@@ -219,13 +219,29 @@ fn closed_state_partition_is_exhaustive_and_stable() {
     let cases = [
         (State::PendingUnknownDoi, false, AttemptBucket::Pending),
         (State::BlockedAmbiguousDoi, false, AttemptBucket::Blocked),
-        (State::BlockedPublisherScopeMismatch, false, AttemptBucket::Blocked),
+        (
+            State::BlockedPublisherScopeMismatch,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedSourceConflict, false, AttemptBucket::Blocked),
-        (State::BlockedOverlappingPeriod, false, AttemptBucket::Blocked),
+        (
+            State::BlockedOverlappingPeriod,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedSameImportOrder, false, AttemptBucket::Blocked),
-        (State::BlockedImportOrderAmbiguous, false, AttemptBucket::Blocked),
+        (
+            State::BlockedImportOrderAmbiguous,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedDeltaOverflow, false, AttemptBucket::Blocked),
-        (State::BlockedInconsistentEvidence, false, AttemptBucket::Blocked),
+        (
+            State::BlockedInconsistentEvidence,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::ResolvedWinner, true, AttemptBucket::Resolved),
         (State::ResolvedDuplicate, true, AttemptBucket::Resolved),
         (State::ResolvedRevision, true, AttemptBucket::Resolved),
@@ -298,7 +314,12 @@ fn inconsistent_evidence_is_retryable_and_does_not_starve_later_due_work() {
 
     let result = reconcile(&f, 2);
     assert_eq!(
-        (result.attempted, result.resolved, result.pending, result.blocked),
+        (
+            result.attempted,
+            result.resolved,
+            result.pending,
+            result.blocked
+        ),
         (2, 0, 1, 1)
     );
     assert_eq!(
@@ -306,7 +327,10 @@ fn inconsistent_evidence_is_retryable_and_does_not_starve_later_due_work() {
         "BLOCKED_INCONSISTENT_EVIDENCE"
     );
     assert_eq!(state(&f, second.quarantine_id), "PENDING_UNKNOWN_DOI");
-    assert_eq!(scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"), 0);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0
+    );
     assert_eq!(
         scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
         0
@@ -350,7 +374,10 @@ fn skip_locked_never_double_attempts_a_row_owned_by_another_worker() {
 
     locked_rx.recv().expect("row locked");
     let skipped = reconcile(&f, 1);
-    assert_eq!(skipped.attempted, 0, "locked row must be skipped, not waited on");
+    assert_eq!(
+        skipped.attempted, 0,
+        "locked row must be skipped, not waited on"
+    );
     assert_eq!(
         scalar_i64(
             &f.pool,
@@ -422,7 +449,10 @@ fn winner_duplicate_and_source_conflict_share_one_canonical_authority() {
     assert_eq!((result.attempted, result.resolved), (1, 1));
     assert_eq!(state(&f, winner.quarantine_id), "RESOLVED_WINNER");
     assert_eq!(historical_snapshot(&f, winner), historical);
-    assert_eq!(scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"), 1);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        1
+    );
     assert_eq!(
         scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
         1
@@ -482,7 +512,11 @@ fn winner_duplicate_and_source_conflict_share_one_canonical_authority() {
         scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
         scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
     );
-    assert_eq!(reconcile(&f, 50).attempted, 0, "terminal rows never re-apply");
+    assert_eq!(
+        reconcile(&f, 50).attempted,
+        0,
+        "terminal rows never re-apply"
+    );
     assert_eq!(
         (
             scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
@@ -638,7 +672,10 @@ fn publisher_overlap_and_delta_overflow_fail_closed_without_canonical_effect() {
             state_after(&f, mismatch),
             "BLOCKED_PUBLISHER_SCOPE_MISMATCH"
         );
-        assert_eq!(scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"), 0);
+        assert_eq!(
+            scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+            0
+        );
     }
 
     {
