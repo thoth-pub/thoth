@@ -901,6 +901,7 @@ pub mod metric_coverage;
 #[cfg(feature = "backend")]
 pub mod metric_dashboard;
 pub mod metric_identifier_quarantine;
+pub mod metric_identifier_quarantine_reconciliation;
 pub mod metric_import;
 pub mod metric_import_batch;
 pub mod metric_import_error;

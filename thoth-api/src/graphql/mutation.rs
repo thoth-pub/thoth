@@ -36,6 +36,9 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_identifier_quarantine_reconciliation::{
+        reconcile_metric_identifier_quarantine, MetricIdentifierQuarantineReconciliationBatch,
+    },
     metric_import::MetricImport,
     metric_ingestion_lifecycle::{
         begin_metric_import, claim_metric_source_units, complete_metric_import,
@@ -258,6 +261,15 @@ fn authorize_metric_ingestion_lifecycle(context: &Context) -> ThothResult<&str> 
     context.user_id()
 }
 
+/// Authorize and run one bounded identifier-quarantine reconciliation sweep.
+fn reconcile_identifier_quarantine(
+    context: &Context,
+    limit: i32,
+) -> ThothResult<MetricIdentifierQuarantineReconciliationBatch> {
+    let actor = authorize_metric_ingestion_lifecycle(context)?;
+    reconcile_metric_identifier_quarantine(&context.db, actor, limit)
+}
+
 /// Authorize a rollup claim and delegate to the frontier protocol.
 fn claim_rollup_deltas(context: &Context, limit: i32) -> ThothResult<Vec<MetricRollupDeltaClaim>> {
     let claimant = authorize_metric_rollup_service(context)?;
@@ -350,6 +362,17 @@ impl MutationRoot {
         #[graphql(description = "Which job to cancel")] data: CancelDistributionJobInput,
     ) -> FieldResult<DistributionJobPayload> {
         cancel_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Reconcile up to 50 due unresolved-DOI quarantine rows from current Thoth metadata. Requires exactly METRICS_INGEST_SERVICE. The caller supplies only a bounded limit; all row selection, retry state, authority, canonical identity and outcomes are server-owned."
+    )]
+    fn reconcile_metric_identifier_quarantine(
+        context: &Context,
+        #[graphql(description = "Maximum due quarantine rows to attempt, from 1 to 50 inclusive")]
+        limit: i32,
+    ) -> FieldResult<MetricIdentifierQuarantineReconciliationBatch> {
+        reconcile_identifier_quarantine(context, limit).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(

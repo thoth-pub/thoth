@@ -563,11 +563,63 @@ Contract:
   stays read-only and recognizes a recorded quarantine-only import from
   `last_completed_at` alone, never from the cursor.
 
-Still deferred, and required before production CloudFront activation:
-automatic quarantine reconciliation (detecting that a DOI now resolves,
-revalidating the preserved evidence, idempotently applying canonical metrics
-and recording resolution state) and identifier-quality read warnings. The
-dashboard read contract of section 4.1 is unchanged.
+### 3.5 Automatic unresolved-DOI reconciliation (`MET-WP7-PREREQ-03`)
+
+`MET-WP7-PREREQ-03` (#935) adds one protected, bounded reconciliation sweep
+over the immutable evidence from section 3.4:
+
+```graphql
+reconcileMetricIdentifierQuarantine(
+  limit: Int!
+): MetricIdentifierQuarantineReconciliationBatch!
+
+type MetricIdentifierQuarantineReconciliationBatch {
+  attempted: Int!
+  resolved: Int!
+  pending: Int!
+  blocked: Int!
+}
+```
+
+The operation requires exactly `METRICS_INGEST_SERVICE`, accepts only
+`limit` in `1..=50`, and exposes aggregate counts only. Row selection,
+retry timing, DOI/Work authority, canonical identity, source ownership and
+outcome are entirely server-owned.
+
+Each quarantine row is attempted in its own transaction under
+`FOR UPDATE SKIP LOCKED`. Historical quarantine, provenance, import counters,
+status, coverage and checkpoint state are never rewritten. Reconciliation
+state is additive in
+`metric_identifier_quarantine_reconciliation`; resolved states are terminal,
+while pending/blocked states use the server-owned 1h, 2h, 4h, 8h, 16h, then
+24h-capped retry schedule. Deterministically contradictory historical evidence
+becomes retryable `BLOCKED_INCONSISTENT_EVIDENCE` without canonical effect;
+an unexpected database/internal failure rolls that row back and returns a
+fixed redacted error.
+
+Current DOI -> Work metadata remains authoritative. A current Work must still
+belong to the publisher pinned on the original import. Reconciliation reuses
+ordinary ingestion's canonical identity/content hashing, dimensional-cell
+advisory lock, overlap lookup, existing-record/current-revision locking,
+winner/duplicate/source-conflict/revision application and checked rollup-delta
+authority. Historical same-source content is ordered by the immutable original
+import `created_at`: older evidence is terminal `RESOLVED_SUPERSEDED`, newer
+evidence may revise, the same import is blocked, and distinct equal timestamps
+are blocked rather than ordered by UUID.
+
+The exact durable state vocabulary is:
+`PENDING_UNKNOWN_DOI`;
+`BLOCKED_AMBIGUOUS_DOI`, `BLOCKED_PUBLISHER_SCOPE_MISMATCH`,
+`BLOCKED_SOURCE_CONFLICT`, `BLOCKED_OVERLAPPING_PERIOD`,
+`BLOCKED_SAME_IMPORT_ORDER`, `BLOCKED_IMPORT_ORDER_AMBIGUOUS`,
+`BLOCKED_DELTA_OVERFLOW`, `BLOCKED_INCONSISTENT_EVIDENCE`;
+and terminal `RESOLVED_WINNER`, `RESOLVED_DUPLICATE`,
+`RESOLVED_REVISION`, `RESOLVED_SUPERSEDED`.
+
+Identifier-quality read warnings remain separately owned by
+`MET-WP7-PREREQ-04` (#936). This reconciliation contract does not activate
+CloudFront collection, execute a production migration, or change any provider
+configuration.
 
 ## 4. Dashboard/widget
 

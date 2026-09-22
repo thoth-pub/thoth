@@ -152,6 +152,10 @@ pub mod sql_types {
     pub struct MetricRecordProvenanceClassification;
 
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_identifier_quarantine_reconciliation_state"))]
+    pub struct MetricIdentifierQuarantineReconciliationState;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_coverage_status"))]
     pub struct MetricCoverageStatus;
 
@@ -718,6 +722,24 @@ table! {
         value -> Int8,
         methodology_version -> Text,
         created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricIdentifierQuarantineReconciliationState;
+
+    metric_identifier_quarantine_reconciliation (identifier_quarantine_id) {
+        identifier_quarantine_id -> Uuid,
+        state -> MetricIdentifierQuarantineReconciliationState,
+        attempt_count -> Int4,
+        last_attempted_by -> Text,
+        first_attempt_at -> Timestamptz,
+        last_attempt_at -> Timestamptz,
+        next_attempt_at -> Nullable<Timestamptz>,
+        resolved_at -> Nullable<Timestamptz>,
+        record_id -> Nullable<Uuid>,
+        record_revision_id -> Nullable<Uuid>,
     }
 }
 
@@ -1597,6 +1619,9 @@ joinable!(metric_identifier_quarantine -> metric_measure (measure_id));
 joinable!(metric_identifier_quarantine -> metric_platform (platform_id));
 joinable!(metric_identifier_quarantine -> metric_record_provenance (record_provenance_id));
 joinable!(metric_identifier_quarantine -> metric_source_account (source_account_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_identifier_quarantine (identifier_quarantine_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_record (record_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_record_revision (record_revision_id));
 joinable!(metric_import -> metric_source_account (source_account_id));
 joinable!(metric_import -> publisher (publisher_id));
 joinable!(metric_import_batch -> metric_import (import_id));
@@ -1692,6 +1717,7 @@ allow_tables_to_appear_in_same_query!(
     location_history,
     metric_coverage,
     metric_identifier_quarantine,
+    metric_identifier_quarantine_reconciliation,
     metric_import,
     metric_import_batch,
     metric_import_error,

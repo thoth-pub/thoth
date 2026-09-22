@@ -948,14 +948,28 @@ fn no_reconciliation_enum_trigger_procedure_or_graphql_surface_was_introduced() 
          primary keys, and no secondary index on any reconciliation column"
     );
 
-    // No GraphQL surface: persistence and domain types exist, but nothing is
-    // exposed. `recordMetricReconciliation` and every reconciliation query,
-    // mutation, input and output type belong to the later WP9 API work.
+    // MET-WP1-11's run/issue persistence remains unexposed. A later,
+    // separately approved MET-WP7-PREREQ-03 mutation may use reconciliation
+    // terminology for identifier-quarantine repair, but it must not expose the
+    // MET-WP1-11 run/issue ledger or its hypothetical WP9 API.
     let sdl = crate::graphql::create_schema().as_sdl();
+    for forbidden in [
+        "MetricReconciliationRun",
+        "MetricReconciliationIssue",
+        "recordMetricReconciliation",
+        "metricReconciliationRun",
+        "metricReconciliationIssue",
+    ] {
+        assert!(
+            !sdl.contains(forbidden),
+            "MET-WP1-11 persistence must remain absent from GraphQL: found {forbidden}"
+        );
+    }
     assert!(
-        !sdl.to_lowercase().contains("reconciliation"),
-        "MET-WP1-11 must add no GraphQL API surface: the public SDL must not \
-         mention reconciliation in any type, field, argument or description"
+        sdl.contains("reconcileMetricIdentifierQuarantine")
+            && sdl.contains("MetricIdentifierQuarantineReconciliationBatch"),
+        "the only reconciliation surface permitted here is the separately approved \
+         MET-WP7-PREREQ-03 identifier-quarantine mutation/result"
     );
 }
 
