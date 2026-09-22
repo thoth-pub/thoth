@@ -9,13 +9,29 @@ fn closed_state_partition_is_exhaustive_and_stable() {
     let cases = [
         (State::PendingUnknownDoi, false, AttemptBucket::Pending),
         (State::BlockedAmbiguousDoi, false, AttemptBucket::Blocked),
-        (State::BlockedPublisherScopeMismatch, false, AttemptBucket::Blocked),
+        (
+            State::BlockedPublisherScopeMismatch,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedSourceConflict, false, AttemptBucket::Blocked),
-        (State::BlockedOverlappingPeriod, false, AttemptBucket::Blocked),
+        (
+            State::BlockedOverlappingPeriod,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedSameImportOrder, false, AttemptBucket::Blocked),
-        (State::BlockedImportOrderAmbiguous, false, AttemptBucket::Blocked),
+        (
+            State::BlockedImportOrderAmbiguous,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::BlockedDeltaOverflow, false, AttemptBucket::Blocked),
-        (State::BlockedInconsistentEvidence, false, AttemptBucket::Blocked),
+        (
+            State::BlockedInconsistentEvidence,
+            false,
+            AttemptBucket::Blocked,
+        ),
         (State::ResolvedWinner, true, AttemptBucket::Resolved),
         (State::ResolvedDuplicate, true, AttemptBucket::Resolved),
         (State::ResolvedRevision, true, AttemptBucket::Resolved),

@@ -27,10 +27,10 @@ use crate::model::metric_ingestion::hash::{
     cell_lock_key, content_hash, identity_hash, CanonicalIdentity,
 };
 use crate::model::metric_ingestion::{
-    apply_canonical_application, lock_cell_keys, lock_imprints, lock_works,
-    period_matches_grain, resolve_doi_work, CanonicalApplicationCandidate,
-    CanonicalApplicationError, CanonicalApplicationOutcome, CanonicalChronology,
-    MetricIngestionErrorCode, SUPPORTED_SCHEMA_VERSION,
+    apply_canonical_application, lock_cell_keys, lock_imprints, lock_works, period_matches_grain,
+    resolve_doi_work, CanonicalApplicationCandidate, CanonicalApplicationError,
+    CanonicalApplicationOutcome, CanonicalChronology, MetricIngestionErrorCode,
+    SUPPORTED_SCHEMA_VERSION,
 };
 use crate::model::metric_measure::MetricMeasure;
 use crate::model::metric_platform::MetricPlatform;
@@ -38,9 +38,7 @@ use crate::model::metric_record_provenance::{
     MetricRecordProvenance, MetricRecordProvenanceClassification,
 };
 use crate::model::metric_source::{MetricSource, MetricSourceAcquisitionType};
-use crate::model::metric_source_account::{
-    MetricSourceAccount, CLOUDFRONT_DRIVER_KEY,
-};
+use crate::model::metric_source_account::{MetricSourceAccount, CLOUDFRONT_DRIVER_KEY};
 use crate::model::{Doi, Timestamp};
 use crate::schema::{
     metric_identifier_quarantine, metric_import, metric_measure, metric_platform,
@@ -60,18 +58,7 @@ const MAX_AUTHORITY_DRIFT_RETRIES: u8 = 3;
     derive(diesel_derive_enum::DbEnum),
     ExistingTypePath = "crate::schema::sql_types::MetricIdentifierQuarantineReconciliationState"
 )]
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    Hash,
-    EnumString,
-    Display,
-)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum MetricIdentifierQuarantineReconciliationState {
@@ -79,10 +66,7 @@ pub enum MetricIdentifierQuarantineReconciliationState {
     PendingUnknownDoi,
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_AMBIGUOUS_DOI")]
     BlockedAmbiguousDoi,
-    #[cfg_attr(
-        feature = "backend",
-        db_rename = "BLOCKED_PUBLISHER_SCOPE_MISMATCH"
-    )]
+    #[cfg_attr(feature = "backend", db_rename = "BLOCKED_PUBLISHER_SCOPE_MISMATCH")]
     BlockedPublisherScopeMismatch,
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_SOURCE_CONFLICT")]
     BlockedSourceConflict,
@@ -90,17 +74,11 @@ pub enum MetricIdentifierQuarantineReconciliationState {
     BlockedOverlappingPeriod,
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_SAME_IMPORT_ORDER")]
     BlockedSameImportOrder,
-    #[cfg_attr(
-        feature = "backend",
-        db_rename = "BLOCKED_IMPORT_ORDER_AMBIGUOUS"
-    )]
+    #[cfg_attr(feature = "backend", db_rename = "BLOCKED_IMPORT_ORDER_AMBIGUOUS")]
     BlockedImportOrderAmbiguous,
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_DELTA_OVERFLOW")]
     BlockedDeltaOverflow,
-    #[cfg_attr(
-        feature = "backend",
-        db_rename = "BLOCKED_INCONSISTENT_EVIDENCE"
-    )]
+    #[cfg_attr(feature = "backend", db_rename = "BLOCKED_INCONSISTENT_EVIDENCE")]
     BlockedInconsistentEvidence,
     #[cfg_attr(feature = "backend", db_rename = "RESOLVED_WINNER")]
     ResolvedWinner,
@@ -168,10 +146,7 @@ impl MetricIdentifierQuarantineReconciliationBatch {
             AttemptBucket::Pending => self.pending += 1,
             AttemptBucket::Blocked => self.blocked += 1,
         }
-        debug_assert_eq!(
-            self.attempted,
-            self.resolved + self.pending + self.blocked
-        );
+        debug_assert_eq!(self.attempted, self.resolved + self.pending + self.blocked);
     }
 }
 
@@ -236,13 +211,16 @@ pub(crate) fn reconcile_metric_identifier_quarantine(
 
     while batch.attempted < limit {
         let mut connection = db.get().map_err(|error| {
-            log::error!("quarantine reconciliation could not obtain a database connection: {error}");
+            log::error!(
+                "quarantine reconciliation could not obtain a database connection: {error}"
+            );
             internal_error()
         })?;
 
-        let attempt = connection.transaction::<Option<AttemptBucket>, RowAttemptError, _>(
-            |connection| process_one(connection, actor),
-        );
+        let attempt =
+            connection.transaction::<Option<AttemptBucket>, RowAttemptError, _>(|connection| {
+                process_one(connection, actor)
+            });
 
         match attempt {
             Ok(Some(bucket)) => {
@@ -369,8 +347,7 @@ fn process_one(
         return persist_inconsistent(connection, actor, quarantine.identifier_quarantine_id);
     }
 
-    let doi = Doi::from_str(&quarantine.work_doi)
-        .map_err(|_| RowAttemptError::InternalState)?;
+    let doi = Doi::from_str(&quarantine.work_doi).map_err(|_| RowAttemptError::InternalState)?;
 
     let provisional = match resolve_doi_work(connection, &doi)? {
         Err(MetricIngestionErrorCode::UnknownDoi) => {
@@ -447,11 +424,7 @@ fn process_one(
         institution_id: None,
     };
     let identity_hash = identity_hash(&identity);
-    let content_hash = content_hash(
-        &identity,
-        quarantine.value,
-        &quarantine.methodology_version,
-    );
+    let content_hash = content_hash(&identity, quarantine.value, &quarantine.methodology_version);
     let cell_key = cell_lock_key(&identity);
     let mut cell_keys = BTreeSet::new();
     cell_keys.insert(cell_key);

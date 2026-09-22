@@ -5,8 +5,7 @@
 
 #![cfg(all(test, feature = "backend"))]
 
-use crate::model::metric_identifier_quarantine_reconciliation::
-    MetricIdentifierQuarantineReconciliationBatch;
+use crate::model::metric_identifier_quarantine_reconciliation::MetricIdentifierQuarantineReconciliationBatch;
 
 #[test]
 fn aggregate_result_preserves_attempt_partition() {

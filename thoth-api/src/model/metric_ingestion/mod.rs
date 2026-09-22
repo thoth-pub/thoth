@@ -1242,7 +1242,6 @@ fn lock_institutions(
     Ok(locked)
 }
 
-
 /// Lock Work rows `FOR UPDATE` in ascending id order. Parent metadata must
 /// already be locked by the caller.
 pub(crate) fn lock_works(

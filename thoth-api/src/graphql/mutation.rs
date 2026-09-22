@@ -36,10 +36,10 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
-    metric_import::MetricImport,
     metric_identifier_quarantine_reconciliation::{
         reconcile_metric_identifier_quarantine, MetricIdentifierQuarantineReconciliationBatch,
     },
+    metric_import::MetricImport,
     metric_ingestion_lifecycle::{
         begin_metric_import, claim_metric_source_units, complete_metric_import,
         ingest_metric_batch_under_claim, update_metric_source_checkpoint, BeginMetricImportInput,
@@ -372,8 +372,7 @@ impl MutationRoot {
         #[graphql(description = "Maximum due quarantine rows to attempt, from 1 to 50 inclusive")]
         limit: i32,
     ) -> FieldResult<MetricIdentifierQuarantineReconciliationBatch> {
-        reconcile_identifier_quarantine(context, limit)
-            .map_err(IntoFieldError::into_field_error)
+        reconcile_identifier_quarantine(context, limit).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(
