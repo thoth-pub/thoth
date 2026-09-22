@@ -935,10 +935,6 @@ pub(crate) const ASSERTIONS_SQL: &str = "SELECT DISTINCT ON (c.platform_id, c.me
                           c.coverage_status DESC, c.country_coverage ASC, \
                           c.institution_coverage ASC, c.coverage_id DESC";
 
-/// Step 7: unapplied work-day deltas above `W` that intersect the request.
-///
-/// Every position above `W` is unapplied under the strict frontier, so no
-/// status filter is needed.
 /// Step 8: identifier-unresolved quarantine evidence intersecting the served
 /// publisher, platform, measure and date scope. Historical import publisher
 /// scope remains authoritative and source enablement is deliberately ignored.
@@ -959,6 +955,10 @@ pub(crate) const IDENTIFIER_QUALITY_SQL: &str =
                AND q.measure_id = ANY($5) \
                AND r.resolved_at IS NULL";
 
+/// Step 7: unapplied work-day deltas above `W` that intersect the request.
+///
+/// Every position above `W` is unapplied under the strict frontier, so no
+/// status filter is needed.
 pub(crate) const LAG_SQL: &str =
     "SELECT DISTINCT r.platform_id, r.measure_id, r.period_start AS day \
                  FROM public.metric_rollup_delta d \
@@ -1286,11 +1286,11 @@ fn evaluate(
 /// Resolve the served platforms and measures.
 ///
 /// Explicit IDs must all exist. An omitted or empty dimension resolves to
-/// every identity represented, for the selected publishers and range, in the
-/// work-day projection or in terminal coverage from an eligible managed
-/// source account, restricted by the other dimension when that one is
-/// explicit. Every served measure, however selected, must be additive across
-/// both time and works.
+/// every identity represented for the selected publishers and range in the
+/// work-day projection, terminal coverage from an eligible managed source
+/// account, or unresolved quarantine under immutable import-publisher scope,
+/// restricted by the other dimension when that one is explicit. Every served
+/// measure, however selected, must be additive across both time and works.
 fn resolve_scope(
     connection: &mut PgConnection,
     request: &ValidatedRequest,
