@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use diesel::RunQueryDsl;
 use serde_json::{json, Value as JsonValue};
+use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
 use super::sdl_support::sdl_block;
@@ -219,12 +220,57 @@ async fn unexpected_database_failure_is_fixed_and_redacted_at_graphql() {
         )),
     );
 
+    // Seed one otherwise-valid unresolved-DOI quarantine row so the mutation
+    // reaches the reconciliation-state write. A reversible CHECK constraint
+    // then forces that write to fail for this exact actor. Unlike dropping the
+    // table, this leaves the migrated schema intact for TestDbGuard rollback
+    // and for unrelated tests sharing the CI database.
+    let import_id = Uuid::new_v4();
+    let batch_id = Uuid::new_v4();
+    let provenance_id = Uuid::new_v4();
+    let quarantine_id = Uuid::new_v4();
     let mut connection = fixture.pool.get().expect("database connection");
-    diesel::sql_query("DROP TABLE metric_identifier_quarantine_reconciliation")
-        .execute(&mut connection)
-        .expect("drop disposable reconciliation table");
 
+    diesel::sql_query(format!(
+        "INSERT INTO metric_import              (import_id, source_account_id, publisher_id, format_code, format_version, status,               received_count, invalid_count, normalizer_version, created_by, created_at, completed_at)          VALUES ('{import_id}', '{}', '{}', 'cloudfront-legacy-s3', '1',                  'COMPLETED_WITH_ERRORS', 1, 1, 'sphinx-cloudfront/1', 'fixture',                  TIMESTAMPTZ '2026-09-22 08:00:00+00', TIMESTAMPTZ '2026-09-22 08:00:00+00')",
+        fixture.account_a, fixture.publisher_id
+    ))
+    .execute(&mut connection)
+    .expect("seed import");
+    diesel::sql_query(format!(
+        "INSERT INTO metric_import_batch (import_batch_id, import_id, batch_key, request_hash)          VALUES ('{batch_id}', '{import_id}', '{quarantine_id}', 'hash-{quarantine_id}')"
+    ))
+    .execute(&mut connection)
+    .expect("seed batch");
+    diesel::sql_query(format!(
+        "INSERT INTO metric_record_provenance              (record_provenance_id, import_id, classification, details, import_batch_id, batch_row_index)          VALUES ('{provenance_id}', '{import_id}', 'REJECTED',                  '{{\"schema\":\"thoth-metric-provenance-details/1\",                    \"reason_code\":\"UNKNOWN_DOI\",\"reporting_grain\":\"DAY\"}}'::jsonb,                  '{batch_id}', 0)"
+    ))
+    .execute(&mut connection)
+    .expect("seed provenance");
+    diesel::sql_query(format!(
+        "INSERT INTO metric_identifier_quarantine              (identifier_quarantine_id, record_provenance_id, source_account_id, platform_id,               measure_id, schema_version, work_doi, period_start, period_end, reporting_grain,               country_code, value, methodology_version, created_at)          VALUES ('{quarantine_id}', '{provenance_id}', '{}', '{}',                  (SELECT measure_id FROM metric_measure WHERE code = 'title_sessions'),                  'thoth-normalized-metrics/1', 'https://doi.org/10.12345/graphql-redaction',                  DATE '2026-03-01', DATE '2026-03-02', 'DAY', NULL, 1,                  'cloudfront-title-session/2', TIMESTAMPTZ '2026-09-22 08:00:00+00')",
+        fixture.account_a, fixture.platform_id
+    ))
+    .execute(&mut connection)
+    .expect("seed quarantine");
+    diesel::sql_query(
+        "ALTER TABLE metric_identifier_quarantine_reconciliation          ADD CONSTRAINT test_reconciliation_actor CHECK (last_attempted_by <> 'metrics-reconciler')",
+    )
+    .execute(&mut connection)
+    .expect("install reversible fault");
+
+    drop(connection);
     let response = run(&schema, &context, &mutation(1)).await;
+
+    // Restore the disposable schema before making assertions so even an
+    // assertion failure cannot poison later migration rollbacks.
+    let mut connection = fixture.pool.get().expect("database connection");
+    diesel::sql_query(
+        "ALTER TABLE metric_identifier_quarantine_reconciliation          DROP CONSTRAINT test_reconciliation_actor",
+    )
+    .execute(&mut connection)
+    .expect("remove reversible fault");
+
     let (message, kind) = only_error(&response);
     assert_eq!(
         message,
@@ -235,8 +281,8 @@ async fn unexpected_database_failure_is_fixed_and_redacted_at_graphql() {
         "metric_identifier",
         "SELECT",
         "postgres",
-        "relation",
-        "does not exist",
+        "constraint",
+        "test_reconciliation_actor",
         "sql",
     ] {
         assert!(
