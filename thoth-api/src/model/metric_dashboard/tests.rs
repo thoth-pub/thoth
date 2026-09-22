@@ -1347,6 +1347,15 @@ fn unresolved_scope_uses_immutable_import_publisher_and_ignores_source_disableme
         &fx,
         fx.publisher_id,
         fx.platform_id,
+        fx.units,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
         fx.sessions,
         day_n(10),
         day_n(11),
