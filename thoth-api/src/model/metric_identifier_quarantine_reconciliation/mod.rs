@@ -13,7 +13,7 @@ use std::str::FromStr;
 use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
 use diesel::sql_types::{Bool, Nullable, Text, Uuid as SqlUuid};
-use diesel::{sql_query, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::{sql_query, Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use thoth_errors::{ThothError, ThothResult};
