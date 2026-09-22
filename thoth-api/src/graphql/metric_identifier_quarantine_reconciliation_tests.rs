@@ -23,8 +23,7 @@ fn request(query: &str) -> GraphQLRequest {
 }
 
 async fn run(schema: &Schema, context: &Context, query: &str) -> JsonValue {
-    serde_json::to_value(request(query).execute(schema, context).await)
-        .expect("GraphQL response")
+    serde_json::to_value(request(query).execute(schema, context).await).expect("GraphQL response")
 }
 
 fn data<'a>(response: &'a JsonValue, field: &str) -> &'a JsonValue {
@@ -93,7 +92,11 @@ fn mutation(limit: i32) -> String {
 fn matrix(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>, bool)> {
     vec![
         ("anonymous", None, false),
-        ("authenticated without roles", Some(user_with("none", &[])), false),
+        (
+            "authenticated without roles",
+            Some(user_with("none", &[])),
+            false,
+        ),
         (
             "PUBLISHER_USER",
             Some(user_with("publisher-user", &[(Role::PublisherUser, org)])),
@@ -121,10 +124,7 @@ fn matrix(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>, bool)> {
         ),
         (
             "DISSEMINATION_WORKER",
-            Some(user_with(
-                "worker",
-                &[(Role::DisseminationWorker, org)],
-            )),
+            Some(user_with("worker", &[(Role::DisseminationWorker, org)])),
             false,
         ),
         (
@@ -134,10 +134,7 @@ fn matrix(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>, bool)> {
         ),
         (
             "METRICS_INGEST_SERVICE",
-            Some(user_with(
-                INGEST_USER,
-                &[(Role::MetricsIngestService, org)],
-            )),
+            Some(user_with(INGEST_USER, &[(Role::MetricsIngestService, org)])),
             true,
         ),
         (
@@ -243,7 +240,9 @@ async fn unexpected_database_failure_is_fixed_and_redacted_at_graphql() {
         "sql",
     ] {
         assert!(
-            !message.to_ascii_lowercase().contains(&leaked.to_ascii_lowercase()),
+            !message
+                .to_ascii_lowercase()
+                .contains(&leaked.to_ascii_lowercase()),
             "leaked {leaked}: {message}"
         );
     }
@@ -277,10 +276,7 @@ fn sdl_exposes_only_the_bounded_mutation_and_aggregate_result() {
         "MutationRoot: {mutation_root}"
     );
 
-    let result = sdl_block(
-        &sdl,
-        "type MetricIdentifierQuarantineReconciliationBatch {",
-    );
+    let result = sdl_block(&sdl, "type MetricIdentifierQuarantineReconciliationBatch {");
     assert_eq!(
         signatures(result),
         "attempted:Int!resolved:Int!pending:Int!blocked:Int!"
