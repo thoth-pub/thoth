@@ -25,7 +25,7 @@ use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::metric_dashboard::tests::{
     apply_all, commit, commit_dims, cover, day_n, exec, insert_institution, insert_measure,
-    projection_sql, setup, Dims, Fixture,
+    projection_sql, quarantine, setup, Dims, Fixture,
 };
 use crate::model::metric_platform::tests::{insert_platform_row, setup_registry_db};
 use crate::model::tests::db as test_db;
@@ -772,6 +772,78 @@ async fn registry_lists_are_bounded_to_500_and_refuse_rather_than_truncate() {
 }
 
 // ==========================================================================
+// Identifier-quality transport (MET-WP7-PREREQ-04)
+// ==========================================================================
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn unresolved_identifier_quality_is_exposed_only_as_the_fixed_warning_and_null_value() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        day_n(1),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+    let response = run(
+        &schema,
+        &context,
+        DASHBOARD,
+        dashboard_variables(&fx, json!([fx.publisher_id])),
+    )
+    .await;
+    let dashboard = data(&response, "metricDashboard");
+
+    assert_eq!(dashboard["totals"][0]["value"], JsonValue::Null);
+    assert_eq!(
+        dashboard["timeline"]
+            .as_array()
+            .expect("timeline")
+            .iter()
+            .map(|bucket| bucket["value"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("0"), JsonValue::Null, json!("0"), json!("0")]
+    );
+    assert_eq!(dashboard["coverage"]["status"], json!("COMPLETE"));
+    assert_eq!(dashboard["isPartial"], json!(true));
+    assert_eq!(
+        dashboard["warnings"],
+        json!([{
+            "code": "UNRESOLVED_IDENTIFIERS",
+            "message": "Some source evidence in this request still has unresolved work identifiers, so values may be incomplete and an otherwise empty cell is not a zero."
+        }])
+    );
+
+    let rendered = response.to_string();
+    for forbidden in [
+        "10.12345",
+        "UNKNOWN_DOI",
+        "identifier_quarantine_id",
+        "attempt_count",
+        "source_account_id",
+    ] {
+        assert!(
+            !rendered.contains(forbidden),
+            "identifier-quality response leaked {forbidden}: {rendered}"
+        );
+    }
+}
+
+// ==========================================================================
 // Generated schema
 // ==========================================================================
 
@@ -872,7 +944,12 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     );
     assert_eq!(
         enum_values(&sdl, "enum MetricWarningCode {"),
-        ["PARTIAL_COVERAGE", "UNKNOWN_COVERAGE", "ROLLUP_LAG"]
+        [
+            "PARTIAL_COVERAGE",
+            "UNKNOWN_COVERAGE",
+            "UNRESOLVED_IDENTIFIERS",
+            "ROLLUP_LAG",
+        ]
     );
     assert_eq!(
         enum_values(&sdl, "enum MetricTimelineGrain {"),

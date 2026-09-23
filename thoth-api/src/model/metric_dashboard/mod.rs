@@ -18,10 +18,11 @@
 //! # Zero is a claim
 //!
 //! A value of `"0"` asserts that nothing happened. It is returned for an
-//! empty cell only when every day of that cell is effectively `COMPLETE` and
-//! no unapplied rollup work touches it; otherwise an empty cell is `null`. A
-//! cell that does hold projected rows always returns their exact sum, and the
-//! coverage items and warnings say whether that sum can be relied on.
+//! empty cell only when every day of that cell is effectively `COMPLETE`,
+//! no unapplied rollup work touches it and no unresolved identifier evidence
+//! overlaps it; otherwise an empty cell is `null`. A cell that does hold
+//! projected rows always returns their exact sum, and the coverage items and
+//! warnings say whether that sum can be relied on.
 //!
 //! # Publisher cardinality
 //!
@@ -227,7 +228,7 @@ pub struct MetricDashboard {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "At most one warning per code, in the order UNKNOWN_COVERAGE, PARTIAL_COVERAGE, ROLLUP_LAG"
+            description = "At most one warning per code, in the order UNKNOWN_COVERAGE, PARTIAL_COVERAGE, UNRESOLVED_IDENTIFIERS, ROLLUP_LAG"
         )
     )]
     pub warnings: Vec<MetricWarning>,
@@ -251,7 +252,7 @@ pub struct MetricTotal {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The exact sum of projected values. \"0\" only when the whole range is completely covered with no outstanding rollup work; null when no value is projected and zero cannot be justified"
+            description = "The exact sum of projected values. \"0\" only when the whole range is completely covered with no outstanding rollup work or unresolved identifier evidence; null when no value is projected and zero cannot be justified"
         )
     )]
     pub value: Option<BigInt>,
@@ -280,7 +281,7 @@ pub struct MetricTimeBucket {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The exact sum of projected values in the bucket. \"0\" only when the whole bucket is completely covered with no outstanding rollup work; null when no value is projected and zero cannot be justified"
+            description = "The exact sum of projected values in the bucket. \"0\" only when the whole bucket is completely covered with no outstanding rollup work or unresolved identifier evidence; null when no value is projected and zero cannot be justified"
         )
     )]
     pub value: Option<BigInt>,
@@ -368,6 +369,13 @@ pub enum MetricWarningCode {
     #[cfg_attr(
         feature = "backend",
         graphql(
+            description = "Some source evidence in the served scope still has unresolved work identifiers"
+        )
+    )]
+    UnresolvedIdentifiers,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
             description = "Canonical changes affecting the served values are not yet projected"
         )
     )]
@@ -389,6 +397,7 @@ pub struct MetricWarning {
 
 const UNKNOWN_COVERAGE_MESSAGE: &str = "Coverage is unknown for at least one served platform, measure and day, so a missing value there is not a zero.";
 const PARTIAL_COVERAGE_MESSAGE: &str = "Coverage is partial for at least one served platform, measure and day, so values there may be incomplete.";
+const UNRESOLVED_IDENTIFIERS_MESSAGE: &str = "Some source evidence in this request still has unresolved work identifiers, so values may be incomplete and an otherwise empty cell is not a zero.";
 const ROLLUP_LAG_MESSAGE: &str = "Canonical changes affecting this request are not yet reflected in the served values, so they may change.";
 
 // ---------------------------------------------------------------------------
@@ -746,6 +755,18 @@ struct LagRow {
     day: NaiveDate,
 }
 
+#[derive(diesel::QueryableByName)]
+struct IdentifierQualityRow {
+    #[diesel(sql_type = SqlUuid)]
+    platform_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    measure_id: Uuid,
+    #[diesel(sql_type = Date)]
+    period_start: NaiveDate,
+    #[diesel(sql_type = Date)]
+    period_end: NaiveDate,
+}
+
 // ---------------------------------------------------------------------------
 // Statements
 //
@@ -914,6 +935,26 @@ pub(crate) const ASSERTIONS_SQL: &str = "SELECT DISTINCT ON (c.platform_id, c.me
                           c.coverage_status DESC, c.country_coverage ASC, \
                           c.institution_coverage ASC, c.coverage_id DESC";
 
+/// Step 8: identifier-unresolved quarantine evidence intersecting the served
+/// publisher, platform, measure and date scope. Historical import publisher
+/// scope remains authoritative and source enablement is deliberately ignored.
+/// Absence of reconciliation state and every nonterminal state both have
+/// `resolved_at IS NULL`; terminal resolution removes the warning.
+pub(crate) const IDENTIFIER_QUALITY_SQL: &str =
+    "SELECT DISTINCT q.platform_id, q.measure_id, q.period_start, q.period_end \
+             FROM public.metric_identifier_quarantine q \
+             JOIN public.metric_record_provenance p \
+               ON p.record_provenance_id = q.record_provenance_id \
+             JOIN public.metric_import mi ON mi.import_id = p.import_id \
+             LEFT JOIN public.metric_identifier_quarantine_reconciliation r \
+               ON r.identifier_quarantine_id = q.identifier_quarantine_id \
+             WHERE mi.publisher_id = ANY($1) \
+               AND q.period_start < $3 \
+               AND q.period_end > $2 \
+               AND q.platform_id = ANY($4) \
+               AND q.measure_id = ANY($5) \
+               AND r.resolved_at IS NULL";
+
 /// Step 7: unapplied work-day deltas above `W` that intersect the request.
 ///
 /// Every position above `W` is unapplied under the strict frontier, so no
@@ -975,6 +1016,20 @@ pub(crate) const REPRESENTED_SQL: &str =
                        AND c.period_end > $2 \
                        AND (cardinality($4::uuid[]) = 0 OR c.platform_id = ANY($4)) \
                        AND (cardinality($5::uuid[]) = 0 OR c.measure_id = ANY($5)) \
+                     UNION ALL \
+                     SELECT q.platform_id, q.measure_id \
+                     FROM public.metric_identifier_quarantine q \
+                     JOIN public.metric_record_provenance p \
+                       ON p.record_provenance_id = q.record_provenance_id \
+                     JOIN public.metric_import mi ON mi.import_id = p.import_id \
+                     LEFT JOIN public.metric_identifier_quarantine_reconciliation r \
+                       ON r.identifier_quarantine_id = q.identifier_quarantine_id \
+                     WHERE mi.publisher_id = ANY($1) \
+                       AND q.period_start < $3 \
+                       AND q.period_end > $2 \
+                       AND (cardinality($4::uuid[]) = 0 OR q.platform_id = ANY($4)) \
+                       AND (cardinality($5::uuid[]) = 0 OR q.measure_id = ANY($5)) \
+                       AND r.resolved_at IS NULL \
                  ) represented";
 
 /// Step 3: the additivity of every served measure.
@@ -996,19 +1051,23 @@ pub(crate) const MEASURE_FLAGS_SQL: &str = "SELECT additive_across_time, additiv
 ///    each through the ADR-0001 package model;
 /// 2. read the `MET-WP4-01` frontier `W`, `next_sequence` and `watermark_at`,
 ///    together with the transaction timestamp;
-/// 3. resolve and bound the platform/measure scope, and require every served
-///    measure to be additive across time and works;
+/// 3. resolve and bound the platform/measure scope from canonical projection,
+///    terminal coverage or unresolved identifier evidence, and require every
+///    served measure to be additive across time and works;
 /// 4. resolve the eligible managed source account per publisher/platform;
 /// 5. sum the work-day projection per platform, measure and day through
 ///    current work ownership, resolving by base cell only the groups whose
 ///    dimensional representation the group sums alone cannot settle;
 /// 6. select the current terminal coverage assertion per platform, measure
 ///    and day;
-/// 7. find unapplied work-day deltas above `W` that intersect the request.
+/// 7. find unapplied work-day deltas above `W` that intersect the request;
+/// 8. mark unresolved identifier evidence under immutable import-publisher
+///    scope without consulting current DOI resolution or source enablement.
 ///
 /// Every statement is set-based over the whole request, so the number of
 /// statements does not depend on how many works, days or rows are involved:
-/// the base-cell resolution and the lag statement each run at most once.
+/// the base-cell resolution, lag and identifier-quality statements each run at
+/// most once.
 pub(crate) fn metric_dashboard(
     db: &PgPool,
     input: &MetricDashboardInput,
@@ -1198,6 +1257,26 @@ fn evaluate(
                 grid.set_lag(row.platform_id, row.measure_id, request.start, row.day);
             }
         }
+
+        // 8. Identifier quality. Historical admitted evidence remains
+        // load-bearing even if its source is now disabled.
+        let unresolved: Vec<IdentifierQualityRow> = diesel::sql_query(IDENTIFIER_QUALITY_SQL)
+            .bind::<Array<SqlUuid>, _>(&request.publisher_ids)
+            .bind::<Date, _>(request.start)
+            .bind::<Date, _>(request.end)
+            .bind::<Array<SqlUuid>, _>(&platform_ids)
+            .bind::<Array<SqlUuid>, _>(&measure_ids)
+            .load(connection)?;
+        for row in unresolved {
+            grid.set_identifier_incomplete_range(
+                row.platform_id,
+                row.measure_id,
+                request.start,
+                request.end,
+                row.period_start,
+                row.period_end,
+            );
+        }
     }
 
     grid.apply_dimensional_coverage();
@@ -1207,11 +1286,11 @@ fn evaluate(
 /// Resolve the served platforms and measures.
 ///
 /// Explicit IDs must all exist. An omitted or empty dimension resolves to
-/// every identity represented, for the selected publishers and range, in the
-/// work-day projection or in terminal coverage from an eligible managed
-/// source account, restricted by the other dimension when that one is
-/// explicit. Every served measure, however selected, must be additive across
-/// both time and works.
+/// every identity represented for the selected publishers and range in the
+/// work-day projection, terminal coverage from an eligible managed source
+/// account, or unresolved quarantine under immutable import-publisher scope,
+/// restricted by the other dimension when that one is explicit. Every served
+/// measure, however selected, must be additive across both time and works.
 fn resolve_scope(
     connection: &mut PgConnection,
     request: &ValidatedRequest,
@@ -1303,6 +1382,8 @@ struct Cells {
     /// `None` means no current assertion, which is `UNKNOWN`.
     coverage: Vec<Option<DayCoverage>>,
     lag: Vec<bool>,
+    /// True for days overlapped by identifier-unresolved quarantine evidence.
+    identifier_incomplete: Vec<bool>,
     /// Whether any served value of this combination was taken from rows
     /// broken down by country, so complete coverage also needs the country
     /// dimension.
@@ -1325,8 +1406,9 @@ impl Cells {
     /// The value of the half-open day-index range `from..to`.
     ///
     /// Projected rows win: their exact sum is the value. With no rows, zero
-    /// is returned only when every day is `COMPLETE` and untouched by
-    /// outstanding rollup work; otherwise the value is unknown.
+    /// is returned only when every day is `COMPLETE`, untouched by
+    /// outstanding rollup work and free of unresolved identifier evidence;
+    /// otherwise the value is unknown.
     fn value(&self, from: usize, to: usize) -> Result<Option<BigInt>, MetricReadError> {
         let mut total: Option<BigInt> = None;
         for sum in self.sums[from..to].iter().flatten() {
@@ -1340,7 +1422,9 @@ impl Cells {
         if total.is_some() {
             return Ok(total);
         }
-        let justified = (from..to).all(|index| self.is_complete(index) && !self.lag[index]);
+        let justified = (from..to).all(|index| {
+            self.is_complete(index) && !self.lag[index] && !self.identifier_incomplete[index]
+        });
         Ok(justified.then_some(BigInt::ZERO))
     }
 }
@@ -1361,6 +1445,7 @@ impl Grid {
                         sums: vec![None; days],
                         coverage: vec![None; days],
                         lag: vec![false; days],
+                        identifier_incomplete: vec![false; days],
                         depends_on_country: false,
                         depends_on_institution: false,
                     },
@@ -1450,6 +1535,24 @@ impl Grid {
             cells.lag[index] = true;
         }
     }
+
+    fn set_identifier_incomplete_range(
+        &mut self,
+        platform_id: Uuid,
+        measure_id: Uuid,
+        request_start: NaiveDate,
+        request_end: NaiveDate,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+    ) {
+        let start = period_start.max(request_start);
+        let end = period_end.min(request_end);
+        for day in start.iter_days().take_while(|day| *day < end) {
+            if let Some((cells, index)) = self.cell(platform_id, measure_id, request_start, day) {
+                cells.identifier_incomplete[index] = true;
+            }
+        }
+    }
 }
 
 fn assemble(
@@ -1465,6 +1568,7 @@ fn assemble(
     let mut items = Vec::with_capacity(combinations.len());
     let mut any_unknown = combinations.is_empty();
     let mut any_partial = false;
+    let mut any_identifier_incomplete = false;
     let mut any_lag = false;
 
     for (platform_id, measure_id) in combinations {
@@ -1496,6 +1600,7 @@ fn assemble(
         );
         any_unknown |= day_unknown;
         any_partial |= day_partial;
+        any_identifier_incomplete |= cells.identifier_incomplete.iter().any(|pending| *pending);
         any_lag |= cells.lag.iter().any(|lag| *lag);
 
         let status = if day_unknown {
@@ -1558,6 +1663,12 @@ fn assemble(
         warnings.push(MetricWarning {
             code: MetricWarningCode::PartialCoverage,
             message: PARTIAL_COVERAGE_MESSAGE.to_string(),
+        });
+    }
+    if any_identifier_incomplete {
+        warnings.push(MetricWarning {
+            code: MetricWarningCode::UnresolvedIdentifiers,
+            message: UNRESOLVED_IDENTIFIERS_MESSAGE.to_string(),
         });
     }
     if any_lag {

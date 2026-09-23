@@ -413,6 +413,106 @@ pub(crate) fn cover(
     import_id
 }
 
+/// Insert one historical unresolved-DOI quarantine observation. The import's
+/// publisher is supplied explicitly so tests can prove identifier quality uses
+/// immutable admitted import scope rather than current source-account or Work
+/// metadata.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn quarantine(
+    fx: &Fixture,
+    publisher_id: Uuid,
+    platform_id: Uuid,
+    measure_id: Uuid,
+    start: NaiveDate,
+    end: NaiveDate,
+    grain: &str,
+) -> Uuid {
+    let import_id = Uuid::new_v4();
+    let provenance_id = Uuid::new_v4();
+    let quarantine_id = Uuid::new_v4();
+    let publisher = format!("'{publisher_id}'");
+    exec(
+        &fx.pool,
+        &format!(
+            "{} \
+             INSERT INTO metric_record_provenance \
+                 (record_provenance_id, import_id, classification, details) \
+             VALUES ('{provenance_id}', '{import_id}', 'REJECTED', \
+                 '{{\"schema\":\"thoth-metric-provenance-details/1\",\
+                    \"reason_code\":\"UNKNOWN_DOI\",\"reporting_grain\":\"{grain}\"}}'::jsonb); \
+             INSERT INTO metric_identifier_quarantine \
+                 (identifier_quarantine_id, record_provenance_id, source_account_id, \
+                  platform_id, measure_id, schema_version, work_doi, period_start, period_end, \
+                  reporting_grain, country_code, value, methodology_version) \
+             VALUES ('{quarantine_id}', '{provenance_id}', '{}', '{platform_id}', \
+                     '{measure_id}', 'thoth-normalized-metrics/1', \
+                     'https://doi.org/10.12345/dashboard-{quarantine_id}', \
+                     '{start}', '{end}', '{grain}', NULL, 1, 'dashboard-test/1');",
+            scoped_import_sql(
+                import_id,
+                fx.account_id,
+                &publisher,
+                "COMPLETED_WITH_ERRORS",
+                "'2026-03-10T00:00:00Z'",
+            ),
+            fx.account_id,
+        ),
+    );
+    quarantine_id
+}
+
+/// Replace the reconciliation row for one quarantine observation with an exact
+/// state. Terminal states require a canonical record whose current revision is
+/// used only to satisfy #935's durable terminal-state foreign-key shape.
+pub(crate) fn set_quarantine_reconciliation_state(
+    fx: &Fixture,
+    quarantine_id: Uuid,
+    state: &str,
+    record_id: Option<Uuid>,
+) {
+    exec(
+        &fx.pool,
+        &format!(
+            "DELETE FROM metric_identifier_quarantine_reconciliation \
+              WHERE identifier_quarantine_id = '{quarantine_id}';"
+        ),
+    );
+    if state.starts_with("RESOLVED_") {
+        let record_id = record_id.expect("terminal reconciliation needs a canonical record");
+        exec(
+            &fx.pool,
+            &format!(
+                "INSERT INTO metric_identifier_quarantine_reconciliation \
+                     (identifier_quarantine_id, state, attempt_count, last_attempted_by, \
+                      first_attempt_at, last_attempt_at, next_attempt_at, resolved_at, \
+                      record_id, record_revision_id) \
+                 VALUES ('{quarantine_id}', '{state}', 1, 'dashboard-quality-test', \
+                         transaction_timestamp(), transaction_timestamp(), NULL, \
+                         transaction_timestamp(), '{record_id}', \
+                         (SELECT current_revision_id FROM metric_record \
+                           WHERE record_id = '{record_id}'));"
+            ),
+        );
+    } else {
+        assert!(
+            record_id.is_none(),
+            "nonterminal reconciliation must not identify a canonical record"
+        );
+        exec(
+            &fx.pool,
+            &format!(
+                "INSERT INTO metric_identifier_quarantine_reconciliation \
+                     (identifier_quarantine_id, state, attempt_count, last_attempted_by, \
+                      first_attempt_at, last_attempt_at, next_attempt_at, resolved_at, \
+                      record_id, record_revision_id) \
+                 VALUES ('{quarantine_id}', '{state}', 1, 'dashboard-quality-test', \
+                         transaction_timestamp(), transaction_timestamp(), \
+                         transaction_timestamp() + interval '1 hour', NULL, NULL, NULL);"
+            ),
+        );
+    }
+}
+
 /// A pristine registry plus two entitled publishers, two platforms and one
 /// eligible managed source account.
 pub(crate) fn setup() -> (TestDbGuard, Fixture) {
@@ -962,6 +1062,7 @@ fn an_unrepresentable_aggregate_fails_rather_than_wrapping() {
         sums: vec![Some(BigInt::new(i128::MAX)), Some(BigInt::new(1))],
         coverage: vec![None, None],
         lag: vec![false, false],
+        identifier_incomplete: vec![false, false],
         depends_on_country: false,
         depends_on_institution: false,
     };
@@ -973,6 +1074,719 @@ fn an_unrepresentable_aggregate_fails_rather_than_wrapping() {
     assert_eq!(
         BigInt::parse_canonical("170141183460469231731687303715884105728"),
         None
+    );
+}
+
+// ==========================================================================
+// Identifier quality (MET-WP7-PREREQ-04)
+// ==========================================================================
+
+#[test]
+fn unresolved_identifier_evidence_suppresses_only_unjustified_zeroes() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+
+    let dashboard = read(&fx, &window(&fx, &[fx.sessions]));
+    assert_eq!(
+        bucket_values(&dashboard, fx.sessions),
+        vec![some("0"), None, some("0"), some("0")],
+        "an unresolved empty day is unknown rather than a fabricated zero"
+    );
+    assert_eq!(
+        total(&dashboard, fx.platform_id, fx.sessions),
+        None,
+        "the whole-range empty total is unknown when any day is identifier-incomplete"
+    );
+    assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(
+        item(&dashboard, fx.sessions).status,
+        MetricCoverageStatus::Complete
+    );
+    assert_eq!(dashboard.data_through, Some(day_n(4)));
+    assert_eq!(
+        codes(&dashboard),
+        vec![MetricWarningCode::UnresolvedIdentifiers]
+    );
+    assert_eq!(
+        dashboard.warnings[0].message,
+        UNRESOLVED_IDENTIFIERS_MESSAGE
+    );
+    assert!(dashboard.is_partial);
+}
+
+#[test]
+fn every_nonterminal_state_warns_and_every_terminal_state_restores_zero_eligibility() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let quarantine_id = quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    let input = window(&fx, &[fx.sessions]);
+
+    let never_attempted = read(&fx, &input);
+    assert_eq!(
+        codes(&never_attempted),
+        vec![MetricWarningCode::UnresolvedIdentifiers]
+    );
+    assert_eq!(
+        bucket_values(&never_attempted, fx.sessions),
+        vec![some("0"), None, some("0"), some("0")]
+    );
+
+    for state in [
+        "PENDING_UNKNOWN_DOI",
+        "BLOCKED_AMBIGUOUS_DOI",
+        "BLOCKED_PUBLISHER_SCOPE_MISMATCH",
+        "BLOCKED_SOURCE_CONFLICT",
+        "BLOCKED_OVERLAPPING_PERIOD",
+        "BLOCKED_SAME_IMPORT_ORDER",
+        "BLOCKED_IMPORT_ORDER_AMBIGUOUS",
+        "BLOCKED_DELTA_OVERFLOW",
+        "BLOCKED_INCONSISTENT_EVIDENCE",
+    ] {
+        set_quarantine_reconciliation_state(&fx, quarantine_id, state, None);
+        let dashboard = read(&fx, &input);
+        assert_eq!(
+            codes(&dashboard),
+            vec![MetricWarningCode::UnresolvedIdentifiers],
+            "{state}"
+        );
+        assert_eq!(bucket_values(&dashboard, fx.sessions)[1], None, "{state}");
+    }
+
+    let support = commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(10), 1);
+    for state in [
+        "RESOLVED_WINNER",
+        "RESOLVED_DUPLICATE",
+        "RESOLVED_REVISION",
+        "RESOLVED_SUPERSEDED",
+    ] {
+        set_quarantine_reconciliation_state(&fx, quarantine_id, state, Some(support));
+        let dashboard = read(&fx, &input);
+        assert!(dashboard.warnings.is_empty(), "{state}");
+        assert!(!dashboard.is_partial, "{state}");
+        assert_eq!(
+            bucket_values(&dashboard, fx.sessions),
+            vec![some("0"), some("0"), some("0"), some("0")],
+            "{state}"
+        );
+        assert_eq!(
+            total(&dashboard, fx.platform_id, fx.sessions),
+            some("0"),
+            "{state}"
+        );
+    }
+}
+
+#[test]
+fn reporting_period_identifier_evidence_marks_every_overlapped_day() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(4),
+        "REPORTING_PERIOD",
+    );
+
+    let dashboard = read(&fx, &window(&fx, &[fx.sessions]));
+    assert_eq!(
+        bucket_values(&dashboard, fx.sessions),
+        vec![some("0"), None, None, some("0")]
+    );
+    assert_eq!(
+        codes(&dashboard),
+        vec![MetricWarningCode::UnresolvedIdentifiers]
+    );
+}
+
+#[test]
+fn projected_values_remain_exact_and_warning_order_is_deterministic() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "PARTIAL",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let record = commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 9);
+    apply_all(&fx.pool);
+    revise(&fx, record, 2, 11, 9);
+
+    let input = window(&fx, &[fx.sessions, fx.units]);
+    let before = read(&fx, &input);
+    assert_eq!(
+        codes(&before),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::PartialCoverage,
+            MetricWarningCode::RollupLag,
+        ]
+    );
+    assert_eq!(total(&before, fx.platform_id, fx.sessions), some("9"));
+
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    let after = read(&fx, &input);
+    assert_eq!(
+        total(&after, fx.platform_id, fx.sessions),
+        some("9"),
+        "projected canonical sums are never replaced by null"
+    );
+    assert_eq!(
+        codes(&after),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::PartialCoverage,
+            MetricWarningCode::UnresolvedIdentifiers,
+            MetricWarningCode::RollupLag,
+        ]
+    );
+    assert_eq!(after.coverage, before.coverage);
+    assert_eq!(after.data_through, before.data_through);
+    assert_eq!(after.rollup_watermark, before.rollup_watermark);
+}
+
+#[test]
+fn unresolved_scope_uses_immutable_import_publisher_and_ignores_source_disablement() {
+    // First prove that unresolved evidence outside the selected immutable
+    // publisher/platform/measure/date scope does not leak into this request.
+    {
+        let (_guard, fx) = setup();
+        cover(
+            &fx,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+        );
+
+        quarantine(
+            &fx,
+            fx.other_publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.other_platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.units,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(10),
+            day_n(11),
+            "DAY",
+        );
+
+        let input = window(&fx, &[fx.sessions]);
+        assert!(
+            read(&fx, &input).warnings.is_empty(),
+            "out-of-scope unresolved evidence must not leak into the request"
+        );
+    }
+
+    // Then use a clean fixture to prove historical import-publisher scope does
+    // not move when the current source-account publisher or enablement changes.
+    {
+        let (_guard, fx) = setup();
+        cover(
+            &fx,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+        );
+
+        let relevant = quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        let input = window(&fx, &[fx.sessions]);
+        assert_eq!(
+            codes(&read(&fx, &input)),
+            vec![MetricWarningCode::UnresolvedIdentifiers]
+        );
+
+        // Historical admitted import scope stays authoritative even after the
+        // source account changes publisher and the source/account are disabled.
+        exec(
+            &fx.pool,
+            &format!(
+                "UPDATE metric_source_account \
+                    SET expected_publisher_id = '{}', enabled = FALSE \
+                  WHERE source_account_id = '{}'; \
+                 UPDATE metric_source SET enabled = FALSE \
+                  WHERE source_id = (SELECT source_id FROM metric_source_account \
+                                      WHERE source_account_id = '{}');",
+                fx.other_publisher_id, fx.account_id, fx.account_id
+            ),
+        );
+        let after_disable = read(&fx, &input);
+        assert!(codes(&after_disable).contains(&MetricWarningCode::UnresolvedIdentifiers));
+        assert_eq!(
+            total(&after_disable, fx.platform_id, fx.sessions),
+            None,
+            "coverage may become unknown, but immutable unresolved evidence still blocks zero"
+        );
+
+        // Moving the current account scope to the other publisher does not
+        // move the historical quarantine import with it.
+        let other_input = request(
+            fx.other_publisher_id,
+            d1(),
+            day_n(5),
+            &[fx.platform_id],
+            &[fx.sessions],
+            None,
+        );
+        assert!(
+            !codes(&read(&fx, &other_input)).contains(&MetricWarningCode::UnresolvedIdentifiers),
+            "identifier quality is attributed by immutable import publisher"
+        );
+
+        // Keep the variable load-bearing for the fixture and prove the
+        // unresolved row itself was not rewritten by any read.
+        assert_eq!(
+            scalar_i64(
+                &fx.pool,
+                &format!(
+                    "(SELECT COUNT(*) FROM metric_identifier_quarantine \
+                      WHERE identifier_quarantine_id = '{relevant}')"
+                )
+            ),
+            1
+        );
+    }
+}
+
+#[test]
+fn quarantine_only_pairs_expand_omitted_scope_conservatively_and_obey_bounds() {
+    {
+        let (_guard, fx) = setup();
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.units,
+            day_n(2),
+            day_n(3),
+            "DAY",
+        );
+        let mut input = request(
+            fx.publisher_id,
+            d1(),
+            day_n(5),
+            &[fx.platform_id],
+            &[],
+            None,
+        );
+        input.measures = None;
+        let dashboard = read(&fx, &input);
+        assert_eq!(dashboard.totals.len(), 1);
+        assert_eq!(dashboard.totals[0].measure_id, fx.units);
+        assert_eq!(text(&dashboard.totals[0].value), None);
+        assert_eq!(
+            codes(&dashboard),
+            vec![
+                MetricWarningCode::UnknownCoverage,
+                MetricWarningCode::UnresolvedIdentifiers,
+            ]
+        );
+    }
+
+    {
+        let (_guard, fx) = setup();
+        for index in 0..=METRIC_DASHBOARD_MAX_MEASURES {
+            let measure = insert_measure(&fx.pool, &format!("quarantine_only_{index}"), true, true);
+            quarantine(
+                &fx,
+                fx.publisher_id,
+                fx.platform_id,
+                measure,
+                day_n(2),
+                day_n(3),
+                "DAY",
+            );
+        }
+        let mut input = request(
+            fx.publisher_id,
+            d1(),
+            day_n(5),
+            &[fx.platform_id],
+            &[],
+            None,
+        );
+        input.measures = None;
+        assert_eq!(
+            metric_dashboard(&fx.pool, &input),
+            Err(MetricReadError::QueryLimitExceeded(TOO_MANY_MEASURES)),
+            "quarantine-derived scope must fail closed rather than truncate"
+        );
+    }
+}
+
+/// A request for one publisher over `[start, end)` with both the platform and
+/// the measure filter omitted, so the served scope is resolved entirely from
+/// represented state.
+fn omitted_scope(publisher_id: Uuid, start: NaiveDate, end: NaiveDate) -> MetricDashboardInput {
+    let mut input = request(publisher_id, start, end, &[], &[], None);
+    input.platforms = None;
+    input.measures = None;
+    input
+}
+
+/// Assert that a response serves exactly `platforms` x `measures`: the served
+/// platform and measure sets, the totals, the coverage items and the timeline
+/// buckets all name exactly those combinations and nothing else.
+fn assert_serves(dashboard: &MetricDashboard, platforms: &[Uuid], measures: &[Uuid]) {
+    let expected: BTreeSet<(Uuid, Uuid)> = platforms
+        .iter()
+        .flat_map(|platform_id| {
+            measures
+                .iter()
+                .map(move |measure_id| (*platform_id, *measure_id))
+        })
+        .collect();
+
+    let totals: Vec<(Uuid, Uuid)> = dashboard
+        .totals
+        .iter()
+        .map(|total| (total.platform_id, total.measure_id))
+        .collect();
+    assert_eq!(
+        totals
+            .iter()
+            .map(|(platform_id, _)| *platform_id)
+            .collect::<BTreeSet<_>>(),
+        platforms.iter().copied().collect::<BTreeSet<_>>(),
+        "served platforms"
+    );
+    assert_eq!(
+        totals
+            .iter()
+            .map(|(_, measure_id)| *measure_id)
+            .collect::<BTreeSet<_>>(),
+        measures.iter().copied().collect::<BTreeSet<_>>(),
+        "served measures"
+    );
+    assert_eq!(totals.len(), expected.len(), "one total per combination");
+    assert_eq!(
+        totals.into_iter().collect::<BTreeSet<_>>(),
+        expected,
+        "served totals"
+    );
+
+    let items: Vec<(Uuid, Uuid)> = dashboard
+        .coverage
+        .items
+        .iter()
+        .map(|item| (item.platform_id, item.measure_id))
+        .collect();
+    assert_eq!(
+        items.len(),
+        expected.len(),
+        "one coverage item per combination"
+    );
+    assert_eq!(
+        items.into_iter().collect::<BTreeSet<_>>(),
+        expected,
+        "coverage items"
+    );
+
+    assert_eq!(
+        dashboard
+            .timeline
+            .iter()
+            .map(|bucket| (bucket.platform_id, bucket.measure_id))
+            .collect::<BTreeSet<_>>(),
+        expected,
+        "timeline combinations"
+    );
+}
+
+#[test]
+fn unrelated_quarantine_does_not_expand_scope_when_both_dimensions_are_omitted() {
+    let (_guard, fx) = setup();
+    // Every unrelated row has a platform and a measure of its own, so a row
+    // that leaked into represented scope would add both a served platform and
+    // a served measure.
+    let other_publisher_platform = Uuid::new_v4();
+    let ends_at_start_platform = Uuid::new_v4();
+    let starts_at_end_platform = Uuid::new_v4();
+    let resolved_platform = Uuid::new_v4();
+    insert_platform_row(&fx.pool, other_publisher_platform, "scope_other_publisher");
+    insert_platform_row(&fx.pool, ends_at_start_platform, "scope_ends_at_start");
+    insert_platform_row(&fx.pool, starts_at_end_platform, "scope_starts_at_end");
+    insert_platform_row(&fx.pool, resolved_platform, "scope_resolved");
+    let other_publisher_measure = insert_measure(&fx.pool, "scope_other_publisher", true, true);
+    let ends_at_start_measure = insert_measure(&fx.pool, "scope_ends_at_start", true, true);
+    let starts_at_end_measure = insert_measure(&fx.pool, "scope_starts_at_end", true, true);
+    let resolved_measure = insert_measure(&fx.pool, "scope_resolved", true, true);
+
+    // The one in-scope pair: unresolved, admitted under the selected
+    // publisher's import, overlapping [2026-03-01, 2026-03-05), and neither
+    // projected nor covered.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    // 1. Unresolved and overlapping, but admitted under the other publisher's
+    //    import.
+    quarantine(
+        &fx,
+        fx.other_publisher_id,
+        other_publisher_platform,
+        other_publisher_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    // 2. The selected publisher, ending exactly at the request start.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        ends_at_start_platform,
+        ends_at_start_measure,
+        d1() - Duration::days(1),
+        d1(),
+        "DAY",
+    );
+    // 3. The selected publisher, starting exactly at the request end.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        starts_at_end_platform,
+        starts_at_end_measure,
+        day_n(5),
+        day_n(6),
+        "DAY",
+    );
+    // 4. The selected publisher and overlapping, but terminally resolved. The
+    //    supporting canonical record only satisfies #935's terminal-state
+    //    shape: it lies outside every window below and is never applied, so it
+    //    represents nothing.
+    let resolved = quarantine(
+        &fx,
+        fx.publisher_id,
+        resolved_platform,
+        resolved_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    let support = commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(10), 1);
+    set_quarantine_reconciliation_state(&fx, resolved, "RESOLVED_WINNER", Some(support));
+
+    let window = omitted_scope(fx.publisher_id, d1(), day_n(5));
+    let dashboard = read(&fx, &window);
+    assert_serves(&dashboard, &[fx.platform_id], &[fx.sessions]);
+    // Quarantine-only, so nothing justifies a zero anywhere.
+    assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), None);
+    assert_eq!(
+        bucket_values(&dashboard, fx.sessions),
+        vec![None, None, None, None]
+    );
+    assert_eq!(
+        item(&dashboard, fx.sessions).status,
+        MetricCoverageStatus::Unknown
+    );
+    assert_eq!(
+        codes(&dashboard),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::UnresolvedIdentifiers,
+        ]
+    );
+    assert!(dashboard.is_partial);
+
+    // Controls: every excluded row is valid, discoverable evidence that only
+    // the predicate under test keeps out.
+    //
+    // The other publisher's own omitted-filter request discovers its row and
+    // nothing of the selected publisher's.
+    let other = read(&fx, &omitted_scope(fx.other_publisher_id, d1(), day_n(5)));
+    assert_serves(
+        &other,
+        &[other_publisher_platform],
+        &[other_publisher_measure],
+    );
+    assert!(codes(&other).contains(&MetricWarningCode::UnresolvedIdentifiers));
+
+    // One more day on each side takes in both boundary rows, but still neither
+    // the other publisher's row nor the resolved one.
+    let widened = read(
+        &fx,
+        &omitted_scope(fx.publisher_id, d1() - Duration::days(1), day_n(6)),
+    );
+    assert_serves(
+        &widened,
+        &[
+            fx.platform_id,
+            ends_at_start_platform,
+            starts_at_end_platform,
+        ],
+        &[fx.sessions, ends_at_start_measure, starts_at_end_measure],
+    );
+
+    // A nonterminal state for the same row makes it represented again.
+    set_quarantine_reconciliation_state(&fx, resolved, "PENDING_UNKNOWN_DOI", None);
+    let reopened = read(&fx, &window);
+    assert_serves(
+        &reopened,
+        &[fx.platform_id, resolved_platform],
+        &[fx.sessions, resolved_measure],
+    );
+}
+
+#[test]
+fn quarantine_outside_an_explicit_dimension_does_not_expand_the_omitted_one() {
+    let (_guard, fx) = setup();
+    let other_platform_measure = insert_measure(&fx.pool, "scope_other_platform", true, true);
+    // In scope on the fixture platform and sessions measure.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    // The same publisher and window, but on the other platform with a
+    // measure that nothing else represents.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.other_platform_id,
+        other_platform_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+
+    // Control: with both dimensions omitted the second row is represented, so
+    // it is valid in-window evidence of the selected publisher.
+    let both_omitted = read(&fx, &omitted_scope(fx.publisher_id, d1(), day_n(5)));
+    assert_serves(
+        &both_omitted,
+        &[fx.platform_id, fx.other_platform_id],
+        &[fx.sessions, other_platform_measure],
+    );
+
+    // Explicit platform, omitted measures: the other platform's row cannot
+    // add its measure.
+    let mut platform_explicit = omitted_scope(fx.publisher_id, d1(), day_n(5));
+    platform_explicit.platforms = Some(vec![fx.platform_id]);
+    let dashboard = read(&fx, &platform_explicit);
+    assert_serves(&dashboard, &[fx.platform_id], &[fx.sessions]);
+    assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), None);
+    assert_eq!(
+        codes(&dashboard),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::UnresolvedIdentifiers,
+        ]
+    );
+
+    // Omitted platforms, explicit measure: the other measure's row cannot add
+    // its platform.
+    let mut measure_explicit = omitted_scope(fx.publisher_id, d1(), day_n(5));
+    measure_explicit.measures = Some(vec![fx.sessions]);
+    let dashboard = read(&fx, &measure_explicit);
+    assert_serves(&dashboard, &[fx.platform_id], &[fx.sessions]);
+    assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), None);
+    assert_eq!(
+        codes(&dashboard),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::UnresolvedIdentifiers,
+        ]
     );
 }
 
@@ -2368,6 +3182,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
         ("DIMENSION_CELLS_SQL", DIMENSION_CELLS_SQL),
         ("ASSERTIONS_SQL", ASSERTIONS_SQL),
         ("LAG_SQL", LAG_SQL),
+        ("IDENTIFIER_QUALITY_SQL", IDENTIFIER_QUALITY_SQL),
     ] {
         let upper = statement.to_uppercase();
         assert!(
@@ -2391,7 +3206,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     }
     assert_eq!(
         source.matches("diesel::sql_query(").count(),
-        11,
+        12,
         "every statement the read executes is one of the named constants"
     );
 }
@@ -3011,8 +3826,9 @@ fn the_statement_count_does_not_grow_with_works_days_or_rows() {
     let wide = counted_statements(&wide);
 
     // Transaction control, publisher, frontier, measure existence, represented
-    // scope, additivity, accounts, projection, coverage and lag: a fixed set.
-    assert!(small <= 14, "{small} statements");
+    // scope, additivity, accounts, projection, coverage, identifier quality and
+    // lag: a fixed set.
+    assert!(small <= 15, "{small} statements");
     assert_eq!(
         large,
         small + 2,
@@ -3453,6 +4269,12 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
         &format!(
             "{publishers}, '{start}', '{year_end}', ARRAY[]::uuid[], ARRAY[]::uuid[], 'DRIVER'"
         ),
+    );
+    explain(
+        "IDENTIFIER_QUALITY_SQL (366 days, 5 platforms x 5 measures)",
+        IDENTIFIER_QUALITY_SQL,
+        "uuid[], date, date, uuid[], uuid[]",
+        &format!("{publishers}, '{start}', '{year_end}', {all_platforms}, {all_measures}"),
     );
 
     // Diagnostic only: the same statements with sequential scans disabled,
