@@ -296,9 +296,9 @@ Scope boundaries a consumer must not infer:
   `reporting_grain = DAY` spanning exactly one calendar day. Deltas of other
   grains are durable and pending, carry no position, and never block the
   work-day frontier; their projection and claim design is deferred.
-- `metric_rollup_work_day` is the only projection delivered. The monthly,
-  work-country-month and work-institution-month projections remain future
-  architecture.
+- `metric_rollup_work_day` is the only projection this contract applies
+  deltas to. The derived monthly projections `MET-WP4-03A` maintains beneath
+  the same completion (section 3.6) are fed from it and expose no operation.
 - There is no callable rebuild operation. Delta state is reachable only
   through the two operations above. Projected values and the watermark time
   are read only through the `MET-WP4-02` coverage-aware `metricDashboard`
@@ -620,6 +620,157 @@ Identifier-quality read warnings remain separately owned by
 `MET-WP7-PREREQ-04` (#936). This reconciliation contract does not activate
 CloudFront collection, execute a production migration, or change any provider
 configuration.
+
+### 3.6 Derived monthly serving projections (`MET-WP4-03A`)
+
+`MET-WP4-03A` (issue #940) adds the derived monthly serving foundation
+beneath the `MET-WP4-01` completion transaction. It changes no operation,
+type, field, argument, scalar, role or entitlement of sections 3.1 or 4.1,
+and it adds no reader: this section records durable derived state and the
+rules that maintain it, for the separately specified `MET-WP4-03B` read
+contract to consume.
+
+Objects, created empty by migration `20260923_v1.9.0`, all derived and
+rebuildable:
+
+```text
+metric_rollup_work_month
+  identity: UNIQUE NULLS NOT DISTINCT (work_id, publication_id, platform_id, measure_id, month_start)
+  value bigint, requires_country_coverage, requires_institution_coverage, watermark
+
+metric_rollup_work_country_month
+  identity: UNIQUE NULLS NOT DISTINCT (work_id, publication_id, platform_id, measure_id, month_start, country_code)
+  value bigint, requires_institution_coverage, watermark
+
+metric_rollup_work_institution_month
+  identity: UNIQUE NULLS NOT DISTINCT (work_id, publication_id, platform_id, measure_id, month_start, institution_id)
+  value bigint, requires_country_coverage, watermark
+
+metric_rollup_work_month_ambiguity
+  identity: UNIQUE (work_id, platform_id, measure_id, month_start)
+  total_ambiguous, country_ambiguous, institution_ambiguous (at least one true), watermark
+```
+
+Every table carries a UUID primary key, a first-of-month check on
+`month_start`, a positive-watermark check, non-cascading foreign keys to the
+represented work, publication, platform, measure and institution rows, the
+two-uppercase-letter country-code check where a country is represented, and
+no secondary index. The accepted `MET-WP4-03-BENCH-01` evidence rejected
+every candidate secondary index; adding one requires exact-head query-plan
+evidence and an amendment.
+
+Contract properties a later consumer may rely on:
+
+- **Derived, never canonical.** Canonical Metrics authority remains
+  `metric_record`, `metric_record_revision`, the durable rollup deltas and
+  the `MET-WP4-01` work-day frontier. The four monthly tables are written only
+  by `completeMetricRollupDeltas`, inside its transaction and beneath its
+  `metric_rollup_work_day_state` lock, and their only source is
+  `metric_rollup_work_day`. Nothing reads canonical records, revisions or
+  deltas to derive a monthly row, and nothing rewrites a canonical value to
+  repair a derived one.
+- **Day is resolved before month.** For every daily base cell
+  `(work, platform, measure, day)` the representation is resolved first,
+  and only the resolved daily contributions are summed into the month. Raw
+  day rows are never compacted into a month and then re-resolved; the
+  raw-month design was falsified by the benchmark.
+- **Total representation, unchanged from section 4.1.** An undimensioned
+  row is authoritative for its base cell. Without one, exactly one
+  represented optional-dimension mask is summed. Otherwise the cell is
+  `total_ambiguous` and contributes nothing to `metric_rollup_work_month`.
+- **Country and institution representation.** Among the represented masks
+  that contain the target dimension, the unique least mask under set
+  inclusion is selected; its non-target dimensions are summed away. No
+  qualifying mask contributes no value. Two incomparable minimal masks
+  (`{country, institution}` beside `{publication, country}` for country;
+  `{country, institution}` beside `{publication, institution}` for
+  institution) contribute nothing and set `country_ambiguous` or
+  `institution_ambiguous`. The least-representation rule is never applied to
+  totals.
+- **Publication identity is additive.** A monthly row retains
+  `publication_id` exactly when the selected daily representation carries
+  it, and is `NULL` otherwise. Within one month a `NULL` row and
+  publication-specific rows arising from different resolved days are
+  separate, additive contributions; no month-level precedence is applied
+  between them.
+- **Coverage dependency flags.** `requires_country_coverage` and
+  `requires_institution_coverage` are the section 4.1 range-wide dependency
+  semantics, OR-ed across the resolved daily contributions grouped into a
+  row: true when at least one contributing representation was broken down by
+  that dimension. Country rows carry only `requires_institution_coverage`;
+  institution rows carry only `requires_country_coverage`. They are semantic
+  state a reader must honour, not performance hints.
+- **Sparse ambiguity.** One `metric_rollup_work_month_ambiguity` row exists
+  per `(work, platform, measure, month)` while at least one flag is true,
+  including for a month that has no value row in the ambiguous section. The
+  three flags are independent. Ambiguity never blocks completion or frontier
+  progress; when every flag clears, the row is removed rather than kept for
+  its old watermark. A reader must treat a true flag as fail-closed
+  evidence for that section.
+- **Exact row watermarks.** A value row's `watermark` is the greatest
+  `metric_rollup_work_day.watermark` over exactly the current resolved daily
+  source rows that contribute to it; ignored alternative representations do
+  not advance it. An ambiguity row's `watermark` is the greatest watermark
+  over the union of daily source rows whose current represented state
+  establishes any currently-true flag. A row watermark is local
+  derived-state evidence only: it is never a serving boundary, and it never
+  exceeds the `metric_rollup_work_day_state.applied_through_sequence` the
+  same completion establishes. The only safe global serving frontier remains
+  that `applied_through_sequence`.
+- **Fixed-statement set-wise maintenance.** After the approved per-delta
+  work-day application, the completion derives the distinct affected
+  `(work, platform, measure, month)` keys of the batch, passes the whole set
+  as one relational input (four parallel `unnest` arrays) and recomputes the
+  four monthly datasets for exactly those keys in nine SQL statements — one
+  source-watermark bound, four keyed deletes, four inserts — whose count is
+  identical for 1, 10 and 50 affected keys. The claim batch remains at most
+  50. Only then are the deltas terminalized and the frontier advanced.
+- **Atomic with the completion.** Work-day updates, monthly recomputation,
+  delta terminalization and the frontier advance commit together. A failure
+  anywhere in the monthly recomputation rolls the whole transaction back:
+  work-day rows, monthly rows, delta status and the frontier stay exactly as
+  they were, and the batch remains claimed until its lease expires. A
+  timeout-after-commit replay of an applied token stays read-only and
+  rewrites no monthly row. Values are signed 64-bit and a monthly sum that
+  overflows fails the batch closed; nothing wraps or narrows.
+- **Rebuild from work-day state only.** The reviewed rebuild procedure
+  (compiled with the tests; no callable operation is added) locks the same
+  state row, checks that no day row is watermarked above the durable
+  frontier, truncates the four tables, reads every month key represented in
+  `metric_rollup_work_day`, and replays the completion's own nine-statement
+  keyed recomputation over those keys in chunks of at most 50. It executes
+  the same statements, resolution text and index paths as incremental
+  maintenance and reads nothing else. At the same work-day state and
+  frontier it reproduces incrementally maintained identities, values,
+  dependency flags, ambiguity flags and row watermarks exactly, in both
+  directions.
+- **Initially empty; activation is gated.** The migration populates
+  nothing, which is safe because `MET-WP4-03A` adds no reader. No consumer
+  may serve from the monthly tables until, under separate authorization, the
+  migration has been executed, a full historical rebuild from
+  `metric_rollup_work_day` has populated them, and that rebuild has been
+  reconciled — exact values, dependency flags, ambiguity state and row
+  watermarks — at a recorded `applied_through_sequence`. `MET-WP4-03B`
+  serving activation and the downstream dashboard cutover are prohibited
+  while the tables are empty, partially rebuilt or unreconciled. After a
+  downgrade and reapplication the same gate applies again, because the
+  completion maintains only the months it touches from then on.
+- **No native MONTH or REPORTING_PERIOD serving.** These projections are
+  aggregations of resolved `DAY`-grain work-day rows. Canonical records of
+  any other grain remain outside the work-day stream and are not projected
+  here; native monthly serving of such records is separately specified.
+
+Scope boundaries a consumer must not infer:
+
+- No GraphQL operation, type, field, argument or scalar was added or
+  changed; `metricDashboard` (section 4.1) still serves from
+  `metric_rollup_work_day`. The monthly tables, their flags and ambiguity
+  state reach no API in `MET-WP4-03A`.
+- There is no callable rebuild, repair or reconciliation operation, no
+  rollup or rebuild generation, no `metric_rollup_work_month_state`, no
+  `metric_work_dimension` and no secondary index.
+- Sphinx orchestrates and never writes the Thoth database; all monthly
+  arithmetic executes inside Thoth's completion transaction.
 
 ## 4. Dashboard/widget
 
