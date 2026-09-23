@@ -1,5 +1,6 @@
-//! Durable Metrics rollup deltas and the MOM-1 work-day projection
-//! (`MET-WP1-07`, `MET-WP4-01`).
+//! Durable Metrics rollup deltas, the MOM-1 work-day projection and the
+//! derived monthly serving projections (`MET-WP1-07`, `MET-WP4-01`,
+//! `MET-WP4-03A`).
 //!
 //! This module owns the persisted `metric_rollup_delta` model: the durable
 //! accounting bridge between one canonical metric-record revision and the
@@ -12,17 +13,24 @@
 //! `MET-WP1-07` established delta storage only. `MET-WP4-01` adds the MOM-1
 //! application path on top of it: a gap-free work-day progress ordering, a
 //! strict-frontier claim/lease protocol, whole-batch atomic application into
-//! the one delivered projection `metric_rollup_work_day`, and a durable
-//! contiguous watermark. See [`crud`] for the two protected operations and
-//! their exact transaction shapes.
+//! the work-day projection `metric_rollup_work_day`, and a durable
+//! contiguous watermark. `MET-WP4-03A` adds the derived monthly serving
+//! layer beneath that same completion transaction: three resolved monthly
+//! value projections (`metric_rollup_work_month`,
+//! `metric_rollup_work_country_month`, `metric_rollup_work_institution_month`)
+//! and the sparse `metric_rollup_work_month_ambiguity` state, all derived
+//! exclusively from `metric_rollup_work_day` after each daily base cell has
+//! been resolved. See [`crud`] for the two protected operations and their
+//! exact transaction shapes.
 //!
 //! What is still deliberately absent: any callable rebuild operation, any
-//! retry/backoff or poison-skipping behaviour, any projection other than
-//! `metric_rollup_work_day`, and any progress stream for a non-`DAY` grain.
-//! A poison frontier blocks and waits for separately authorized repair rather
-//! than being stepped over, and the monthly, work-country-month and
-//! work-institution-month projections named by the approved design remain
-//! future architecture.
+//! reader of the monthly projections, any retry/backoff or poison-skipping
+//! behaviour, and any progress stream for a non-`DAY` grain. A poison
+//! frontier blocks and waits for separately authorized repair rather than
+//! being stepped over. The monthly tables are created empty by their
+//! migration and may not be served from until a separately authorized
+//! historical rebuild has populated and reconciled them at a recorded
+//! work-day frontier.
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -95,6 +103,111 @@ pub struct MetricRollupWorkDay {
     pub country_code: Option<String>,
     pub institution_id: Option<Uuid>,
     pub value: i64,
+    pub watermark: i64,
+}
+
+/// One row of the resolved monthly total projection (`MET-WP4-03A`).
+///
+/// Derived, rebuildable state fed only by `metric_rollup_work_day`. Each
+/// daily base cell `(work, platform, measure, day)` is resolved first under
+/// the `MET-WP4-02` Amendment 6 total rule — an undimensioned row is
+/// authoritative, otherwise exactly one represented optional-dimension mask
+/// is summed, otherwise the cell is ambiguous and contributes nothing here —
+/// and only those resolved contributions are summed into the month.
+/// `publication_id` is retained exactly when the selected daily
+/// representation carries it, so a month may hold both a `NULL` row and
+/// publication-specific rows from different days; they are additive and are
+/// never re-ranked against each other.
+///
+/// `requires_country_coverage` and `requires_institution_coverage` are the
+/// `MET-WP4-02` range-wide dependency flags, OR-ed over the resolved daily
+/// contributions grouped into this row: true when at least one of them was
+/// taken from rows broken down by that dimension.
+///
+/// `watermark` is the greatest [`MetricRollupWorkDay::watermark`] over
+/// exactly the current daily source rows that contribute to this row. It is
+/// local derived-state evidence, never a serving boundary, and it never
+/// exceeds [`MetricRollupWorkDayState::applied_through_sequence`].
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkMonth {
+    pub rollup_work_month_id: Uuid,
+    pub work_id: Uuid,
+    pub publication_id: Option<Uuid>,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub month_start: NaiveDate,
+    pub value: i64,
+    pub requires_country_coverage: bool,
+    pub requires_institution_coverage: bool,
+    pub watermark: i64,
+}
+
+/// One row of the resolved monthly per-country projection (`MET-WP4-03A`).
+///
+/// For each daily base cell the represented masks containing country are
+/// considered and the unique least one under set inclusion is selected; the
+/// non-target dimensions of that representation are summed away, and
+/// `publication_id` is retained only if the representation carries it. A
+/// cell with no country-bearing mask contributes nothing, and a cell whose
+/// minimal country masks are incomparable contributes nothing and is
+/// recorded as `country_ambiguous` instead. `requires_institution_coverage`
+/// is OR-ed over the contributing resolved days. `watermark` follows the
+/// same rule as [`MetricRollupWorkMonth::watermark`].
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkCountryMonth {
+    pub rollup_work_country_month_id: Uuid,
+    pub work_id: Uuid,
+    pub publication_id: Option<Uuid>,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub month_start: NaiveDate,
+    pub country_code: String,
+    pub value: i64,
+    pub requires_institution_coverage: bool,
+    pub watermark: i64,
+}
+
+/// One row of the resolved monthly per-institution projection
+/// (`MET-WP4-03A`): the mirror of [`MetricRollupWorkCountryMonth`] with
+/// institution as the target dimension and country as the dependency.
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkInstitutionMonth {
+    pub rollup_work_institution_month_id: Uuid,
+    pub work_id: Uuid,
+    pub publication_id: Option<Uuid>,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub month_start: NaiveDate,
+    pub institution_id: Uuid,
+    pub value: i64,
+    pub requires_country_coverage: bool,
+    pub watermark: i64,
+}
+
+/// One sparse row of monthly ambiguity state (`MET-WP4-03A`).
+///
+/// Exists only while at least one flag is true, and may exist for a month
+/// that has no value row at all in the ambiguous section. Ambiguity never
+/// blocks completion or the frontier: it is fail-closed serving evidence the
+/// later reader must honour. `watermark` is the greatest
+/// [`MetricRollupWorkDay::watermark`] over the union of the daily source
+/// rows whose current represented state establishes any currently-true
+/// flag; when every flag clears, the row is removed rather than retained for
+/// its old watermark.
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkMonthAmbiguity {
+    pub rollup_work_month_ambiguity_id: Uuid,
+    pub work_id: Uuid,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub month_start: NaiveDate,
+    pub total_ambiguous: bool,
+    pub country_ambiguous: bool,
+    pub institution_ambiguous: bool,
     pub watermark: i64,
 }
 

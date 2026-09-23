@@ -24,25 +24,42 @@
 //! below insert their own one-day `DAY` records through raw SQL over the same
 //! fixture entities rather than changing a helper another module owns.
 //!
+//! The `MET-WP4-03A` half asserts the derived monthly serving layer beneath
+//! the same completion: the four-table schema, day-first resolution (the
+//! Amendment 6 total rule and the unique-least country/institution rule),
+//! additive publication identity, OR-ed dependency flags, sparse ambiguity,
+//! exact row watermarks, the fixed nine-statement set-wise maintenance,
+//! atomic rollback, read-only replay, monthly overflow, a fixed-seed
+//! differential against an independent per-day oracle, incremental/rebuild
+//! equality and the populated migration round trip.
+//!
 //! GraphQL authorization, resolver wiring and SDL evidence live in
 //! `crate::graphql::metric_rollup_tests`.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
+use diesel::connection::InstrumentationEvent;
 use diesel::pg::PgConnection;
+use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::{sql_query, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use thoth_errors::ThothError;
 use uuid::Uuid;
 
-use super::crud::{claim_metric_rollup_deltas, complete_metric_rollup_deltas};
+use super::crud::{
+    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_month_projections,
+    recompute_month_projections, MonthKey, MONTH_MAINTENANCE_STATEMENTS,
+    MONTH_MAINTENANCE_STATEMENT_COUNT,
+};
 use super::{
-    MetricRollupDelta, MetricRollupWorkDay, MetricRollupWorkDayState,
+    MetricRollupDelta, MetricRollupWorkCountryMonth, MetricRollupWorkDay, MetricRollupWorkDayState,
+    MetricRollupWorkInstitutionMonth, MetricRollupWorkMonth, MetricRollupWorkMonthAmbiguity,
     METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_LEASE_SECONDS,
 };
 use crate::db::{PgPool, MIGRATIONS};
@@ -56,21 +73,28 @@ use crate::model::metric_record_revision::tests::{
 };
 use crate::model::tests::db::test_db_url;
 use crate::model::Timestamp;
-use crate::schema::{metric_rollup_delta, metric_rollup_work_day, metric_rollup_work_day_state};
+use crate::schema::{
+    metric_rollup_delta, metric_rollup_work_country_month, metric_rollup_work_day,
+    metric_rollup_work_day_state, metric_rollup_work_institution_month, metric_rollup_work_month,
+    metric_rollup_work_month_ambiguity,
+};
 
 /// The Diesel migration version of `thoth-api/migrations/20260903_v1.9.0`.
 const MET_WP1_07_MIGRATION_VERSION: &str = "20260903";
 
-/// The three rebuildable work-level rollup projection tables that remain
-/// approved *future* architecture. MOM-1 delivers exactly one projection,
-/// `metric_rollup_work_day`, so none of these may exist: their relational
-/// keys, null-dimension uniqueness and rebuild protocol are undecided, and a
-/// speculative table would pre-empt that review.
-const DEFERRED_PROJECTION_TABLES: [&str; 3] = [
+/// The four derived monthly serving tables `MET-WP4-03A` delivers beneath
+/// the MOM-1 work-day projection, in name order.
+const MONTH_TABLES: [&str; 4] = [
     "metric_rollup_work_country_month",
     "metric_rollup_work_institution_month",
     "metric_rollup_work_month",
+    "metric_rollup_work_month_ambiguity",
 ];
+
+/// Serving objects the accepted `MET-WP4-03-BENCH-01` evidence rejected and
+/// the approved `MET-WP4-03A` specification prohibits. None may exist.
+const REJECTED_SERVING_OBJECTS: [&str; 2] =
+    ["metric_rollup_work_month_state", "metric_work_dimension"];
 
 /// Column names that would betray a retry/backoff, failure-detail or
 /// rebuild-generation protocol having been smuggled into the delta table.
@@ -740,9 +764,9 @@ fn metric_rollup_delta_has_exactly_the_approved_columns() {
 fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
     let (_guard, pool) = setup_registry_db();
 
-    // The three other work-level projections remain approved future
-    // architecture and must not exist yet.
-    for table in DEFERRED_PROJECTION_TABLES {
+    // The four monthly serving tables are delivered by MET-WP4-03A; the
+    // serving objects its benchmark rejected must not exist.
+    for table in MONTH_TABLES {
         assert_eq!(
             scalar_i64(
                 &pool,
@@ -752,8 +776,22 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
                         AND relkind = 'r' AND relname = '{table}')"
                 ),
             ),
+            1,
+            "MET-WP4-03A must create the derived monthly table {table}"
+        );
+    }
+    for object in REJECTED_SERVING_OBJECTS {
+        assert_eq!(
+            scalar_i64(
+                &pool,
+                &format!(
+                    "(SELECT COUNT(*) FROM pg_class \
+                      WHERE relnamespace = 'public'::regnamespace \
+                        AND relname = '{object}')"
+                ),
+            ),
             0,
-            "MOM-1 must not create the deferred projection table {table}"
+            "the rejected serving object {object} must not exist"
         );
     }
 
@@ -801,7 +839,14 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
         vec!["metric_rollup_delta_assign_work_day_sequence".to_string()],
         "metric_rollup_delta must carry exactly the work-day allocation trigger"
     );
-    for table in ["metric_rollup_work_day", "metric_rollup_work_day_state"] {
+    for table in [
+        "metric_rollup_work_day",
+        "metric_rollup_work_day_state",
+        "metric_rollup_work_month",
+        "metric_rollup_work_country_month",
+        "metric_rollup_work_institution_month",
+        "metric_rollup_work_month_ambiguity",
+    ] {
         assert_eq!(
             trigger_names(&pool, table),
             Vec::<String>::new(),
@@ -2736,6 +2781,12 @@ fn the_down_migration_refuses_to_erase_claim_or_application_evidence() {
         refused.contains("carry claim or application evidence"),
         "unexpected rollback failure: {refused}"
     );
+    // Reverting through MET-WP4-01 peels off the newer additive MET-WP4-03A
+    // monthly migration first; it is restored here so the completion below
+    // can maintain the monthly projections it now owns.
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("the newer additive migrations reapply after the refusal");
 
     // Once applied, the refusal is about the watermark and the projection:
     // dropping them would not undo the projection, only the record of it.
@@ -2747,6 +2798,9 @@ fn the_down_migration_refuses_to_erase_claim_or_application_evidence() {
         refused.contains("durable watermark has advanced"),
         "unexpected rollback failure: {refused}"
     );
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("the newer additive migrations reapply after the refusal");
 
     // The schema, the applied progress and the projection all survive the
     // refusal untouched: a refused rollback is a no-op, not a partial one.
@@ -2843,4 +2897,2513 @@ fn an_allocating_ingestion_waits_behind_an_in_flight_claim() {
         vec![1, 2],
         "and it takes the next contiguous position"
     );
+}
+
+// ===========================================================================
+// MET-WP4-03A: derived monthly serving projections
+// ===========================================================================
+
+/// The Diesel migration version of `thoth-api/migrations/20260923_v1.9.0`.
+const MET_WP4_03A_MIGRATION_VERSION: &str = "20260923";
+
+/// The fixed seed of the differential fixture, and the cardinality it
+/// generates. Both are pinned so a change to either the generator or the
+/// seed is a visible change to the evidence.
+const DIFFERENTIAL_SEED: u64 = 20_260_923;
+
+/// The third calendar day of the fixture month.
+const DAY_THREE: (i32, u32, u32) = (2026, 3, 3);
+/// The first day of the month after the fixture month.
+const APRIL_ONE: (i32, u32, u32) = (2026, 4, 1);
+
+fn month(year: i32, month: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, 1).expect("a valid fixture month")
+}
+
+fn first_of_month(day: NaiveDate) -> NaiveDate {
+    day.with_day(1).expect("the first day of a month")
+}
+
+/// The first day of the `n`th month from January 2021, for keys that must
+/// fall in distinct months.
+fn distinct_month(n: u32) -> NaiveDate {
+    month(2021 + (n / 12) as i32, n % 12 + 1)
+}
+
+fn ymd(day: NaiveDate) -> (i32, u32, u32) {
+    (day.year(), day.month(), day.day())
+}
+
+// ---------------------------------------------------------------------------
+// Dimension shorthands over the shared fixture
+// ---------------------------------------------------------------------------
+
+const AGG: DayDimensions = DayDimensions {
+    publication: false,
+    country_code: None,
+    institution: false,
+};
+const GB: DayDimensions = DayDimensions {
+    publication: false,
+    country_code: Some("GB"),
+    institution: false,
+};
+const US: DayDimensions = DayDimensions {
+    publication: false,
+    country_code: Some("US"),
+    institution: false,
+};
+const INST: DayDimensions = DayDimensions {
+    publication: false,
+    country_code: None,
+    institution: true,
+};
+const PUB: DayDimensions = DayDimensions {
+    publication: true,
+    country_code: None,
+    institution: false,
+};
+const GB_INST: DayDimensions = DayDimensions {
+    publication: false,
+    country_code: Some("GB"),
+    institution: true,
+};
+const PUB_GB: DayDimensions = DayDimensions {
+    publication: true,
+    country_code: Some("GB"),
+    institution: false,
+};
+const PUB_INST: DayDimensions = DayDimensions {
+    publication: true,
+    country_code: None,
+    institution: true,
+};
+const PUB_GB_INST: DayDimensions = DayDimensions {
+    publication: true,
+    country_code: Some("GB"),
+    institution: true,
+};
+
+/// Commit one `PENDING` work-day delta over the shared fixture under a
+/// fresh identity, and return its canonical record id.
+fn day_delta(
+    pool: &PgPool,
+    fixture: &RecordFixture,
+    on: (i32, u32, u32),
+    dimensions: DayDimensions,
+    value: i64,
+) -> Uuid {
+    commit_work_day_delta(
+        pool,
+        fixture,
+        &format!("identity-{}", Uuid::new_v4().simple()),
+        on,
+        dimensions,
+        value,
+    )
+}
+
+/// Claim and complete until the frontier is exhausted, in batches of the
+/// maximum size, and return the durable watermark.
+fn apply_everything(pool: &PgPool) -> i64 {
+    loop {
+        let claims = claim_metric_rollup_deltas(pool, CLAIMANT, METRIC_ROLLUP_CLAIM_MAX_BATCH)
+            .expect("claim");
+        let Some(first) = claims.first() else {
+            return state(pool).applied_through_sequence;
+        };
+        complete_metric_rollup_deltas(pool, CLAIMANT, first.claim_token).expect("completion");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Monthly row readers
+// ---------------------------------------------------------------------------
+
+/// Every resolved monthly total, in a deterministic order.
+pub(crate) fn month_rows(pool: &PgPool) -> Vec<MetricRollupWorkMonth> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkMonth> = metric_rollup_work_month::table
+        .load(&mut connection)
+        .expect("Failed to load the monthly projection");
+    rows.sort_by_key(|row| (row.month_start, row.work_id, row.publication_id, row.value));
+    rows
+}
+
+fn country_rows(pool: &PgPool) -> Vec<MetricRollupWorkCountryMonth> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkCountryMonth> = metric_rollup_work_country_month::table
+        .load(&mut connection)
+        .expect("Failed to load the monthly country projection");
+    rows.sort_by_key(|row| {
+        (
+            row.month_start,
+            row.work_id,
+            row.publication_id,
+            row.country_code.clone(),
+            row.value,
+        )
+    });
+    rows
+}
+
+fn institution_rows(pool: &PgPool) -> Vec<MetricRollupWorkInstitutionMonth> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkInstitutionMonth> =
+        metric_rollup_work_institution_month::table
+            .load(&mut connection)
+            .expect("Failed to load the monthly institution projection");
+    rows.sort_by_key(|row| {
+        (
+            row.month_start,
+            row.work_id,
+            row.publication_id,
+            row.institution_id,
+            row.value,
+        )
+    });
+    rows
+}
+
+fn ambiguity_rows(pool: &PgPool) -> Vec<MetricRollupWorkMonthAmbiguity> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkMonthAmbiguity> = metric_rollup_work_month_ambiguity::table
+        .load(&mut connection)
+        .expect("Failed to load the monthly ambiguity state");
+    rows.sort_by_key(|row| (row.month_start, row.work_id));
+    rows
+}
+
+/// `(month_start, publication_id, value, requires_country, requires_institution, watermark)`.
+type TotalFact = (NaiveDate, Option<Uuid>, i64, bool, bool, i64);
+/// `(month_start, publication_id, country_code, value, requires_institution, watermark)`.
+type CountryFact = (NaiveDate, Option<Uuid>, String, i64, bool, i64);
+/// `(month_start, publication_id, institution_id, value, requires_country, watermark)`.
+type InstitutionFact = (NaiveDate, Option<Uuid>, Uuid, i64, bool, i64);
+/// `(month_start, total_ambiguous, country_ambiguous, institution_ambiguous, watermark)`.
+type AmbiguityFact = (NaiveDate, bool, bool, bool, i64);
+
+fn totals(pool: &PgPool) -> Vec<TotalFact> {
+    month_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.month_start,
+                row.publication_id,
+                row.value,
+                row.requires_country_coverage,
+                row.requires_institution_coverage,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+fn countries(pool: &PgPool) -> Vec<CountryFact> {
+    country_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.month_start,
+                row.publication_id,
+                row.country_code,
+                row.value,
+                row.requires_institution_coverage,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+fn institutions(pool: &PgPool) -> Vec<InstitutionFact> {
+    institution_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.month_start,
+                row.publication_id,
+                row.institution_id,
+                row.value,
+                row.requires_country_coverage,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+fn ambiguities(pool: &PgPool) -> Vec<AmbiguityFact> {
+    ambiguity_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.month_start,
+                row.total_ambiguous,
+                row.country_ambiguous,
+                row.institution_ambiguous,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+fn country(code: &str) -> String {
+    code.to_string()
+}
+
+// ---------------------------------------------------------------------------
+// Logical monthly state and the independent per-day oracle
+// ---------------------------------------------------------------------------
+
+/// `(work_id, publication_id, platform_id, measure_id, month_start)`.
+type TotalIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate);
+/// `(value, requires_country_coverage, requires_institution_coverage, watermark)`.
+type TotalValue = (i64, bool, bool, i64);
+/// The total identity plus `country_code`.
+type CountryIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate, String);
+/// The total identity plus `institution_id`.
+type InstitutionIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate, Uuid);
+/// `(value, requires_<other dimension>_coverage, watermark)`.
+type DimensionValue = (i64, bool, i64);
+/// `(work_id, platform_id, measure_id, month_start)`.
+type AmbiguityIdentity = (Uuid, Uuid, Uuid, NaiveDate);
+/// `(total_ambiguous, country_ambiguous, institution_ambiguous, watermark)`.
+type AmbiguityValue = (bool, bool, bool, i64);
+
+/// The four monthly datasets by logical identity, without surrogate ids, so
+/// incrementally maintained state, rebuilt state and the oracle compare
+/// exactly on values, dependency flags, ambiguity flags and watermarks.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct MonthState {
+    totals: BTreeMap<TotalIdentity, TotalValue>,
+    countries: BTreeMap<CountryIdentity, DimensionValue>,
+    institutions: BTreeMap<InstitutionIdentity, DimensionValue>,
+    ambiguity: BTreeMap<AmbiguityIdentity, AmbiguityValue>,
+}
+
+/// The persisted monthly state.
+fn month_state(pool: &PgPool) -> MonthState {
+    MonthState {
+        totals: month_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.publication_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.month_start,
+                    ),
+                    (
+                        row.value,
+                        row.requires_country_coverage,
+                        row.requires_institution_coverage,
+                        row.watermark,
+                    ),
+                )
+            })
+            .collect(),
+        countries: country_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.publication_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.month_start,
+                        row.country_code,
+                    ),
+                    (row.value, row.requires_institution_coverage, row.watermark),
+                )
+            })
+            .collect(),
+        institutions: institution_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.publication_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.month_start,
+                        row.institution_id,
+                    ),
+                    (row.value, row.requires_country_coverage, row.watermark),
+                )
+            })
+            .collect(),
+        ambiguity: ambiguity_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.month_start,
+                    ),
+                    (
+                        row.total_ambiguous,
+                        row.country_ambiguous,
+                        row.institution_ambiguous,
+                        row.watermark,
+                    ),
+                )
+            })
+            .collect(),
+    }
+}
+
+/// The `MET-WP4-02` presence mask: publication = 4, country = 2,
+/// institution = 1.
+fn presence_mask(row: &MetricRollupWorkDay) -> u8 {
+    (u8::from(row.publication_id.is_some()) << 2)
+        | (u8::from(row.country_code.is_some()) << 1)
+        | u8::from(row.institution_id.is_some())
+}
+
+/// The unique least represented mask containing `target` under set
+/// inclusion: `Ok(None)` when no represented mask contains the target,
+/// `Ok(Some(mask))` when exactly one minimal mask exists, and `Err(minimal)`
+/// naming the incomparable minimal masks otherwise.
+///
+/// This is the generic rule, computed by minimality over the represented
+/// set, rather than the fixed case table the SQL uses; that is what makes it
+/// an independent oracle.
+fn least_representation(represented: &BTreeSet<u8>, target: u8) -> Result<Option<u8>, Vec<u8>> {
+    let candidates: Vec<u8> = represented
+        .iter()
+        .copied()
+        .filter(|mask| mask & target != 0)
+        .collect();
+    let minimal: Vec<u8> = candidates
+        .iter()
+        .copied()
+        .filter(|mask| {
+            !candidates
+                .iter()
+                .any(|other| other != mask && other & mask == *other)
+        })
+        .collect();
+    match minimal.as_slice() {
+        [] => Ok(None),
+        [only] => Ok(Some(*only)),
+        _ => Err(minimal),
+    }
+}
+
+/// The monthly state the approved semantics imply for the given work-day
+/// rows, derived per base cell in Rust and independently of the SQL.
+fn oracle_month_state(days: &[MetricRollupWorkDay]) -> MonthState {
+    let mut cells: BTreeMap<(Uuid, Uuid, Uuid, NaiveDate), Vec<&MetricRollupWorkDay>> =
+        BTreeMap::new();
+    for row in days {
+        cells
+            .entry((row.work_id, row.platform_id, row.measure_id, row.day))
+            .or_default()
+            .push(row);
+    }
+
+    let mut state = MonthState::default();
+    for ((work_id, platform_id, measure_id, day), rows) in cells {
+        let month_start = first_of_month(day);
+        let represented: BTreeSet<u8> = rows.iter().map(|row| presence_mask(row)).collect();
+        let mut flags = (false, false, false);
+        let mut ambiguity_watermark = 0_i64;
+
+        // Totals: Amendment 6 exactly.
+        let total = if represented.contains(&0) {
+            Some(0)
+        } else if represented.len() == 1 {
+            represented.first().copied()
+        } else {
+            None
+        };
+        match total {
+            Some(mask) => {
+                for row in rows.iter().filter(|row| presence_mask(row) == mask) {
+                    let entry = state
+                        .totals
+                        .entry((
+                            work_id,
+                            row.publication_id,
+                            platform_id,
+                            measure_id,
+                            month_start,
+                        ))
+                        .or_insert((0, false, false, 0));
+                    entry.0 = entry.0.checked_add(row.value).expect("oracle overflow");
+                    entry.1 |= mask & 2 != 0;
+                    entry.2 |= mask & 1 != 0;
+                    entry.3 = entry.3.max(row.watermark);
+                }
+            }
+            None => {
+                flags.0 = true;
+                ambiguity_watermark = rows.iter().map(|row| row.watermark).max().unwrap_or(0);
+            }
+        }
+
+        // Countries: unique least mask containing country.
+        match least_representation(&represented, 2) {
+            Ok(Some(mask)) => {
+                for row in rows.iter().filter(|row| presence_mask(row) == mask) {
+                    let entry = state
+                        .countries
+                        .entry((
+                            work_id,
+                            row.publication_id,
+                            platform_id,
+                            measure_id,
+                            month_start,
+                            row.country_code.clone().expect("a country row"),
+                        ))
+                        .or_insert((0, false, 0));
+                    entry.0 = entry.0.checked_add(row.value).expect("oracle overflow");
+                    entry.1 |= mask & 1 != 0;
+                    entry.2 = entry.2.max(row.watermark);
+                }
+            }
+            Ok(None) => {}
+            Err(minimal) => {
+                flags.1 = true;
+                ambiguity_watermark = ambiguity_watermark.max(
+                    rows.iter()
+                        .filter(|row| minimal.contains(&presence_mask(row)))
+                        .map(|row| row.watermark)
+                        .max()
+                        .unwrap_or(0),
+                );
+            }
+        }
+
+        // Institutions: unique least mask containing institution.
+        match least_representation(&represented, 1) {
+            Ok(Some(mask)) => {
+                for row in rows.iter().filter(|row| presence_mask(row) == mask) {
+                    let entry = state
+                        .institutions
+                        .entry((
+                            work_id,
+                            row.publication_id,
+                            platform_id,
+                            measure_id,
+                            month_start,
+                            row.institution_id.expect("an institution row"),
+                        ))
+                        .or_insert((0, false, 0));
+                    entry.0 = entry.0.checked_add(row.value).expect("oracle overflow");
+                    entry.1 |= mask & 2 != 0;
+                    entry.2 = entry.2.max(row.watermark);
+                }
+            }
+            Ok(None) => {}
+            Err(minimal) => {
+                flags.2 = true;
+                ambiguity_watermark = ambiguity_watermark.max(
+                    rows.iter()
+                        .filter(|row| minimal.contains(&presence_mask(row)))
+                        .map(|row| row.watermark)
+                        .max()
+                        .unwrap_or(0),
+                );
+            }
+        }
+
+        if flags.0 || flags.1 || flags.2 {
+            let entry = state
+                .ambiguity
+                .entry((work_id, platform_id, measure_id, month_start))
+                .or_insert((false, false, false, 0));
+            entry.0 |= flags.0;
+            entry.1 |= flags.1;
+            entry.2 |= flags.2;
+            entry.3 = entry.3.max(ambiguity_watermark);
+        }
+    }
+    state
+}
+
+/// Every monthly watermark must sit at or below the durable frontier.
+fn assert_watermarks_within(state: &MonthState, frontier: i64) {
+    let watermarks = state
+        .totals
+        .values()
+        .map(|value| value.3)
+        .chain(state.countries.values().map(|value| value.2))
+        .chain(state.institutions.values().map(|value| value.2))
+        .chain(state.ambiguity.values().map(|value| value.3));
+    for watermark in watermarks {
+        assert!(
+            watermark > 0 && watermark <= frontier,
+            "a monthly watermark {watermark} must be positive and at most the frontier {frontier}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Extra fixture entities and explicit-dimension records
+// ---------------------------------------------------------------------------
+
+/// A second work under the fixture imprint.
+fn insert_extra_work(pool: &PgPool, fixture: &RecordFixture) -> Uuid {
+    let work_id = Uuid::new_v4();
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(
+        "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+         SELECT $1, 'monograph', 'forthcoming', imprint_id, 1 FROM work WHERE work_id = $2",
+    )
+    .bind::<diesel::sql_types::Uuid, _>(work_id)
+    .bind::<diesel::sql_types::Uuid, _>(fixture.work_id)
+    .execute(&mut connection)
+    .expect("Failed to insert the extra work");
+    work_id
+}
+
+/// A further publication of `work_id`, of a type the work does not have yet.
+fn insert_extra_publication(pool: &PgPool, work_id: Uuid, publication_type: &str) -> Uuid {
+    let publication_id = Uuid::new_v4();
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(format!(
+        "INSERT INTO publication (publication_id, publication_type, work_id) \
+         VALUES ($1, '{publication_type}', $2)"
+    ))
+    .bind::<diesel::sql_types::Uuid, _>(publication_id)
+    .bind::<diesel::sql_types::Uuid, _>(work_id)
+    .execute(&mut connection)
+    .expect("Failed to insert the extra publication");
+    publication_id
+}
+
+fn insert_extra_institution(pool: &PgPool) -> Uuid {
+    let institution_id = Uuid::new_v4();
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query("INSERT INTO institution (institution_id, institution_name) VALUES ($1, 'Other')")
+        .bind::<diesel::sql_types::Uuid, _>(institution_id)
+        .execute(&mut connection)
+        .expect("Failed to insert the extra institution");
+    institution_id
+}
+
+/// The optional dimensions of one generated record, with explicit entity
+/// ids so several publications and institutions can be represented.
+#[derive(Clone, Copy)]
+struct CellDimensions {
+    publication_id: Option<Uuid>,
+    country_code: Option<&'static str>,
+    institution_id: Option<Uuid>,
+}
+
+/// Commit one `PENDING` work-day delta of `value` for `work_id` with
+/// explicit dimensions, and return its canonical record id.
+fn commit_cell_delta(
+    pool: &PgPool,
+    fixture: &RecordFixture,
+    work_id: Uuid,
+    on: NaiveDate,
+    dimensions: CellDimensions,
+    value: i64,
+) -> Uuid {
+    let record_id = Uuid::new_v4();
+    {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, publication_id, platform_id, measure_id, \
+                  period_start, period_end, reporting_grain, country_code, institution_id, \
+                  winning_source_account_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $7 + 1, 'DAY', $8, $9, $10)",
+        )
+        .bind::<diesel::sql_types::Uuid, _>(record_id)
+        .bind::<diesel::sql_types::Text, _>(format!("identity-{}", record_id.simple()))
+        .bind::<diesel::sql_types::Uuid, _>(work_id)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Uuid>, _>(dimensions.publication_id)
+        .bind::<diesel::sql_types::Uuid, _>(fixture.platform_id)
+        .bind::<diesel::sql_types::Uuid, _>(fixture.measure_id)
+        .bind::<diesel::sql_types::Date, _>(on)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Text>, _>(dimensions.country_code)
+        .bind::<diesel::sql_types::Nullable<diesel::sql_types::Uuid>, _>(dimensions.institution_id)
+        .bind::<diesel::sql_types::Uuid, _>(fixture.source_account_id)
+        .execute(&mut connection)
+        .expect("Failed to insert the generated work-day record");
+    }
+    let revision_id = insert_current_revision(pool, fixture, record_id, 1, value);
+    insert_delta_row(pool, None, record_id, revision_id, value, "PENDING")
+        .expect("Failed to insert the generated work-day delta");
+    record_id
+}
+
+/// A small deterministic generator (xorshift64*), so the differential
+/// fixture is reproducible from its seed alone.
+struct Generator(u64);
+
+impl Generator {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    fn below(&mut self, bound: u64) -> u64 {
+        self.next() % bound
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Statement capture through Diesel instrumentation
+// ---------------------------------------------------------------------------
+
+/// Records the text of every statement a pooled connection starts.
+#[derive(Debug)]
+struct StatementLog(Arc<Mutex<Vec<String>>>);
+
+impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for StatementLog {
+    fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+        let log = Arc::clone(&self.0);
+        connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+            if let InstrumentationEvent::StartQuery { query, .. } = event {
+                log.lock().expect("statement log").push(query.to_string());
+            }
+        });
+        Ok(())
+    }
+}
+
+/// A one-connection pool whose statements are captured.
+fn logging_pool() -> (Arc<PgPool>, Arc<Mutex<Vec<String>>>) {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let pool = Pool::builder()
+        .max_size(1)
+        .connection_customizer(Box::new(StatementLog(Arc::clone(&log))))
+        .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+        .expect("Failed to create the logging pool");
+    (Arc::new(pool), log)
+}
+
+/// The positions, within the fixed monthly statement list, of the monthly
+/// statements captured so far, in execution order.
+fn captured_month_statements(log: &Mutex<Vec<String>>) -> Vec<usize> {
+    log.lock()
+        .expect("statement log")
+        .iter()
+        .filter_map(|text| {
+            MONTH_MAINTENANCE_STATEMENTS
+                .iter()
+                .position(|statement| text.starts_with(statement))
+        })
+        .collect()
+}
+
+/// The number of captured statements that touch the work-day projection
+/// row by row: the per-delta `SELECT ... FOR UPDATE` and upsert pairs.
+fn captured_day_statements(log: &Mutex<Vec<String>>) -> usize {
+    log.lock()
+        .expect("statement log")
+        .iter()
+        .filter(|text| {
+            text.starts_with("SELECT value \\n         FROM public.metric_rollup_work_day")
+                || text.starts_with("SELECT value FROM public.metric_rollup_work_day")
+                || text.starts_with("INSERT INTO public.metric_rollup_work_day ")
+        })
+        .count()
+}
+
+// ---------------------------------------------------------------------------
+// Resolve day first: total, country and institution representation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_undimensioned_day_row_is_authoritative_over_country_alternatives_for_the_total() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    day_delta(&pool, &fixture, DAY_ONE, US, 4);
+    apply_everything(&pool);
+
+    // The aggregate is the total; the country rows are not added to it.
+    // The total's watermark is the aggregate row's own position, 1, even
+    // though positions 2 and 3 touched the same month: ignored
+    // representations do not advance a row they do not feed.
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, false, false, 1)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (month(2026, 3), None, country("GB"), 6, false, 2),
+            (month(2026, 3), None, country("US"), 4, false, 3),
+        ]
+    );
+    assert!(institutions(&pool).is_empty());
+    assert!(ambiguities(&pool).is_empty());
+}
+
+#[test]
+fn one_consistent_dimensioned_mask_sums_into_the_total_and_marks_its_dependency() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    day_delta(&pool, &fixture, DAY_ONE, US, 4);
+    apply_everything(&pool);
+
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, true, false, 2)],
+        "one consistent country mask sums, and the total depends on country coverage"
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (month(2026, 3), None, country("GB"), 6, false, 1),
+            (month(2026, 3), None, country("US"), 4, false, 2),
+        ]
+    );
+    assert!(ambiguities(&pool).is_empty());
+}
+
+#[test]
+fn incompatible_total_masks_are_recorded_as_total_ambiguous_without_blocking_progress() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    day_delta(&pool, &fixture, DAY_ONE, INST, 4);
+    let frontier = apply_everything(&pool);
+
+    assert_eq!(frontier, 2, "ambiguity never stops the frontier");
+    assert!(
+        totals(&pool).is_empty(),
+        "nothing is guessed or summed across masks"
+    );
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), true, false, false, 2)],
+        "the ambiguity watermark spans every row of the ambiguous cell"
+    );
+    // Each target still resolves on its own: country from the one country
+    // mask, institution from the one institution mask.
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 6, false, 1)]
+    );
+    assert_eq!(
+        institutions(&pool),
+        vec![(month(2026, 3), None, fixture.institution_id, 4, false, 2)]
+    );
+}
+
+#[test]
+fn the_country_projection_selects_the_unique_least_country_representation() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // March: {C,I}, {P,C,I} and {C} are all represented. {C} is the unique
+    // least country mask, so only it contributes and it depends on nothing.
+    day_delta(&pool, &fixture, DAY_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_GB_INST, 2);
+    day_delta(&pool, &fixture, DAY_ONE, GB, 5);
+    // April: only {C,I} and {P,C,I}. {C,I} is least: institutions are summed
+    // away, the publication is not retained, and institution coverage is
+    // now a dependency.
+    day_delta(&pool, &fixture, APRIL_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, APRIL_ONE, PUB_GB_INST, 2);
+    apply_everything(&pool);
+
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (month(2026, 3), None, country("GB"), 5, false, 3),
+            (month(2026, 4), None, country("GB"), 3, true, 4),
+        ]
+    );
+    // Institution: {C,I} is the least institution mask in both months.
+    assert_eq!(
+        institutions(&pool),
+        vec![
+            (month(2026, 3), None, fixture.institution_id, 3, true, 1),
+            (month(2026, 4), None, fixture.institution_id, 3, true, 4),
+        ]
+    );
+    // Neither month has an undimensioned row or a single mask, so both
+    // totals are ambiguous; nothing else is.
+    assert!(totals(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![
+            (month(2026, 3), true, false, false, 3),
+            (month(2026, 4), true, false, false, 5),
+        ]
+    );
+}
+
+#[test]
+fn the_institution_projection_selects_the_unique_least_institution_representation() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // March: {P,I}, {P,C,I} and {I}. {I} is least.
+    day_delta(&pool, &fixture, DAY_ONE, PUB_INST, 3);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_GB_INST, 2);
+    day_delta(&pool, &fixture, DAY_ONE, INST, 5);
+    // April: {C,I} and {P,C,I}. {C,I} is least.
+    day_delta(&pool, &fixture, APRIL_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, APRIL_ONE, PUB_GB_INST, 2);
+    apply_everything(&pool);
+
+    assert_eq!(
+        institutions(&pool),
+        vec![
+            (month(2026, 3), None, fixture.institution_id, 5, false, 3),
+            (month(2026, 4), None, fixture.institution_id, 3, true, 4),
+        ]
+    );
+    // Country in March: only {P,C,I} carries a country, so it is the least
+    // and the publication is retained.
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (
+                month(2026, 3),
+                Some(fixture.publication_id),
+                country("GB"),
+                2,
+                true,
+                2
+            ),
+            (month(2026, 4), None, country("GB"), 3, true, 4),
+        ]
+    );
+    assert!(totals(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![
+            (month(2026, 3), true, false, false, 3),
+            (month(2026, 4), true, false, false, 5),
+        ]
+    );
+}
+
+#[test]
+fn incomparable_country_masks_are_country_ambiguous_while_the_total_stays_valid() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_GB, 2);
+    apply_everything(&pool);
+
+    // The aggregate keeps the total valid and independent of any dimension.
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, false, false, 1)]
+    );
+    // {C,I} and {P,C} are incomparable minima: no country row, and the
+    // ambiguity watermark spans exactly those two rows.
+    assert!(countries(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), false, true, false, 3)]
+    );
+    // Institution is unaffected: {C,I} is the only institution mask.
+    assert_eq!(
+        institutions(&pool),
+        vec![(month(2026, 3), None, fixture.institution_id, 3, true, 2)]
+    );
+}
+
+#[test]
+fn incomparable_institution_masks_are_institution_ambiguous_while_the_total_stays_valid() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_INST, 2);
+    apply_everything(&pool);
+
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, false, false, 1)]
+    );
+    assert!(institutions(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), false, false, true, 3)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 3, true, 2)]
+    );
+}
+
+#[test]
+fn a_month_can_carry_ambiguity_with_no_value_row_in_any_section() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // {C,I}, {P,C} and {P,I}: no aggregate and three masks (total
+    // ambiguous), incomparable country minima {C,I}/{P,C}, incomparable
+    // institution minima {C,I}/{P,I}.
+    day_delta(&pool, &fixture, DAY_ONE, GB_INST, 3);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_GB, 2);
+    day_delta(&pool, &fixture, DAY_ONE, PUB_INST, 1);
+    let frontier = apply_everything(&pool);
+
+    assert_eq!(frontier, 3);
+    assert!(totals(&pool).is_empty());
+    assert!(countries(&pool).is_empty());
+    assert!(institutions(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), true, true, true, 3)],
+        "sparse ambiguity state exists on its own, for the later reader to honour"
+    );
+}
+
+#[test]
+fn different_daily_masks_in_one_month_are_resolved_per_day_and_then_summed() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // The raw-month design was falsified on exactly this shape: day one is
+    // an aggregate 10, day two is country-only 6 + 4. Raw compaction would
+    // give 10; the resolved month is 20.
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_TWO, GB, 6);
+    day_delta(&pool, &fixture, DAY_TWO, US, 4);
+    apply_everything(&pool);
+
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 20, true, false, 3)],
+        "day two's country representation is a dependency of the whole monthly row"
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (month(2026, 3), None, country("GB"), 6, false, 2),
+            (month(2026, 3), None, country("US"), 4, false, 3),
+        ],
+        "day one has no country representation and contributes no country value"
+    );
+    assert!(ambiguities(&pool).is_empty());
+}
+
+#[test]
+fn null_and_publication_specific_monthly_contributions_coexist_and_are_additive() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_TWO, PUB, 7);
+    day_delta(&pool, &fixture, DAY_THREE, PUB, 3);
+    apply_everything(&pool);
+
+    // Two monthly rows, one per resolved publication identity. No
+    // month-level precedence is re-run between them, and the
+    // publication-specific row sums its two days.
+    assert_eq!(
+        totals(&pool),
+        vec![
+            (month(2026, 3), None, 10, false, false, 1),
+            (
+                month(2026, 3),
+                Some(fixture.publication_id),
+                10,
+                false,
+                false,
+                3
+            ),
+        ]
+    );
+    assert!(countries(&pool).is_empty());
+    assert!(ambiguities(&pool).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Transitions, revisions and retractions
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_country_only_day_later_gains_an_aggregate_and_the_total_switches_to_it() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 6, true, false, 1)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 6, false, 1)]
+    );
+
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    apply_everything(&pool);
+
+    // The aggregate now feeds the total, so its value, dependency and
+    // watermark all move; the country row is fed by the same row as before,
+    // so its watermark stays at 1.
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, false, false, 2)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 6, false, 1)]
+    );
+}
+
+#[test]
+fn an_aggregate_revision_and_retraction_flow_through_to_the_month() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let record_id = day_delta(&pool, &fixture, DAY_ONE, AGG, 100);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 100, false, false, 1)]
+    );
+
+    commit_revision_delta(&pool, &fixture, record_id, 2, 130, 100);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 130, false, false, 2)]
+    );
+
+    // A retraction subtracts the whole applied value. The day row and the
+    // monthly row are both retained at zero, because "counted, and zero" is
+    // different from "never counted".
+    commit_revision_delta(&pool, &fixture, record_id, 3, 0, 130);
+    apply_everything(&pool);
+    assert_eq!(projection(&pool)[0].value, 0);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 0, false, false, 3)]
+    );
+}
+
+#[test]
+fn a_country_day_gaining_a_country_institution_row_becomes_ambiguous_until_an_aggregate_arrives() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 6, true, false, 1)]
+    );
+
+    // {C} and {C,I} without an aggregate: the total is ambiguous; the
+    // country row stays on {C} (least) and its watermark stays at 1; the
+    // institution projection appears from {C,I}.
+    day_delta(&pool, &fixture, DAY_ONE, GB_INST, 3);
+    apply_everything(&pool);
+    assert!(totals(&pool).is_empty());
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), true, false, false, 2)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 6, false, 1)]
+    );
+    assert_eq!(
+        institutions(&pool),
+        vec![(month(2026, 3), None, fixture.institution_id, 3, true, 2)]
+    );
+
+    // An aggregate resolves the total, and a cleared ambiguity row is
+    // removed rather than kept for its old watermark.
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 10, false, false, 3)]
+    );
+    assert!(ambiguities(&pool).is_empty());
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 6, false, 1)]
+    );
+}
+
+#[test]
+fn a_publication_specific_revision_moves_only_its_own_monthly_row() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    let record_id = day_delta(&pool, &fixture, DAY_TWO, PUB, 7);
+    apply_everything(&pool);
+
+    commit_revision_delta(&pool, &fixture, record_id, 2, 9, 7);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![
+            (month(2026, 3), None, 10, false, false, 1),
+            (
+                month(2026, 3),
+                Some(fixture.publication_id),
+                9,
+                false,
+                false,
+                3
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_signed_downward_revision_reduces_the_month_without_wrapping() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let record_id = day_delta(&pool, &fixture, DAY_ONE, AGG, 100);
+    day_delta(&pool, &fixture, DAY_TWO, AGG, 5);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 105, false, false, 2)]
+    );
+
+    commit_revision_delta(&pool, &fixture, record_id, 2, 70, 100);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 75, false, false, 3)]
+    );
+}
+
+#[test]
+fn a_zero_valued_resolved_day_still_contributes_its_representation_and_watermark() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_TWO, GB, 4);
+    let record_id = day_delta(&pool, &fixture, DAY_ONE, AGG, 5);
+    commit_revision_delta(&pool, &fixture, record_id, 2, 0, 5);
+    apply_everything(&pool);
+
+    // Day one nets to zero within the batch and is retained. It still
+    // resolves (aggregate), still contributes to the month, and its position
+    // 3 is the monthly watermark: dropping zero rows would report 1.
+    assert_eq!(
+        projection(&pool)
+            .iter()
+            .map(|row| (row.day, row.value))
+            .collect::<Vec<_>>(),
+        vec![(day(DAY_ONE), 0), (day(DAY_TWO), 4)]
+    );
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 4, true, false, 3)]
+    );
+}
+
+#[test]
+fn several_deltas_on_one_base_cell_in_one_batch_resolve_once() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let record_id = day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    commit_revision_delta(&pool, &fixture, record_id, 2, 15, 10);
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 3);
+
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    assert_eq!(claims.len(), 3);
+    complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token).expect("completion");
+
+    assert_eq!(projection(&pool).len(), 1);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 18, false, false, 3)]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Row watermarks never exceed the frontier
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_day_row_watermarked_above_the_frontier_fails_the_completion_closed() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    apply_everything(&pool);
+    let before = month_state(&pool);
+
+    // Out-of-band damage: a day row claims a position that was never
+    // applied. Deriving a monthly watermark from it would put derived
+    // evidence above the frontier, so the completion refuses.
+    exec(&pool, "UPDATE metric_rollup_work_day SET watermark = 999");
+    day_delta(&pool, &fixture, DAY_TWO, AGG, 1);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 1).expect("claim");
+    let error = complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+        .expect_err("a day row above the frontier must block the completion");
+    assert!(
+        matches!(&error, ThothError::InternalError(message)
+            if message.contains("watermarked above the frontier")),
+        "unexpected failure: {error:?}"
+    );
+    assert_eq!(state(&pool).applied_through_sequence, 1);
+    assert_eq!(deltas(&pool)[1].status, "CLAIMED");
+    assert_eq!(projection(&pool).len(), 1, "the day update rolled back");
+    assert_eq!(
+        month_state(&pool),
+        before,
+        "and so did the monthly recomputation"
+    );
+
+    // Repairing the damage lets the same token complete.
+    exec(&pool, "UPDATE metric_rollup_work_day SET watermark = 1");
+    complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token).expect("completion");
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 11, false, false, 2)]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Fixed-statement set-wise maintenance
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_monthly_maintenance_issues_the_same_nine_statements_for_1_10_and_50_keys() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let (logged, log) = logging_pool();
+    assert_eq!(MONTH_MAINTENANCE_STATEMENT_COUNT, 9);
+    assert_eq!(MONTH_MAINTENANCE_STATEMENTS.len(), 9);
+
+    let mut next_month = 0;
+    for keys in [1_u32, 10, 50] {
+        for _ in 0..keys {
+            day_delta(
+                &pool,
+                &fixture,
+                ymd(distinct_month(next_month)),
+                AGG,
+                i64::from(next_month) + 1,
+            );
+            next_month += 1;
+        }
+        log.lock().expect("statement log").clear();
+        let claims = claim_metric_rollup_deltas(&logged, CLAIMANT, 50).expect("claim");
+        assert_eq!(claims.len(), keys as usize);
+        complete_metric_rollup_deltas(&logged, CLAIMANT, claims[0].claim_token)
+            .expect("completion");
+
+        // Exactly the nine fixed statements, once each, in order, whatever
+        // the number of distinct affected month keys; the day layer's
+        // per-delta pair grows with the batch as approved.
+        assert_eq!(
+            captured_month_statements(&log),
+            (0..MONTH_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>(),
+            "{keys} affected keys must issue exactly the nine monthly statements"
+        );
+        assert_eq!(captured_day_statements(&log), 2 * keys as usize);
+    }
+    assert_eq!(month_rows(&pool).len(), 61);
+    assert_eq!(state(&pool).applied_through_sequence, 61);
+}
+
+#[test]
+fn fifty_deltas_into_one_month_key_recompute_it_once() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let (logged, log) = logging_pool();
+    for index in 0..50 {
+        day_delta(
+            &pool,
+            &fixture,
+            (2026, 3, index % 25 + 1),
+            if index % 2 == 0 { AGG } else { GB },
+            i64::from(index) + 1,
+        );
+    }
+
+    let claims = claim_metric_rollup_deltas(&logged, CLAIMANT, 50).expect("claim");
+    assert_eq!(claims.len(), 50);
+    complete_metric_rollup_deltas(&logged, CLAIMANT, claims[0].claim_token).expect("completion");
+
+    assert_eq!(
+        captured_month_statements(&log),
+        (0..MONTH_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>()
+    );
+    // Every day holds an aggregate and a country row, so the aggregate is
+    // authoritative on each: the month is the sum of the odd positions'
+    // values, 1 + 3 + ... + 49 = 625, and the country rows sum the rest.
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, 625, false, false, 49)]
+    );
+    assert_eq!(
+        countries(&pool),
+        vec![(month(2026, 3), None, country("GB"), 650, false, 50)]
+    );
+    assert_eq!(state(&pool).applied_through_sequence, 50);
+}
+
+// ---------------------------------------------------------------------------
+// Atomicity, replay and overflow
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_monthly_recomputation_failure_rolls_back_day_month_delta_and_frontier_state() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // One batch that feeds all four monthly tables: a country day, an
+    // institution day, and a day whose two masks are total-ambiguous.
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    day_delta(&pool, &fixture, DAY_TWO, INST, 4);
+    day_delta(&pool, &fixture, DAY_THREE, GB, 1);
+    day_delta(&pool, &fixture, DAY_THREE, INST, 1);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    let token = claims[0].claim_token;
+
+    for table in MONTH_TABLES {
+        {
+            let _injected = FailingTrigger::install(&pool, "BEFORE INSERT", table, None);
+            complete_metric_rollup_deltas(&pool, CLAIMANT, token)
+                .expect_err("a failing monthly write must fail the completion");
+        }
+        assert!(
+            projection(&pool).is_empty(),
+            "{table}: the day updates must roll back with the monthly failure"
+        );
+        assert_eq!(month_state(&pool), MonthState::default(), "{table}");
+        assert_eq!(state(&pool).applied_through_sequence, 0, "{table}");
+        assert!(
+            deltas(&pool)
+                .iter()
+                .all(|row| row.status == "CLAIMED" && row.applied_at.is_none()),
+            "{table}: every delta stays claimed and retryable"
+        );
+    }
+
+    // With the injections removed, the same token applies the batch.
+    complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect("the retry succeeds");
+    assert_eq!(projection(&pool).len(), 4);
+    let settled = month_state(&pool);
+    assert_eq!(settled.totals.len(), 1);
+    assert_eq!(settled.countries.len(), 1);
+    assert_eq!(settled.institutions.len(), 1);
+    assert_eq!(settled.ambiguity.len(), 1);
+    assert_eq!(state(&pool).applied_through_sequence, 4);
+
+    // A later batch failing in the keyed delete leaves the earlier monthly
+    // state, the day rows and the frontier exactly as they were.
+    let day_rows = projection(&pool);
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 20);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    {
+        let _injected =
+            FailingTrigger::install(&pool, "BEFORE DELETE", "metric_rollup_work_month", None);
+        complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+            .expect_err("a failing monthly delete must fail the completion");
+    }
+    assert_eq!(projection(&pool), day_rows);
+    assert_eq!(month_state(&pool), settled);
+    assert_eq!(state(&pool).applied_through_sequence, 4);
+    assert_eq!(deltas(&pool)[4].status, "CLAIMED");
+}
+
+#[test]
+fn a_timeout_after_commit_replay_rewrites_no_monthly_row() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_ONE, GB, 6);
+    day_delta(&pool, &fixture, DAY_TWO, GB_INST, 3);
+    day_delta(&pool, &fixture, DAY_TWO, PUB_GB, 2);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    let token = claims[0].claim_token;
+    let first = complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect("completion");
+
+    // The surrogate ids are part of the snapshot: a replay that deleted and
+    // reinserted the same logical rows would change them.
+    let days = projection(&pool);
+    let months = month_rows(&pool);
+    let countries_before = country_rows(&pool);
+    let institutions_before = institution_rows(&pool);
+    let ambiguity_before = ambiguity_rows(&pool);
+    assert_eq!(months.len(), 1);
+    assert_eq!(ambiguity_before.len(), 1);
+
+    for _ in 0..2 {
+        let replay = complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect("replay");
+        assert_eq!(replay, first);
+    }
+    assert_eq!(projection(&pool), days);
+    assert_eq!(month_rows(&pool), months);
+    assert_eq!(country_rows(&pool), countries_before);
+    assert_eq!(institution_rows(&pool), institutions_before);
+    assert_eq!(ambiguity_rows(&pool), ambiguity_before);
+    assert_eq!(state(&pool).applied_through_sequence, 4);
+}
+
+#[test]
+fn a_monthly_sum_that_overflows_a_bigint_fails_closed_and_changes_nothing() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, i64::MAX);
+    apply_everything(&pool);
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, i64::MAX, false, false, 1)]
+    );
+
+    // A second day of the same month is fine for the day layer, whose
+    // checked arithmetic only sees its own row, and overflows only when the
+    // month is summed. That overflow surfaces from PostgreSQL's own cast
+    // and aborts the whole batch.
+    day_delta(&pool, &fixture, DAY_TWO, AGG, 1);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 1).expect("claim");
+    let error = complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+        .expect_err("an overflowing monthly sum must fail closed");
+    assert!(
+        rejection(&error)
+            .starts_with("Recomputing the monthly projections for this batch would overflow"),
+        "unexpected rejection: {error:?}"
+    );
+    assert_eq!(projection(&pool).len(), 1, "the day row is not applied");
+    assert_eq!(
+        totals(&pool),
+        vec![(month(2026, 3), None, i64::MAX, false, false, 1)]
+    );
+    assert_eq!(state(&pool).applied_through_sequence, 1);
+    assert_eq!(deltas(&pool)[1].status, "CLAIMED");
+}
+
+// ---------------------------------------------------------------------------
+// Fixed-seed differential and incremental/rebuild equality
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let other_work = insert_extra_work(&pool, &fixture);
+    let works = [
+        (
+            fixture.work_id,
+            [
+                fixture.publication_id,
+                insert_extra_publication(&pool, fixture.work_id, "Paperback"),
+            ],
+        ),
+        (
+            other_work,
+            [
+                insert_extra_publication(&pool, other_work, "PDF"),
+                insert_extra_publication(&pool, other_work, "Paperback"),
+            ],
+        ),
+    ];
+    let countries = ["GB", "US", "DE"];
+    let institutions = [fixture.institution_id, insert_extra_institution(&pool)];
+
+    // Bounded generated data: two works, three months, fourteen days each,
+    // zero to three rows per base cell over every one of the eight masks,
+    // then a revision (possibly to zero) on about a quarter of the records.
+    let mut generator = Generator(DIFFERENTIAL_SEED);
+    let mut records: Vec<(Uuid, i64)> = Vec::new();
+    for (work_id, publications) in works {
+        for month_index in 1..=3 {
+            for day_of_month in 1..=14 {
+                let on = NaiveDate::from_ymd_opt(2026, month_index, day_of_month).expect("a day");
+                let rows = match generator.below(20) {
+                    0..=4 => 0,
+                    5..=12 => 1,
+                    13..=17 => 2,
+                    _ => 3,
+                };
+                for _ in 0..rows {
+                    let mask = generator.below(8) as u8;
+                    let dimensions = CellDimensions {
+                        publication_id: (mask & 4 != 0)
+                            .then(|| publications[generator.below(2) as usize]),
+                        country_code: (mask & 2 != 0)
+                            .then(|| countries[generator.below(3) as usize]),
+                        institution_id: (mask & 1 != 0)
+                            .then(|| institutions[generator.below(2) as usize]),
+                    };
+                    let value = 1 + generator.below(100) as i64;
+                    let record_id =
+                        commit_cell_delta(&pool, &fixture, work_id, on, dimensions, value);
+                    records.push((record_id, value));
+                }
+            }
+        }
+    }
+    let mut revisions = 0;
+    for (record_id, value) in records.clone() {
+        if generator.below(4) == 0 {
+            let new_value = generator.below(121) as i64;
+            commit_revision_delta(&pool, &fixture, record_id, 2, new_value, value);
+            revisions += 1;
+        }
+    }
+    let delta_count = deltas(&pool).len();
+    let cardinality = format!(
+        "seed {DIFFERENTIAL_SEED}: {} records, {revisions} revisions, {delta_count} deltas",
+        records.len()
+    );
+    // Pinned so a change to the generator or the seed is visible.
+    assert_eq!(
+        (records.len(), revisions, delta_count),
+        (120, 33, 153),
+        "{cardinality}"
+    );
+
+    let frontier = apply_everything(&pool);
+    assert_eq!(frontier, delta_count as i64);
+    let days = projection(&pool);
+    let expected = oracle_month_state(&days);
+    let incremental = month_state(&pool);
+    assert_eq!(
+        incremental, expected,
+        "{cardinality}: incremental state vs oracle"
+    );
+    assert_watermarks_within(&incremental, frontier);
+    assert!(
+        !incremental.ambiguity.is_empty() && !incremental.countries.is_empty(),
+        "{cardinality}: the fixture must exercise ambiguity and country rows"
+    );
+
+    // A fresh rebuild from the work-day projection alone reproduces the
+    // incrementally maintained state exactly, watermarks included, and
+    // returns the frontier it corresponds to.
+    let rebuilt_frontier = rebuild_month_projections(&pool).expect("rebuild");
+    assert_eq!(rebuilt_frontier, frontier);
+    let rebuilt = month_state(&pool);
+    assert_eq!(
+        rebuilt, incremental,
+        "{cardinality}: rebuild vs incremental"
+    );
+    assert_eq!(rebuilt, expected, "{cardinality}: rebuild vs oracle");
+    assert_eq!(
+        projection(&pool),
+        days,
+        "the rebuild reads and never writes day rows"
+    );
+    assert_eq!(state(&pool).applied_through_sequence, frontier);
+}
+
+#[test]
+fn a_rebuild_refuses_a_day_row_watermarked_above_the_durable_frontier() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    apply_everything(&pool);
+    let before = month_state(&pool);
+
+    exec(&pool, "UPDATE metric_rollup_work_day SET watermark = 5");
+    let error = rebuild_month_projections(&pool).expect_err("the rebuild must refuse");
+    assert!(
+        matches!(&error, ThothError::InternalError(message)
+            if message.contains("watermarked above the durable frontier")),
+        "unexpected failure: {error:?}"
+    );
+    assert_eq!(month_state(&pool), before, "a refused rebuild is a no-op");
+}
+
+// ---------------------------------------------------------------------------
+// Migration: schema, constraints, populated forward, revert and reapply
+// ---------------------------------------------------------------------------
+
+/// Revert migrations until the `MET-WP4-03A` monthly migration itself has
+/// been reverted.
+fn revert_through_month_migration(connection: &mut PgConnection) -> Result<(), String> {
+    loop {
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .map_err(|error| error.to_string())?;
+        if reverted.to_string() == MET_WP4_03A_MIGRATION_VERSION {
+            return Ok(());
+        }
+    }
+}
+
+fn table_exists(pool: &PgPool, table: &str) -> bool {
+    scalar_i64(
+        pool,
+        &format!(
+            "(SELECT COUNT(*) FROM pg_class \
+              WHERE relnamespace = 'public'::regnamespace \
+                AND relkind = 'r' AND relname = '{table}')"
+        ),
+    ) == 1
+}
+
+/// Revert the monthly migration, run `work` against the pre-03A schema,
+/// then reapply it and return the reapplication result.
+fn with_pre_03a_schema<F>(pool: &PgPool, work: F) -> Result<(), String>
+where
+    F: FnOnce(&PgPool),
+{
+    let mut connection =
+        PgConnection::establish(&test_db_url()).expect("Failed to connect to the test database");
+    revert_through_month_migration(&mut connection)
+        .expect("the monthly migration must revert on derived-only state");
+    for table in MONTH_TABLES {
+        assert!(
+            !table_exists(pool, table),
+            "{table} must be dropped by the revert"
+        );
+    }
+    work(pool);
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+fn columns(pool: &PgPool, table: &str) -> Vec<(String, String, String)> {
+    #[derive(diesel::QueryableByName)]
+    struct Column {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        column_name: String,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        data_type: String,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        is_nullable: String,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(
+        "SELECT column_name::text, data_type::text, is_nullable::text \
+         FROM information_schema.columns \
+         WHERE table_schema = 'public' AND table_name = $1 \
+         ORDER BY ordinal_position",
+    )
+    .bind::<diesel::sql_types::Text, _>(table)
+    .load::<Column>(&mut connection)
+    .expect("Failed to read the columns")
+    .into_iter()
+    .map(|column| (column.column_name, column.data_type, column.is_nullable))
+    .collect()
+}
+
+fn owned(shape: &[(&str, &str, &str)]) -> Vec<(String, String, String)> {
+    shape
+        .iter()
+        .map(|(name, data_type, nullable)| {
+            (
+                name.to_string(),
+                data_type.to_string(),
+                nullable.to_string(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn the_month_migration_creates_exactly_the_four_empty_tables_with_the_approved_columns() {
+    let (_guard, pool) = setup_registry_db();
+    for table in MONTH_TABLES {
+        assert!(table_exists(&pool, table));
+        assert_eq!(
+            scalar_i64(&pool, &format!("(SELECT COUNT(*) FROM {table})")),
+            0,
+            "the migration must populate nothing in {table}"
+        );
+    }
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_month"),
+        owned(&[
+            ("rollup_work_month_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("publication_id", "uuid", "YES"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("month_start", "date", "NO"),
+            ("value", "bigint", "NO"),
+            ("requires_country_coverage", "boolean", "NO"),
+            ("requires_institution_coverage", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_country_month"),
+        owned(&[
+            ("rollup_work_country_month_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("publication_id", "uuid", "YES"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("month_start", "date", "NO"),
+            ("country_code", "character", "NO"),
+            ("value", "bigint", "NO"),
+            ("requires_institution_coverage", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_institution_month"),
+        owned(&[
+            ("rollup_work_institution_month_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("publication_id", "uuid", "YES"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("month_start", "date", "NO"),
+            ("institution_id", "uuid", "NO"),
+            ("value", "bigint", "NO"),
+            ("requires_country_coverage", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_month_ambiguity"),
+        owned(&[
+            ("rollup_work_month_ambiguity_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("month_start", "date", "NO"),
+            ("total_ambiguous", "boolean", "NO"),
+            ("country_ambiguous", "boolean", "NO"),
+            ("institution_ambiguous", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+}
+
+#[test]
+fn the_month_tables_carry_exactly_the_approved_constraints_and_no_secondary_index() {
+    let (_guard, pool) = setup_registry_db();
+
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_month"),
+        vec![
+            "metric_rollup_work_month_month_start_check".to_string(),
+            "metric_rollup_work_month_watermark_check".to_string(),
+        ]
+    );
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_country_month"),
+        vec![
+            "metric_rollup_work_country_month_country_code_check".to_string(),
+            "metric_rollup_work_country_month_month_start_check".to_string(),
+            "metric_rollup_work_country_month_watermark_check".to_string(),
+        ]
+    );
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_institution_month"),
+        vec![
+            "metric_rollup_work_institution_month_month_start_check".to_string(),
+            "metric_rollup_work_institution_month_watermark_check".to_string(),
+        ]
+    );
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_month_ambiguity"),
+        vec![
+            "metric_rollup_work_month_ambiguity_flags_check".to_string(),
+            "metric_rollup_work_month_ambiguity_month_start_check".to_string(),
+            "metric_rollup_work_month_ambiguity_watermark_check".to_string(),
+        ]
+    );
+
+    // Non-cascading foreign keys to exactly the represented entities.
+    for (table, parents) in [
+        (
+            "metric_rollup_work_month",
+            vec!["metric_measure", "metric_platform", "publication", "work"],
+        ),
+        (
+            "metric_rollup_work_country_month",
+            vec!["metric_measure", "metric_platform", "publication", "work"],
+        ),
+        (
+            "metric_rollup_work_institution_month",
+            vec![
+                "institution",
+                "metric_measure",
+                "metric_platform",
+                "publication",
+                "work",
+            ],
+        ),
+        (
+            "metric_rollup_work_month_ambiguity",
+            vec!["metric_measure", "metric_platform", "work"],
+        ),
+    ] {
+        let keys = foreign_keys(&pool, table);
+        let mut referenced: Vec<String> = keys
+            .iter()
+            .map(|(_, definition)| {
+                definition
+                    .split("REFERENCES ")
+                    .nth(1)
+                    .and_then(|rest| rest.split('(').next())
+                    .expect("a referenced table")
+                    .to_string()
+            })
+            .collect();
+        referenced.sort();
+        assert_eq!(referenced, parents, "{table} foreign keys: {keys:?}");
+        for (name, definition) in &keys {
+            assert!(
+                !definition.contains("ON DELETE"),
+                "{name} must stay non-cascading: {definition}"
+            );
+        }
+    }
+
+    // Exactly the primary-key index and the logical identity index; no
+    // secondary performance index, per the accepted benchmark.
+    for (table, identity) in [
+        (
+            "metric_rollup_work_month",
+            "metric_rollup_work_month_identity_key",
+        ),
+        (
+            "metric_rollup_work_country_month",
+            "metric_rollup_work_country_month_identity_key",
+        ),
+        (
+            "metric_rollup_work_institution_month",
+            "metric_rollup_work_institution_month_identity_key",
+        ),
+        (
+            "metric_rollup_work_month_ambiguity",
+            "metric_rollup_work_month_ambiguity_identity_key",
+        ),
+    ] {
+        assert_eq!(
+            index_names(&pool, table),
+            vec![identity.to_string(), format!("{table}_pkey")],
+            "{table} must carry exactly its primary-key and identity indexes"
+        );
+        let definition = index_definition(&pool, table, identity);
+        assert!(definition.contains("UNIQUE"), "{identity}: {definition}");
+        if table != "metric_rollup_work_month_ambiguity" {
+            assert!(
+                definition.contains("NULLS NOT DISTINCT"),
+                "{identity} must treat an absent publication as a value: {definition}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_month_identities_and_constraints_reject_malformed_and_duplicate_rows() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let (work, platform, measure, institution) = (
+        fixture.work_id,
+        fixture.platform_id,
+        fixture.measure_id,
+        fixture.institution_id,
+    );
+
+    let attempt = |statement: String| -> Result<usize, DieselError> {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(statement).execute(&mut connection)
+    };
+    let total = |month_start: &str, value: i64, watermark: i64| {
+        format!(
+            "INSERT INTO metric_rollup_work_month (work_id, publication_id, platform_id, \
+                 measure_id, month_start, value, requires_country_coverage, \
+                 requires_institution_coverage, watermark) \
+             VALUES ('{work}', NULL, '{platform}', '{measure}', '{month_start}', {value}, \
+                     false, false, {watermark})"
+        )
+    };
+    let country_row = |code: &str| {
+        format!(
+            "INSERT INTO metric_rollup_work_country_month (work_id, publication_id, \
+                 platform_id, measure_id, month_start, country_code, value, \
+                 requires_institution_coverage, watermark) \
+             VALUES ('{work}', NULL, '{platform}', '{measure}', '2026-03-01', '{code}', 1, \
+                     false, 1)"
+        )
+    };
+    let institution_row = format!(
+        "INSERT INTO metric_rollup_work_institution_month (work_id, publication_id, \
+             platform_id, measure_id, month_start, institution_id, value, \
+             requires_country_coverage, watermark) \
+         VALUES ('{work}', NULL, '{platform}', '{measure}', '2026-03-01', '{institution}', 1, \
+                 false, 1)"
+    );
+    let ambiguity_row = |flags: &str| {
+        format!(
+            "INSERT INTO metric_rollup_work_month_ambiguity (work_id, platform_id, measure_id, \
+                 month_start, total_ambiguous, country_ambiguous, institution_ambiguous, \
+                 watermark) \
+             VALUES ('{work}', '{platform}', '{measure}', '2026-03-01', {flags}, 1)"
+        )
+    };
+
+    attempt(total("2026-03-01", 1, 1)).expect("a well-formed total row");
+    attempt(country_row("GB")).expect("a well-formed country row");
+    attempt(institution_row.clone()).expect("a well-formed institution row");
+    attempt(ambiguity_row("true, false, false")).expect("a well-formed ambiguity row");
+
+    // Logical identities, with an absent publication treated as a value.
+    for (label, statement) in [
+        (
+            "a duplicate NULL-publication total",
+            total("2026-03-01", 2, 2),
+        ),
+        ("a duplicate country row", country_row("GB")),
+        ("a duplicate institution row", institution_row.clone()),
+        (
+            "a duplicate ambiguity row",
+            ambiguity_row("false, true, false"),
+        ),
+    ] {
+        let result = attempt(statement);
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::UniqueViolation,
+                    _
+                ))
+            ),
+            "{label} must be rejected, got {result:?}"
+        );
+    }
+    // CHECK constraints.
+    for (label, statement) in [
+        (
+            "a month_start that is not the first of its month",
+            total("2026-04-02", 1, 1),
+        ),
+        ("a zero watermark", total("2026-04-01", 1, 0)),
+        ("a negative watermark", total("2026-05-01", 1, -1)),
+        ("a lowercase country code", country_row("gb")),
+        ("a one-letter country code", country_row("G")),
+        ("a digit in a country code", country_row("G1")),
+        ("an ambiguity row with no true flag", {
+            let mut statement = ambiguity_row("false, false, false");
+            statement = statement.replace("'2026-03-01'", "'2026-04-01'");
+            statement
+        }),
+    ] {
+        let result = attempt(statement);
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::CheckViolation,
+                    _
+                ))
+            ),
+            "{label} must be rejected, got {result:?}"
+        );
+    }
+    // A three-letter code never reaches the CHECK: the `character(2)` column
+    // itself refuses it.
+    let result = attempt(country_row("GBR"));
+    assert!(
+        matches!(&result, Err(DieselError::DatabaseError(_, info))
+            if info.message().contains("too long for type character(2)")),
+        "a three-letter country code must be rejected, got {result:?}"
+    );
+    // A signed value is accepted; a NULL publication and a specific one are
+    // distinct identities.
+    attempt(total("2026-06-01", -5, 3)).expect("a negative monthly value");
+    attempt(format!(
+        "INSERT INTO metric_rollup_work_month (work_id, publication_id, platform_id, \
+             measure_id, month_start, value, requires_country_coverage, \
+             requires_institution_coverage, watermark) \
+         VALUES ('{work}', '{}', '{platform}', '{measure}', '2026-03-01', 1, false, false, 1)",
+        fixture.publication_id
+    ))
+    .expect("a publication-specific row beside the NULL-publication row");
+
+    // Foreign keys: unknown parents are rejected, and a parent still
+    // referenced cannot be deleted.
+    let result = attempt(format!(
+        "INSERT INTO metric_rollup_work_month (work_id, publication_id, platform_id, \
+             measure_id, month_start, value, requires_country_coverage, \
+             requires_institution_coverage, watermark) \
+         VALUES ('{}', NULL, '{platform}', '{measure}', '2026-07-01', 1, false, false, 1)",
+        Uuid::new_v4()
+    ));
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "an unknown work must be rejected, got {result:?}"
+    );
+    let result = delete_row(&pool, "institution", "institution_id", institution);
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "deleting a referenced institution must be restricted, got {result:?}"
+    );
+}
+
+#[test]
+fn the_month_migration_applies_over_populated_pre_03a_state_and_a_rebuild_populates_it() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+
+    // Applied work-day history as it would exist before MET-WP4-03A: day
+    // rows and an advanced frontier, written directly as derived state.
+    let seeded = |pool: &PgPool| {
+        let (work, publication, platform, measure, institution) = (
+            fixture.work_id,
+            fixture.publication_id,
+            fixture.platform_id,
+            fixture.measure_id,
+            fixture.institution_id,
+        );
+        for (day_of_month, publication_id, country_code, institution_id, value, watermark) in [
+            (
+                1,
+                "NULL".to_string(),
+                "NULL".to_string(),
+                "NULL".to_string(),
+                10,
+                1,
+            ),
+            (
+                1,
+                "NULL".to_string(),
+                "'GB'".to_string(),
+                "NULL".to_string(),
+                6,
+                2,
+            ),
+            (
+                2,
+                format!("'{publication}'"),
+                "'US'".to_string(),
+                "NULL".to_string(),
+                4,
+                3,
+            ),
+            (
+                3,
+                "NULL".to_string(),
+                "'GB'".to_string(),
+                format!("'{institution}'"),
+                2,
+                4,
+            ),
+            (
+                3,
+                "NULL".to_string(),
+                "NULL".to_string(),
+                format!("'{institution}'"),
+                1,
+                5,
+            ),
+        ] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                         measure_id, day, country_code, institution_id, value, watermark) \
+                     VALUES ('{work}', {publication_id}, '{platform}', '{measure}', \
+                             '2026-03-0{day_of_month}', {country_code}, {institution_id}, \
+                             {value}, {watermark})"
+                ),
+            );
+        }
+        exec(
+            pool,
+            "UPDATE metric_rollup_work_day_state \
+             SET next_sequence = 6, applied_through_sequence = 5",
+        );
+    };
+    with_pre_03a_schema(&pool, seeded).expect("the migration must apply over populated state");
+
+    // The forward migration touched no day row, no state and created empty
+    // monthly tables.
+    let days = projection(&pool);
+    assert_eq!(days.len(), 5);
+    assert_eq!(state(&pool).applied_through_sequence, 5);
+    assert_eq!(state(&pool).next_sequence, 6);
+    assert_eq!(month_state(&pool), MonthState::default());
+
+    // The separately authorized historical rebuild is what populates them,
+    // from the work-day projection alone, to exactly the oracle's state.
+    let frontier = rebuild_month_projections(&pool).expect("rebuild");
+    assert_eq!(frontier, 5);
+    let rebuilt = month_state(&pool);
+    assert_eq!(rebuilt, oracle_month_state(&days));
+    // Day one: the aggregate is the total. Day two: one {P,C} mask, so a
+    // publication-specific total that depends on country coverage. Day
+    // three: {C,I} beside {I} is total-ambiguous.
+    assert_eq!(
+        totals(&pool),
+        vec![
+            (month(2026, 3), None, 10, false, false, 1),
+            (
+                month(2026, 3),
+                Some(fixture.publication_id),
+                4,
+                true,
+                false,
+                3
+            ),
+        ]
+    );
+    // Country: day one's {C} row and day three's {C,I} row (its least
+    // country mask) are additive into one GB row that depends on
+    // institution coverage; day two's {P,C} row keeps its publication.
+    assert_eq!(
+        countries(&pool),
+        vec![
+            (month(2026, 3), None, country("GB"), 8, true, 4),
+            (
+                month(2026, 3),
+                Some(fixture.publication_id),
+                country("US"),
+                4,
+                false,
+                3
+            ),
+        ]
+    );
+    assert_eq!(
+        institutions(&pool),
+        vec![(month(2026, 3), None, fixture.institution_id, 1, false, 5)],
+        "day three's {{I}} row is the least institution mask"
+    );
+    assert_eq!(
+        ambiguities(&pool),
+        vec![(month(2026, 3), true, false, false, 5)]
+    );
+    assert_eq!(projection(&pool), days);
+}
+
+#[test]
+fn the_month_migration_reverts_only_the_derived_tables_and_reapplies_empty() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_TWO, GB, 6);
+    day_delta(&pool, &fixture, DAY_TWO, INST, 4);
+    apply_everything(&pool);
+    let days = projection(&pool);
+    let rollup_deltas = deltas(&pool);
+    let frontier = state(&pool);
+    let incremental = month_state(&pool);
+    assert!(!incremental.totals.is_empty() && !incremental.ambiguity.is_empty());
+
+    // apply -> revert -> apply, then once more, with derived monthly rows
+    // present: the downgrade drops only the four derived tables, leaves the
+    // work-day projection, the deltas and the frontier untouched, and the
+    // reapplication recreates the tables empty.
+    for _ in 0..2 {
+        with_pre_03a_schema(&pool, |pool| {
+            assert_eq!(projection(pool), days);
+            assert_eq!(deltas(pool), rollup_deltas);
+            assert_eq!(state(pool), frontier);
+            assert!(table_exists(pool, "metric_rollup_work_day"));
+            assert!(table_exists(pool, "metric_rollup_work_day_state"));
+            assert_eq!(
+                scalar_i64(
+                    pool,
+                    "(SELECT COUNT(*) FROM pg_trigger \
+                      WHERE tgrelid = 'public.metric_rollup_delta'::regclass \
+                        AND NOT tgisinternal)"
+                ),
+                1,
+                "the MET-WP4-01 allocation trigger survives the revert"
+            );
+        })
+        .expect("the monthly migration must reapply");
+        for table in MONTH_TABLES {
+            assert!(table_exists(&pool, table));
+        }
+        assert_eq!(month_state(&pool), MonthState::default());
+        assert_eq!(projection(&pool), days);
+        assert_eq!(state(&pool), frontier);
+    }
+
+    // And a rebuild restores exactly the state incremental maintenance had
+    // produced before the round trip.
+    rebuild_month_projections(&pool).expect("rebuild");
+    assert_eq!(month_state(&pool), incremental);
+}
+
+// ---------------------------------------------------------------------------
+// Performance, query-plan and locking evidence (run explicitly)
+// ---------------------------------------------------------------------------
+
+/// The recorded duration percentiles of one sample set, in microseconds.
+fn percentiles(samples: &mut [Duration]) -> (u128, u128, u128) {
+    samples.sort();
+    let at = |fraction: f64| {
+        let index = ((samples.len() - 1) as f64 * fraction).round() as usize;
+        samples[index].as_micros()
+    };
+    (at(0.5), at(0.95), samples[samples.len() - 1].as_micros())
+}
+
+/// Production-shaped synthetic work-day rows for evidence: `works` works
+/// under the fixture imprint, one year of days each, and a random mix of
+/// masks per day. Values, country choices and mask draws come from a seeded
+/// `random()`; institution choices hash generated UUIDs, so the institution
+/// row count varies slightly between runs while the shape does not.
+fn seed_production_shaped_days(pool: &PgPool, fixture: &RecordFixture, works: i64) -> i64 {
+    exec(pool, "SELECT setseed(0.20260923)");
+    exec(
+        pool,
+        &format!(
+            "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+             SELECT gen_random_uuid(), 'monograph', 'forthcoming', imprint_id, 1 \
+             FROM work, generate_series(1, {works}) \
+             WHERE work_id = '{}'",
+            fixture.work_id
+        ),
+    );
+    exec(
+        pool,
+        "INSERT INTO institution (institution_id, institution_name) \
+         SELECT gen_random_uuid(), 'Institution ' || g FROM generate_series(1, 20) g",
+    );
+    // Every work-day gets an aggregate row; 40% also get a country row and
+    // 15% an institution row, drawn from 12 countries and 20 institutions,
+    // with a monotone watermark so the frontier can be set above them.
+    exec(
+        pool,
+        &format!(
+            "WITH days AS (SELECT generate_series(DATE '2025-01-01', DATE '2025-12-31', \
+                                                  interval '1 day')::date AS day), \
+                  cells AS (SELECT w.work_id, d.day, random() AS r1, random() AS r2, \
+                                   random() AS r3, random() AS r4 \
+                            FROM work w CROSS JOIN days d \
+                            WHERE w.work_id <> '{}'), \
+                  rows AS ( \
+                      SELECT work_id, day, NULL::char(2) AS country_code, \
+                             NULL::uuid AS institution_id, (1 + r3 * 50)::bigint AS value \
+                      FROM cells \
+                      UNION ALL \
+                      SELECT work_id, day, \
+                             (ARRAY['GB','US','DE','FR','ES','IT','NL','SE','CA','AU','JP','BR']) \
+                                 [1 + (r2 * 11)::int], \
+                             NULL, (1 + r4 * 20)::bigint \
+                      FROM cells WHERE r1 < 0.40 \
+                      UNION ALL \
+                      SELECT work_id, day, NULL, \
+                             (SELECT institution_id FROM institution \
+                              ORDER BY md5(institution_id::text || c.day::text || c.work_id::text) \
+                              LIMIT 1), \
+                             (1 + r4 * 10)::bigint \
+                      FROM cells c WHERE r1 >= 0.85) \
+             INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                 measure_id, day, country_code, institution_id, value, watermark) \
+             SELECT work_id, NULL, '{}', '{}', day, country_code, institution_id, value, \
+                    row_number() OVER (ORDER BY day, work_id) \
+             FROM rows",
+            fixture.work_id, fixture.platform_id, fixture.measure_id
+        ),
+    );
+    let rows = scalar_i64(pool, "(SELECT COUNT(*) FROM metric_rollup_work_day)");
+    exec(
+        pool,
+        &format!(
+            "UPDATE metric_rollup_work_day_state \
+             SET next_sequence = {}, applied_through_sequence = {rows}",
+            rows + 1
+        ),
+    );
+    exec(pool, "ANALYZE metric_rollup_work_day");
+    rows
+}
+
+/// Bounded local evidence for the implementation report: the monthly
+/// maintenance's cost for 1, 10 and 50 affected keys over a
+/// production-shaped work-day table, the full rebuild, the query plans of
+/// the nine statements with fifty keys, and the relation locks the
+/// completion critical section holds. Run explicitly with `--ignored
+/// --nocapture`; the numbers are host-dependent and are reported, not
+/// asserted.
+#[test]
+#[ignore = "bounded local performance evidence; run explicitly"]
+fn evidence_month_maintenance_cost_plans_and_locks() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let works: i64 = std::env::var("THOTH_EVIDENCE_WORKS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(2_000);
+    let started = Instant::now();
+    let rows = seed_production_shaped_days(&pool, &fixture, works);
+    println!(
+        "seeded {rows} work-day rows over {works} works x 365 days in {:?}",
+        started.elapsed()
+    );
+
+    // Full rebuild, twice: fresh state, then over the truncated state.
+    for round in 1..=2 {
+        let started = Instant::now();
+        let frontier = rebuild_month_projections(&pool).expect("rebuild");
+        println!(
+            "rebuild {round}: {:?} at frontier {frontier}; totals {} country {} institution {} ambiguity {}",
+            started.elapsed(),
+            scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_month)"),
+            scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_country_month)"),
+            scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_institution_month)"),
+            scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_month_ambiguity)"),
+        );
+    }
+    let frontier = state(&pool).applied_through_sequence;
+
+    // Month keys drawn deterministically from the seeded works.
+    #[derive(diesel::QueryableByName)]
+    struct KeyRow {
+        #[diesel(sql_type = diesel::sql_types::Uuid)]
+        work_id: Uuid,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let work_ids: Vec<Uuid> =
+        sql_query("SELECT work_id FROM work WHERE work_id <> $1 ORDER BY work_id LIMIT 50")
+            .bind::<diesel::sql_types::Uuid, _>(fixture.work_id)
+            .load::<KeyRow>(&mut connection)
+            .expect("seeded works")
+            .into_iter()
+            .map(|row| row.work_id)
+            .collect();
+    let keys_of = |count: usize| -> BTreeSet<MonthKey> {
+        work_ids[..count]
+            .iter()
+            .enumerate()
+            .map(|(index, work_id)| {
+                (
+                    *work_id,
+                    fixture.platform_id,
+                    fixture.measure_id,
+                    month(2025, (index % 12) as u32 + 1),
+                )
+            })
+            .collect()
+    };
+
+    // The monthly portion alone, under the same state-row lock a completion
+    // holds: warm-up, then repeated samples. Each sample deletes and
+    // reinserts the keys' rows exactly as a completion does.
+    for count in [1_usize, 10, 50] {
+        let keys = keys_of(count);
+        let mut samples = Vec::with_capacity(40);
+        for sample in 0..45 {
+            let started = Instant::now();
+            connection
+                .transaction::<_, ThothError, _>(|connection| {
+                    sql_query(
+                        "SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE",
+                    )
+                    .execute(connection)?;
+                    recompute_month_projections(connection, &keys, frontier)
+                })
+                .expect("recompute");
+            if sample >= 5 {
+                samples.push(started.elapsed());
+            }
+        }
+        let (p50, p95, max) = percentiles(&mut samples);
+        println!(
+            "monthly maintenance, {count} affected keys: p50 {p50} us, p95 {p95} us, max {max} us over {} samples",
+            samples.len()
+        );
+    }
+
+    // Query plans of the nine statements with fifty keys.
+    #[derive(diesel::QueryableByName)]
+    struct PlanLine {
+        #[diesel(sql_type = diesel::sql_types::Text, column_name = "QUERY PLAN")]
+        line: String,
+    }
+    let keys = keys_of(50);
+    let work_ids: Vec<Uuid> = keys.iter().map(|key| key.0).collect();
+    let platform_ids: Vec<Uuid> = keys.iter().map(|key| key.1).collect();
+    let measure_ids: Vec<Uuid> = keys.iter().map(|key| key.2).collect();
+    let month_starts: Vec<NaiveDate> = keys.iter().map(|key| key.3).collect();
+    connection
+        .transaction::<(), ThothError, _>(|connection| {
+            sql_query("SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE")
+                .execute(connection)?;
+            for (index, statement) in MONTH_MAINTENANCE_STATEMENTS.iter().enumerate() {
+                let plan: Vec<PlanLine> =
+                    sql_query(format!("EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) {statement}"))
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(&work_ids)
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(&platform_ids)
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(&measure_ids)
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Date>, _>(&month_starts)
+                        .load(connection)?;
+                println!("--- plan of monthly statement {} (50 keys):", index + 1);
+                for line in plan {
+                    println!("{}", line.line);
+                }
+            }
+            // The relation locks this critical section holds after the
+            // monthly maintenance ran.
+            #[derive(diesel::QueryableByName)]
+            struct LockRow {
+                #[diesel(sql_type = diesel::sql_types::Text)]
+                relation: String,
+                #[diesel(sql_type = diesel::sql_types::Text)]
+                mode: String,
+            }
+            let locks: Vec<LockRow> = sql_query(
+                "SELECT relation::regclass::text AS relation, mode::text AS mode \
+                 FROM pg_locks \
+                 WHERE pid = pg_backend_pid() AND locktype = 'relation' \
+                   AND relation::regclass::text NOT LIKE 'pg_%' \
+                 ORDER BY 1, 2",
+            )
+            .load(connection)?;
+            println!("--- relation locks held by the completion critical section:");
+            for lock in locks {
+                println!("{} {}", lock.relation, lock.mode);
+            }
+            Err(ThothError::InternalError("evidence only; roll back".into()))
+        })
+        .expect_err("evidence transaction rolls back");
+    drop(connection);
+
+    // The whole completion, end to end, for 1, 10 and 50 keys with one delta
+    // per key, and for 50 deltas into one key, with real claims.
+    for (label, keys, deltas_per_key) in [
+        ("1 key, 1 delta", 1_u32, 1_u32),
+        ("10 keys, 10 deltas", 10, 1),
+        ("50 keys, 50 deltas", 50, 1),
+        ("1 key, 50 deltas", 1, 50),
+    ] {
+        let mut samples = Vec::new();
+        for sample in 0..12 {
+            for key in 0..keys {
+                for delta in 0..deltas_per_key {
+                    day_delta(
+                        &pool,
+                        &fixture,
+                        (2026, key % 12 + 1, delta % 28 + 1),
+                        if delta % 3 == 0 { GB } else { AGG },
+                        i64::from(delta) + 1,
+                    );
+                }
+            }
+            let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+            let started = Instant::now();
+            complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+                .expect("completion");
+            if sample >= 2 {
+                samples.push(started.elapsed());
+            }
+        }
+        let (p50, p95, max) = percentiles(&mut samples);
+        println!(
+            "whole completion, {label}: p50 {p50} us, p95 {p95} us, max {max} us over {} samples",
+            samples.len()
+        );
+    }
 }

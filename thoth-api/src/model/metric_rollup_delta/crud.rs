@@ -1,11 +1,16 @@
 //! The two named domain operations of the MOM-1 rollup application path
-//! (`MET-WP4-01`).
+//! (`MET-WP4-01`) and the derived monthly serving layer maintained beneath
+//! the second of them (`MET-WP4-03A`).
 //!
 //! `Crud` is deliberately **not** implemented for `metric_rollup_delta`,
-//! `metric_rollup_work_day` or `metric_rollup_work_day_state`. There is no
-//! generic create/update/delete surface for rollup state: the two functions
-//! here are the only supported writes, and each one implements exactly one
-//! transition of the approved protocol.
+//! `metric_rollup_work_day`, `metric_rollup_work_day_state` or any of the
+//! four monthly tables. There is no generic create/update/delete surface for
+//! rollup state: the two functions here are the only supported writes, and
+//! each one implements exactly one transition of the approved protocol. The
+//! monthly projections are written only by [`complete_metric_rollup_deltas`],
+//! inside its transaction and beneath its state-row lock; the test-only
+//! rebuild at the end of this file is the reviewed rebuild procedure, not a
+//! callable surface.
 //!
 //! Every mechanism here is programme-local. There is no generic job
 //! framework, no reusable lease abstraction and no cross-programme claim
@@ -25,9 +30,11 @@
 //! and why an inconsistent frontier **blocks** rather than being skipped.
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use diesel::pg::PgConnection;
+use diesel::result::Error as DieselError;
 use diesel::sql_types::{
     Array, BigInt, Bool, Date, Integer, Nullable, Text, Timestamptz, Uuid as SqlUuid,
 };
@@ -156,6 +163,14 @@ struct WatermarkRow {
     applied_through_sequence: i64,
     #[diesel(sql_type = Timestamptz)]
     watermark_at: Timestamp,
+}
+
+/// The greatest work-day watermark among the day rows that feed a monthly
+/// recomputation, or `None` when no such row exists.
+#[derive(diesel::QueryableByName)]
+struct SourceWatermarkRow {
+    #[diesel(sql_type = Nullable<BigInt>)]
+    watermark: Option<i64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -321,15 +336,22 @@ pub(crate) fn claim_metric_rollup_deltas(
 ///    exactly `applied_through_sequence + 1` and is consecutive;
 /// 4. apply each delta's signed value to `metric_rollup_work_day`, in
 ///    ascending sequence, using dimensions read from the canonical record;
-/// 5. terminalize every batch row as `APPLIED`, closing the lease while
+/// 5. derive the distinct `(work, platform, measure, month)` keys the batch
+///    touched and recompute the four derived monthly datasets for exactly
+///    those keys, set-wise, in a fixed number of statements (nine: one
+///    source watermark bound, four deletes, four inserts) that does not grow
+///    with the number of keys;
+/// 6. terminalize every batch row as `APPLIED`, closing the lease while
 ///    retaining its token, owner and claim time as evidence;
-/// 6. set `applied_through_sequence` to the batch's last sequence and stamp
+/// 7. set `applied_through_sequence` to the batch's last sequence and stamp
 ///    the watermark.
 ///
 /// It is **all rows or none**: any validation, arithmetic, constraint or
-/// statement failure rolls the whole transaction back, leaving the projection,
-/// every delta's status and the watermark exactly as they were, with the
-/// batch still claimed until its lease expires.
+/// statement failure — in the day application, in the monthly
+/// recomputation, in terminalization or in the frontier advance — rolls the
+/// whole transaction back, leaving the work-day projection, the monthly
+/// projections, every delta's status and the watermark exactly as they were,
+/// with the batch still claimed until its lease expires.
 ///
 /// A repeat of an already-applied token is read-only and returns the current
 /// durable watermark, which is what makes a completion that timed out *after*
@@ -441,7 +463,16 @@ pub(crate) fn complete_metric_rollup_deltas(
             apply_delta(connection, row, sequence)?;
         }
 
-        // Step 5. Terminalize. `status = 'CLAIMED'` in the predicate is
+        // Step 5. The derived monthly serving layer (MET-WP4-03A). Every
+        // distinct month key the batch touched is recomputed from the
+        // work-day projection as it now stands, for the whole key set at
+        // once. A failure here fails the transaction, so the day updates
+        // above, the terminalization and the frontier advance below all roll
+        // back together; nothing is partially completed.
+        let affected = affected_month_keys(&batch)?;
+        recompute_month_projections(connection, &affected, last)?;
+
+        // Step 6. Terminalize. `status = 'CLAIMED'` in the predicate is
         // redundant under the locks already held and is kept as a fail-closed
         // assertion: a mismatch in the affected count aborts the batch.
         let terminalized = diesel::sql_query(
@@ -460,7 +491,7 @@ pub(crate) fn complete_metric_rollup_deltas(
             ));
         }
 
-        // Step 6. The frontier moves to exactly the batch's last sequence and
+        // Step 7. The frontier moves to exactly the batch's last sequence and
         // no further, so it can never cross a delta this transaction did not
         // apply.
         let watermark: Vec<WatermarkRow> = diesel::sql_query(
@@ -603,12 +634,522 @@ fn apply_delta(connection: &mut PgConnection, row: &BatchRow, sequence: i64) -> 
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// MET-WP4-03A: derived monthly serving projections
+// ---------------------------------------------------------------------------
+//
+// The four monthly tables are derived exclusively from
+// `metric_rollup_work_day`. Each statement below starts from a relation
+// `affected` of `(work_id, platform_id, measure_id, month_start)` keys and
+// resolves every daily base cell of those months FIRST — the `MET-WP4-02`
+// Amendment 6 total rule for totals, the unique-least target-dimension rule
+// for country and institution — and only then sums the resolved daily
+// contributions into the month. Raw day rows are never compacted into a
+// month and re-resolved there.
+//
+// A day row's presence mask is the `MET-WP4-02` mask: publication = 4,
+// country = 2, institution = 1, so an undimensioned row is 0. A window
+// aggregate `bit_or(1 << mask) OVER (PARTITION BY base cell)` gives every
+// row the bitmap of masks its own cell represents, so no row ever has to be
+// joined back to its cell (a self-join over statistics-less CTE scans was
+// measured at 300 ms per statement for fifty keys and is exactly what this
+// shape avoids), and one CASE per target derives the selected mask (or NULL)
+// from that bitmap:
+//
+//   total       0 if represented, else the single represented mask, else
+//               NULL = total_ambiguous;
+//   country     the least of {2, 3, 6, 7} under inclusion: 2 if present,
+//               else NULL when both 3 and 6 (incomparable minima) are present
+//               = country_ambiguous, else 3, else 6, else 7, else NULL = no
+//               country contribution;
+//   institution the mirror over {1, 3, 5, 7}: 1, else NULL when both 3 and 5
+//               are present = institution_ambiguous, else 3, else 5, else 7,
+//               else NULL.
+//
+// The rows carrying the selected mask are then kept and summed with
+// `publication_id` as the row holds it: the selected representation
+// either carries a publication on every row or on none, so retaining
+// `r.publication_id` is exactly "publication only if the representation
+// contains it", and rows of the same month with and without a publication
+// are additive contributions from different days. `SUM(bigint)` is exact
+// `numeric`; the cast back to `bigint` is what fails closed on overflow.
+//
+// The statements receive the affected keys as four parallel arrays through
+// `unnest`, so one statement serves one key or fifty, and the statement count
+// is fixed at nine whatever the key count. The test-only rebuild at the end
+// of this file replays exactly these statements over every represented month
+// key, in chunks bounded like a claim batch.
+
+/// The distinct affected month keys of one completion, from four parallel
+/// arrays.
+macro_rules! affected_month_keys_sql {
+    () => {
+        "SELECT DISTINCT k.work_id, k.platform_id, k.measure_id, k.month_start \
+         FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+              AS k(work_id, platform_id, measure_id, month_start)"
+    };
+}
+
+/// The per-cell resolution shared by every monthly statement, as the CTEs
+/// that follow an `affected` relation.
+macro_rules! month_resolution_ctes_sql {
+    () => {
+        "day_rows AS ( \
+             SELECT x.*, \
+                    bit_or(1 << x.mask) OVER (PARTITION BY x.work_id, x.platform_id, \
+                                                           x.measure_id, x.day) AS represented \
+             FROM ( \
+                 SELECT r.work_id, r.publication_id, r.platform_id, r.measure_id, r.day, \
+                        a.month_start, r.country_code, r.institution_id, r.value, r.watermark, \
+                        (r.publication_id IS NOT NULL)::int * 4 \
+                            + (r.country_code IS NOT NULL)::int * 2 \
+                            + (r.institution_id IS NOT NULL)::int AS mask \
+                 FROM affected a \
+                 JOIN public.metric_rollup_work_day r \
+                   ON r.work_id = a.work_id \
+                  AND r.platform_id = a.platform_id \
+                  AND r.measure_id = a.measure_id \
+                  AND r.day >= a.month_start \
+                  AND r.day < (a.month_start + interval '1 month')::date \
+             ) x \
+         ), \
+         resolved AS ( \
+             SELECT day_rows.*, \
+                    CASE WHEN represented & 1 <> 0 THEN 0 \
+                         WHEN represented = 2 THEN 1 \
+                         WHEN represented = 4 THEN 2 \
+                         WHEN represented = 8 THEN 3 \
+                         WHEN represented = 16 THEN 4 \
+                         WHEN represented = 32 THEN 5 \
+                         WHEN represented = 64 THEN 6 \
+                         WHEN represented = 128 THEN 7 \
+                    END AS total_mask, \
+                    CASE WHEN represented & 4 <> 0 THEN 2 \
+                         WHEN represented & 8 <> 0 AND represented & 64 <> 0 THEN NULL \
+                         WHEN represented & 8 <> 0 THEN 3 \
+                         WHEN represented & 64 <> 0 THEN 6 \
+                         WHEN represented & 128 <> 0 THEN 7 \
+                    END AS country_mask, \
+                    (represented & 4 = 0 AND represented & 8 <> 0 AND represented & 64 <> 0) \
+                        AS country_ambiguous, \
+                    CASE WHEN represented & 2 <> 0 THEN 1 \
+                         WHEN represented & 8 <> 0 AND represented & 32 <> 0 THEN NULL \
+                         WHEN represented & 8 <> 0 THEN 3 \
+                         WHEN represented & 32 <> 0 THEN 5 \
+                         WHEN represented & 128 <> 0 THEN 7 \
+                    END AS institution_mask, \
+                    (represented & 2 = 0 AND represented & 8 <> 0 AND represented & 32 <> 0) \
+                        AS institution_ambiguous \
+             FROM day_rows \
+         )"
+    };
+}
+
+/// The greatest day watermark feeding the affected months.
+macro_rules! source_watermark_sql {
+    () => {
+        "SELECT MAX(r.watermark) AS watermark \
+         FROM affected a \
+         JOIN public.metric_rollup_work_day r \
+           ON r.work_id = a.work_id \
+          AND r.platform_id = a.platform_id \
+          AND r.measure_id = a.measure_id \
+          AND r.day >= a.month_start \
+          AND r.day < (a.month_start + interval '1 month')::date"
+    };
+}
+
+macro_rules! month_total_insert_sql {
+    () => {
+        "INSERT INTO public.metric_rollup_work_month \
+             (work_id, publication_id, platform_id, measure_id, month_start, value, \
+              requires_country_coverage, requires_institution_coverage, watermark) \
+         SELECT r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start, \
+                SUM(r.value)::bigint, \
+                bool_or(r.mask & 2 <> 0), \
+                bool_or(r.mask & 1 <> 0), \
+                MAX(r.watermark) \
+         FROM resolved r \
+         WHERE r.mask = r.total_mask \
+         GROUP BY r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start"
+    };
+}
+
+macro_rules! month_country_insert_sql {
+    () => {
+        "INSERT INTO public.metric_rollup_work_country_month \
+             (work_id, publication_id, platform_id, measure_id, month_start, country_code, \
+              value, requires_institution_coverage, watermark) \
+         SELECT r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start, \
+                r.country_code, \
+                SUM(r.value)::bigint, \
+                bool_or(r.mask & 1 <> 0), \
+                MAX(r.watermark) \
+         FROM resolved r \
+         WHERE r.mask = r.country_mask \
+         GROUP BY r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start, \
+                  r.country_code"
+    };
+}
+
+macro_rules! month_institution_insert_sql {
+    () => {
+        "INSERT INTO public.metric_rollup_work_institution_month \
+             (work_id, publication_id, platform_id, measure_id, month_start, institution_id, \
+              value, requires_country_coverage, watermark) \
+         SELECT r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start, \
+                r.institution_id, \
+                SUM(r.value)::bigint, \
+                bool_or(r.mask & 2 <> 0), \
+                MAX(r.watermark) \
+         FROM resolved r \
+         WHERE r.mask = r.institution_mask \
+         GROUP BY r.work_id, r.publication_id, r.platform_id, r.measure_id, r.month_start, \
+                  r.institution_id"
+    };
+}
+
+/// Sparse ambiguity: one row per month key with at least one true flag. The
+/// watermark is taken over exactly the rows that establish a true flag: every
+/// row of a total-ambiguous cell, and the rows carrying the incomparable
+/// minimal masks (3 and 6 for country, 3 and 5 for institution) of a
+/// country- or institution-ambiguous cell.
+macro_rules! month_ambiguity_insert_sql {
+    () => {
+        "INSERT INTO public.metric_rollup_work_month_ambiguity \
+             (work_id, platform_id, measure_id, month_start, total_ambiguous, \
+              country_ambiguous, institution_ambiguous, watermark) \
+         SELECT r.work_id, r.platform_id, r.measure_id, r.month_start, \
+                bool_or(r.total_mask IS NULL), \
+                bool_or(r.country_ambiguous), \
+                bool_or(r.institution_ambiguous), \
+                MAX(r.watermark) FILTER (WHERE r.total_mask IS NULL \
+                    OR (r.country_ambiguous AND r.mask IN (3, 6)) \
+                    OR (r.institution_ambiguous AND r.mask IN (3, 5))) \
+         FROM resolved r \
+         GROUP BY r.work_id, r.platform_id, r.measure_id, r.month_start \
+         HAVING bool_or(r.total_mask IS NULL OR r.country_ambiguous OR r.institution_ambiguous)"
+    };
+}
+
+/// Statement 1 of 9: the greatest work-day watermark feeding the affected
+/// months, checked against the frontier the completion is about to
+/// establish.
+pub(crate) const MONTH_SOURCE_WATERMARK_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_month_keys_sql!(),
+    ") ",
+    source_watermark_sql!()
+);
+
+/// Statements 2 to 5 of 9: clear every row of the affected keys, whatever
+/// its publication, country or institution.
+pub(crate) const MONTH_TOTAL_DELETE_SQL: &str = "DELETE FROM public.metric_rollup_work_month m \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, month_start) \
+     WHERE m.work_id = k.work_id \
+       AND m.platform_id = k.platform_id \
+       AND m.measure_id = k.measure_id \
+       AND m.month_start = k.month_start";
+pub(crate) const MONTH_COUNTRY_DELETE_SQL: &str =
+    "DELETE FROM public.metric_rollup_work_country_month m \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, month_start) \
+     WHERE m.work_id = k.work_id \
+       AND m.platform_id = k.platform_id \
+       AND m.measure_id = k.measure_id \
+       AND m.month_start = k.month_start";
+pub(crate) const MONTH_INSTITUTION_DELETE_SQL: &str =
+    "DELETE FROM public.metric_rollup_work_institution_month m \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, month_start) \
+     WHERE m.work_id = k.work_id \
+       AND m.platform_id = k.platform_id \
+       AND m.measure_id = k.measure_id \
+       AND m.month_start = k.month_start";
+pub(crate) const MONTH_AMBIGUITY_DELETE_SQL: &str =
+    "DELETE FROM public.metric_rollup_work_month_ambiguity m \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, month_start) \
+     WHERE m.work_id = k.work_id \
+       AND m.platform_id = k.platform_id \
+       AND m.measure_id = k.measure_id \
+       AND m.month_start = k.month_start";
+
+/// Statements 6 to 9 of 9: the recomputed rows of the affected keys.
+pub(crate) const MONTH_TOTAL_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_month_keys_sql!(),
+    "), ",
+    month_resolution_ctes_sql!(),
+    " ",
+    month_total_insert_sql!()
+);
+pub(crate) const MONTH_COUNTRY_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_month_keys_sql!(),
+    "), ",
+    month_resolution_ctes_sql!(),
+    " ",
+    month_country_insert_sql!()
+);
+pub(crate) const MONTH_INSTITUTION_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_month_keys_sql!(),
+    "), ",
+    month_resolution_ctes_sql!(),
+    " ",
+    month_institution_insert_sql!()
+);
+pub(crate) const MONTH_AMBIGUITY_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_month_keys_sql!(),
+    "), ",
+    month_resolution_ctes_sql!(),
+    " ",
+    month_ambiguity_insert_sql!()
+);
+
+/// The four deletes, in execution order.
+pub(crate) const MONTH_DELETE_STATEMENTS: [&str; 4] = [
+    MONTH_TOTAL_DELETE_SQL,
+    MONTH_COUNTRY_DELETE_SQL,
+    MONTH_INSTITUTION_DELETE_SQL,
+    MONTH_AMBIGUITY_DELETE_SQL,
+];
+
+/// The four inserts, in execution order.
+pub(crate) const MONTH_INSERT_STATEMENTS: [&str; 4] = [
+    MONTH_TOTAL_INSERT_SQL,
+    MONTH_COUNTRY_INSERT_SQL,
+    MONTH_INSTITUTION_INSERT_SQL,
+    MONTH_AMBIGUITY_INSERT_SQL,
+];
+
+/// Every statement the monthly maintenance executes, in order: the source
+/// watermark bound, the four deletes and the four inserts. The count is a
+/// property of the design, not of the batch: it is the same for one affected
+/// key and for fifty, which the tests prove by capturing the statements one
+/// completion actually issues.
+#[cfg(test)]
+pub(crate) const MONTH_MAINTENANCE_STATEMENTS: [&str; 9] = [
+    MONTH_SOURCE_WATERMARK_SQL,
+    MONTH_TOTAL_DELETE_SQL,
+    MONTH_COUNTRY_DELETE_SQL,
+    MONTH_INSTITUTION_DELETE_SQL,
+    MONTH_AMBIGUITY_DELETE_SQL,
+    MONTH_TOTAL_INSERT_SQL,
+    MONTH_COUNTRY_INSERT_SQL,
+    MONTH_INSTITUTION_INSERT_SQL,
+    MONTH_AMBIGUITY_INSERT_SQL,
+];
+
+/// The fixed number of SQL statements the monthly maintenance adds to one
+/// completion: nine.
+#[cfg(test)]
+pub(crate) const MONTH_MAINTENANCE_STATEMENT_COUNT: usize = MONTH_MAINTENANCE_STATEMENTS.len();
+
+/// PostgreSQL's fixed message for a `numeric` value that does not fit a
+/// `bigint` (SQLSTATE `22003`). Diesel exposes no SQLSTATE, so the message
+/// is the discriminator; any other database failure propagates unchanged.
+const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
+
+/// One month key: `(work_id, platform_id, measure_id, month_start)`.
+pub(crate) type MonthKey = (Uuid, Uuid, Uuid, NaiveDate);
+
+/// The distinct month keys a validated batch touches.
+///
+/// Every row has already been checked by [`apply_delta`] to describe exactly
+/// one calendar day, so the month is the day's own month.
+fn affected_month_keys(batch: &[BatchRow]) -> ThothResult<BTreeSet<MonthKey>> {
+    batch
+        .iter()
+        .map(|row| {
+            let month_start = row.period_start.with_day(1).ok_or_else(|| {
+                broken_invariant("a work-day rollup delta names a day outside any calendar month")
+            })?;
+            Ok((row.work_id, row.platform_id, row.measure_id, month_start))
+        })
+        .collect()
+}
+
+/// Recompute the four monthly datasets for exactly `keys`, set-wise.
+///
+/// Executes the nine [`MONTH_MAINTENANCE_STATEMENTS`] in order, each over the
+/// whole key set at once: the source watermark bound, then delete and
+/// reinsert per projection. It is not a loop over keys. `frontier` is the
+/// `applied_through_sequence` the enclosing completion is about to
+/// establish; a day row watermarked above it is evidence of out-of-band
+/// damage and fails the transaction closed, because a derived watermark must
+/// never exceed the frontier.
+pub(crate) fn recompute_month_projections(
+    connection: &mut PgConnection,
+    keys: &BTreeSet<MonthKey>,
+    frontier: i64,
+) -> ThothResult<()> {
+    let work_ids: Vec<Uuid> = keys.iter().map(|key| key.0).collect();
+    let platform_ids: Vec<Uuid> = keys.iter().map(|key| key.1).collect();
+    let measure_ids: Vec<Uuid> = keys.iter().map(|key| key.2).collect();
+    let month_starts: Vec<NaiveDate> = keys.iter().map(|key| key.3).collect();
+
+    let source: Vec<SourceWatermarkRow> = diesel::sql_query(MONTH_SOURCE_WATERMARK_SQL)
+        .bind::<Array<SqlUuid>, _>(&work_ids)
+        .bind::<Array<SqlUuid>, _>(&platform_ids)
+        .bind::<Array<SqlUuid>, _>(&measure_ids)
+        .bind::<Array<Date>, _>(&month_starts)
+        .load(connection)?;
+    if source
+        .into_iter()
+        .next()
+        .and_then(|row| row.watermark)
+        .is_some_and(|watermark| watermark > frontier)
+    {
+        return Err(broken_invariant(
+            "a work-day projection row is watermarked above the frontier this completion establishes",
+        ));
+    }
+
+    for statement in MONTH_DELETE_STATEMENTS {
+        diesel::sql_query(statement)
+            .bind::<Array<SqlUuid>, _>(&work_ids)
+            .bind::<Array<SqlUuid>, _>(&platform_ids)
+            .bind::<Array<SqlUuid>, _>(&measure_ids)
+            .bind::<Array<Date>, _>(&month_starts)
+            .execute(connection)?;
+    }
+    for statement in MONTH_INSERT_STATEMENTS {
+        diesel::sql_query(statement)
+            .bind::<Array<SqlUuid>, _>(&work_ids)
+            .bind::<Array<SqlUuid>, _>(&platform_ids)
+            .bind::<Array<SqlUuid>, _>(&measure_ids)
+            .bind::<Array<Date>, _>(&month_starts)
+            .execute(connection)
+            .map_err(month_arithmetic)?;
+    }
+    Ok(())
+}
+
+/// Render a monthly `bigint` overflow as the bounded rollup rejection.
+///
+/// `SUM(bigint)` is exact `numeric`, so the overflow surfaces at the cast back
+/// to `bigint`, from PostgreSQL itself: nothing can wrap or narrow. The
+/// transaction has already failed by the time this runs; the mapping only
+/// gives the caller the same fixed, detail-free message the day path uses.
+fn month_arithmetic(error: DieselError) -> ThothError {
+    if let DieselError::DatabaseError(_, info) = &error {
+        if info.message() == BIGINT_OUT_OF_RANGE {
+            return rejected(
+                "Recomputing the monthly projections for this batch would overflow \
+                 a projected total. The work-day frontier is blocked pending repair.",
+            );
+        }
+    }
+    error.into()
+}
+
+// ---------------------------------------------------------------------------
+// Full rebuild (reviewed procedure; test-only, no callable surface)
+// ---------------------------------------------------------------------------
+
+/// The rebuild's source watermark bound: the whole work-day projection.
+#[cfg(test)]
+pub(crate) const REBUILD_SOURCE_WATERMARK_SQL: &str =
+    "SELECT MAX(r.watermark) AS watermark FROM public.metric_rollup_work_day r";
+
+/// Fresh derived state for the rebuild: one `TRUNCATE`, not keyed deletes,
+/// so a production-shaped rebuild leaves no dead-tuple bloat.
+#[cfg(test)]
+pub(crate) const REBUILD_TRUNCATE_SQL: &str = "TRUNCATE TABLE \
+         public.metric_rollup_work_month, \
+         public.metric_rollup_work_country_month, \
+         public.metric_rollup_work_institution_month, \
+         public.metric_rollup_work_month_ambiguity";
+
+/// Every month key represented in the work-day projection, in a
+/// deterministic order.
+#[cfg(test)]
+pub(crate) const REBUILD_MONTH_KEYS_SQL: &str =
+    "SELECT DISTINCT r.work_id, r.platform_id, r.measure_id, \
+            date_trunc('month', r.day)::date AS month_start \
+     FROM public.metric_rollup_work_day r \
+     ORDER BY 1, 2, 3, 4";
+
+/// One represented month key.
+#[cfg(test)]
+#[derive(diesel::QueryableByName)]
+struct MonthKeyRow {
+    #[diesel(sql_type = SqlUuid)]
+    work_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    platform_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    measure_id: Uuid,
+    #[diesel(sql_type = Date)]
+    month_start: NaiveDate,
+}
+
+/// Rebuild all four monthly datasets from `metric_rollup_work_day` alone.
+///
+/// This is the reviewed deterministic rebuild procedure `MET-WP4-03A`
+/// requires as evidence, compiled only for tests: the task adds no callable
+/// rebuild operation, and a historical production rebuild is a separately
+/// authorized operational action. One transaction on one connection locks
+/// the singleton state row `FOR UPDATE` — the same serialization point every
+/// completion takes, so no completion can change the work-day projection
+/// under the rebuild — checks that no day row is watermarked above the
+/// durable frontier, truncates the four tables, reads every represented
+/// month key, and then replays [`recompute_month_projections`] over those
+/// keys in chunks of at most [`METRIC_ROLLUP_CLAIM_MAX_BATCH`]: exactly the
+/// statements, resolution text and index paths a completion uses, so the
+/// rebuilt state is by construction what incremental maintenance produces.
+/// A rebuild therefore costs a bounded number of keyed recomputations rather
+/// than one whole-table plan, and reads no canonical record, revision or
+/// delta. Returns the `applied_through_sequence` the rebuilt state
+/// corresponds to.
+#[cfg(test)]
+pub(crate) fn rebuild_month_projections(db: &PgPool) -> ThothResult<i64> {
+    let mut connection = db.get()?;
+    connection.transaction(|connection| {
+        let state = lock_state(connection)?;
+        let source: Vec<SourceWatermarkRow> =
+            diesel::sql_query(REBUILD_SOURCE_WATERMARK_SQL).load(connection)?;
+        if source
+            .into_iter()
+            .next()
+            .and_then(|row| row.watermark)
+            .is_some_and(|watermark| watermark > state.applied_through_sequence)
+        {
+            return Err(broken_invariant(
+                "a work-day projection row is watermarked above the durable frontier",
+            ));
+        }
+        diesel::sql_query(REBUILD_TRUNCATE_SQL).execute(connection)?;
+        let keys: Vec<MonthKeyRow> = diesel::sql_query(REBUILD_MONTH_KEYS_SQL).load(connection)?;
+        for chunk in keys.chunks(METRIC_ROLLUP_CLAIM_MAX_BATCH as usize) {
+            let keys: BTreeSet<MonthKey> = chunk
+                .iter()
+                .map(|key| {
+                    (
+                        key.work_id,
+                        key.platform_id,
+                        key.measure_id,
+                        key.month_start,
+                    )
+                })
+                .collect();
+            recompute_month_projections(connection, &keys, state.applied_through_sequence)?;
+        }
+        Ok(state.applied_through_sequence)
+    })
+}
+
 /// The read-only answer to a repeat of an already-applied batch.
 ///
 /// This is the timeout-after-commit case: the completion committed, the
 /// response never arrived, and the claimant retried with the same token.
 /// Returning the current durable watermark without writing is what makes that
-/// retry safe. It is permitted only when the whole batch is applied, was
+/// retry safe: no day row, monthly row, delta or frontier is touched. It is
+/// permitted only when the whole batch is applied, was
 /// applied by this same principal, and sits at or below the durable frontier
 /// — the last condition being what distinguishes a genuine replay from a
 /// token whose effect is not actually reflected in the watermark.
