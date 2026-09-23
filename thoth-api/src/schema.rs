@@ -1044,6 +1044,23 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    metric_rollup_work_country_month (rollup_work_country_month_id) {
+        rollup_work_country_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        country_code -> Bpchar,
+        value -> Int8,
+        requires_institution_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     metric_rollup_work_day (rollup_work_day_id) {
         rollup_work_day_id -> Uuid,
         work_id -> Uuid,
@@ -1067,6 +1084,56 @@ table! {
         applied_through_sequence -> Int8,
         watermark_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_institution_month (rollup_work_institution_month_id) {
+        rollup_work_institution_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        institution_id -> Uuid,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_month (rollup_work_month_id) {
+        rollup_work_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+        requires_institution_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_month_ambiguity (rollup_work_month_ambiguity_id) {
+        rollup_work_month_ambiguity_id -> Uuid,
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        total_ambiguous -> Bool,
+        country_ambiguous -> Bool,
+        institution_ambiguous -> Bool,
+        watermark -> Int8,
     }
 }
 
@@ -1646,11 +1713,27 @@ joinable!(metric_record_provenance -> metric_import_batch (import_batch_id));
 joinable!(metric_record_provenance -> metric_record (record_id));
 joinable!(metric_record_revision -> metric_import (import_id));
 joinable!(metric_record_revision -> metric_record (record_id));
+joinable!(metric_rollup_work_country_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_country_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_country_month -> publication (publication_id));
+joinable!(metric_rollup_work_country_month -> work (work_id));
 joinable!(metric_rollup_work_day -> institution (institution_id));
 joinable!(metric_rollup_work_day -> metric_measure (measure_id));
 joinable!(metric_rollup_work_day -> metric_platform (platform_id));
 joinable!(metric_rollup_work_day -> publication (publication_id));
 joinable!(metric_rollup_work_day -> work (work_id));
+joinable!(metric_rollup_work_institution_month -> institution (institution_id));
+joinable!(metric_rollup_work_institution_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_institution_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_institution_month -> publication (publication_id));
+joinable!(metric_rollup_work_institution_month -> work (work_id));
+joinable!(metric_rollup_work_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_month -> publication (publication_id));
+joinable!(metric_rollup_work_month -> work (work_id));
+joinable!(metric_rollup_work_month_ambiguity -> metric_measure (measure_id));
+joinable!(metric_rollup_work_month_ambiguity -> metric_platform (platform_id));
+joinable!(metric_rollup_work_month_ambiguity -> work (work_id));
 joinable!(metric_source_account -> metric_platform (platform_id));
 joinable!(metric_source_account -> metric_source (source_id));
 joinable!(metric_source_account -> publisher (expected_publisher_id));
@@ -1735,8 +1818,12 @@ allow_tables_to_appear_in_same_query!(
     metric_record_revision,
     metric_registry_history,
     metric_rollup_delta,
+    metric_rollup_work_country_month,
     metric_rollup_work_day,
     metric_rollup_work_day_state,
+    metric_rollup_work_institution_month,
+    metric_rollup_work_month,
+    metric_rollup_work_month_ambiguity,
     metric_source,
     metric_source_account,
     metric_source_checkpoint,

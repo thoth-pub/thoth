@@ -7,8 +7,14 @@
 //! rollup-specific read, lock and write, the bounded error contract as seen
 //! through GraphQL, and the strictly additive SDL.
 //!
-//! Frontier, lease, atomicity, arithmetic, watermark, rebuild and migration
-//! evidence lives with the durable state itself, in
+//! `MET-WP4-03A` adds no operation, type, field or argument: the derived
+//! monthly projections are maintained inside the existing completion and
+//! never cross the API. The evidence here is that the resolver path still
+//! maintains them and that the generated schema is byte-for-byte unchanged in
+//! its rollup surface.
+//!
+//! Frontier, lease, atomicity, arithmetic, watermark, monthly resolution,
+//! rebuild and migration evidence lives with the durable state itself, in
 //! `crate::model::metric_rollup_delta::tests`.
 
 #![cfg(all(test, feature = "backend"))]
@@ -27,7 +33,8 @@ use crate::db::PgPool;
 use crate::model::metric_platform::tests::setup_registry_db;
 use crate::model::metric_record_revision::tests::fixture_record;
 use crate::model::metric_rollup_delta::tests::{
-    commit_work_day_delta, day, deltas, projection, state, DayDimensions, DAY_ONE, DAY_TWO,
+    commit_work_day_delta, day, deltas, month_rows, projection, state, DayDimensions, DAY_ONE,
+    DAY_TWO,
 };
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
@@ -437,6 +444,50 @@ async fn the_claim_and_completion_round_trip_through_the_resolvers() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_completion_resolver_maintains_the_monthly_projections() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let context = context_for(
+        &pool,
+        Some(user_with(
+            INGEST_USER,
+            &[(Role::MetricsIngestService, "org-1")],
+        )),
+    );
+
+    let claims = data(
+        &run(&schema, &context, CLAIM).await,
+        "claimMetricRollupDeltas",
+    )
+    .clone();
+    let token: Uuid = claims[0]["claimToken"]
+        .as_str()
+        .expect("claimToken")
+        .parse()
+        .expect("a UUID claim token");
+    let watermark = data(
+        &run(&schema, &context, &complete(token)).await,
+        "completeMetricRollupDeltas",
+    )
+    .clone();
+    assert_eq!(watermark["appliedThroughSequence"], json!("2"));
+
+    // The same completion that applied the two March day rows resolved and
+    // summed them into one monthly total, beneath the same lock and in the
+    // same transaction, with no new operation and nothing returned about it.
+    let months = month_rows(&pool);
+    assert_eq!(months.len(), 1, "one resolved monthly total: {months:?}");
+    assert_eq!(months[0].month_start, day((2026, 3, 1)));
+    assert_eq!(months[0].publication_id, None);
+    assert_eq!(months[0].value, 30);
+    assert!(!months[0].requires_country_coverage);
+    assert!(!months[0].requires_institution_coverage);
+    assert_eq!(months[0].watermark, 2);
+    assert_eq!(projection(&pool).len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_bounded_rejections_reach_the_caller_without_leaking_state() {
     let (_guard, pool) = setup_registry_db();
     seeded(&pool);
@@ -594,6 +645,23 @@ fn the_added_types_expose_progress_state_and_no_read_surface() {
         assert!(
             !sdl.contains(absent),
             "`{absent}` must not reach the public schema in MET-WP4-01"
+        );
+    }
+    // MET-WP4-03A introduces derived monthly state and no reader of it: no
+    // monthly type, field, selector, rebuild or ambiguity surface may appear
+    // until the separately specified MET-WP4-03B read contract.
+    for absent in [
+        "MetricRollupWorkMonth",
+        "MetricRollupWorkCountryMonth",
+        "MetricRollupWorkInstitutionMonth",
+        "MetricRollupWorkMonthAmbiguity",
+        "rebuildMetricRollup",
+        "monthAmbiguity",
+        "rollupWorkMonth",
+    ] {
+        assert!(
+            !sdl.contains(absent),
+            "`{absent}` must not reach the public schema in MET-WP4-03A"
         );
     }
 
