@@ -13,16 +13,17 @@
 //! `crate::model::metric_ingestion::tests` and
 //! `crate::model::metric_ingestion_lifecycle::tests`.
 
+use std::any::Any;
 use std::collections::BTreeSet;
 use std::str::FromStr;
 use std::sync::mpsc::channel;
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use chrono::NaiveDate;
 use diesel::pg::PgConnection;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use diesel::{sql_query, Connection, QueryDsl, RunQueryDsl};
+use diesel::{sql_query, Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use uuid::Uuid;
 
@@ -247,6 +248,135 @@ fn schema_fingerprint(connection: &mut PgConnection) -> BTreeSet<String> {
     .into_iter()
     .map(|line| line.line)
     .collect()
+}
+
+/// How long the racing-rollback test waits for any one controlled step before
+/// it reports a failure.
+const RACE_STEP_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The PostgreSQL backend PID of a caller-owned connection.
+fn backend_pid(connection: &mut PgConnection) -> i32 {
+    diesel::select(diesel::dsl::sql::<diesel::sql_types::Integer>(
+        "pg_backend_pid()",
+    ))
+    .get_result(connection)
+    .expect("Failed to read the backend PID")
+}
+
+/// One observation of a waiting backend against a candidate lock holder.
+#[derive(diesel::QueryableByName)]
+struct LockWait {
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    blocked_by_holder: bool,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    evidence: String,
+}
+
+/// Whether backend `waiter` is waiting on a PostgreSQL lock and
+/// `pg_blocking_pids(waiter)` names backend `holder`. This is causal evidence
+/// from the lock manager, independent of whichever SQL statement `waiter`
+/// happens to be running, so it holds however many migrations sit above the
+/// one under test. `None` means `waiter` has no backend any more.
+fn lock_wait(
+    observer: &mut PgConnection,
+    waiter: i32,
+    holder: i32,
+) -> Result<Option<LockWait>, DieselError> {
+    sql_query(
+        "SELECT COALESCE(a.wait_event_type = 'Lock' AND $2 = ANY (b.pids), false) \
+                    AS blocked_by_holder, \
+                format('state=%s wait_event_type=%s wait_event=%s blocking_pids=%s', \
+                       a.state, a.wait_event_type, a.wait_event, b.pids) AS evidence \
+           FROM pg_stat_activity a \
+          CROSS JOIN LATERAL (SELECT pg_blocking_pids(a.pid) AS pids) b \
+          WHERE a.pid = $1",
+    )
+    .bind::<diesel::sql_types::Integer, _>(waiter)
+    .bind::<diesel::sql_types::Integer, _>(holder)
+    .get_result(observer)
+    .optional()
+}
+
+/// Poll until backend `waiter` is proven blocked by backend `holder`.
+///
+/// This never panics: a timeout, an observer error, or the waiting thread
+/// finishing first is returned as a diagnostic, so the caller can release and
+/// join every controlled thread before it reports the failure.
+fn wait_until_blocked_by<T>(
+    waiter: i32,
+    holder: i32,
+    waiting_thread: &JoinHandle<T>,
+) -> Result<(), String> {
+    let mut observer = PgConnection::establish(&test_db_url())
+        .map_err(|error| format!("failed to connect the lock observer: {error}"))?;
+    let started = Instant::now();
+    loop {
+        let last = match lock_wait(&mut observer, waiter, holder) {
+            Ok(Some(wait)) if wait.blocked_by_holder => return Ok(()),
+            Ok(Some(wait)) => wait.evidence,
+            Ok(None) => String::from("no backend"),
+            Err(error) => return Err(format!("failed to observe backend {waiter}: {error}")),
+        };
+        if waiting_thread.is_finished() {
+            return Err(format!(
+                "backend {waiter} finished without ever being blocked by backend {holder} \
+                 (last seen: {last})"
+            ));
+        }
+        if started.elapsed() >= RACE_STEP_TIMEOUT {
+            return Err(format!(
+                "backend {waiter} was not blocked by backend {holder} within \
+                 {RACE_STEP_TIMEOUT:?} (last seen: {last})"
+            ));
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// The text of a thread's panic payload.
+fn panic_message(payload: &(dyn Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| String::from("non-text panic payload"))
+}
+
+/// Join a controlled thread whose database work runs on backend `pid`. A
+/// thread still running after [`RACE_STEP_TIMEOUT`] has its backend terminated
+/// first, which rolls back its open transaction, so no controlled thread can
+/// outlive the test. A panic or a forced termination is returned as an error,
+/// never discarded.
+fn join_controlled<T>(handle: JoinHandle<T>, pid: i32) -> Result<T, String> {
+    let started = Instant::now();
+    while !handle.is_finished() && started.elapsed() < RACE_STEP_TIMEOUT {
+        thread::sleep(Duration::from_millis(20));
+    }
+    let terminated = (!handle.is_finished()).then(|| {
+        PgConnection::establish(&test_db_url())
+            .map_err(|error| error.to_string())
+            .and_then(|mut connection| {
+                diesel::select(diesel::dsl::sql::<diesel::sql_types::Bool>(&format!(
+                    "pg_terminate_backend({pid})"
+                )))
+                .get_result::<bool>(&mut connection)
+                .map_err(|error| error.to_string())
+            })
+    });
+    let joined = handle
+        .join()
+        .map_err(|payload| format!("panicked: {}", panic_message(&*payload)));
+    match terminated {
+        None => joined,
+        Some(termination) => Err(format!(
+            "still running after {RACE_STEP_TIMEOUT:?}, so backend {pid} was terminated \
+             ({termination:?}); the thread then {}",
+            match joined {
+                Ok(_) => String::from("returned"),
+                Err(error) => error,
+            }
+        )),
+    }
 }
 
 /// The canonical rows one quarantine row references: a provenance row under an
@@ -924,7 +1054,16 @@ fn a_rollback_racing_a_concurrent_insert_waits_for_it_and_then_refuses() {
         schema_fingerprint(&mut connection)
     };
 
-    // An uncommitted insert holds its row lock on the table.
+    // Both controlled connections, and their backend PIDs, exist before any
+    // concurrency starts, so the rollback's wait can be attributed to the
+    // racing insert and either backend can be cleaned up.
+    let mut insert_connection = establish();
+    let inserter_pid = backend_pid(&mut insert_connection);
+    let mut revert_connection = establish();
+    let reverter_pid = backend_pid(&mut revert_connection);
+
+    // An uncommitted insert holds its locks on the table and the rows it
+    // references.
     let (insert_done, wait_insert) = channel();
     let (commit, wait_commit) = channel::<()>();
     let provenance = refs.record_provenance_id;
@@ -932,8 +1071,7 @@ fn a_rollback_racing_a_concurrent_insert_waits_for_it_and_then_refuses() {
     let platform = refs.platform_id;
     let measure = refs.measure_id;
     let inserter = thread::spawn(move || {
-        let mut connection = establish();
-        connection
+        insert_connection
             .transaction::<_, DieselError, _>(|connection| {
                 sql_query(format!(
                     "INSERT INTO metric_identifier_quarantine \
@@ -951,46 +1089,50 @@ fn a_rollback_racing_a_concurrent_insert_waits_for_it_and_then_refuses() {
             })
             .expect("the racing insert commits");
     });
-    wait_insert.recv().unwrap();
-
-    // The rollback starts while the insert is uncommitted: its ACCESS
-    // EXCLUSIVE lock must wait rather than inspect a table that looks empty.
-    let (pid_tx, pid_rx) = channel();
-    let reverter = thread::spawn(move || {
-        let mut connection = establish();
-        let pid: i32 = diesel::select(diesel::dsl::sql::<diesel::sql_types::Integer>(
-            "pg_backend_pid()",
-        ))
-        .get_result(&mut connection)
-        .unwrap();
-        pid_tx.send(pid).unwrap();
-        let error = try_revert_quarantine_migration(&mut connection);
-        (error, is_applied(&mut connection))
-    });
-    let pid = pid_rx.recv().unwrap();
-    let started = Instant::now();
-    loop {
-        let waiting = scalar_i64(
-            &pool,
-            &format!(
-                "(SELECT COUNT(*) FROM pg_stat_activity \
-                  WHERE pid = {pid} AND wait_event_type = 'Lock' \
-                    AND query ILIKE '%LOCK TABLE public.metric_identifier_quarantine%')"
-            ),
+    if wait_insert.recv().is_err() {
+        // The inserter stopped before inserting, so no rollback has started.
+        std::panic::resume_unwind(
+            inserter
+                .join()
+                .expect_err("the inserter stopped before inserting"),
         );
-        if waiting == 1 {
-            break;
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(30),
-            "the rollback never waited on the quarantine table lock"
-        );
-        thread::sleep(Duration::from_millis(20));
     }
-    commit.send(()).unwrap();
-    inserter.join().unwrap();
 
-    let (error, still_applied) = reverter.join().unwrap();
+    // The rollback starts while the insert is uncommitted. Whichever of its
+    // steps first conflicts with the insert's locks (the quarantine guard's
+    // ACCESS EXCLUSIVE lock, or a newer migration's downgrade touching a
+    // referenced table) must wait for the insert rather than let the guard
+    // inspect a table that looks empty. The wait is proven by the lock
+    // manager naming the inserter's backend as the blocker.
+    let reverter = thread::spawn(move || {
+        let error = try_revert_quarantine_migration(&mut revert_connection);
+        (error, is_applied(&mut revert_connection))
+    });
+    let blocked = wait_until_blocked_by(reverter_pid, inserter_pid, &reverter);
+
+    // Commit the racing insert and join both controlled threads before any
+    // outcome is reported, so a failed wait can leave neither the insert open
+    // nor the rollback running against the shared test database. A send error
+    // only means the inserter already stopped; its join reports why.
+    let _ = commit.send(());
+    let inserted = join_controlled(inserter, inserter_pid);
+    let reverted = join_controlled(reverter, reverter_pid);
+    let (error, still_applied) = match (blocked, inserted, reverted) {
+        (Ok(()), Ok(()), Ok(outcome)) => outcome,
+        (blocked, inserted, reverted) => {
+            // Both threads are joined. Restore any migration the rollback
+            // peeled before failing, so later tests start from the full head.
+            let restored = establish()
+                .run_pending_migrations(MIGRATIONS)
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+            panic!(
+                "the controlled race did not complete: wait: {blocked:?}; \
+                 racing insert: {inserted:?}; rollback: {reverted:?}; \
+                 restore: {restored:?}"
+            );
+        }
+    };
     assert!(
         error.contains("metric_identifier_quarantine holds 1 row(s)"),
         "the rollback saw the committed row and refused: {error}"
