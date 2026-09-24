@@ -6514,6 +6514,249 @@ fn identifier_quality_is_orthogonal_to_section_coverage_and_section_flags() {
 }
 
 // ==========================================================================
+// MET-WP4-03B performance correction: assertion statement equivalence
+// ==========================================================================
+
+/// The coverage-assertion statement as reviewed at `8bbbc508`, before the
+/// performance correction: every requested day joined to every coverage row
+/// whose period contains it. Kept only as the oracle the corrected
+/// [`ASSERTIONS_SQL`] must reproduce row for row.
+const PRE_CORRECTION_ASSERTIONS_SQL: &str = "WITH d AS MATERIALIZED ( \
+                     SELECT generate_series($2::date, $3::date - 1, interval '1 day')::date \
+                         AS day \
+                 ) \
+                 SELECT DISTINCT ON (sa.expected_publisher_id, c.platform_id, c.measure_id, \
+                                     d.day) \
+                        sa.expected_publisher_id AS publisher_id, \
+                        c.platform_id, c.measure_id, d.day, c.coverage_status, \
+                        mi.status::text AS import_status, \
+                        c.country_coverage, c.institution_coverage \
+                 FROM d \
+                 JOIN public.metric_coverage c \
+                   ON c.period_start <= d.day AND c.period_end > d.day \
+                 JOIN public.metric_source_account sa \
+                   ON sa.source_account_id = c.source_account_id \
+                  AND sa.platform_id = c.platform_id \
+                 JOIN public.metric_import mi \
+                   ON mi.import_id = c.import_id \
+                  AND CASE \
+                          WHEN mi.source_account_id = c.source_account_id \
+                           AND mi.publisher_id = sa.expected_publisher_id \
+                          THEN TRUE \
+                          ELSE FALSE \
+                      END \
+                 WHERE c.source_account_id = ANY($1) \
+                   AND c.platform_id = ANY($4) \
+                   AND c.measure_id = ANY($5) \
+                   AND mi.status::text IN ('COMPLETED', 'COMPLETED_WITH_ERRORS') \
+                   AND mi.completed_at IS NOT NULL \
+                 ORDER BY sa.expected_publisher_id, c.platform_id, c.measure_id, d.day, \
+                          mi.completed_at DESC, mi.import_id DESC, \
+                          c.coverage_status DESC, c.country_coverage ASC, \
+                          c.institution_coverage ASC, c.coverage_id DESC";
+
+/// One selected assertion row, comparable.
+type AssertionKey = (
+    Uuid,
+    Uuid,
+    Uuid,
+    NaiveDate,
+    MetricCoverageStatus,
+    String,
+    bool,
+    bool,
+);
+
+fn assertion_rows(
+    fx: &Fixture,
+    statement: &str,
+    accounts: &[Uuid],
+    start: NaiveDate,
+    end: NaiveDate,
+    platforms: &[Uuid],
+    measures: &[Uuid],
+) -> Vec<AssertionKey> {
+    let mut connection = fx.pool.get().expect("Failed to get DB connection");
+    connection
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
+            sql_query(statement)
+                .bind::<Array<SqlUuid>, _>(accounts)
+                .bind::<Date, _>(start)
+                .bind::<Date, _>(end)
+                .bind::<Array<SqlUuid>, _>(platforms)
+                .bind::<Array<SqlUuid>, _>(measures)
+                .load::<AssertionRow>(connection)
+        })
+        .expect("the assertion statement")
+        .into_iter()
+        .map(|row| {
+            (
+                row.publisher_id,
+                row.platform_id,
+                row.measure_id,
+                row.day,
+                row.coverage_status,
+                row.import_status,
+                row.country_coverage,
+                row.institution_coverage,
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn the_corrected_assertion_statement_selects_exactly_what_the_reviewed_one_selected() {
+    let (_guard, fx) = setup();
+    // Accounts: the fixture's, one per other publisher and platform, and a
+    // second platform for the selected publisher.
+    let other_account = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    let second_platform_account = add_account(&fx, fx.other_platform_id, fx.publisher_id);
+    let accounts = [fx.account_id, other_account, second_platform_account];
+    let publisher_of = |account: Uuid| {
+        if account == other_account {
+            fx.other_publisher_id
+        } else {
+            fx.publisher_id
+        }
+    };
+    let platform_of = |account: Uuid| {
+        if account == second_platform_account {
+            fx.other_platform_id
+        } else {
+            fx.platform_id
+        }
+    };
+    let base = d(2026, 1, 1);
+    let mut rng = Rng(20_260_924);
+    let completion = [
+        "'2026-01-10T00:00:00Z'",
+        "'2026-01-10T00:00:00Z'",
+        "'2026-02-01T00:00:00Z'",
+        "'2026-03-15T00:00:00Z'",
+        "NULL",
+    ];
+    let statuses = [
+        "COMPLETED",
+        "COMPLETED",
+        "COMPLETED_WITH_ERRORS",
+        "PROCESSING",
+        "FAILED",
+    ];
+    // Imports, some sharing a completion time so the import id decides, some
+    // non-terminal, failed or without a completion time, and some scoped to
+    // another publisher or none.
+    let mut imports: Vec<(Uuid, Uuid)> = Vec::new();
+    let mut statements = String::new();
+    for _ in 0..60 {
+        let import_id = Uuid::new_v4();
+        let account = accounts[rng.below(3) as usize];
+        let publisher = match rng.below(10) {
+            0 => "NULL".to_string(),
+            1 => format!("'{}'", fx.other_publisher_id),
+            _ => format!("'{}'", publisher_of(account)),
+        };
+        statements.push_str(&scoped_import_sql(
+            import_id,
+            account,
+            &publisher,
+            statuses[rng.below(5) as usize],
+            completion[rng.below(5) as usize],
+        ));
+        imports.push((import_id, account));
+    }
+    // Overlapping one- to forty-day coverage rows. Most name their import's
+    // account; some name another account (an import owned elsewhere), and
+    // some a platform their account does not serve.
+    for _ in 0..400 {
+        let (import_id, import_account) = imports[rng.below(imports.len() as u64) as usize];
+        let account = if rng.below(8) == 0 {
+            accounts[rng.below(3) as usize]
+        } else {
+            import_account
+        };
+        let platform = if rng.below(12) == 0 {
+            fx.other_platform_id
+        } else {
+            platform_of(account)
+        };
+        let start = base + Duration::days(rng.below(90) as i64);
+        let length = if rng.below(3) == 0 {
+            1
+        } else {
+            1 + rng.below(40) as i64
+        };
+        statements.push_str(&coverage_sql(
+            account,
+            import_id,
+            platform,
+            [fx.sessions, fx.units][rng.below(2) as usize],
+            start,
+            start + Duration::days(length),
+            ["COMPLETE", "PARTIAL", "UNKNOWN"][rng.below(3) as usize],
+            rng.below(2) == 0,
+            rng.below(2) == 0,
+        ));
+    }
+    exec(&fx.pool, &statements);
+
+    let platforms = [fx.platform_id, fx.other_platform_id];
+    let measures = [fx.sessions, fx.units];
+    let mut compared = 0;
+    for (label, selected_accounts) in [
+        ("every account", accounts.to_vec()),
+        (
+            "one publisher",
+            vec![fx.account_id, second_platform_account],
+        ),
+        ("one account", vec![other_account]),
+    ] {
+        for (from, to) in [
+            (0, 130),
+            (10, 50),
+            (37, 38),
+            (-20, 5),
+            (85, 140),
+            (129, 140),
+        ] {
+            let (start, end) = (base + Duration::days(from), base + Duration::days(to));
+            for (served_platforms, served_measures) in [
+                (&platforms[..], &measures[..]),
+                (&platforms[..1], &measures[1..]),
+            ] {
+                let expected = assertion_rows(
+                    &fx,
+                    PRE_CORRECTION_ASSERTIONS_SQL,
+                    &selected_accounts,
+                    start,
+                    end,
+                    served_platforms,
+                    served_measures,
+                );
+                let corrected = assertion_rows(
+                    &fx,
+                    ASSERTIONS_SQL,
+                    &selected_accounts,
+                    start,
+                    end,
+                    served_platforms,
+                    served_measures,
+                );
+                assert_eq!(corrected, expected, "{label}, [{start}, {end})");
+                compared += expected.len();
+            }
+        }
+    }
+    assert!(compared > 1000, "the fixture exercised {compared} rows");
+    // The day series is still a materialized relation.
+    assert!(ASSERTIONS_SQL.contains("WITH d AS MATERIALIZED"));
+    assert!(ASSERTIONS_SQL.contains("JOIN d ON d.day = covered.day::date"));
+}
+
+// ==========================================================================
 // MET-WP4-03B: lag scope and statement shape
 // ==========================================================================
 
@@ -7455,7 +7698,27 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
                 accounts = accounts_of(&publishers)
             ),
         );
+        // The reviewed pre-correction shape, for comparison in the same run.
+        explain(
+            &format!("PRE_CORRECTION_ASSERTIONS_SQL ({label}, 5x5, 366 days)"),
+            PRE_CORRECTION_ASSERTIONS_SQL,
+            "uuid[], date, date, uuid[], uuid[]",
+            &format!(
+                "{accounts}, '{start}', '{end}', {platforms}, {measures}",
+                accounts = accounts_of(&publishers)
+            ),
+        );
     }
+    explain_with(
+        "ASSERTIONS_SQL (3 publishers, 5x5, 366 days) [generic]",
+        "SET LOCAL plan_cache_mode = force_generic_plan;",
+        ASSERTIONS_SQL,
+        "uuid[], date, date, uuid[], uuid[]",
+        &format!(
+            "{accounts}, '{start}', '{end}', {platforms}, {measures}",
+            accounts = accounts_of(&three)
+        ),
+    );
     explain(
         "DAY_SUMS_SQL (1 publisher, 5x5, 200 days, DAY timeline)",
         DAY_SUMS_SQL,

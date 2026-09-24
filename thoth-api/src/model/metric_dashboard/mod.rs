@@ -1749,45 +1749,70 @@ pub(crate) const DAY_SECTIONS_SQL: &str = "WITH day_rows AS ( \
 /// self-contradictory import deterministic, preferring its most conservative
 /// assertion.
 ///
-/// The day series is an explicitly `MATERIALIZED` CTE: inlined, PostgreSQL
-/// re-evaluates it once per coverage row, which `MET-WP4-03-BENCH-01`
-/// measured about four times slower. The ownership check is wrapped in a
-/// `CASE` that is `TRUE` only when both equalities hold, so it rejects
-/// exactly what they reject, NULL included; as plain equalities the planner
-/// multiplies in their selectivity and misjudges the coverage join.
+/// The eligible assertions are filtered first (`asserted`): the coverage rows
+/// of the represented accounts and served platforms and measures whose
+/// half-open period overlaps the request, each joined to its owning account
+/// and terminal import. Each is then expanded only over the days it covers
+/// inside the request, `[max(period_start, $2), min(period_end, $3))`, and
+/// those days are joined to the request's day series. That yields exactly the
+/// `(day, assertion)` pairs of the former `day x coverage` overlap join — a
+/// coverage row overlapping no requested day contributes none either way —
+/// without testing every coverage row against every requested day, which
+/// `MET-WP4-03B`'s exact-head evidence measured at about 10.9 million
+/// discarded pairs and 750 ms for three publishers. `DISTINCT ON` and its
+/// ordering then pick the same winning assertion per publisher, platform,
+/// measure and day as before.
+///
+/// The day series stays an explicitly `MATERIALIZED` CTE, as
+/// `MET-WP4-03-BENCH-01` requires: inlined, PostgreSQL re-evaluates it once
+/// per coverage row. The ownership check is wrapped in a `CASE` that is
+/// `TRUE` only when both equalities hold, so it rejects exactly what they
+/// reject, NULL included; as plain equalities the planner multiplies in their
+/// selectivity and misjudges the coverage join.
 pub(crate) const ASSERTIONS_SQL: &str = "WITH d AS MATERIALIZED ( \
                      SELECT generate_series($2::date, $3::date - 1, interval '1 day')::date \
                          AS day \
+                 ), \
+                 asserted AS ( \
+                     SELECT sa.expected_publisher_id AS publisher_id, \
+                            c.platform_id, c.measure_id, c.period_start, c.period_end, \
+                            c.coverage_status, c.country_coverage, c.institution_coverage, \
+                            c.coverage_id, mi.status::text AS import_status, \
+                            mi.completed_at, mi.import_id \
+                     FROM public.metric_source_account sa \
+                     JOIN public.metric_coverage c \
+                       ON c.source_account_id = sa.source_account_id \
+                      AND c.platform_id = sa.platform_id \
+                     JOIN public.metric_import mi \
+                       ON mi.import_id = c.import_id \
+                      AND CASE \
+                              WHEN mi.source_account_id = c.source_account_id \
+                               AND mi.publisher_id = sa.expected_publisher_id \
+                              THEN TRUE \
+                              ELSE FALSE \
+                          END \
+                     WHERE c.source_account_id = ANY($1) \
+                       AND c.platform_id = ANY($4) \
+                       AND c.measure_id = ANY($5) \
+                       AND c.period_start < $3 \
+                       AND c.period_end > $2 \
+                       AND mi.status::text IN ('COMPLETED', 'COMPLETED_WITH_ERRORS') \
+                       AND mi.completed_at IS NOT NULL \
                  ) \
-                 SELECT DISTINCT ON (sa.expected_publisher_id, c.platform_id, c.measure_id, \
-                                     d.day) \
-                        sa.expected_publisher_id AS publisher_id, \
-                        c.platform_id, c.measure_id, d.day, c.coverage_status, \
-                        mi.status::text AS import_status, \
-                        c.country_coverage, c.institution_coverage \
-                 FROM d \
-                 JOIN public.metric_coverage c \
-                   ON c.period_start <= d.day AND c.period_end > d.day \
-                 JOIN public.metric_source_account sa \
-                   ON sa.source_account_id = c.source_account_id \
-                  AND sa.platform_id = c.platform_id \
-                 JOIN public.metric_import mi \
-                   ON mi.import_id = c.import_id \
-                  AND CASE \
-                          WHEN mi.source_account_id = c.source_account_id \
-                           AND mi.publisher_id = sa.expected_publisher_id \
-                          THEN TRUE \
-                          ELSE FALSE \
-                      END \
-                 WHERE c.source_account_id = ANY($1) \
-                   AND c.platform_id = ANY($4) \
-                   AND c.measure_id = ANY($5) \
-                   AND mi.status::text IN ('COMPLETED', 'COMPLETED_WITH_ERRORS') \
-                   AND mi.completed_at IS NOT NULL \
-                 ORDER BY sa.expected_publisher_id, c.platform_id, c.measure_id, d.day, \
-                          mi.completed_at DESC, mi.import_id DESC, \
-                          c.coverage_status DESC, c.country_coverage ASC, \
-                          c.institution_coverage ASC, c.coverage_id DESC";
+                 SELECT DISTINCT ON (a.publisher_id, a.platform_id, a.measure_id, d.day) \
+                        a.publisher_id, a.platform_id, a.measure_id, d.day, \
+                        a.coverage_status, a.import_status, \
+                        a.country_coverage, a.institution_coverage \
+                 FROM asserted a \
+                 CROSS JOIN LATERAL generate_series( \
+                         greatest(a.period_start, $2::date), \
+                         least(a.period_end, $3::date) - 1, \
+                         interval '1 day') AS covered(day) \
+                 JOIN d ON d.day = covered.day::date \
+                 ORDER BY a.publisher_id, a.platform_id, a.measure_id, d.day, \
+                          a.completed_at DESC, a.import_id DESC, \
+                          a.coverage_status DESC, a.country_coverage ASC, \
+                          a.institution_coverage ASC, a.coverage_id DESC";
 
 /// Step 11 (`MET-WP7-PREREQ-04`): identifier-unresolved quarantine evidence
 /// intersecting the served publisher, platform, measure and date scope.
