@@ -212,6 +212,83 @@ fn reconcile(f: &Fixture, limit: i32) -> super::MetricIdentifierQuarantineReconc
     reconcile_metric_identifier_quarantine(&f.pool, ACTOR, limit).expect("reconcile")
 }
 
+fn set_provenance_details(f: &Fixture, evidence: Evidence, details_json: &str) {
+    f.sql(&format!(
+        "UPDATE metric_record_provenance \
+         SET details = '{details_json}'::jsonb \
+         WHERE record_provenance_id = '{}'",
+        evidence.provenance_id
+    ));
+}
+
+fn assert_resolved_at_is_null(f: &Fixture, quarantine_id: Uuid) {
+    assert_eq!(
+        scalar_i64(
+            &f.pool,
+            &format!(
+                "(SELECT COUNT(*) FROM metric_identifier_quarantine_reconciliation \
+                  WHERE identifier_quarantine_id = '{quarantine_id}' \
+                    AND resolved_at IS NULL)"
+            ),
+        ),
+        1
+    );
+}
+
+fn assert_inconsistent_details_vector(name: &str, details_json: &str) {
+    let (_guard, f) = setup();
+    insert_work(&f, DOI);
+    let evidence = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 08:00:00+00",
+        "2026-09-22 08:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    set_provenance_details(&f, evidence, details_json);
+    let historical = historical_snapshot(&f, evidence);
+
+    let result = reconcile(&f, 1);
+    assert_eq!(
+        (
+            result.attempted,
+            result.resolved,
+            result.pending,
+            result.blocked
+        ),
+        (1, 0, 0, 1),
+        "{name}"
+    );
+    assert_eq!(
+        state(&f, evidence.quarantine_id),
+        "BLOCKED_INCONSISTENT_EVIDENCE",
+        "{name}"
+    );
+    assert_eq!(attempt_count(&f, evidence.quarantine_id), 1, "{name}");
+    assert_eq!(retry_seconds(&f, evidence.quarantine_id), 3600, "{name}");
+    assert_resolved_at_is_null(&f, evidence.quarantine_id);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0,
+        "{name}"
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
+        0,
+        "{name}"
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        0,
+        "{name}"
+    );
+    assert_eq!(historical_snapshot(&f, evidence), historical, "{name}");
+}
+
 #[test]
 fn closed_state_partition_is_exhaustive_and_stable() {
     let cases = [
@@ -327,6 +404,204 @@ fn inconsistent_evidence_is_retryable_and_does_not_starve_later_due_work() {
     assert_eq!(state(&f, second.quarantine_id), "PENDING_UNKNOWN_DOI");
     assert_eq!(
         scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        0
+    );
+}
+
+#[test]
+fn malformed_provenance_details_fail_closed_before_canonical_application() {
+    let cases = [
+        (
+            "reporting grain absent",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI"}"#,
+        ),
+        (
+            "reporting grain null",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":null}"#,
+        ),
+        (
+            "reporting grain non-string",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":1}"#,
+        ),
+        (
+            "reporting grain unsupported",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":"WEEK"}"#,
+        ),
+        (
+            "reporting grain non-canonical",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":"day"}"#,
+        ),
+        (
+            "reporting grain mismatched",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":"MONTH"}"#,
+        ),
+        (
+            "schema absent",
+            r#"{"reason_code":"UNKNOWN_DOI","reporting_grain":"DAY"}"#,
+        ),
+        (
+            "schema non-string",
+            r#"{"schema":null,"reason_code":"UNKNOWN_DOI","reporting_grain":"DAY"}"#,
+        ),
+        (
+            "schema wrong",
+            r#"{"schema":"thoth-metric-provenance-details/2","reason_code":"UNKNOWN_DOI","reporting_grain":"DAY"}"#,
+        ),
+        (
+            "reporting grain enum-shaped object",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":{"DAY":null}}"#,
+        ),
+        (
+            "reason code enum-shaped object",
+            r#"{"schema":"thoth-metric-provenance-details/1","reason_code":{"UNKNOWN_DOI":null},"reporting_grain":"DAY"}"#,
+        ),
+        (
+            "details positional array",
+            r#"["thoth-metric-provenance-details/1","UNKNOWN_DOI","DAY"]"#,
+        ),
+    ];
+
+    for (name, details_json) in cases {
+        assert_inconsistent_details_vector(name, details_json);
+    }
+}
+
+#[test]
+fn valid_matching_provenance_details_reach_the_exact_winner_control() {
+    let (_guard, f) = setup();
+    insert_work(&f, DOI);
+    let evidence = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 08:00:00+00",
+        "2026-09-22 08:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    set_provenance_details(
+        &f,
+        evidence,
+        r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":"DAY","unrelated":{"ignored":true}}"#,
+    );
+    let historical = historical_snapshot(&f, evidence);
+
+    let result = reconcile(&f, 1);
+    assert_eq!(
+        (
+            result.attempted,
+            result.resolved,
+            result.pending,
+            result.blocked
+        ),
+        (1, 1, 0, 0)
+    );
+    assert_eq!(state(&f, evidence.quarantine_id), "RESOLVED_WINNER");
+    assert_eq!(historical_snapshot(&f, evidence), historical);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        1
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
+        1
+    );
+    assert_eq!(
+        scalar_i64(
+            &f.pool,
+            "(SELECT COUNT(*) FROM metric_rollup_delta WHERE status = 'PENDING')"
+        ),
+        1
+    );
+}
+
+#[test]
+fn reporting_grain_inconsistency_retries_exactly_and_keeps_later_due_work_live() {
+    let (_guard, f) = setup();
+    insert_work(&f, DOI);
+    let inconsistent = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        1,
+        "2026-09-22 08:00:00+00",
+        "2026-09-22 08:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    let later = seed_evidence(
+        &f,
+        f.account_a,
+        "https://doi.org/10.12345/later-strict",
+        2,
+        "2026-09-22 08:01:00+00",
+        "2026-09-22 08:01:00+00",
+        "2026-03-02",
+        "2026-03-03",
+        "DAY",
+    );
+    set_provenance_details(
+        &f,
+        inconsistent,
+        r#"{"schema":"thoth-metric-provenance-details/1","reason_code":"UNKNOWN_DOI","reporting_grain":"MONTH"}"#,
+    );
+    let historical = historical_snapshot(&f, inconsistent);
+
+    let first = reconcile(&f, 2);
+    assert_eq!(
+        (first.attempted, first.resolved, first.pending, first.blocked),
+        (2, 0, 1, 1)
+    );
+    assert_eq!(
+        state(&f, inconsistent.quarantine_id),
+        "BLOCKED_INCONSISTENT_EVIDENCE"
+    );
+    assert_eq!(attempt_count(&f, inconsistent.quarantine_id), 1);
+    assert_eq!(retry_seconds(&f, inconsistent.quarantine_id), 3600);
+    assert_resolved_at_is_null(&f, inconsistent.quarantine_id);
+    assert_eq!(state(&f, later.quarantine_id), "PENDING_UNKNOWN_DOI");
+    assert_eq!(attempt_count(&f, later.quarantine_id), 1);
+    assert_eq!(historical_snapshot(&f, inconsistent), historical);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
+        0
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+        0
+    );
+
+    mark_due(&f, inconsistent.quarantine_id);
+    let second = reconcile(&f, 1);
+    assert_eq!(
+        (second.attempted, second.resolved, second.pending, second.blocked),
+        (1, 0, 0, 1)
+    );
+    assert_eq!(
+        state(&f, inconsistent.quarantine_id),
+        "BLOCKED_INCONSISTENT_EVIDENCE"
+    );
+    assert_eq!(attempt_count(&f, inconsistent.quarantine_id), 2);
+    assert_eq!(retry_seconds(&f, inconsistent.quarantine_id), 7200);
+    assert_resolved_at_is_null(&f, inconsistent.quarantine_id);
+    assert_eq!(historical_snapshot(&f, inconsistent), historical);
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        0
+    );
+    assert_eq!(
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
         0
     );
     assert_eq!(

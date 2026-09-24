@@ -30,10 +30,11 @@ use crate::model::metric_ingestion::{
     apply_canonical_application, lock_cell_keys, lock_imprints, lock_works, period_matches_grain,
     resolve_doi_work, CanonicalApplicationCandidate, CanonicalApplicationError,
     CanonicalApplicationOutcome, CanonicalChronology, MetricIngestionErrorCode,
-    SUPPORTED_SCHEMA_VERSION,
+    PROVENANCE_DETAILS_SCHEMA, SUPPORTED_SCHEMA_VERSION,
 };
 use crate::model::metric_measure::MetricMeasure;
 use crate::model::metric_platform::MetricPlatform;
+use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::{
     MetricRecordProvenance, MetricRecordProvenanceClassification,
 };
@@ -532,15 +533,28 @@ fn historical_evidence_consistent(
     platform: &MetricPlatform,
     measure: &MetricMeasure,
 ) -> bool {
-    let reason_is_unknown_doi = provenance
-        .details
+    let Some(details) = provenance.details.as_object() else {
+        return false;
+    };
+    let schema_is_supported = details
+        .get("schema")
+        .and_then(serde_json::Value::as_str)
+        == Some(PROVENANCE_DETAILS_SCHEMA);
+    let reason_is_unknown_doi = details
         .get("reason_code")
         .and_then(serde_json::Value::as_str)
         .and_then(|code| MetricIngestionErrorCode::from_str(code).ok())
         == Some(MetricIngestionErrorCode::UnknownDoi);
+    let reporting_grain_matches = details
+        .get("reporting_grain")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|grain| MetricReportingGrain::from_str(grain).ok())
+        == Some(quarantine.reporting_grain);
 
     provenance.classification == MetricRecordProvenanceClassification::Rejected
+        && schema_is_supported
         && reason_is_unknown_doi
+        && reporting_grain_matches
         && provenance.import_id == import.import_id
         && provenance.record_id.is_none()
         && provenance.identity_hash.is_none()
