@@ -1,23 +1,30 @@
-//! `MET-WP4-02` evidence for the coverage-aware dashboard read.
+//! `MET-WP4-02` and `MET-WP4-03B` evidence for the coverage-aware dashboard
+//! read.
 //!
 //! These tests drive [`metric_dashboard`] directly against a disposable
 //! database whose projection is produced by the real `MET-WP4-01` claim and
 //! completion path: exact totals and timelines, zero versus unknown, current
 //! coverage selection, source-scope eligibility, rollup freshness and
 //! `dataThrough`, the one-snapshot property, every request bound, additivity,
-//! publisher entitlement and set-based statement counts.
+//! publisher entitlement and set-based statement counts; and, for
+//! `MET-WP4-03B`, the metadata selector, several publishers, the country and
+//! institution sections and their coverage, complete-month and edge-day
+//! serving against an independent day-by-day oracle, native source grains and
+//! resolved-work lag.
 //!
 //! Authorization, the GraphQL error classifications and the SDL are proven at
 //! the API boundary in `crate::graphql::metric_dashboard_tests`, which reuses
 //! the fixture below.
 //!
-//! One `#[ignore]`d test builds a production-shaped 600-work publisher and
-//! prints `EXPLAIN (ANALYZE, BUFFERS)` plans and resolver timings for the
-//! approved maximum request shapes. Run it explicitly with
-//! `cargo test -p thoth-api --features backend -- --ignored metric_dashboard`.
+//! One `#[ignore]`d test builds three production-shaped 600-work publishers
+//! with metadata for every selector dimension, derives the `MET-WP4-03A`
+//! monthly projections through the reviewed rebuild, and prints
+//! `EXPLAIN (ANALYZE, BUFFERS)` plans, statement counts and resolver p50/p95
+//! for the `MET-WP4-03B` acceptance workloads. Run it explicitly with
+//! `cargo test -p thoth-api --features backend -- --ignored --nocapture
+//! metric_dashboard_query_plan_and_latency_evidence`.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration as StdDuration, Instant};
 
 use chrono::NaiveDate;
@@ -30,7 +37,7 @@ use super::*;
 use crate::db::PgPool;
 use crate::model::metric_platform::tests::{insert_platform_row, scalar_i64, setup_registry_db};
 use crate::model::metric_rollup_delta::crud::{
-    claim_metric_rollup_deltas, complete_metric_rollup_deltas,
+    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_month_projections,
 };
 use crate::model::metric_rollup_delta::tests::{deltas, projection, state};
 use crate::model::tests::db::{failing_pool, test_db_url, TestDbGuard};
@@ -621,12 +628,15 @@ pub(crate) fn request(
     MetricDashboardInput {
         selector: MetricSelectorInput {
             publisher_ids: Some(vec![publisher_id]),
+            ..MetricSelectorInput::default()
         },
         start_date: start,
         end_date: end,
         measures: Some(measures.to_vec()),
         platforms: Some(platforms.to_vec()),
         timeline_grain: grain,
+        include_countries: None,
+        include_institutions: None,
     }
 }
 
@@ -688,6 +698,40 @@ fn read(fx: &Fixture, input: &MetricDashboardInput) -> MetricDashboard {
 
 fn some(value: &str) -> Option<String> {
     Some(value.to_string())
+}
+
+/// The same request with neither dimensional section returned: the
+/// `MET-WP4-02` totals-and-timeline response.
+fn totals_only(input: &MetricDashboardInput) -> MetricDashboardInput {
+    let mut input = input.clone();
+    input.include_countries = Some(false);
+    input.include_institutions = Some(false);
+    input
+}
+
+/// `(measure, country, value)` of every country row, in response order.
+fn countries(dashboard: &MetricDashboard) -> Vec<(Uuid, String, String)> {
+    dashboard
+        .countries
+        .iter()
+        .map(|row| {
+            (
+                row.measure_id,
+                row.country_code.clone(),
+                row.value.to_string(),
+            )
+        })
+        .collect()
+}
+
+/// `(measure, institution, value)` of every institution row, in response
+/// order.
+fn institutions(dashboard: &MetricDashboard) -> Vec<(Uuid, Uuid, String)> {
+    dashboard
+        .institutions
+        .iter()
+        .map(|row| (row.measure_id, row.institution_id, row.value.to_string()))
+        .collect()
 }
 
 // ==========================================================================
@@ -1065,6 +1109,7 @@ fn an_unrepresentable_aggregate_fails_rather_than_wrapping() {
         identifier_incomplete: vec![false, false],
         depends_on_country: false,
         depends_on_institution: false,
+        ..Cells::default()
     };
     assert_eq!(
         cells.value(0, 2),
@@ -2119,12 +2164,40 @@ fn a_country_representation_needs_country_coverage_to_be_complete_or_zero() {
         9,
     );
     apply_all(&fx.pool);
-    let aggregate = read(&fx, &input);
+    // The MET-WP4-02 totals-and-timeline response: neither dimensional
+    // section is returned, so only the totals' own dependencies count.
+    let aggregate = read(&fx, &totals_only(&input));
     assert_eq!(aggregate.coverage.status, MetricCoverageStatus::Complete);
     assert_eq!(
         bucket_values(&aggregate, fx.sessions),
         vec![some("9"), some("0"), some("0"), some("0")]
     );
+    // #946 Amendment 1 section 2.6 item 1: requesting the country section,
+    // which intrinsically needs country coverage, downgrades the shared
+    // completeness for days 3-4, while the totals, which do not depend on
+    // country, keep exactly the same zeros.
+    let with_countries = read(&fx, &input);
+    assert_eq!(
+        bucket_values(&with_countries, fx.sessions),
+        bucket_values(&aggregate, fx.sessions)
+    );
+    assert_eq!(with_countries.totals, aggregate.totals);
+    assert_eq!(
+        item(&with_countries, fx.sessions).status,
+        MetricCoverageStatus::Partial
+    );
+    assert_eq!(
+        codes(&with_countries),
+        vec![MetricWarningCode::PartialCoverage]
+    );
+    assert_eq!(with_countries.data_through, Some(day_n(2)));
+    // Item 2: omitting only the country section removes that downgrade;
+    // the institution section is fully covered here.
+    let mut no_countries = input.clone();
+    no_countries.include_countries = Some(false);
+    let no_countries = read(&fx, &no_countries);
+    assert_eq!(no_countries.coverage.status, MetricCoverageStatus::Complete);
+    assert!(no_countries.countries.is_empty());
 
     // Once the served values come from country rows, the days without
     // country coverage are only PARTIAL, and their empty cells are unknown.
@@ -2141,7 +2214,9 @@ fn a_country_representation_needs_country_coverage_to_be_complete_or_zero() {
         4,
     );
     apply_all(&fx.pool);
-    let by_country = read(&fx, &input);
+    // Item 2, second half: once the totals themselves depend on country,
+    // omitting the country section does not remove that dependency.
+    let by_country = read(&fx, &totals_only(&input));
     assert_eq!(
         item(&by_country, fx.sessions).status,
         MetricCoverageStatus::Partial
@@ -2157,6 +2232,15 @@ fn a_country_representation_needs_country_coverage_to_be_complete_or_zero() {
     assert_eq!(by_country.data_through, Some(day_n(2)));
     // Known values stay served.
     assert_eq!(total(&by_country, fx.platform_id, fx.sessions), some("13"));
+    // With the sections returned the totals and timeline are unchanged, and
+    // the one known country value is listed although coverage is PARTIAL.
+    let returned = read(&fx, &input);
+    assert_eq!(returned.totals, by_country.totals);
+    assert_eq!(returned.timeline, by_country.timeline);
+    assert_eq!(
+        countries(&returned),
+        vec![(fx.sessions, "GB".to_string(), "4".to_string())]
+    );
 }
 
 #[test]
@@ -2180,7 +2264,7 @@ fn an_institution_representation_needs_institution_coverage_to_be_complete_or_ze
     );
     apply_all(&fx.pool);
 
-    let dashboard = read(&fx, &input);
+    let dashboard = read(&fx, &totals_only(&input));
     assert_eq!(
         item(&dashboard, fx.sessions).status,
         MetricCoverageStatus::Partial
@@ -2189,6 +2273,7 @@ fn an_institution_representation_needs_institution_coverage_to_be_complete_or_ze
         bucket_values(&dashboard, fx.sessions),
         vec![some("0"), some("0"), some("6"), None]
     );
+    assert_eq!(read(&fx, &input).timeline, dashboard.timeline);
     assert_eq!(codes(&dashboard), vec![MetricWarningCode::PartialCoverage]);
     assert_eq!(dashboard.data_through, Some(day_n(2)));
 
@@ -2235,7 +2320,7 @@ fn an_institution_representation_needs_institution_coverage_to_be_complete_or_ze
         2,
     );
     apply_all(&fx.pool);
-    let by_publication = read(&fx, &other);
+    let by_publication = read(&fx, &totals_only(&other));
     assert_eq!(
         by_publication.coverage.status,
         MetricCoverageStatus::Complete
@@ -2243,6 +2328,19 @@ fn an_institution_representation_needs_institution_coverage_to_be_complete_or_ze
     assert_eq!(
         bucket_values(&by_publication, fx.units),
         vec![some("2"), some("0")]
+    );
+    // #946 Amendment 1 section 2.6 item 3: the returned sections need their
+    // own dimensions, which these days do not assert, so the shared status
+    // is downgraded while the publication-based values are unchanged.
+    let returned = read(&fx, &other);
+    assert_eq!(returned.coverage.status, MetricCoverageStatus::Partial);
+    assert_eq!(returned.timeline, by_publication.timeline);
+    let mut institutions_only = other.clone();
+    institutions_only.include_countries = Some(false);
+    assert_eq!(
+        read(&fx, &institutions_only).coverage.status,
+        MetricCoverageStatus::Partial,
+        "the institution section alone still needs institution coverage"
     );
 }
 
@@ -3170,24 +3268,17 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
         "exactly one connection"
     );
 
-    for (name, statement) in [
-        ("PUBLISHERS_SQL", PUBLISHERS_SQL),
-        ("FRONTIER_SQL", FRONTIER_SQL),
-        ("KNOWN_PLATFORMS_SQL", KNOWN_PLATFORMS_SQL),
-        ("KNOWN_MEASURES_SQL", KNOWN_MEASURES_SQL),
-        ("REPRESENTED_SQL", REPRESENTED_SQL),
-        ("MEASURE_FLAGS_SQL", MEASURE_FLAGS_SQL),
-        ("ACCOUNTS_SQL", ACCOUNTS_SQL),
-        ("DAY_SUMS_SQL", DAY_SUMS_SQL),
-        ("DIMENSION_CELLS_SQL", DIMENSION_CELLS_SQL),
-        ("ASSERTIONS_SQL", ASSERTIONS_SQL),
-        ("LAG_SQL", LAG_SQL),
-        ("IDENTIFIER_QUALITY_SQL", IDENTIFIER_QUALITY_SQL),
-    ] {
+    // The one non-query statement only sets a planner option for this
+    // transaction.
+    assert_eq!(
+        CUSTOM_PLANS_SQL,
+        "SET LOCAL plan_cache_mode = force_custom_plan"
+    );
+    for (name, statement) in READ_STATEMENTS {
         let upper = statement.to_uppercase();
         assert!(
-            upper.trim_start().starts_with("SELECT"),
-            "{name} must be a SELECT"
+            upper.trim_start().starts_with("SELECT") || upper.trim_start().starts_with("WITH"),
+            "{name} must be a query"
         );
         for forbidden in [
             "INSERT",
@@ -3197,6 +3288,8 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
             "LOCK",
             ";",
             "NEXTVAL",
+            "SETVAL",
+            "SET ",
         ] {
             assert!(
                 !upper.contains(forbidden),
@@ -3206,10 +3299,26 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     }
     assert_eq!(
         source.matches("diesel::sql_query(").count(),
-        12,
+        READ_STATEMENTS.len() + 1,
         "every statement the read executes is one of the named constants"
     );
 }
+
+/// Every query the read may execute, by name.
+const READ_STATEMENTS: [(&str, &str); 12] = [
+    ("PUBLISHERS_SQL", PUBLISHERS_SQL),
+    ("WORKS_SQL", WORKS_SQL),
+    ("KNOWN_SQL", KNOWN_SQL),
+    ("REPRESENTED_SQL", REPRESENTED_SQL),
+    ("ACCOUNTS_SQL", ACCOUNTS_SQL),
+    ("CANONICAL_SQL", CANONICAL_SQL),
+    ("MONTHS_SQL", MONTHS_SQL),
+    ("DAY_SUMS_SQL", DAY_SUMS_SQL),
+    ("DIMENSION_CELLS_SQL", DIMENSION_CELLS_SQL),
+    ("DAY_SECTIONS_SQL", DAY_SECTIONS_SQL),
+    ("ASSERTIONS_SQL", ASSERTIONS_SQL),
+    ("IDENTIFIER_QUALITY_SQL", IDENTIFIER_QUALITY_SQL),
+];
 
 // ==========================================================================
 // Bounds and validation
@@ -3235,8 +3344,7 @@ fn request_shape_is_validated_before_any_database_access() {
     for (label, publishers) in [
         ("no selector publishers", None),
         ("empty selector publishers", Some(vec![])),
-        ("two publishers", Some(vec![publisher, Uuid::new_v4()])),
-        ("the same publisher twice", Some(vec![publisher, publisher])),
+        ("four publishers", Some(ids(4))),
     ] {
         let mut input = base.clone();
         input.selector.publisher_ids = publishers;
@@ -3246,6 +3354,90 @@ fn request_shape_is_validated_before_any_database_access() {
             MetricReadError::QueryInvalid(PUBLISHER_CARDINALITY),
         ));
     }
+    let mut input = base.clone();
+    input.selector.publisher_ids = Some(vec![publisher, Uuid::new_v4(), publisher]);
+    cases.push((
+        "the same publisher twice",
+        input,
+        MetricReadError::QueryInvalid(DUPLICATE_PUBLISHER),
+    ));
+    // Every bounded selector list: a duplicate is invalid, and one value
+    // beyond its bound exceeds a limit, before any database access.
+    let uuid_lists: [(&str, SetIds, usize, &str, &str); 5] = [
+        (
+            "imprintIds",
+            |selector, ids| selector.imprint_ids = Some(ids),
+            50,
+            DUPLICATE_IMPRINT,
+            TOO_MANY_IMPRINTS,
+        ),
+        (
+            "seriesIds",
+            |selector, ids| selector.series_ids = Some(ids),
+            50,
+            DUPLICATE_SERIES,
+            TOO_MANY_SERIES,
+        ),
+        (
+            "workIds",
+            |selector, ids| selector.work_ids = Some(ids),
+            500,
+            DUPLICATE_WORK,
+            TOO_MANY_WORKS,
+        ),
+        (
+            "fundingInstitutionIds",
+            |selector, ids| selector.funding_institution_ids = Some(ids),
+            50,
+            DUPLICATE_FUNDING,
+            TOO_MANY_FUNDING,
+        ),
+        (
+            "affiliationInstitutionIds",
+            |selector, ids| selector.affiliation_institution_ids = Some(ids),
+            50,
+            DUPLICATE_AFFILIATION,
+            TOO_MANY_AFFILIATION,
+        ),
+    ];
+    for (label, set, max, duplicate_message, limit_message) in uuid_lists {
+        let mut input = base.clone();
+        let repeated = Uuid::new_v4();
+        set(&mut input.selector, vec![repeated, repeated]);
+        cases.push((
+            label,
+            input,
+            MetricReadError::QueryInvalid(duplicate_message),
+        ));
+        let mut input = base.clone();
+        set(&mut input.selector, ids(max + 1));
+        cases.push((
+            label,
+            input,
+            MetricReadError::QueryLimitExceeded(limit_message),
+        ));
+    }
+    let mut input = base.clone();
+    input.selector.work_types = Some(vec![WorkType::Monograph, WorkType::Monograph]);
+    cases.push((
+        "workTypes",
+        input,
+        MetricReadError::QueryInvalid(DUPLICATE_WORK_TYPE),
+    ));
+    let mut input = base.clone();
+    input.selector.languages = Some(vec![LanguageCode::Eng, LanguageCode::Eng]);
+    cases.push((
+        "languages",
+        input,
+        MetricReadError::QueryInvalid(DUPLICATE_LANGUAGE),
+    ));
+    let mut input = base.clone();
+    input.selector.languages = Some(distinct_languages(51));
+    cases.push((
+        "languages",
+        input,
+        MetricReadError::QueryLimitExceeded(TOO_MANY_LANGUAGES),
+    ));
     let mut input = base.clone();
     input.end_date = input.start_date;
     cases.push((
@@ -3305,15 +3497,71 @@ fn request_shape_is_validated_before_any_database_access() {
         );
     }
 
-    // The accepted edges reach the database, which here is unreachable.
+    // The accepted edges reach the database, which here is unreachable:
+    // three publishers and every selector list at its bound.
     let mut input = base.clone();
     input.end_date = input.start_date + Duration::days(366);
     input.measures = Some(ids(10));
     input.platforms = Some(ids(10));
+    input.selector = MetricSelectorInput {
+        publisher_ids: Some(ids(3)),
+        imprint_ids: Some(ids(50)),
+        series_ids: Some(ids(50)),
+        work_ids: Some(ids(500)),
+        work_types: Some(vec![
+            WorkType::BookChapter,
+            WorkType::Monograph,
+            WorkType::EditedBook,
+            WorkType::Textbook,
+            WorkType::JournalIssue,
+            WorkType::BookSet,
+        ]),
+        languages: Some(distinct_languages(50)),
+        funding_institution_ids: Some(ids(50)),
+        affiliation_institution_ids: Some(ids(50)),
+    };
     assert_eq!(
         metric_dashboard(&unreachable, &input),
         Err(MetricReadError::Unavailable)
     );
+    // Work types have only six values, so the 50-value bound can never be
+    // reached without a duplicate: 51 values are always refused.
+    let mut input = base.clone();
+    input.selector.work_types = Some(vec![WorkType::Monograph; 51]);
+    assert_eq!(
+        metric_dashboard(&unreachable, &input),
+        Err(MetricReadError::QueryInvalid(DUPLICATE_WORK_TYPE))
+    );
+    // An empty optional list is unrestricted, never an error.
+    let mut input = base.clone();
+    input.selector.imprint_ids = Some(vec![]);
+    input.selector.languages = Some(vec![]);
+    assert_eq!(
+        metric_dashboard(&unreachable, &input),
+        Err(MetricReadError::Unavailable)
+    );
+}
+
+/// Sets one selector list to the given IDs.
+type SetIds = fn(&mut MetricSelectorInput, Vec<Uuid>);
+/// Sets one selector list to a single ID.
+type SetId = fn(&mut MetricSelectorInput, Uuid);
+/// Edits a selector.
+type EditSelector = Box<dyn Fn(&mut MetricSelectorInput)>;
+
+/// `count` distinct languages, parsed from their database labels.
+fn distinct_languages(count: usize) -> Vec<LanguageCode> {
+    [
+        "AAR", "ABK", "ACE", "ACH", "ADA", "ADY", "AFA", "AFH", "AFR", "AIN", "AKA", "AKK", "ALE",
+        "ALG", "ALT", "AMH", "ANG", "ANP", "APA", "ARA", "ARC", "ARG", "ARN", "ARP", "ART", "ARW",
+        "ASM", "AST", "ATH", "AUS", "AVA", "AVE", "AWA", "AYM", "AZE", "BAD", "BAI", "BAK", "BAL",
+        "BAM", "BAN", "BAS", "BAT", "BEJ", "BEL", "BEM", "BEN", "BER", "BHO", "BIK", "BIN", "BIS",
+        "BLA", "BNT",
+    ]
+    .iter()
+    .take(count)
+    .map(|code| code.parse().expect("a language code"))
+    .collect()
 }
 
 #[test]
@@ -3730,32 +3978,77 @@ fn the_selected_publisher_must_hold_the_dashboard_capability_through_its_package
 // ==========================================================================
 
 #[derive(Debug)]
-struct CountStatements(Arc<AtomicUsize>);
+struct CaptureStatements(Arc<Mutex<Vec<String>>>);
 
-impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for CountStatements {
+impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for CaptureStatements {
     fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
-        let counter = Arc::clone(&self.0);
+        let log = Arc::clone(&self.0);
         connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
-            if let InstrumentationEvent::StartQuery { .. } = event {
-                counter.fetch_add(1, Ordering::SeqCst);
+            if let InstrumentationEvent::StartQuery { query, .. } = event {
+                log.lock()
+                    .expect("the statement log")
+                    .push(query.to_string());
             }
         });
         Ok(())
     }
 }
 
-fn counted_statements(input: &MetricDashboardInput) -> usize {
-    let counter = Arc::new(AtomicUsize::new(0));
+/// Every statement one read sends to PostgreSQL, transaction control
+/// included, in order, on a fresh connection whose establishment is not
+/// counted.
+fn captured_statements(
+    input: &MetricDashboardInput,
+) -> (Result<MetricDashboard, MetricReadError>, Vec<String>) {
+    let log = Arc::new(Mutex::new(Vec::new()));
     let pool = diesel::r2d2::Pool::builder()
         .max_size(1)
-        .connection_customizer(Box::new(CountStatements(Arc::clone(&counter))))
+        .connection_customizer(Box::new(CaptureStatements(Arc::clone(&log))))
         .build(ConnectionManager::<PgConnection>::new(test_db_url()))
-        .expect("a counting pool");
-    // Warm the connection so establishment is not counted.
-    drop(pool.get().expect("a counting connection"));
-    counter.store(0, Ordering::SeqCst);
-    metric_dashboard(&pool, input).expect("the dashboard read");
-    counter.load(Ordering::SeqCst)
+        .expect("a capturing pool");
+    drop(pool.get().expect("a capturing connection"));
+    log.lock().expect("the statement log").clear();
+    let result = metric_dashboard(&pool, input);
+    let statements = log.lock().expect("the statement log").clone();
+    (result, statements)
+}
+
+fn counted_statements(input: &MetricDashboardInput) -> usize {
+    let (result, statements) = captured_statements(input);
+    result.expect("the dashboard read");
+    statements.len()
+}
+
+/// The name of each captured statement: a named constant, or the
+/// transaction control Diesel issues.
+fn statement_names(statements: &[String]) -> Vec<&'static str> {
+    statements
+        .iter()
+        .map(|statement| {
+            // The pool's own connection check on checkout, which the
+            // production pool also runs: counted, although no read issues it.
+            if statement.starts_with("SELECT 1 ") {
+                return "CHECKOUT_CHECK";
+            }
+            if statement.starts_with("BEGIN") {
+                return "BEGIN";
+            }
+            if statement.starts_with("COMMIT") {
+                return "COMMIT";
+            }
+            if statement.starts_with("ROLLBACK") {
+                return "ROLLBACK";
+            }
+            if statement.starts_with(CUSTOM_PLANS_SQL) {
+                return "CUSTOM_PLANS_SQL";
+            }
+            READ_STATEMENTS
+                .iter()
+                .find(|(_, sql)| statement.starts_with(sql))
+                .map(|(name, _)| *name)
+                .unwrap_or_else(|| panic!("an unnamed statement was executed: {statement}"))
+        })
+        .collect()
 }
 
 #[test]
@@ -3825,17 +4118,21 @@ fn the_statement_count_does_not_grow_with_works_days_or_rows() {
     wide.end_date = d1() + Duration::days(366);
     let wide = counted_statements(&wide);
 
-    // Transaction control, publisher, frontier, measure existence, represented
-    // scope, additivity, accounts, projection, coverage, identifier quality and
-    // lag: a fixed set.
-    assert!(small <= 15, "{small} statements");
+    // The pool's checkout check, transaction control, custom plans,
+    // publishers and frontier, works, registry, represented scope, accounts,
+    // canonical state, day values, edge sections, coverage and identifier
+    // quality: a fixed set.
+    assert_eq!(small, 14, "{small} statements");
     assert_eq!(
         large,
-        small + 2,
-        "only the lag statement and the one base-cell resolution statement are added once \
-         backlog and mixed dimensional representations exist"
+        small + 1,
+        "only the one base-cell resolution statement is added once mixed \
+         dimensional representations exist; backlog is read by the canonical \
+         statement that always runs"
     );
-    assert_eq!(wide, large);
+    // A year adds only the one monthly statement for its complete months.
+    assert_eq!(wide, large + 1);
+    assert!(wide <= 16);
 
     // Many more dimensional rows and many more mixed groups add no statement.
     for work_id in &many {
@@ -3861,34 +4158,2672 @@ fn the_statement_count_does_not_grow_with_works_days_or_rows() {
 }
 
 // ==========================================================================
-// Query-plan and latency evidence (run explicitly)
+// MET-WP4-03B: metadata selector
 // ==========================================================================
 
-/// The first day of the one-year plan fixture.
-fn plan_start() -> NaiveDate {
-    d(2025, 3, 1)
+/// The one UUID a query returns.
+fn uuid_query(pool: &PgPool, query: &str) -> Uuid {
+    #[derive(diesel::QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = SqlUuid)]
+        id: Uuid,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(query)
+        .get_result::<Row>(&mut connection)
+        .unwrap_or_else(|error| panic!("fixture query failed: {error}\n{query}"))
+        .id
 }
+
+fn imprint_of(fx: &Fixture, work_id: Uuid) -> Uuid {
+    uuid_query(
+        &fx.pool,
+        &format!("SELECT imprint_id AS id FROM work WHERE work_id = '{work_id}'"),
+    )
+}
+
+/// A new imprint of a publisher.
+fn add_imprint(fx: &Fixture, publisher_id: Uuid) -> Uuid {
+    let imprint_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO imprint (imprint_id, publisher_id, imprint_name) \
+             VALUES ('{imprint_id}', '{publisher_id}', 'Imprint {imprint_id}');"
+        ),
+    );
+    imprint_id
+}
+
+/// A new work of the given database work type in an imprint.
+fn add_work(fx: &Fixture, imprint_id: Uuid, work_type: &str) -> Uuid {
+    let work_id = Uuid::new_v4();
+    let edition = if work_type == "book-chapter" {
+        "NULL"
+    } else {
+        "1"
+    };
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+             VALUES ('{work_id}', '{work_type}', 'forthcoming', '{imprint_id}', {edition});"
+        ),
+    );
+    work_id
+}
+
+fn add_series(fx: &Fixture, imprint_id: Uuid) -> Uuid {
+    let series_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO series (series_id, series_type, series_name, imprint_id) \
+             VALUES ('{series_id}', 'book-series', 'Series {series_id}', '{imprint_id}');"
+        ),
+    );
+    series_id
+}
+
+fn add_issue(fx: &Fixture, series_id: Uuid, work_id: Uuid, ordinal: i32) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO issue (series_id, work_id, issue_ordinal) \
+             VALUES ('{series_id}', '{work_id}', {ordinal});"
+        ),
+    );
+}
+
+/// Relate a chapter to its parent work, stored in both directions as Thoth
+/// stores work relations.
+fn add_child_of(fx: &Fixture, chapter: Uuid, parent: Uuid, ordinal: i32) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, \
+                                        relation_ordinal) \
+             VALUES ('{chapter}', '{parent}', 'is-child-of', 1), \
+                    ('{parent}', '{chapter}', 'has-child', {ordinal});"
+        ),
+    );
+}
+
+fn add_language(fx: &Fixture, work_id: Uuid, code: &str, relation: &str) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO language (work_id, language_code, language_relation) \
+             VALUES ('{work_id}', '{code}', '{relation}');"
+        ),
+    );
+}
+
+fn add_funding(fx: &Fixture, work_id: Uuid, institution_id: Uuid) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO funding (work_id, institution_id) \
+             VALUES ('{work_id}', '{institution_id}');"
+        ),
+    );
+}
+
+/// A contribution to a work affiliated with an institution.
+fn add_affiliation(fx: &Fixture, work_id: Uuid, institution_id: Uuid) {
+    let contributor_id = Uuid::new_v4();
+    let contribution_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO contributor (contributor_id, last_name, full_name) \
+             VALUES ('{contributor_id}', 'Author', 'An Author'); \
+             INSERT INTO contribution (contribution_id, work_id, contributor_id, \
+                                       contribution_type, main_contribution, last_name, \
+                                       full_name, contribution_ordinal) \
+             VALUES ('{contribution_id}', '{work_id}', '{contributor_id}', 'author', TRUE, \
+                     'Author', 'An Author', 1); \
+             INSERT INTO affiliation (contribution_id, institution_id, affiliation_ordinal) \
+             VALUES ('{contribution_id}', '{institution_id}', 1);"
+        ),
+    );
+}
+
+/// The default four-day window of the fixture sessions measure for the given
+/// publishers, with a selector edit.
+fn selected(
+    fx: &Fixture,
+    publishers: &[Uuid],
+    edit: impl FnOnce(&mut MetricSelectorInput),
+) -> MetricDashboardInput {
+    let mut input = window(fx, &[fx.sessions]);
+    input.selector.publisher_ids = Some(publishers.to_vec());
+    edit(&mut input.selector);
+    input
+}
+
+fn sessions_total(fx: &Fixture, input: &MetricDashboardInput) -> Option<String> {
+    total(&read(fx, input), fx.platform_id, fx.sessions)
+}
+
+#[test]
+fn selector_dimensions_are_or_within_and_and_between_on_current_metadata() {
+    let (_guard, fx) = setup();
+    let first_imprint = imprint_of(&fx, fx.works[0]);
+    let second_imprint = add_imprint(&fx, fx.publisher_id);
+    let monograph = add_work(&fx, second_imprint, "monograph");
+    let edited = add_work(&fx, second_imprint, "edited-book");
+    let chapter = add_work(&fx, second_imprint, "book-chapter");
+    add_child_of(&fx, chapter, monograph, 1);
+    // An edited book related to the monograph is not a chapter, so it never
+    // inherits the monograph's series.
+    add_child_of(&fx, edited, monograph, 2);
+    for (work_id, value) in [
+        (fx.works[0], 1),
+        (fx.works[1], 2),
+        (monograph, 4),
+        (edited, 8),
+        (chapter, 16),
+    ] {
+        commit(&fx, work_id, fx.platform_id, fx.sessions, day_n(1), value);
+    }
+    // The other publisher's work never reaches the selected publisher.
+    commit(
+        &fx,
+        fx.other_work,
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        1000,
+    );
+    apply_all(&fx.pool);
+    let (series, other_series) = (
+        add_series(&fx, second_imprint),
+        add_series(&fx, first_imprint),
+    );
+    add_issue(&fx, series, monograph, 1);
+    add_issue(&fx, other_series, fx.works[0], 1);
+    add_language(&fx, fx.works[0], "eng", "original");
+    add_language(&fx, fx.works[1], "fre", "translated-from");
+    add_language(&fx, fx.works[1], "eng", "translated-into");
+    let (funder, affiliated) = (insert_institution(&fx.pool), insert_institution(&fx.pool));
+    add_funding(&fx, monograph, funder);
+    add_funding(&fx, edited, funder);
+    add_affiliation(&fx, fx.works[0], affiliated);
+    add_affiliation(&fx, edited, affiliated);
+    let publisher = [fx.publisher_id];
+    let at = |edit: &dyn Fn(&mut MetricSelectorInput)| {
+        sessions_total(&fx, &selected(&fx, &publisher, |selector| edit(selector)))
+    };
+
+    assert_eq!(at(&|_| {}), some("31"), "every work of the publisher");
+    assert_eq!(
+        at(&|s| s.imprint_ids = Some(vec![second_imprint])),
+        some("28")
+    );
+    assert_eq!(
+        at(&|s| s.imprint_ids = Some(vec![first_imprint, second_imprint])),
+        some("31"),
+        "OR within a list"
+    );
+    assert_eq!(
+        at(&|s| s.work_ids = Some(vec![fx.works[0], edited])),
+        some("9")
+    );
+    assert_eq!(
+        at(&|s| s.work_types = Some(vec![WorkType::EditedBook])),
+        some("8")
+    );
+    assert_eq!(
+        at(&|s| s.work_types = Some(vec![WorkType::Monograph, WorkType::BookChapter])),
+        some("23")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.imprint_ids = Some(vec![second_imprint]);
+            s.work_types = Some(vec![WorkType::Monograph]);
+        }),
+        some("4"),
+        "AND between lists"
+    );
+    // Direct issue membership, and a chapter through its parent.
+    assert_eq!(at(&|s| s.series_ids = Some(vec![series])), some("20"));
+    assert_eq!(at(&|s| s.series_ids = Some(vec![other_series])), some("1"));
+    assert_eq!(
+        at(&|s| s.series_ids = Some(vec![series, other_series])),
+        some("21")
+    );
+    // Any language record matches, whatever its relation.
+    assert_eq!(
+        at(&|s| s.languages = Some(vec![LanguageCode::Fre])),
+        some("2")
+    );
+    assert_eq!(
+        at(&|s| s.languages = Some(vec![LanguageCode::Eng])),
+        some("3")
+    );
+    assert_eq!(
+        at(&|s| s.languages = Some(vec![LanguageCode::Eng, LanguageCode::Ger])),
+        some("3")
+    );
+    assert_eq!(
+        at(&|s| s.funding_institution_ids = Some(vec![funder])),
+        some("12")
+    );
+    assert_eq!(
+        at(&|s| s.affiliation_institution_ids = Some(vec![affiliated])),
+        some("9")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.funding_institution_ids = Some(vec![funder]);
+            s.affiliation_institution_ids = Some(vec![affiliated]);
+        }),
+        some("8")
+    );
+
+    // Current metadata decides: moving the edited book to the other
+    // publisher removes it from every selection of this one.
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE work SET imprint_id = '{}' WHERE work_id = '{edited}';",
+            imprint_of(&fx, fx.other_work)
+        ),
+    );
+    assert_eq!(
+        at(&|s| s.funding_institution_ids = Some(vec![funder])),
+        some("4")
+    );
+    assert_eq!(at(&|_| {}), some("23"));
+}
+
+#[test]
+fn unknown_selector_ids_are_invalid_but_known_out_of_scope_ids_resolve_to_no_works() {
+    let (_guard, fx) = setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 5);
+    apply_all(&fx.pool);
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let publisher = [fx.publisher_id];
+    let unknown = Uuid::new_v4();
+    let edits: [(SetId, &str); 5] = [
+        (|s, id| s.imprint_ids = Some(vec![id]), UNKNOWN_IMPRINT),
+        (|s, id| s.series_ids = Some(vec![id]), UNKNOWN_SERIES),
+        (|s, id| s.work_ids = Some(vec![id]), UNKNOWN_WORK),
+        (
+            |s, id| s.funding_institution_ids = Some(vec![id]),
+            UNKNOWN_FUNDING,
+        ),
+        (
+            |s, id| s.affiliation_institution_ids = Some(vec![id]),
+            UNKNOWN_AFFILIATION,
+        ),
+    ];
+    for (edit, message) in edits {
+        assert_eq!(
+            metric_dashboard(&fx.pool, &selected(&fx, &publisher, |s| edit(s, unknown))),
+            Err(MetricReadError::QueryInvalid(message))
+        );
+        // One unknown ID among known ones is still refused, never dropped.
+        assert_eq!(
+            metric_dashboard(
+                &fx.pool,
+                &selected(&fx, &publisher, |s| {
+                    edit(s, unknown);
+                    for ids in [
+                        &mut s.imprint_ids,
+                        &mut s.series_ids,
+                        &mut s.work_ids,
+                        &mut s.funding_institution_ids,
+                        &mut s.affiliation_institution_ids,
+                    ]
+                    .into_iter()
+                    .flatten()
+                    {
+                        ids.push(Uuid::new_v4());
+                    }
+                })
+            ),
+            Err(MetricReadError::QueryInvalid(message))
+        );
+    }
+
+    // IDs that exist but belong elsewhere, or match nothing selected, are
+    // valid and leave no works.
+    let other_imprint = imprint_of(&fx, fx.other_work);
+    let other_series = add_series(&fx, other_imprint);
+    let unrelated = insert_institution(&fx.pool);
+    let other_work = fx.other_work;
+    let edits: [(&str, EditSelector); 5] = [
+        (
+            "another publisher's imprint",
+            Box::new(move |s| s.imprint_ids = Some(vec![other_imprint])),
+        ),
+        (
+            "another publisher's series",
+            Box::new(move |s| s.series_ids = Some(vec![other_series])),
+        ),
+        (
+            "another publisher's work",
+            Box::new(move |s| s.work_ids = Some(vec![other_work])),
+        ),
+        (
+            "a funder of nothing",
+            Box::new(move |s| s.funding_institution_ids = Some(vec![unrelated])),
+        ),
+        (
+            "an affiliation of nothing",
+            Box::new(move |s| s.affiliation_institution_ids = Some(vec![unrelated])),
+        ),
+    ];
+    for (label, edit) in edits {
+        let dashboard = read(&fx, &selected(&fx, &publisher, |s| edit(s)));
+        assert_eq!(
+            total(&dashboard, fx.platform_id, fx.sessions),
+            None,
+            "{label}: no works is not a zero"
+        );
+        assert_eq!(
+            dashboard.coverage.status,
+            MetricCoverageStatus::Unknown,
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn a_selection_without_works_is_the_frozen_unknown_shape() {
+    let (_guard, fx) = setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 5);
+    apply_all(&fx.pool);
+    // The publisher's account asserts complete coverage for every day, but a
+    // publisher without a selected work does not take part.
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let none = |s: &mut MetricSelectorInput| {
+        s.work_types = Some(vec![WorkType::JournalIssue]);
+    };
+
+    let mut omitted = selected(&fx, &[fx.publisher_id], none);
+    omitted.platforms = None;
+    omitted.measures = None;
+    let empty = read(&fx, &omitted);
+    assert!(empty.totals.is_empty());
+    assert!(empty.timeline.is_empty());
+    assert!(empty.countries.is_empty());
+    assert!(empty.institutions.is_empty());
+    assert!(empty.coverage.items.is_empty());
+    assert_eq!(empty.coverage.status, MetricCoverageStatus::Unknown);
+    assert_eq!(empty.data_through, None);
+    assert_eq!(codes(&empty), vec![MetricWarningCode::UnknownCoverage]);
+    assert!(empty.is_partial);
+
+    // Explicit platforms and measures keep their combinations, but with no
+    // represented publisher nothing is asserted: every value is null.
+    let explicit = read(&fx, &selected(&fx, &[fx.publisher_id], none));
+    assert_eq!(total(&explicit, fx.platform_id, fx.sessions), None);
+    assert_eq!(bucket_values(&explicit, fx.sessions), vec![None; 4]);
+    assert_eq!(
+        item(&explicit, fx.sessions).status,
+        MetricCoverageStatus::Unknown
+    );
+    assert!(!item(&explicit, fx.sessions).country_coverage);
+    assert_eq!(explicit.data_through, None);
+    assert_eq!(codes(&explicit), vec![MetricWarningCode::UnknownCoverage]);
+    assert!(explicit.countries.is_empty() && explicit.institutions.is_empty());
+}
+
+#[test]
+fn the_resolved_work_scope_is_bounded_at_2000_without_truncation() {
+    let (_guard, fx) = setup();
+    let imprint = add_imprint(&fx, fx.publisher_id);
+    // 2 fixture works plus 1,998 here: exactly 2,000.
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+             SELECT gen_random_uuid(), 'monograph', 'forthcoming', '{imprint}', 1 \
+             FROM generate_series(1, 1998);"
+        ),
+    );
+    let all = selected(&fx, &[fx.publisher_id], |_| {});
+    assert!(metric_dashboard(&fx.pool, &all).is_ok());
+    // 500 explicit work IDs are accepted.
+    let five_hundred: Vec<Uuid> = {
+        #[derive(diesel::QueryableByName)]
+        struct Row {
+            #[diesel(sql_type = SqlUuid)]
+            work_id: Uuid,
+        }
+        let mut connection = fx.pool.get().expect("Failed to get DB connection");
+        sql_query(format!(
+            "SELECT work_id FROM work WHERE imprint_id = '{imprint}' ORDER BY work_id LIMIT 500"
+        ))
+        .load::<Row>(&mut connection)
+        .expect("work ids")
+        .into_iter()
+        .map(|row| row.work_id)
+        .collect()
+    };
+    assert_eq!(five_hundred.len(), 500);
+    assert!(metric_dashboard(
+        &fx.pool,
+        &selected(&fx, &[fx.publisher_id], |s| s.work_ids =
+            Some(five_hundred.clone()))
+    )
+    .is_ok());
+
+    add_work(&fx, imprint, "monograph");
+    assert_eq!(
+        metric_dashboard(&fx.pool, &all),
+        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_RESOLVED_WORKS)),
+        "2,001 works are refused, never truncated"
+    );
+    // Narrowing the selection brings it back under the bound.
+    let first_imprint = imprint_of(&fx, fx.works[0]);
+    assert!(metric_dashboard(
+        &fx.pool,
+        &selected(&fx, &[fx.publisher_id], |s| s.imprint_ids =
+            Some(vec![first_imprint]))
+    )
+    .is_ok());
+}
+
+// ==========================================================================
+// MET-WP4-03B: several publishers
+// ==========================================================================
+
+/// An eligible DRIVER account for a publisher on a platform.
+fn add_account(fx: &Fixture, platform_id: Uuid, publisher_id: Uuid) -> Uuid {
+    let source_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            source_sql(source_id, "DRIVER", true),
+            account_sql(account_id, source_id, platform_id, Some(publisher_id), true)
+        ),
+    );
+    account_id
+}
+
+/// One terminal import on an account asserting `status` for one measure on
+/// `[start, end)` with the given dimension flags.
+#[allow(clippy::too_many_arguments)]
+fn assert_coverage(
+    fx: &Fixture,
+    account_id: Uuid,
+    platform_id: Uuid,
+    measure_id: Uuid,
+    start: NaiveDate,
+    end: NaiveDate,
+    status: &str,
+    country: bool,
+    institution: bool,
+) {
+    let import_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            import_sql(import_id, account_id, "COMPLETED", "'2026-03-10T00:00:00Z'"),
+            coverage_sql(
+                account_id,
+                import_id,
+                platform_id,
+                measure_id,
+                start,
+                end,
+                status,
+                country,
+                institution
+            )
+        ),
+    );
+}
+
+#[test]
+fn every_selected_publisher_must_exist_and_be_entitled_and_their_works_combine() {
+    let (_guard, fx) = setup();
+    let third = Uuid::new_v4();
+    let third_work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(third, "SPHINX"),
+            works_sql(third, &[third_work])
+        ),
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 1);
+    commit(
+        &fx,
+        fx.other_work,
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        10,
+    );
+    commit(&fx, third_work, fx.platform_id, fx.sessions, day_n(1), 100);
+    apply_all(&fx.pool);
+    let three = [fx.publisher_id, fx.other_publisher_id, third];
+
+    assert_eq!(
+        sessions_total(&fx, &selected(&fx, &three[..1], |_| {})),
+        some("1")
+    );
+    assert_eq!(
+        sessions_total(&fx, &selected(&fx, &three, |_| {})),
+        some("111")
+    );
+    // The metadata selector applies across every selected publisher.
+    let third_imprint = imprint_of(&fx, third_work);
+    assert_eq!(
+        sessions_total(
+            &fx,
+            &selected(&fx, &three, |s| s.imprint_ids = Some(vec![third_imprint]))
+        ),
+        some("100")
+    );
+
+    // One unentitled publisher refuses everything, never an entitled subset.
+    for package in ["OASIS", "OBELISK"] {
+        exec(
+            &fx.pool,
+            &format!(
+                "UPDATE publisher SET subscription_package = '{package}' \
+                 WHERE publisher_id = '{third}';"
+            ),
+        );
+        assert_eq!(
+            metric_dashboard(&fx.pool, &selected(&fx, &three, |_| {})),
+            Err(MetricReadError::Unauthorised),
+            "{package}"
+        );
+        // Even when the selector would exclude its works.
+        assert_eq!(
+            metric_dashboard(
+                &fx.pool,
+                &selected(&fx, &three, |s| s.work_ids = Some(vec![fx.works[0]]))
+            ),
+            Err(MetricReadError::Unauthorised)
+        );
+    }
+    // An unknown publisher among known ones is invalid.
+    assert_eq!(
+        metric_dashboard(
+            &fx.pool,
+            &selected(&fx, &[fx.publisher_id, Uuid::new_v4()], |_| {})
+        ),
+        Err(MetricReadError::QueryInvalid(UNKNOWN_PUBLISHER))
+    );
+}
+
+#[test]
+fn only_represented_publishers_take_part_in_coverage_and_their_assertions_combine() {
+    let (_guard, fx) = setup();
+    let other_account = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    // The selected publisher: complete, with both dimensions, every day.
+    assert_coverage(
+        &fx,
+        fx.account_id,
+        fx.platform_id,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        true,
+        true,
+    );
+    // The other publisher: day 1 complete, day 2 partial, day 3 unasserted,
+    // day 4 complete without the country dimension.
+    for (day, status, country) in [
+        (1, "COMPLETE", true),
+        (2, "PARTIAL", true),
+        (4, "COMPLETE", false),
+    ] {
+        assert_coverage(
+            &fx,
+            other_account,
+            fx.platform_id,
+            fx.sessions,
+            day_n(day),
+            day_n(day + 1),
+            status,
+            country,
+            true,
+        );
+    }
+    let both = [fx.publisher_id, fx.other_publisher_id];
+
+    let combined = read(&fx, &totals_only(&selected(&fx, &both, |_| {})));
+    assert_eq!(
+        bucket_values(&combined, fx.sessions),
+        vec![some("0"), None, None, some("0")],
+        "UNKNOWN beats PARTIAL beats COMPLETE, per day"
+    );
+    let combined_item = item(&combined, fx.sessions);
+    assert_eq!(combined_item.status, MetricCoverageStatus::Unknown);
+    assert_eq!(combined_item.data_through, Some(day_n(1)));
+    assert!(
+        !combined_item.institution_coverage,
+        "day 3 has no assertion"
+    );
+    // Day 4 alone: both publishers assert COMPLETE, but only one of them
+    // includes the country dimension, so the combined flag is false.
+    let mut day_four = totals_only(&selected(&fx, &both, |_| {}));
+    day_four.start_date = day_n(4);
+    let day_four = read(&fx, &day_four);
+    let day_four = item(&day_four, fx.sessions);
+    assert_eq!(day_four.status, MetricCoverageStatus::Complete);
+    assert!(!day_four.country_coverage, "dimension flags combine by AND");
+    assert!(day_four.institution_coverage);
+    assert_eq!(
+        codes(&combined),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::PartialCoverage
+        ]
+    );
+
+    // A selected, entitled publisher whose works the selector excludes does
+    // not take part at all.
+    let only_mine = read(
+        &fx,
+        &selected(&fx, &both, |s| {
+            s.imprint_ids = Some(vec![imprint_of(&fx, fx.works[0])]);
+        }),
+    );
+    assert_eq!(bucket_values(&only_mine, fx.sessions), vec![some("0"); 4]);
+    assert_eq!(only_mine.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(only_mine.data_through, Some(day_n(4)));
+
+    // Nor does its source-account configuration: a second eligible account
+    // for the excluded publisher is not ambiguity for this request...
+    add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    assert!(metric_dashboard(
+        &fx.pool,
+        &selected(&fx, &both, |s| {
+            s.imprint_ids = Some(vec![imprint_of(&fx, fx.works[0])]);
+        })
+    )
+    .is_ok());
+    // ...but it is once that publisher is represented.
+    assert_eq!(
+        metric_dashboard(&fx.pool, &selected(&fx, &both, |_| {})),
+        Err(MetricReadError::SourceScopeAmbiguous)
+    );
+}
+
+// ==========================================================================
+// MET-WP4-03B: country and institution sections
+// ==========================================================================
+
+/// An institution with a chosen name and optional ROR.
+fn named_institution(fx: &Fixture, institution_id: Uuid, name: &str, ror: Option<&str>) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO institution (institution_id, institution_name, ror) \
+             VALUES ('{institution_id}', '{name}', {});",
+            sql_opt(ror)
+        ),
+    );
+}
+
+#[test]
+fn countries_and_institutions_are_known_values_in_deterministic_order() {
+    let (_guard, fx) = setup();
+    let country = |code| Dims {
+        country: Some(code),
+        ..Dims::default()
+    };
+    let institution = |id| Dims {
+        institution: Some(id),
+        ..Dims::default()
+    };
+    // Ordered by ID, deliberately against the order of their names.
+    let (low, high) = {
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        (a.min(b), a.max(b))
+    };
+    named_institution(&fx, low, "Zeta University", None);
+    named_institution(
+        &fx,
+        high,
+        "Alpha Institute",
+        Some("https://ror.org/0abcdef12"),
+    );
+    for (work, measure, day, dims, value) in [
+        (fx.works[0], fx.sessions, 1, country("US"), 4),
+        (fx.works[0], fx.sessions, 1, country("GB"), 3),
+        (fx.works[1], fx.sessions, 1, country("GB"), 5),
+        (fx.works[0], fx.units, 1, country("FR"), 7),
+        (fx.works[0], fx.sessions, 2, institution(high), 3),
+        (fx.works[0], fx.sessions, 2, institution(low), 2),
+        (fx.works[1], fx.sessions, 2, institution(low), 5),
+        // An undimensioned aggregate is never an "unknown" country or
+        // institution row.
+        (fx.works[1], fx.units, 3, Dims::default(), 9),
+    ] {
+        commit_dims(&fx, work, fx.platform_id, measure, day_n(day), dims, value);
+    }
+    apply_all(&fx.pool);
+    let input = window(&fx, &[fx.sessions, fx.units]);
+    let dashboard = read(&fx, &input);
+
+    let mut expected_countries = vec![
+        (fx.sessions, "GB".to_string(), "8".to_string()),
+        (fx.sessions, "US".to_string(), "4".to_string()),
+        (fx.units, "FR".to_string(), "7".to_string()),
+    ];
+    expected_countries.sort_by_key(|(measure, code, _)| (*measure, code.clone()));
+    assert_eq!(countries(&dashboard), expected_countries);
+    assert!(dashboard
+        .countries
+        .iter()
+        .all(|row| row.platform_id == fx.platform_id));
+    assert_eq!(
+        institutions(&dashboard),
+        vec![
+            (fx.sessions, low, "7".to_string()),
+            (fx.sessions, high, "3".to_string())
+        ],
+        "ordered by institution ID, not by name"
+    );
+    assert_eq!(
+        dashboard.institutions[0].institution_name,
+        "Zeta University"
+    );
+    assert_eq!(dashboard.institutions[0].ror, None);
+    assert_eq!(
+        dashboard.institutions[1]
+            .ror
+            .as_ref()
+            .map(ToString::to_string),
+        Some("0abcdef12".to_string())
+    );
+    // Known values are listed although nothing asserts coverage here.
+    assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Unknown);
+
+    // Institution metadata is current metadata.
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE institution SET institution_name = 'Renamed University' \
+             WHERE institution_id = '{low}';"
+        ),
+    );
+    assert_eq!(
+        read(&fx, &input).institutions[0].institution_name,
+        "Renamed University"
+    );
+
+    // Each section can be omitted on its own; totals are unaffected.
+    let mut no_countries = input.clone();
+    no_countries.include_countries = Some(false);
+    let no_countries = read(&fx, &no_countries);
+    assert!(no_countries.countries.is_empty());
+    assert_eq!(no_countries.institutions.len(), 2);
+    let mut no_institutions = input.clone();
+    no_institutions.include_institutions = Some(false);
+    let no_institutions = read(&fx, &no_institutions);
+    assert!(no_institutions.institutions.is_empty());
+    assert_eq!(no_institutions.countries.len(), 3);
+    assert_eq!(no_institutions.totals, dashboard.totals);
+    assert_eq!(no_countries.timeline, dashboard.timeline);
+}
+
+/// Insert `count` institutions and one institution-dimensioned projection
+/// row for each, for one work, measure and day.
+fn institution_rows(fx: &Fixture, work_id: Uuid, day: NaiveDate, count: usize) {
+    exec(
+        &fx.pool,
+        &format!(
+            "WITH new AS ( \
+                 INSERT INTO institution (institution_name) \
+                 SELECT 'Bulk institution ' || n FROM generate_series(1, {count}) n \
+                 RETURNING institution_id) \
+             INSERT INTO metric_rollup_work_day \
+                 (work_id, platform_id, measure_id, day, institution_id, value, watermark) \
+             SELECT '{work_id}', '{platform}', '{measure}', '{day}', institution_id, 1, 1 \
+             FROM new;",
+            platform = fx.platform_id,
+            measure = fx.sessions,
+        ),
+    );
+}
+
+/// Advance the frontier past watermark 1 with one real application, so rows
+/// written directly with watermark 1 can be rebuilt into the monthly
+/// projections by the `MET-WP4-03A` rebuild.
+fn advance_frontier(fx: &Fixture) {
+    commit(fx, fx.works[1], fx.platform_id, fx.units, d(2020, 1, 1), 1);
+    apply_all(&fx.pool);
+}
+
+#[test]
+fn institution_rows_are_bounded_at_2000_without_truncation() {
+    let (_guard, fx) = setup();
+    advance_frontier(&fx);
+    // Edge days: 2,000 rows are returned in full.
+    institution_rows(&fx, fx.works[0], day_n(1), 2000);
+    let input = window(&fx, &[fx.sessions]);
+    assert_eq!(read(&fx, &input).institutions.len(), 2000);
+    institution_rows(&fx, fx.works[1], day_n(2), 1);
+    assert_eq!(
+        metric_dashboard(&fx.pool, &input),
+        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_INSTITUTIONS))
+    );
+    // Omitting the section serves the rest of the response.
+    let mut omitted = input.clone();
+    omitted.include_institutions = Some(false);
+    assert_eq!(
+        total(&read(&fx, &omitted), fx.platform_id, fx.sessions),
+        some("2001")
+    );
+
+    // A complete month and an edge day together: 1,000 institutions in
+    // April from the monthly projection and 1,001 others on 1 May.
+    let (april, may) = (d(2026, 4, 1), d(2026, 5, 1));
+    institution_rows(&fx, fx.works[0], d(2026, 4, 10), 1000);
+    rebuild_month_projections(&fx.pool).expect("rebuild the monthly projections");
+    let mut spanning = input.clone();
+    spanning.start_date = april;
+    spanning.end_date = may;
+    assert_eq!(read(&fx, &spanning).institutions.len(), 1000);
+    institution_rows(&fx, fx.works[0], may, 1000);
+    spanning.end_date = may + Duration::days(1);
+    assert_eq!(read(&fx, &spanning).institutions.len(), 2000);
+    institution_rows(&fx, fx.works[1], may, 1);
+    assert_eq!(
+        metric_dashboard(&fx.pool, &spanning),
+        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_INSTITUTIONS)),
+        "the bound applies to the whole response"
+    );
+}
+
+/// Commit rows of several masks for one base cell.
+fn commit_cell(fx: &Fixture, work: Uuid, day: NaiveDate, rows: &[(Dims, i64)]) {
+    for (dims, value) in rows {
+        commit_dims(fx, work, fx.platform_id, fx.sessions, day, *dims, *value);
+    }
+}
+
+#[test]
+fn section_ambiguity_fails_only_the_requested_sections_on_months_and_edges() {
+    let (_guard, fx) = setup();
+    let pdf = insert_publication(&fx.pool, fx.works[0], "PDF");
+    let (harvard, oxford) = (insert_institution(&fx.pool), insert_institution(&fx.pool));
+    let aggregate = (Dims::default(), 10);
+    let country_institution = (
+        Dims {
+            country: Some("GB"),
+            institution: Some(harvard),
+            publication: None,
+        },
+        4,
+    );
+    let publication_country = (
+        Dims {
+            publication: Some(pdf),
+            country: Some("US"),
+            institution: None,
+        },
+        6,
+    );
+    let publication_institution = (
+        Dims {
+            publication: Some(pdf),
+            country: None,
+            institution: Some(oxford),
+        },
+        6,
+    );
+    // Country-ambiguous (masks 3 and 6 are incomparable) with an aggregate.
+    let country_ambiguous = [aggregate, country_institution, publication_country];
+    // Institution-ambiguous (masks 3 and 5).
+    let institution_ambiguous = [aggregate, country_institution, publication_institution];
+    // Total-ambiguous: country rows and institution rows, no aggregate.
+    let total_ambiguous = [
+        (
+            Dims {
+                country: Some("GB"),
+                ..Dims::default()
+            },
+            1,
+        ),
+        (
+            Dims {
+                institution: Some(harvard),
+                ..Dims::default()
+            },
+            1,
+        ),
+    ];
+    let month = |start: NaiveDate| {
+        let mut input = window(&fx, &[fx.sessions]);
+        input.start_date = start;
+        input.end_date = next_month(start);
+        input
+    };
+    let edge = |day: NaiveDate| {
+        let mut input = window(&fx, &[fx.sessions]);
+        input.start_date = day;
+        input.end_date = day + Duration::days(1);
+        input
+    };
+    let with = |input: &MetricDashboardInput, countries: bool, institutions: bool| {
+        let mut input = input.clone();
+        input.include_countries = Some(countries);
+        input.include_institutions = Some(institutions);
+        metric_dashboard(&fx.pool, &input).map(|dashboard| text(&dashboard.totals[0].value))
+    };
+
+    // April: country ambiguity on a complete month. 1 June: the same on an
+    // edge day. May: institution ambiguity on a complete month; 2 June on an
+    // edge day. July: total ambiguity on a complete month; 3 June an edge.
+    commit_cell(&fx, fx.works[0], d(2026, 4, 10), &country_ambiguous);
+    commit_cell(&fx, fx.works[0], d(2026, 6, 1), &country_ambiguous);
+    commit_cell(&fx, fx.works[0], d(2026, 5, 10), &institution_ambiguous);
+    commit_cell(&fx, fx.works[0], d(2026, 6, 2), &institution_ambiguous);
+    commit_cell(&fx, fx.works[0], d(2026, 7, 10), &total_ambiguous);
+    commit_cell(&fx, fx.works[0], d(2026, 6, 3), &total_ambiguous);
+    apply_all(&fx.pool);
+
+    for (label, input) in [
+        ("complete month", month(d(2026, 4, 1))),
+        ("edge day", edge(d(2026, 6, 1))),
+    ] {
+        assert_eq!(
+            with(&input, true, true),
+            Err(MetricReadError::DimensionScopeAmbiguous),
+            "{label}"
+        );
+        assert_eq!(
+            with(&input, true, false),
+            Err(MetricReadError::DimensionScopeAmbiguous),
+            "{label}"
+        );
+        assert_eq!(with(&input, false, true), Ok(some("10")), "{label}");
+        assert_eq!(with(&input, false, false), Ok(some("10")), "{label}");
+    }
+    for (label, input) in [
+        ("complete month", month(d(2026, 5, 1))),
+        ("edge day", edge(d(2026, 6, 2))),
+    ] {
+        assert_eq!(
+            with(&input, true, true),
+            Err(MetricReadError::DimensionScopeAmbiguous),
+            "{label}"
+        );
+        assert_eq!(
+            with(&input, false, true),
+            Err(MetricReadError::DimensionScopeAmbiguous),
+            "{label}"
+        );
+        assert_eq!(with(&input, true, false), Ok(some("10")), "{label}");
+        assert_eq!(with(&input, false, false), Ok(some("10")), "{label}");
+    }
+    for (label, input) in [
+        ("complete month", month(d(2026, 7, 1))),
+        ("edge day", edge(d(2026, 6, 3))),
+    ] {
+        for (countries, institutions) in [(true, true), (false, false), (true, false)] {
+            assert_eq!(
+                with(&input, countries, institutions),
+                Err(MetricReadError::DimensionScopeAmbiguous),
+                "{label}: total ambiguity fails whatever sections are returned"
+            );
+        }
+    }
+    // The monthly timeline and a daily timeline agree about months that are
+    // not ambiguous.
+    let mut april_daily = month(d(2026, 4, 1));
+    april_daily.include_countries = Some(false);
+    april_daily.timeline_grain = Some(MetricTimelineGrain::Day);
+    assert!(metric_dashboard(&fx.pool, &april_daily).is_ok());
+}
+
+#[test]
+fn each_section_needs_its_own_dimensions_range_wide() {
+    let (_guard, fx) = setup();
+    let harvard = insert_institution(&fx.pool);
+    let aggregate = (Dims::default(), 10);
+    let country_only = (
+        Dims {
+            country: Some("GB"),
+            ..Dims::default()
+        },
+        6,
+    );
+    let institution_only = (
+        Dims {
+            institution: Some(harvard),
+            ..Dims::default()
+        },
+        6,
+    );
+    let both = (
+        Dims {
+            country: Some("GB"),
+            institution: Some(harvard),
+            publication: None,
+        },
+        4,
+    );
+    let request_for = |measure: Uuid, countries: bool, institutions: bool| {
+        let mut input = window(&fx, &[measure]);
+        input.include_countries = Some(countries);
+        input.include_institutions = Some(institutions);
+        input
+    };
+    // Sessions: country values come from {country, institution} rows
+    // (#946 Amendment 1 section 2.6 item 4); units: institution values
+    // come from them (item 5). An aggregate keeps every total independent.
+    commit_cell(
+        &fx,
+        fx.works[0],
+        day_n(1),
+        &[aggregate, both, institution_only],
+    );
+    for (dims, value) in [aggregate, both, country_only] {
+        commit_dims(
+            &fx,
+            fx.works[0],
+            fx.platform_id,
+            fx.units,
+            day_n(1),
+            dims,
+            value,
+        );
+    }
+    apply_all(&fx.pool);
+    // Sessions: country asserted every day, institution missing on day 3.
+    // Units: institution asserted every day, country missing on day 3.
+    for (measure, country_on_3, institution_on_3) in
+        [(fx.sessions, true, false), (fx.units, false, true)]
+    {
+        assert_coverage(
+            &fx,
+            fx.account_id,
+            fx.platform_id,
+            measure,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            true,
+            true,
+        );
+        let import_id = Uuid::new_v4();
+        exec(
+            &fx.pool,
+            &format!(
+                "{}{}",
+                import_sql(
+                    import_id,
+                    fx.account_id,
+                    "COMPLETED",
+                    "'2026-03-11T00:00:00Z'"
+                ),
+                coverage_sql(
+                    fx.account_id,
+                    import_id,
+                    fx.platform_id,
+                    measure,
+                    day_n(3),
+                    day_n(4),
+                    "COMPLETE",
+                    country_on_3,
+                    institution_on_3
+                )
+            ),
+        );
+    }
+    let status = |input: &MetricDashboardInput| read(&fx, input).coverage.status;
+
+    // Totals alone depend on neither dimension: complete, with real zeros.
+    for measure in [fx.sessions, fx.units] {
+        let totals = read(&fx, &request_for(measure, false, false));
+        assert_eq!(totals.coverage.status, MetricCoverageStatus::Complete);
+        assert_eq!(
+            bucket_values(&totals, measure),
+            vec![some("10"), some("0"), some("0"), some("0")]
+        );
+    }
+    // Item 4: the sessions country section needs institution coverage too,
+    // because its country values carry an institution.
+    assert_eq!(
+        status(&request_for(fx.sessions, true, false)),
+        MetricCoverageStatus::Partial
+    );
+    // Item 5: the units institution section needs country coverage too.
+    assert_eq!(
+        status(&request_for(fx.units, false, true)),
+        MetricCoverageStatus::Partial
+    );
+    // A country section over plain country rows needs only country
+    // coverage, which units lacks on day 3 while sessions has it; the
+    // mirror holds for institutions.
+    assert_eq!(
+        status(&request_for(fx.units, true, false)),
+        MetricCoverageStatus::Partial
+    );
+    assert_eq!(
+        status(&request_for(fx.sessions, false, true)),
+        MetricCoverageStatus::Partial
+    );
+    // With every value the same whatever the sections, and known values
+    // listed under PARTIAL coverage (item 6).
+    let all = read(&fx, &request_for(fx.sessions, true, true));
+    assert_eq!(all.coverage.status, MetricCoverageStatus::Partial);
+    assert_eq!(
+        all.timeline,
+        read(&fx, &request_for(fx.sessions, false, false)).timeline
+    );
+    assert_eq!(
+        countries(&all),
+        vec![(fx.sessions, "GB".to_string(), "4".to_string())]
+    );
+    assert_eq!(
+        institutions(&all),
+        vec![(fx.sessions, harvard, "6".to_string())]
+    );
+    // dataThrough follows the shared completeness.
+    assert_eq!(all.data_through, Some(day_n(2)));
+}
+
+// ==========================================================================
+// MET-WP4-03B: complete months and edge days
+// ==========================================================================
+
+#[test]
+fn complete_months_are_served_from_the_monthly_projection_and_edges_from_days() {
+    let (_guard, fx) = setup();
+    for (day, value) in [
+        (d(2026, 1, 31), 3),
+        (d(2026, 2, 15), 4),
+        (d(2026, 2, 28), 5),
+        (d(2026, 3, 1), 6),
+    ] {
+        commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day, value);
+    }
+    // A publication-specific and an undimensioned row of the same complete
+    // month, on different days, are both part of it.
+    let pdf = insert_publication(&fx.pool, fx.works[1], "PDF");
+    commit_dims(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 2, 2),
+        Dims {
+            publication: Some(pdf),
+            ..Dims::default()
+        },
+        20,
+    );
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 2, 3),
+        30,
+    );
+    apply_all(&fx.pool);
+    let (start, end) = (d(2026, 1, 30), d(2026, 3, 2));
+    cover(
+        &fx,
+        fx.sessions,
+        start,
+        end,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let at = |grain| {
+        read(
+            &fx,
+            &request(
+                fx.publisher_id,
+                start,
+                end,
+                &[fx.platform_id],
+                &[fx.sessions],
+                Some(grain),
+            ),
+        )
+    };
+    let month = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("3"), some("59"), some("6")]
+    );
+    assert_eq!(total(&month, fx.platform_id, fx.sessions), some("68"));
+    let day = at(MetricTimelineGrain::Day);
+    assert_eq!(total(&day, fx.platform_id, fx.sessions), some("68"));
+
+    // Changing only February's monthly row changes the February bucket and
+    // every total, and leaves the daily buckets as they are: complete
+    // months are read from the monthly projection.
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_rollup_work_month SET value = value + 100 \
+             WHERE month_start = '2026-02-01' AND work_id = '{}';",
+            fx.works[0]
+        ),
+    );
+    let month = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("3"), some("159"), some("6")]
+    );
+    assert_eq!(total(&month, fx.platform_id, fx.sessions), some("168"));
+    let tampered_day = at(MetricTimelineGrain::Day);
+    assert_eq!(tampered_day.timeline, day.timeline);
+    assert_eq!(
+        total(&tampered_day, fx.platform_id, fx.sessions),
+        some("168")
+    );
+
+    // Changing a day row inside February changes only the daily bucket;
+    // changing an edge day changes its clipped bucket and the totals.
+    exec(
+        &fx.pool,
+        "UPDATE metric_rollup_work_day SET value = value + 1000 WHERE day = '2026-02-15';",
+    );
+    let month = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("3"), some("159"), some("6")]
+    );
+    exec(
+        &fx.pool,
+        "UPDATE metric_rollup_work_day SET value = value + 10000 WHERE day = '2026-01-31';",
+    );
+    let month = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("10003"), some("159"), some("6")]
+    );
+    assert_eq!(total(&month, fx.platform_id, fx.sessions), some("10168"));
+
+    // The reviewed rebuild restores the monthly rows from the day rows, and
+    // then both paths agree again.
+    rebuild_month_projections(&fx.pool).expect("rebuild the monthly projections");
+    let month = at(MetricTimelineGrain::Month);
+    let day = at(MetricTimelineGrain::Day);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("10003"), some("1059"), some("6")]
+    );
+    assert_eq!(total(&month, fx.platform_id, fx.sessions), some("11068"));
+    let day_sum: i128 = day
+        .timeline
+        .iter()
+        .map(|bucket| bucket.value.expect("a covered day").value())
+        .sum();
+    assert_eq!(
+        day_sum, 11068,
+        "the daily buckets add up to the monthly total"
+    );
+    assert_eq!(month.totals, day.totals);
+}
+
+/// A tiny deterministic generator (xorshift64*).
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    fn below(&mut self, bound: u64) -> u64 {
+        self.next() % bound
+    }
+}
+
+/// One generated work-day row.
+#[derive(Clone, Copy)]
+struct Generated {
+    work: Uuid,
+    measure: Uuid,
+    day: NaiveDate,
+    dims: Dims,
+    value: i64,
+}
+
+fn mask_of(dims: &Dims) -> u8 {
+    u8::from(dims.publication.is_some()) * 4
+        + u8::from(dims.country.is_some()) * 2
+        + u8::from(dims.institution.is_some())
+}
+
+/// The unique least mask among `masks` containing `bit`, under set
+/// inclusion; `None` when no mask contains it.
+fn least_with(masks: &BTreeSet<u8>, bit: u8) -> Option<u8> {
+    let candidates: Vec<u8> = masks
+        .iter()
+        .copied()
+        .filter(|mask| mask & bit != 0)
+        .collect();
+    let minimal: Vec<u8> = candidates
+        .iter()
+        .copied()
+        .filter(|mask| {
+            !candidates
+                .iter()
+                .any(|other| other != mask && other & mask == *other)
+        })
+        .collect();
+    assert!(
+        minimal.len() <= 1,
+        "the generator never makes a section ambiguous"
+    );
+    minimal.first().copied()
+}
+
+#[test]
+fn monthly_and_edge_serving_equals_an_independent_day_by_day_oracle() {
+    let (_guard, fx) = setup();
+    let third = Uuid::new_v4();
+    exec(&fx.pool, &works_sql(fx.publisher_id, &[third]));
+    let works = [fx.works[0], fx.works[1], third];
+    let publications: Vec<[Uuid; 2]> = works
+        .iter()
+        .map(|work| {
+            [
+                insert_publication(&fx.pool, *work, "PDF"),
+                insert_publication(&fx.pool, *work, "Epub"),
+            ]
+        })
+        .collect();
+    let institution_pool = [
+        insert_institution(&fx.pool),
+        insert_institution(&fx.pool),
+        insert_institution(&fx.pool),
+    ];
+    // Every mask set whose total and sections resolve unambiguously.
+    let patterns: [&[u8]; 17] = [
+        &[0],
+        &[0, 2],
+        &[2],
+        &[1],
+        &[3],
+        &[0, 2, 1],
+        &[0, 3],
+        &[4],
+        &[0, 6],
+        &[0, 2, 3],
+        &[0, 1, 3],
+        &[6],
+        &[0, 7],
+        &[5],
+        &[0, 4],
+        &[0, 2, 6],
+        &[0, 1, 5],
+    ];
+    let (start, end) = (d(2026, 1, 20), d(2026, 5, 10));
+    let mut rng = Rng(20_260_923);
+    let mut rows: Vec<Generated> = Vec::new();
+    for (work_index, work) in works.iter().enumerate() {
+        for measure in [fx.sessions, fx.units] {
+            for day in days_of(start, end) {
+                if rng.below(10) >= 4 {
+                    continue;
+                }
+                let pattern = patterns[rng.below(patterns.len() as u64) as usize];
+                for mask in pattern {
+                    let mut seen: BTreeSet<(Option<Uuid>, Option<&str>, Option<Uuid>)> =
+                        BTreeSet::new();
+                    let copies = if *mask == 0 { 1 } else { 1 + rng.below(2) };
+                    for _ in 0..copies {
+                        let dims = Dims {
+                            publication: (mask & 4 != 0)
+                                .then(|| publications[work_index][rng.below(2) as usize]),
+                            country: (mask & 2 != 0)
+                                .then(|| ["GB", "US", "DE"][rng.below(3) as usize]),
+                            institution: (mask & 1 != 0)
+                                .then(|| institution_pool[rng.below(3) as usize]),
+                        };
+                        if seen.insert((dims.publication, dims.country, dims.institution)) {
+                            rows.push(Generated {
+                                work: *work,
+                                measure,
+                                day,
+                                dims,
+                                value: 1 + rng.below(20) as i64,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut statements = String::new();
+    for row in &rows {
+        statements.push_str(&record_dims_sql(
+            &fx,
+            Uuid::new_v4(),
+            row.work,
+            fx.platform_id,
+            row.measure,
+            row.day,
+            row.dims,
+            row.value,
+        ));
+    }
+    exec(&fx.pool, &statements);
+    apply_all(&fx.pool);
+    for measure in [fx.sessions, fx.units] {
+        cover(
+            &fx,
+            measure,
+            start,
+            end,
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+        );
+    }
+
+    // The oracle: resolve every base cell from the generated rows alone.
+    let mut cells: BTreeMap<(Uuid, Uuid, NaiveDate), Vec<Generated>> = BTreeMap::new();
+    for row in &rows {
+        cells
+            .entry((row.work, row.measure, row.day))
+            .or_default()
+            .push(*row);
+    }
+    let mut per_day: BTreeMap<(Uuid, NaiveDate), i128> = BTreeMap::new();
+    let mut per_country: BTreeMap<(Uuid, String), i128> = BTreeMap::new();
+    let mut per_institution: BTreeMap<(Uuid, Uuid), i128> = BTreeMap::new();
+    for ((_, measure, day), cell) in &cells {
+        let masks: BTreeSet<u8> = cell.iter().map(|row| mask_of(&row.dims)).collect();
+        let total_mask = if masks.contains(&0) {
+            0
+        } else {
+            assert_eq!(
+                masks.len(),
+                1,
+                "the generator never makes a total ambiguous"
+            );
+            *masks.iter().next().expect("a mask")
+        };
+        let sum = |mask: u8| -> i128 {
+            cell.iter()
+                .filter(|row| mask_of(&row.dims) == mask)
+                .map(|row| i128::from(row.value))
+                .sum()
+        };
+        *per_day.entry((*measure, *day)).or_default() += sum(total_mask);
+        if let Some(mask) = least_with(&masks, 2) {
+            for row in cell.iter().filter(|row| mask_of(&row.dims) == mask) {
+                *per_country
+                    .entry((*measure, row.dims.country.expect("a country").to_string()))
+                    .or_default() += i128::from(row.value);
+            }
+        }
+        if let Some(mask) = least_with(&masks, 1) {
+            for row in cell.iter().filter(|row| mask_of(&row.dims) == mask) {
+                *per_institution
+                    .entry((*measure, row.dims.institution.expect("an institution")))
+                    .or_default() += i128::from(row.value);
+            }
+        }
+    }
+    let day_value = |measure: Uuid, from: NaiveDate, to: NaiveDate| -> String {
+        days_of(from, to)
+            .into_iter()
+            .map(|day| per_day.get(&(measure, day)).copied().unwrap_or(0))
+            .sum::<i128>()
+            .to_string()
+    };
+
+    let for_grain = |grain| {
+        request(
+            fx.publisher_id,
+            start,
+            end,
+            &[fx.platform_id],
+            &[fx.sessions, fx.units],
+            Some(grain),
+        )
+    };
+    let monthly = read(&fx, &for_grain(MetricTimelineGrain::Month));
+    let daily = read(&fx, &for_grain(MetricTimelineGrain::Day));
+    assert_eq!(monthly.coverage.status, MetricCoverageStatus::Complete);
+    for measure in [fx.sessions, fx.units] {
+        let expected_total = Some(day_value(measure, start, end));
+        assert_eq!(total(&monthly, fx.platform_id, measure), expected_total);
+        assert_eq!(total(&daily, fx.platform_id, measure), expected_total);
+        let month_buckets: Vec<Option<String>> = buckets_of(start, end, MetricTimelineGrain::Month)
+            .into_iter()
+            .map(|(from, to)| Some(day_value(measure, from, to)))
+            .collect();
+        assert_eq!(bucket_values(&monthly, measure), month_buckets);
+        let day_buckets: Vec<Option<String>> = days_of(start, end)
+            .into_iter()
+            .map(|day| Some(day_value(measure, day, day + Duration::days(1))))
+            .collect();
+        assert_eq!(bucket_values(&daily, measure), day_buckets);
+    }
+    let mut expected_countries: Vec<(Uuid, String, String)> = per_country
+        .iter()
+        .map(|((measure, code), value)| (*measure, code.clone(), value.to_string()))
+        .collect();
+    expected_countries.sort_by_key(|(measure, code, _)| (*measure, code.clone()));
+    let mut expected_institutions: Vec<(Uuid, Uuid, String)> = per_institution
+        .iter()
+        .map(|((measure, institution), value)| (*measure, *institution, value.to_string()))
+        .collect();
+    expected_institutions.sort_by_key(|(measure, institution, _)| (*measure, *institution));
+    assert!(!expected_countries.is_empty() && !expected_institutions.is_empty());
+    for dashboard in [&monthly, &daily] {
+        assert_eq!(countries(dashboard), expected_countries);
+        assert_eq!(institutions(dashboard), expected_institutions);
+    }
+    println!(
+        "oracle: {} generated rows in {} base cells",
+        rows.len(),
+        cells.len()
+    );
+
+    // The reviewed rebuild reproduces the incrementally maintained months,
+    // so a rebuilt projection serves exactly the same response.
+    rebuild_month_projections(&fx.pool).expect("rebuild the monthly projections");
+    let rebuilt = read(&fx, &for_grain(MetricTimelineGrain::Month));
+    assert_eq!(rebuilt.totals, monthly.totals);
+    assert_eq!(rebuilt.timeline, monthly.timeline);
+    assert_eq!(rebuilt.countries, monthly.countries);
+    assert_eq!(rebuilt.institutions, monthly.institutions);
+}
+
+// ==========================================================================
+// MET-WP4-03B: native source grains
+// ==========================================================================
+
+/// How a native-grain record's current revision pointer is left.
+#[derive(Clone, Copy, Debug)]
+enum Native {
+    /// The pointer names the record's CURRENT revision.
+    Active,
+    /// The pointer names a RETRACTED revision that superseded a CURRENT one.
+    Retracted,
+    /// Contradictory: the pointer names a SUPERSEDED revision.
+    PointsAtSuperseded,
+    /// Contradictory: a revision exists but no pointer does.
+    NoPointer,
+    /// Contradictory: the pointer names a RETRACTED revision while another
+    /// revision of the record is still CURRENT.
+    RetractedBesideCurrent,
+}
+
+/// One canonical record of a native grain with the given pointer state.
+#[allow(clippy::too_many_arguments)]
+fn native_record(
+    fx: &Fixture,
+    work_id: Uuid,
+    platform_id: Uuid,
+    measure_id: Uuid,
+    grain: &str,
+    start: NaiveDate,
+    end: NaiveDate,
+    state: Native,
+) {
+    let record_id = Uuid::new_v4();
+    let (first, second) = (Uuid::new_v4(), Uuid::new_v4());
+    let revision = |id: Uuid, number: i32, status: &str| {
+        format!(
+            "INSERT INTO metric_record_revision \
+                 (record_revision_id, record_id, revision_number, import_id, value, \
+                  content_hash, status) \
+             VALUES ('{id}', '{record_id}', {number}, '{import}', 50, 'content-{id}', \
+                     '{status}');",
+            import = fx.canonical_import,
+        )
+    };
+    let (revisions, pointer) = match state {
+        Native::Active => (revision(first, 1, "CURRENT"), Some(first)),
+        Native::Retracted => (
+            format!(
+                "{}{}",
+                revision(first, 1, "SUPERSEDED"),
+                revision(second, 2, "RETRACTED")
+            ),
+            Some(second),
+        ),
+        Native::PointsAtSuperseded => (revision(first, 1, "SUPERSEDED"), Some(first)),
+        Native::NoPointer => (revision(first, 1, "CURRENT"), None),
+        Native::RetractedBesideCurrent => (
+            format!(
+                "{}{}",
+                revision(first, 1, "CURRENT"),
+                revision(second, 2, "RETRACTED")
+            ),
+            Some(second),
+        ),
+    };
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, platform_id, measure_id, period_start, \
+                  period_end, reporting_grain, winning_source_account_id) \
+             VALUES ('{record_id}', 'native-{record_id}', '{work_id}', '{platform_id}', \
+                     '{measure_id}', '{start}', '{end}', '{grain}', '{account}'); \
+             {revisions} \
+             UPDATE metric_record SET current_revision_id = {pointer} \
+              WHERE record_id = '{record_id}';",
+            account = fx.account_id,
+            pointer = sql_opt(pointer),
+        ),
+    );
+}
+
+#[test]
+fn active_native_month_and_reporting_period_records_fail_and_retracted_ones_do_not() {
+    let (_guard, fx) = setup();
+    let imprint = imprint_of(&fx, fx.works[0]);
+    let only = |work_id: Uuid| {
+        let mut input = window(&fx, &[fx.sessions]);
+        input.selector.work_ids = Some(vec![work_id]);
+        input
+    };
+    // The records overlap the half-open window [1 March, 5 March).
+    let (start, end) = (d(2026, 2, 1), d(2026, 3, 2));
+    for grain in ["MONTH", "REPORTING_PERIOD"] {
+        let active = add_work(&fx, imprint, "monograph");
+        native_record(
+            &fx,
+            active,
+            fx.platform_id,
+            fx.sessions,
+            grain,
+            start,
+            end,
+            Native::Active,
+        );
+        assert_eq!(
+            metric_dashboard(&fx.pool, &only(active)),
+            Err(MetricReadError::UnsupportedSourceGrain),
+            "{grain}"
+        );
+        assert_eq!(
+            MetricReadError::UnsupportedSourceGrain.code(),
+            "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
+        );
+        let retracted = add_work(&fx, imprint, "monograph");
+        native_record(
+            &fx,
+            retracted,
+            fx.platform_id,
+            fx.sessions,
+            grain,
+            start,
+            end,
+            Native::Retracted,
+        );
+        assert!(
+            metric_dashboard(&fx.pool, &only(retracted)).is_ok(),
+            "a retracted {grain} record does not poison the dashboard"
+        );
+        // Outside the request in each dimension, an active record is
+        // irrelevant: another work, the day before the window, the window's
+        // end, another platform and another measure.
+        let elsewhere = add_work(&fx, imprint, "monograph");
+        native_record(
+            &fx,
+            elsewhere,
+            fx.platform_id,
+            fx.sessions,
+            grain,
+            d(2026, 2, 1),
+            d1(),
+            Native::Active,
+        );
+        native_record(
+            &fx,
+            elsewhere,
+            fx.platform_id,
+            fx.sessions,
+            grain,
+            day_n(5),
+            day_n(40),
+            Native::Active,
+        );
+        native_record(
+            &fx,
+            elsewhere,
+            fx.other_platform_id,
+            fx.sessions,
+            grain,
+            start,
+            end,
+            Native::Active,
+        );
+        native_record(
+            &fx,
+            elsewhere,
+            fx.platform_id,
+            fx.units,
+            grain,
+            start,
+            end,
+            Native::Active,
+        );
+        assert!(
+            metric_dashboard(&fx.pool, &only(elsewhere)).is_ok(),
+            "{grain} outside the date, platform and measure scope"
+        );
+        assert!(
+            metric_dashboard(&fx.pool, &only(retracted)).is_ok(),
+            "{grain} on another work"
+        );
+        // A daily window reaching the active record's platform or measure
+        // does fail.
+        let mut units = only(elsewhere);
+        units.measures = Some(vec![fx.units]);
+        assert_eq!(
+            metric_dashboard(&fx.pool, &units),
+            Err(MetricReadError::UnsupportedSourceGrain)
+        );
+    }
+    // The whole publisher now intersects active records: a MONTH request
+    // fails too, whatever the timeline grain.
+    let mut whole = window(&fx, &[fx.sessions]);
+    whole.timeline_grain = Some(MetricTimelineGrain::Month);
+    assert_eq!(
+        metric_dashboard(&fx.pool, &whole),
+        Err(MetricReadError::UnsupportedSourceGrain)
+    );
+
+    // Contradictory committed canonical state fails closed as an internal
+    // error rather than being classified either way.
+    for state in [
+        Native::PointsAtSuperseded,
+        Native::NoPointer,
+        Native::RetractedBesideCurrent,
+    ] {
+        let work = add_work(&fx, imprint, "monograph");
+        native_record(
+            &fx,
+            work,
+            fx.platform_id,
+            fx.sessions,
+            "MONTH",
+            start,
+            end,
+            state,
+        );
+        assert_eq!(
+            metric_dashboard(&fx.pool, &only(work)),
+            Err(MetricReadError::Unavailable),
+            "{state:?}"
+        );
+    }
+    // Daily records are served, never refused as a native grain.
+    let daily = add_work(&fx, imprint, "monograph");
+    commit(&fx, daily, fx.platform_id, fx.sessions, day_n(2), 3);
+    apply_all(&fx.pool);
+    assert_eq!(sessions_total(&fx, &only(daily)), some("3"));
+}
+
+// ==========================================================================
+// MET-WP4-03B Amendment 2: identifier quality under the selector
+// ==========================================================================
+
+/// A platform and a measure that nothing but quarantine evidence represents.
+fn quarantine_only_pair(fx: &Fixture, code: &str) -> (Uuid, Uuid) {
+    let platform_id = Uuid::new_v4();
+    insert_platform_row(&fx.pool, platform_id, &format!("{code}_platform"));
+    (
+        platform_id,
+        insert_measure(&fx.pool, &format!("{code}_measure"), true, true),
+    )
+}
+
+/// Selected publishers `[selected publisher, other publisher, third]`, where
+/// the third publisher owns one work in its own imprint.
+fn with_third_publisher(fx: &Fixture) -> (Uuid, Uuid) {
+    let third = Uuid::new_v4();
+    let third_work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(third, "SPHINX"),
+            works_sql(third, &[third_work])
+        ),
+    );
+    (third, third_work)
+}
+
+#[test]
+fn a_selected_publisher_without_resolved_works_contributes_no_identifier_quality() {
+    let (_guard, fx) = setup();
+    let (third, _) = with_third_publisher(&fx);
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 5);
+    apply_all(&fx.pool);
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let (other_platform, other_measure) = quarantine_only_pair(&fx, "unrepresented");
+    // Unresolved evidence admitted under the other two publishers' imports:
+    // one row on the served pair, one on a pair nothing else represents.
+    quarantine(
+        &fx,
+        fx.other_publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        fx.other_publisher_id,
+        other_platform,
+        other_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        third,
+        fx.platform_id,
+        fx.sessions,
+        day_n(3),
+        day_n(4),
+        "REPORTING_PERIOD",
+    );
+    let three = [fx.publisher_id, fx.other_publisher_id, third];
+    let mine_only = |s: &mut MetricSelectorInput| {
+        s.imprint_ids = Some(vec![imprint_of(&fx, fx.works[0])]);
+    };
+
+    // All three are selected and entitled, but only the first owns a
+    // resolved work: the others' quarantine neither warns nor blocks zeros.
+    let explicit = read(&fx, &selected(&fx, &three, mine_only));
+    assert_eq!(
+        bucket_values(&explicit, fx.sessions),
+        vec![some("5"), some("0"), some("0"), some("0")]
+    );
+    assert!(explicit.warnings.is_empty(), "{:?}", codes(&explicit));
+    assert!(!explicit.is_partial);
+    // Nor does it add the pair only it represents to an omitted scope.
+    let mut omitted = selected(&fx, &three, mine_only);
+    omitted.platforms = None;
+    omitted.measures = None;
+    let omitted = read(&fx, &omitted);
+    assert_serves(&omitted, &[fx.platform_id], &[fx.sessions]);
+    assert!(omitted.warnings.is_empty(), "{:?}", codes(&omitted));
+    // Two selected publishers, the second unrepresented, behave the same.
+    let two = read(
+        &fx,
+        &selected(&fx, &three[..2], |s| {
+            s.work_ids = Some(vec![fx.works[0]]);
+        }),
+    );
+    assert!(two.warnings.is_empty(), "{:?}", codes(&two));
+
+    // Control: once their works are resolved, the same evidence counts.
+    let mut all = selected(&fx, &three, |_| {});
+    all.platforms = None;
+    all.measures = None;
+    let all = read(&fx, &all);
+    assert_serves(
+        &all,
+        &[fx.platform_id, other_platform],
+        &[fx.sessions, other_measure],
+    );
+    assert!(codes(&all).contains(&MetricWarningCode::UnresolvedIdentifiers));
+}
+
+#[test]
+fn represented_quarantine_warns_under_a_narrowed_selection_without_a_work_identity() {
+    let (_guard, fx) = setup();
+    // The only value belongs to a work the selector excludes.
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 5);
+    apply_all(&fx.pool);
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let quarantine_id = quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    let series = add_series(&fx, imprint_of(&fx, fx.works[1]));
+    add_issue(&fx, series, fx.works[1], 1);
+    for edit in [
+        Box::new(|s: &mut MetricSelectorInput| s.work_ids = Some(vec![fx.works[1]]))
+            as Box<dyn Fn(&mut MetricSelectorInput)>,
+        Box::new(|s: &mut MetricSelectorInput| s.series_ids = Some(vec![series])),
+    ] {
+        let dashboard = read(&fx, &selected(&fx, &[fx.publisher_id], |s| edit(s)));
+        // The excluded work's value is gone, the unresolved day is not a
+        // zero, and the evidence was never matched to the remaining work.
+        assert_eq!(
+            bucket_values(&dashboard, fx.sessions),
+            vec![some("0"), None, some("0"), some("0")]
+        );
+        assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), None);
+        assert_eq!(
+            codes(&dashboard),
+            vec![MetricWarningCode::UnresolvedIdentifiers]
+        );
+        assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Complete);
+        assert_eq!(dashboard.data_through, Some(day_n(4)));
+    }
+    // Reading reinterpreted nothing: the quarantine row still carries its
+    // unresolved DOI and has no reconciliation row.
+    assert_eq!(
+        scalar_i64(
+            &fx.pool,
+            &format!(
+                "(SELECT COUNT(*) FROM metric_identifier_quarantine q \
+                  WHERE q.identifier_quarantine_id = '{quarantine_id}' \
+                    AND q.work_doi LIKE 'https://doi.org/10.12345/dashboard-%' \
+                    AND NOT EXISTS (SELECT 1 FROM metric_identifier_quarantine_reconciliation r \
+                                    WHERE r.identifier_quarantine_id = q.identifier_quarantine_id))"
+            )
+        ),
+        1
+    );
+}
+
+#[test]
+fn quarantine_never_repopulates_a_selection_without_works() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let (quarantine_platform, quarantine_measure) = quarantine_only_pair(&fx, "zero_work");
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        quarantine_platform,
+        quarantine_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    let nothing = |s: &mut MetricSelectorInput| s.work_types = Some(vec![WorkType::JournalIssue]);
+
+    // Omitted dimensions: the frozen empty shape, with no quarantine-derived
+    // pair and no identifier warning.
+    let mut omitted = selected(&fx, &[fx.publisher_id], nothing);
+    omitted.platforms = None;
+    omitted.measures = None;
+    let empty = read(&fx, &omitted);
+    assert!(empty.totals.is_empty() && empty.coverage.items.is_empty());
+    assert_eq!(codes(&empty), vec![MetricWarningCode::UnknownCoverage]);
+    // One omitted dimension: quarantine does not resolve it either.
+    let mut platforms_omitted = selected(&fx, &[fx.publisher_id], nothing);
+    platforms_omitted.platforms = None;
+    assert!(read(&fx, &platforms_omitted).totals.is_empty());
+    // Explicit dimensions: null and UNKNOWN, never a warning from evidence
+    // of a publisher that is not represented.
+    let explicit = read(&fx, &selected(&fx, &[fx.publisher_id], nothing));
+    assert_eq!(bucket_values(&explicit, fx.sessions), vec![None; 4]);
+    assert_eq!(codes(&explicit), vec![MetricWarningCode::UnknownCoverage]);
+
+    // Control: the same publisher with its works resolved.
+    let control = read(&fx, &omitted_scope(fx.publisher_id, d1(), day_n(5)));
+    assert_serves(
+        &control,
+        &[fx.platform_id, quarantine_platform],
+        &[fx.sessions, quarantine_measure],
+    );
+    assert!(codes(&control).contains(&MetricWarningCode::UnresolvedIdentifiers));
+}
+
+#[test]
+fn quarantine_only_pairs_of_represented_publishers_resolve_omitted_dimensions_within_filters() {
+    let (_guard, fx) = setup();
+    let (mine_platform, mine_measure) = quarantine_only_pair(&fx, "represented_mine");
+    let (theirs_platform, theirs_measure) = quarantine_only_pair(&fx, "represented_theirs");
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        mine_platform,
+        mine_measure,
+        day_n(2),
+        day_n(3),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        fx.other_publisher_id,
+        theirs_platform,
+        theirs_measure,
+        day_n(3),
+        day_n(4),
+        "DAY",
+    );
+    let both = [fx.publisher_id, fx.other_publisher_id];
+    let omitted = |edit: &dyn Fn(&mut MetricDashboardInput)| {
+        let mut input = selected(&fx, &both, |_| {});
+        input.platforms = None;
+        input.measures = None;
+        edit(&mut input);
+        read(&fx, &input)
+    };
+
+    // Both publishers are represented, and each one's quarantine-only pair
+    // is discovered.
+    let discovered = omitted(&|_| {});
+    assert_serves(
+        &discovered,
+        &[mine_platform, theirs_platform],
+        &[mine_measure, theirs_measure],
+    );
+    assert_eq!(
+        codes(&discovered),
+        vec![
+            MetricWarningCode::UnknownCoverage,
+            MetricWarningCode::UnresolvedIdentifiers,
+        ]
+    );
+    assert!(discovered.totals.iter().all(|total| total.value.is_none()));
+    // An explicit platform constrains the discovered measures, and an
+    // explicit measure the discovered platforms.
+    let platform_explicit = omitted(&|input| input.platforms = Some(vec![mine_platform]));
+    assert_serves(&platform_explicit, &[mine_platform], &[mine_measure]);
+    let measure_explicit = omitted(&|input| input.measures = Some(vec![theirs_measure]));
+    assert_serves(&measure_explicit, &[theirs_platform], &[theirs_measure]);
+    // A selector leaving the other publisher without works drops its pair.
+    let narrowed = omitted(&|input| {
+        input.selector.imprint_ids = Some(vec![imprint_of(&fx, fx.works[0])]);
+    });
+    assert_serves(&narrowed, &[mine_platform], &[mine_measure]);
+}
+
+#[test]
+fn identifier_quality_masks_complete_months_and_edges_alike_and_keeps_projected_values() {
+    let (_guard, fx) = setup();
+    // An April value served from the monthly projection.
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 4, 10),
+        7,
+    );
+    apply_all(&fx.pool);
+    let (start, end) = (d(2026, 3, 20), d(2026, 5, 10));
+    cover(
+        &fx,
+        fx.sessions,
+        start,
+        end,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-05-20T00:00:00Z'",
+    );
+    let at = |grain| {
+        read(
+            &fx,
+            &request(
+                fx.publisher_id,
+                start,
+                end,
+                &[fx.platform_id],
+                &[fx.sessions],
+                Some(grain),
+            ),
+        )
+    };
+    let clean = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&clean, fx.sessions),
+        vec![some("0"), some("7"), some("0")]
+    );
+    assert!(clean.warnings.is_empty());
+
+    // Unresolved evidence inside the valued complete month, and on an empty
+    // trailing edge day.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 4, 15),
+        d(2026, 4, 16),
+        "DAY",
+    );
+    let edge = quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 5, 5),
+        d(2026, 5, 6),
+        "DAY",
+    );
+    let month = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&month, fx.sessions),
+        vec![some("0"), some("7"), None],
+        "the monthly value stays exact; the empty edge bucket is not a zero"
+    );
+    assert_eq!(
+        total(&month, fx.platform_id, fx.sessions),
+        some("7"),
+        "a projected total is never replaced by null"
+    );
+    assert_eq!(
+        codes(&month),
+        vec![MetricWarningCode::UnresolvedIdentifiers]
+    );
+    assert_eq!(month.coverage, clean.coverage);
+    assert_eq!(month.data_through, clean.data_through);
+    let day = at(MetricTimelineGrain::Day);
+    let april_15 = (d(2026, 4, 15) - start).num_days() as usize;
+    assert_eq!(bucket_values(&day, fx.sessions)[april_15], None);
+    assert_eq!(bucket_values(&day, fx.sessions)[april_15 + 1], some("0"));
+
+    // Terminal resolution of the edge evidence restores the edge zero; the
+    // April evidence still warns.
+    let support = commit(&fx, fx.works[1], fx.platform_id, fx.units, d(2026, 9, 1), 1);
+    set_quarantine_reconciliation_state(&fx, edge, "RESOLVED_WINNER", Some(support));
+    let resolved = at(MetricTimelineGrain::Month);
+    assert_eq!(
+        bucket_values(&resolved, fx.sessions),
+        vec![some("0"), some("7"), some("0")]
+    );
+    assert_eq!(
+        codes(&resolved),
+        vec![MetricWarningCode::UnresolvedIdentifiers]
+    );
+
+    // An empty complete month overlapped by reporting-period evidence is not
+    // a zero, whichever timeline serves it.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 6, 10),
+        d(2026, 7, 1),
+        "REPORTING_PERIOD",
+    );
+    cover(
+        &fx,
+        fx.sessions,
+        d(2026, 6, 1),
+        d(2026, 8, 1),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-08-20T00:00:00Z'",
+    );
+    let month_of = |start: NaiveDate, grain| {
+        read(
+            &fx,
+            &request(
+                fx.publisher_id,
+                start,
+                next_month(start),
+                &[fx.platform_id],
+                &[fx.sessions],
+                Some(grain),
+            ),
+        )
+    };
+    let june = month_of(d(2026, 6, 1), MetricTimelineGrain::Month);
+    assert_eq!(bucket_values(&june, fx.sessions), vec![None]);
+    assert_eq!(total(&june, fx.platform_id, fx.sessions), None);
+    assert_eq!(june.coverage.status, MetricCoverageStatus::Complete);
+    let june_days = month_of(d(2026, 6, 1), MetricTimelineGrain::Day);
+    let values = bucket_values(&june_days, fx.sessions);
+    assert_eq!(values[8], some("0"), "9 June is before the evidence");
+    assert_eq!(values[9], None, "10 June is inside it");
+    // Control: July is covered and outside the evidence, so it is a zero.
+    let july = month_of(d(2026, 7, 1), MetricTimelineGrain::Month);
+    assert_eq!(bucket_values(&july, fx.sessions), vec![some("0")]);
+    assert!(july.warnings.is_empty());
+}
+
+#[test]
+fn identifier_quality_is_orthogonal_to_section_coverage_and_section_flags() {
+    let (_guard, fx) = setup();
+    // Days 1-2 fully covered; days 3-4 COMPLETE without the country
+    // dimension. The value does not depend on country.
+    cover_dimensions(&fx, 1, 3, true, true);
+    cover_dimensions(&fx, 3, 5, false, true);
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 9);
+    apply_all(&fx.pool);
+    let input = window(&fx, &[fx.sessions]);
+    let flags = [(true, true), (true, false), (false, true), (false, false)];
+    let with_flags = |countries: bool, institutions: bool| {
+        let mut input = input.clone();
+        input.include_countries = Some(countries);
+        input.include_institutions = Some(institutions);
+        read(&fx, &input)
+    };
+    let before: Vec<MetricDashboard> = flags
+        .iter()
+        .map(|(countries, institutions)| with_flags(*countries, *institutions))
+        .collect();
+
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        day_n(2),
+        "DAY",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        day_n(4),
+        day_n(5),
+        "DAY",
+    );
+    for ((countries, institutions), before) in flags.iter().zip(&before) {
+        let after = with_flags(*countries, *institutions);
+        let label = format!("countries={countries} institutions={institutions}");
+        // Coverage, items, dimension flags and dataThrough are those the
+        // sections alone decide.
+        assert_eq!(after.coverage, before.coverage, "{label}");
+        assert_eq!(after.data_through, before.data_through, "{label}");
+        assert_eq!(after.rollup_watermark, before.rollup_watermark, "{label}");
+        assert_eq!(after.countries, before.countries, "{label}");
+        assert_eq!(after.institutions, before.institutions, "{label}");
+        // No section flag suppresses the warning, in its fixed position.
+        let mut expected = codes(before);
+        let position = expected
+            .iter()
+            .position(|code| *code == MetricWarningCode::RollupLag)
+            .unwrap_or(expected.len());
+        expected.insert(position, MetricWarningCode::UnresolvedIdentifiers);
+        assert_eq!(codes(&after), expected, "{label}");
+        assert!(after.is_partial, "{label}");
+        // The projected value stays; the evidence-overlapped empty day 4 is
+        // no longer a zero, and days 2-3 keep the section-independent zeros.
+        let values = bucket_values(&after, fx.sessions);
+        assert_eq!(values[0], some("9"), "{label}");
+        assert_eq!(values[1], some("0"), "{label}");
+        assert_eq!(values[3], None, "{label}");
+    }
+    // Sections decided the shared status before and after.
+    assert_eq!(before[0].coverage.status, MetricCoverageStatus::Partial);
+    assert_eq!(before[3].coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(before[3].data_through, Some(day_n(4)));
+}
+
+// ==========================================================================
+// MET-WP4-03B: lag scope and statement shape
+// ==========================================================================
+
+#[test]
+fn rollup_lag_is_scoped_to_the_resolved_works() {
+    let (_guard, fx) = setup();
+    cover(
+        &fx,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 5);
+    apply_all(&fx.pool);
+    // Backlog on a work of the same publisher that the selector excludes.
+    commit(&fx, fx.works[1], fx.platform_id, fx.sessions, day_n(2), 8);
+    let mine = selected(&fx, &[fx.publisher_id], |s| {
+        s.work_ids = Some(vec![fx.works[0]]);
+    });
+    let unaffected = read(&fx, &mine);
+    assert!(
+        unaffected.warnings.is_empty(),
+        "unrelated backlog is not lag"
+    );
+    assert_eq!(unaffected.data_through, Some(day_n(4)));
+    let everything = read(&fx, &window(&fx, &[fx.sessions]));
+    assert_eq!(codes(&everything), vec![MetricWarningCode::RollupLag]);
+    assert_eq!(everything.data_through, Some(day_n(1)));
+    // Backlog on the selected work itself is lag.
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(3), 1);
+    assert_eq!(codes(&read(&fx, &mine)), vec![MetricWarningCode::RollupLag]);
+}
+
+#[test]
+fn the_statement_sequence_is_fixed_bounded_and_planned_for_its_arguments() {
+    let (_guard, fx) = setup();
+    let third = Uuid::new_v4();
+    let third_work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(third, "SPHINX"),
+            works_sql(third, &[third_work])
+        ),
+    );
+    let series = add_series(&fx, imprint_of(&fx, fx.works[0]));
+    add_issue(&fx, series, fx.works[0], 1);
+    // Complete months, clipped edges, mixed representations that need the
+    // base-cell statement, both sections, coverage and backlog.
+    let institution_id = insert_institution(&fx.pool);
+    for (day, dims, value) in [
+        (d(2026, 3, 30), Dims::default(), 4),
+        (
+            d(2026, 3, 30),
+            Dims {
+                country: Some("GB"),
+                ..Dims::default()
+            },
+            4,
+        ),
+        (
+            d(2026, 4, 12),
+            Dims {
+                institution: Some(institution_id),
+                ..Dims::default()
+            },
+            2,
+        ),
+        (d(2026, 6, 2), Dims::default(), 1),
+    ] {
+        commit_dims(
+            &fx,
+            fx.works[0],
+            fx.platform_id,
+            fx.sessions,
+            day,
+            dims,
+            value,
+        );
+    }
+    commit(
+        &fx,
+        third_work,
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 4, 2),
+        9,
+    );
+    apply_all(&fx.pool);
+    cover(
+        &fx,
+        fx.sessions,
+        d(2026, 3, 20),
+        d(2026, 6, 10),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-06-10T00:00:00Z'",
+    );
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 5, 5),
+        1,
+    );
+    // Unresolved identifier evidence of a represented publisher.
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 4, 3),
+        d(2026, 4, 4),
+        "DAY",
+    );
+    let mut input = request(
+        fx.publisher_id,
+        d(2026, 3, 20),
+        d(2026, 6, 10),
+        &[],
+        &[fx.sessions],
+        Some(MetricTimelineGrain::Month),
+    );
+    input.platforms = None;
+    input.selector.publisher_ids = Some(vec![fx.publisher_id, fx.other_publisher_id, third]);
+    input.selector.series_ids = Some(vec![series]);
+    let (result, statements) = captured_statements(&input);
+    result.expect("the dashboard read");
+    let expected = vec![
+        "CHECKOUT_CHECK",
+        "BEGIN",
+        "CUSTOM_PLANS_SQL",
+        "PUBLISHERS_SQL",
+        "WORKS_SQL",
+        "KNOWN_SQL",
+        "REPRESENTED_SQL",
+        "ACCOUNTS_SQL",
+        "CANONICAL_SQL",
+        "MONTHS_SQL",
+        "DAY_SUMS_SQL",
+        "DIMENSION_CELLS_SQL",
+        "DAY_SECTIONS_SQL",
+        "ASSERTIONS_SQL",
+        "IDENTIFIER_QUALITY_SQL",
+        "COMMIT",
+    ];
+    assert_eq!(
+        statement_names(&statements),
+        expected,
+        "every statement of the longest path, each at most once"
+    );
+    // #946 Amendment 2 section 10: the pool check, transaction control, the
+    // planner setting and the identifier-quality statement all count, and
+    // the longest path is exactly the permitted sixteen.
+    assert_eq!(statements.len(), 16);
+
+    // Many more works, publishers' works, days and rows run the same
+    // statements: nothing is issued per work, day, month or institution.
+    let many: Vec<Uuid> = (0..60).map(|_| Uuid::new_v4()).collect();
+    exec(&fx.pool, &works_sql(fx.publisher_id, &many));
+    let mut rows = String::new();
+    for (index, work_id) in many.iter().enumerate() {
+        add_issue(&fx, series, *work_id, index as i32 + 2);
+        for day in [d(2026, 3, 25), d(2026, 4, 20), d(2026, 6, 5)] {
+            rows.push_str(&record_dims_sql(
+                &fx,
+                Uuid::new_v4(),
+                *work_id,
+                fx.platform_id,
+                fx.sessions,
+                day,
+                Dims {
+                    country: Some("US"),
+                    ..Dims::default()
+                },
+                1,
+            ));
+            rows.push_str(&record_dims_sql(
+                &fx,
+                Uuid::new_v4(),
+                *work_id,
+                fx.platform_id,
+                fx.sessions,
+                day,
+                Dims::default(),
+                2,
+            ));
+        }
+    }
+    exec(&fx.pool, &rows);
+    for (index, work_id) in many.iter().take(40).enumerate() {
+        let extra = Uuid::new_v4();
+        exec(
+            &fx.pool,
+            &format!(
+                "INSERT INTO institution (institution_id, institution_name) \
+                 VALUES ('{extra}', 'Institution {index}');"
+            ),
+        );
+        commit_dims(
+            &fx,
+            *work_id,
+            fx.platform_id,
+            fx.sessions,
+            d(2026, 4, 21),
+            Dims {
+                institution: Some(extra),
+                country: Some("GB"),
+                publication: None,
+            },
+            1,
+        );
+    }
+    apply_all(&fx.pool);
+    commit(&fx, many[0], fx.platform_id, fx.sessions, d(2026, 5, 6), 1);
+    for offset in 0..30 {
+        quarantine(
+            &fx,
+            fx.publisher_id,
+            fx.platform_id,
+            fx.sessions,
+            d(2026, 3, 20) + Duration::days(offset * 2),
+            d(2026, 3, 21) + Duration::days(offset * 2),
+            "DAY",
+        );
+    }
+    let (result, larger) = captured_statements(&input);
+    let larger_dashboard = result.expect("the larger read");
+    assert!(larger_dashboard.institutions.len() > 30);
+    assert!(codes(&larger_dashboard).contains(&MetricWarningCode::UnresolvedIdentifiers));
+    assert_eq!(statement_names(&larger), expected);
+
+    // Custom plans are set inside the transaction, and only there.
+    let mut connection = fx.pool.get().expect("Failed to get DB connection");
+    #[derive(diesel::QueryableByName)]
+    struct Setting {
+        #[diesel(sql_type = Text)]
+        plan_cache_mode: String,
+    }
+    let setting = |connection: &mut PgConnection| {
+        sql_query("SHOW plan_cache_mode")
+            .get_result::<Setting>(connection)
+            .expect("the planner setting")
+            .plan_cache_mode
+    };
+    let inside = connection
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
+            Ok::<_, diesel::result::Error>(setting(connection))
+        })
+        .expect("a read-only transaction");
+    assert_eq!(inside, "force_custom_plan");
+    assert_eq!(setting(&mut connection), "auto");
+    // The per-publisher assertion day series is materialized.
+    assert!(ASSERTIONS_SQL.contains("WITH d AS MATERIALIZED"));
+}
+
+// ==========================================================================
+// Query-plan and latency evidence (run explicitly)
+// ==========================================================================
 
 fn uuid_array(ids: &[Uuid]) -> String {
     let quoted: Vec<String> = ids.iter().map(|id| format!("'{id}'")).collect();
     format!("ARRAY[{}]::uuid[]", quoted.join(","))
 }
 
-/// The grid a plan fixture serves.
-struct PlanGrid {
+/// The identities a plan fixture serves.
+struct PlanScope {
+    third_publisher: Uuid,
     platforms: Vec<Uuid>,
     measures: Vec<Uuid>,
     imprint: Uuid,
+    other_imprint: Uuid,
+    series: Vec<Uuid>,
+    funders: Vec<Uuid>,
+    affiliated: Vec<Uuid>,
+    works: Vec<Uuid>,
 }
 
-/// A production-shaped fixture for the selected publisher: 600 works with a
-/// year of daily sessions in three countries each, weekly signed units, a
-/// sparse 5x5 platform/measure grid, one eligible account per platform with
-/// a daily terminal import covering every measure plus monthly reprocessing,
-/// two 600-work noise publishers with daily sessions, and an unapplied
-/// backlog of 2,000 selected and 3,000 unrelated work-day deltas.
-fn plan_fixture(fx: &Fixture) -> PlanGrid {
-    let start = plan_start();
+/// The first and last day of generated plan data.
+fn plan_days() -> (NaiveDate, NaiveDate) {
+    (d(2025, 3, 1), d(2026, 3, 31))
+}
+
+/// A production-shaped fixture of three entitled publishers.
+///
+/// The selected publisher A has 600 monographs and 100 chapters in one
+/// imprint, each monograph in one of 20 series, English and every third also
+/// French, one of 50 funders and two contributions affiliated with two of
+/// 300 institutions. Over thirteen months A has daily sessions in three
+/// countries, weekly signed units, a daily country-and-institution
+/// breakdown of a third measure on a second platform, and a sparse
+/// every-thirtieth-day aggregate across the rest of a 5x5 platform/measure
+/// grid. Publishers B and C have 600 works each with daily sessions and
+/// weekly units. Every publisher has one eligible account per platform with
+/// a daily terminal import covering every measure, A also has monthly
+/// reprocessing, and there is an unapplied backlog of 2,000 selected and
+/// 3,000 unrelated work-day deltas. The monthly projections are then derived
+/// by the reviewed `MET-WP4-03A` rebuild from the work-day rows alone.
+fn plan_fixture(fx: &Fixture) -> PlanScope {
+    advance_frontier(fx);
+    let (first, last) = plan_days();
     let third_publisher = Uuid::new_v4();
     let (imprint_a, imprint_b, imprint_c) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let mut platforms = vec![fx.platform_id];
@@ -3918,18 +6853,25 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
         ));
     }
     for publisher_id in [fx.other_publisher_id, third_publisher] {
-        accounts.push_str(&account_sql(
-            Uuid::new_v4(),
-            driver,
-            fx.platform_id,
-            Some(publisher_id),
-            true,
-        ));
+        for platform_id in &platforms {
+            accounts.push_str(&account_sql(
+                Uuid::new_v4(),
+                driver,
+                *platform_id,
+                Some(publisher_id),
+                true,
+            ));
+        }
     }
-
+    let series: Vec<Uuid> = (0..20).map(|_| Uuid::new_v4()).collect();
+    let (contributor, second_contributor) = (Uuid::new_v4(), Uuid::new_v4());
+    let series_rows: Vec<String> = series
+        .iter()
+        .enumerate()
+        .map(|(index, id)| format!("('{id}', 'book-series', 'Plan series {index}', '{imprint_a}')"))
+        .collect();
     let statements = [
         publisher_sql(third_publisher, "SPHINX"),
-        accounts,
         format!(
             "INSERT INTO imprint (imprint_id, publisher_id, imprint_name) VALUES \
              ('{imprint_a}', '{a}', 'Plan A'), ('{imprint_b}', '{b}', 'Plan B'), \
@@ -3937,60 +6879,110 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
             a = fx.publisher_id,
             b = fx.other_publisher_id,
         ),
+        accounts,
         format!(
             "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
              SELECT gen_random_uuid(), 'monograph', 'forthcoming', imprint.id, 1 \
-             FROM unnest({imprints}) AS imprint(id) CROSS JOIN generate_series(1, 600);",
+             FROM unnest({imprints}) AS imprint(id) CROSS JOIN generate_series(1, 600); \
+             CREATE TEMPORARY TABLE plan_work ON COMMIT PRESERVE ROWS AS \
+             SELECT work_id, row_number() OVER (ORDER BY work_id) AS rn \
+             FROM work WHERE imprint_id = '{imprint_a}';",
             imprints = uuid_array(&[imprint_a, imprint_b, imprint_c]),
+        ),
+        format!(
+            "INSERT INTO series (series_id, series_type, series_name, imprint_id) VALUES {rows}; \
+             INSERT INTO issue (series_id, work_id, issue_ordinal) \
+             SELECT ({series})[1 + w.rn % 20], w.work_id, 1 + w.rn / 20 FROM plan_work w; \
+             INSERT INTO language (work_id, language_code, language_relation) \
+             SELECT work_id, 'eng'::language_code, 'original'::language_relation FROM plan_work \
+             UNION ALL SELECT work_id, 'fre', 'translated-into' FROM plan_work \
+             WHERE rn % 3 = 0; \
+             INSERT INTO institution (institution_id, institution_name, ror) \
+             SELECT gen_random_uuid(), 'Plan institution ' || n, \
+                    CASE WHEN n % 2 = 0 \
+                         THEN 'https://ror.org/0' || lpad(n::text, 6, '0') || '12' END \
+             FROM generate_series(1, 300) n; \
+             CREATE TEMPORARY TABLE plan_institution ON COMMIT PRESERVE ROWS AS \
+             SELECT institution_id, row_number() OVER (ORDER BY institution_id) - 1 AS n \
+             FROM institution WHERE institution_name LIKE 'Plan institution %'; \
+             INSERT INTO funding (work_id, institution_id) \
+             SELECT w.work_id, i.institution_id FROM plan_work w \
+             JOIN plan_institution i ON i.n = w.rn % 50; \
+             INSERT INTO contributor (contributor_id, last_name, full_name) \
+             VALUES ('{contributor}', 'Author', 'Plan Author'), \
+                    ('{second_contributor}', 'Author', 'Second Author'); \
+             INSERT INTO contribution (work_id, contributor_id, contribution_type, \
+                                       main_contribution, last_name, full_name, \
+                                       contribution_ordinal) \
+             SELECT w.work_id, \
+                    CASE WHEN o = 1 THEN '{contributor}'::uuid \
+                         ELSE '{second_contributor}'::uuid END, \
+                    'author', o = 1, 'Author', 'Plan Author', o \
+             FROM plan_work w CROSS JOIN generate_series(1, 2) o; \
+             INSERT INTO affiliation (contribution_id, institution_id, affiliation_ordinal) \
+             SELECT c.contribution_id, i.institution_id, 1 \
+             FROM contribution c JOIN plan_work w ON w.work_id = c.work_id \
+             JOIN plan_institution i ON i.n = (w.rn * 7 + c.contribution_ordinal * 13) % 300;",
+            rows = series_rows.join(", "),
+            series = uuid_array(&series),
+        ),
+        format!(
+            "CREATE TEMPORARY TABLE plan_chapter ON COMMIT PRESERVE ROWS AS \
+             SELECT gen_random_uuid() AS work_id, w.work_id AS parent_id, w.rn \
+             FROM plan_work w WHERE w.rn <= 100; \
+             INSERT INTO work (work_id, work_type, work_status, imprint_id) \
+             SELECT work_id, 'book-chapter', 'forthcoming', '{imprint_a}' FROM plan_chapter; \
+             INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, \
+                                        relation_ordinal) \
+             SELECT work_id, parent_id, 'is-child-of'::relation_type, 1 FROM plan_chapter \
+             UNION ALL SELECT parent_id, work_id, 'has-child', 1 FROM plan_chapter;"
         ),
         format!(
             "INSERT INTO metric_rollup_work_day \
                  (work_id, platform_id, measure_id, day, country_code, value, watermark) \
              SELECT w.work_id, '{platform}', '{sessions}', g.day::date, c.code, \
                     1 + (random() * 20)::bigint, 1 \
-             FROM work w \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '1 day') AS g(day) \
-             CROSS JOIN unnest(ARRAY['GB', 'US', 'DE']) AS c(code) \
-             WHERE w.imprint_id = '{imprint_a}';",
-            platform = fx.platform_id,
-            sessions = fx.sessions,
-        ),
-        format!(
-            "INSERT INTO metric_rollup_work_day \
+             FROM plan_work w \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '1 day') AS g(day) \
+             CROSS JOIN unnest(ARRAY['GB', 'US', 'DE']) AS c(code); \
+             INSERT INTO metric_rollup_work_day \
                  (work_id, platform_id, measure_id, day, value, watermark) \
              SELECT w.work_id, '{platform}', '{units}', g.day::date, \
                     (random() * 10)::bigint - 3, 1 \
              FROM work w \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '7 day') AS g(day) \
-             WHERE w.imprint_id = '{imprint_a}';",
-            platform = fx.platform_id,
-            units = fx.units,
-        ),
-        format!(
-            "INSERT INTO metric_rollup_work_day \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '7 day') AS g(day) \
+             WHERE w.imprint_id IN ('{imprint_a}', '{imprint_b}', '{imprint_c}') \
+               AND w.work_type = 'monograph'; \
+             INSERT INTO metric_rollup_work_day \
+                 (work_id, platform_id, measure_id, day, country_code, institution_id, value, \
+                  watermark) \
+             SELECT w.work_id, '{second_platform}', '{third_measure}', g.day::date, \
+                    (ARRAY['GB', 'US', 'DE'])[1 + w.rn % 3], i.institution_id, \
+                    1 + (random() * 5)::bigint, 1 \
+             FROM plan_work w \
+             JOIN plan_institution i ON i.n = w.rn % 300 \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '1 day') AS g(day); \
+             INSERT INTO metric_rollup_work_day \
                  (work_id, platform_id, measure_id, day, value, watermark) \
              SELECT w.work_id, p.id, m.id, g.day::date, 1, 1 \
-             FROM work w \
+             FROM plan_work w \
              CROSS JOIN unnest({platforms}) AS p(id) \
              CROSS JOIN unnest({measures}) AS m(id) \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '30 day') AS g(day) \
-             WHERE w.imprint_id = '{imprint_a}' \
-               AND NOT (p.id = '{platform}' AND m.id IN ('{sessions}', '{units}'));",
-            platforms = uuid_array(&platforms),
-            measures = uuid_array(&measures),
-            platform = fx.platform_id,
-            sessions = fx.sessions,
-            units = fx.units,
-        ),
-        format!(
-            "INSERT INTO metric_rollup_work_day \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '30 day') AS g(day) \
+             WHERE NOT (p.id = '{platform}' AND m.id IN ('{sessions}', '{units}')); \
+             INSERT INTO metric_rollup_work_day \
                  (work_id, platform_id, measure_id, day, country_code, value, watermark) \
              SELECT w.work_id, '{platform}', '{sessions}', g.day::date, 'FR', 1, 1 \
              FROM work w \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '1 day') AS g(day) \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '1 day') AS g(day) \
              WHERE w.imprint_id IN ('{imprint_b}', '{imprint_c}');",
             platform = fx.platform_id,
             sessions = fx.sessions,
+            units = fx.units,
+            second_platform = platforms[1],
+            third_measure = measures[2],
+            platforms = uuid_array(&platforms),
+            measures = uuid_array(&measures),
         ),
         format!(
             "INSERT INTO metric_import \
@@ -4000,7 +6992,7 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
                     '1', 'COMPLETED', 'plan/1', 'plan', g.day::date, g.day::date + 1, \
                     g.day + interval '26 hours' \
              FROM metric_source_account sa \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '1 day') AS g(day) \
+             CROSS JOIN generate_series(DATE '{first}', DATE '{last}', interval '1 day') AS g(day) \
              WHERE sa.expected_publisher_id IS NOT NULL; \
              INSERT INTO metric_import \
                  (import_id, source_account_id, publisher_id, format_code, format_version, \
@@ -4008,12 +7000,12 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
              SELECT gen_random_uuid(), '{account}', '{publisher}', 'plan', '1', \
                     'COMPLETED_WITH_ERRORS', 'plan/1', 'plan', g.day::date, g.day::date + 30, \
                     g.day + interval '40 days' \
-             FROM generate_series(DATE '{start}', DATE '{start}' + 365, interval '30 day') AS g(day); \
+             FROM generate_series(DATE '{first}', DATE '{last}', interval '30 day') AS g(day); \
              INSERT INTO metric_coverage \
                  (source_account_id, import_id, platform_id, measure_id, period_start, \
                   period_end, coverage_status, country_coverage, institution_coverage) \
              SELECT mi.source_account_id, mi.import_id, sa.platform_id, m.id, \
-                    mi.period_start, mi.period_end, 'COMPLETE', TRUE, FALSE \
+                    mi.period_start, mi.period_end, 'COMPLETE', TRUE, TRUE \
              FROM metric_import mi \
              JOIN metric_source_account sa ON sa.source_account_id = mi.source_account_id \
              CROSS JOIN unnest({measures}) AS m(id) \
@@ -4027,11 +7019,12 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
                  (record_id, identity_hash, work_id, platform_id, measure_id, period_start, \
                   period_end, reporting_grain, country_code, winning_source_account_id) \
              SELECT gen_random_uuid(), 'plan-backlog-' || w.imprint_id || '-' || w.rn || '-' || g.n, \
-                    w.work_id, '{platform}', '{sessions}', DATE '{start}' + ((w.rn + g.n) % 366)::int, \
-                    DATE '{start}' + ((w.rn + g.n) % 366)::int + 1, 'DAY', 'NL', '{account}' \
+                    w.work_id, '{platform}', '{sessions}', DATE '{first}' + ((w.rn + g.n) % 366)::int, \
+                    DATE '{first}' + ((w.rn + g.n) % 366)::int + 1, 'DAY', 'NL', '{account}' \
              FROM (SELECT work_id, imprint_id, \
                           row_number() OVER (PARTITION BY imprint_id ORDER BY work_id) AS rn \
-                   FROM work WHERE imprint_id IN ('{imprint_a}', '{imprint_b}')) w \
+                   FROM work WHERE imprint_id IN ('{imprint_a}', '{imprint_b}') \
+                     AND work_type = 'monograph') w \
              CROSS JOIN generate_series(1, 5) AS g(n) \
              WHERE (w.imprint_id = '{imprint_a}' AND w.rn <= 400) \
                 OR (w.imprint_id = '{imprint_b}' AND w.rn <= 600); \
@@ -4041,6 +7034,9 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
              SELECT gen_random_uuid(), r.record_id, 1, '{import}', 1, \
                     'plan-' || r.record_id, 'CURRENT' \
              FROM metric_record r WHERE r.identity_hash LIKE 'plan-backlog-%'; \
+             UPDATE metric_record r SET current_revision_id = v.record_revision_id \
+             FROM metric_record_revision v \
+             WHERE v.record_id = r.record_id AND r.identity_hash LIKE 'plan-backlog-%'; \
              INSERT INTO metric_rollup_delta (record_id, revision_id, delta_value, status) \
              SELECT rv.record_id, rv.record_revision_id, 1, 'PENDING' \
              FROM metric_record_revision rv WHERE rv.content_hash LIKE 'plan-%' \
@@ -4055,10 +7051,79 @@ fn plan_fixture(fx: &Fixture) -> PlanGrid {
     for statement in statements {
         exec(&fx.pool, &statement);
     }
-    PlanGrid {
+    // Unresolved identifier evidence (`MET-WP7-PREREQ-04`) for all three
+    // publishers across the grid and the year: 180 day observations and 20
+    // reporting periods, a quarter of them terminally resolved.
+    let support = commit(fx, fx.works[1], fx.platform_id, fx.units, d(2020, 6, 1), 1);
+    for index in 0..200_i64 {
+        let publisher_id =
+            [fx.publisher_id, fx.other_publisher_id, third_publisher][(index % 3) as usize];
+        let day = first + Duration::days((index * 7) % 390);
+        let (end, grain) = if index % 10 == 9 {
+            (day + Duration::days(20), "REPORTING_PERIOD")
+        } else {
+            (day + Duration::days(1), "DAY")
+        };
+        let quarantine_id = quarantine(
+            fx,
+            publisher_id,
+            platforms[(index % 5) as usize],
+            measures[((index / 5) % 5) as usize],
+            day,
+            end,
+            grain,
+        );
+        if index % 4 == 3 {
+            set_quarantine_reconciliation_state(
+                fx,
+                quarantine_id,
+                "RESOLVED_WINNER",
+                Some(support),
+            );
+        }
+    }
+    exec(&fx.pool, "ANALYZE;");
+    let rebuilt = Instant::now();
+    rebuild_month_projections(&fx.pool).expect("rebuild the monthly projections");
+    println!(
+        "MET-WP4-03A rebuild of the plan fixture: {:?}",
+        rebuilt.elapsed()
+    );
+    exec(&fx.pool, "ANALYZE;");
+
+    let ids = |query: String| -> Vec<Uuid> {
+        #[derive(diesel::QueryableByName)]
+        struct Row {
+            #[diesel(sql_type = SqlUuid)]
+            id: Uuid,
+        }
+        let mut connection = fx.pool.get().expect("Failed to get DB connection");
+        sql_query(query)
+            .load::<Row>(&mut connection)
+            .expect("fixture ids")
+            .into_iter()
+            .map(|row| row.id)
+            .collect()
+    };
+    PlanScope {
+        third_publisher,
         platforms,
         measures,
         imprint: imprint_a,
+        other_imprint: imprint_b,
+        series,
+        funders: ids("SELECT institution_id AS id FROM institution \
+             WHERE institution_name LIKE 'Plan institution %' \
+             ORDER BY institution_id LIMIT 50"
+            .to_string()),
+        affiliated: ids(
+            "SELECT DISTINCT a.institution_id AS id FROM affiliation a ORDER BY 1 LIMIT 10"
+                .to_string(),
+        ),
+        works: ids(format!(
+            "SELECT work_id AS id FROM work WHERE imprint_id = '{imprint_a}' \
+             AND work_type = 'monograph' ORDER BY work_id"
+        )),
     }
 }
 
@@ -4068,15 +7133,10 @@ struct PlanLine {
     line: String,
 }
 
-/// `EXPLAIN (ANALYZE, BUFFERS)` of one named resolver statement, executed as
-/// a prepared statement with the given typed arguments inside a read-only
-/// repeatable-read transaction, as the resolver runs it.
-fn explain(name: &str, statement: &str, parameter_types: &str, arguments: &str) {
-    explain_with(name, "", statement, parameter_types, arguments);
-}
-
-/// [`explain`] with transaction-local planner settings, used diagnostically to
-/// show the plan PostgreSQL would use when a sequential scan is not chosen.
+/// `EXPLAIN (ANALYZE, BUFFERS)` of one named resolver statement, prepared
+/// with typed parameters and executed with the given argument expressions
+/// inside a read-only repeatable-read transaction after `settings`, as the
+/// resolver runs it after `CUSTOM_PLANS_SQL`.
 fn explain_with(
     name: &str,
     settings: &str,
@@ -4089,34 +7149,36 @@ fn explain_with(
     connection
         .batch_execute("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;")
         .expect("begin the plan transaction");
-    if !settings.is_empty() {
-        connection
-            .batch_execute(settings)
-            .expect("apply planner settings");
-    }
-    let prepare = if parameter_types.is_empty() {
-        format!("PREPARE plan_statement AS {statement}")
-    } else {
-        format!("PREPARE plan_statement ({parameter_types}) AS {statement}")
-    };
     connection
-        .batch_execute(&prepare)
+        .batch_execute(settings)
+        .expect("apply planner settings");
+    connection
+        .batch_execute(&format!(
+            "PREPARE plan_statement ({parameter_types}) AS {statement}"
+        ))
         .expect("prepare the statement");
-    let execute = if arguments.is_empty() {
-        "EXPLAIN (ANALYZE, BUFFERS) EXECUTE plan_statement".to_string()
-    } else {
-        format!("EXPLAIN (ANALYZE, BUFFERS) EXECUTE plan_statement ({arguments})")
-    };
-    let plan: Vec<PlanLine> = sql_query(execute)
-        .load(&mut connection)
-        .expect("explain the statement");
-    println!("\n---- {name} ----");
+    let plan: Vec<PlanLine> = sql_query(format!(
+        "EXPLAIN (ANALYZE, BUFFERS) EXECUTE plan_statement ({arguments})"
+    ))
+    .load(&mut connection)
+    .expect("explain the statement");
+    println!("\n---- {name} [{settings}] ----");
     for line in plan {
         println!("{}", line.line);
     }
     connection
         .batch_execute("ROLLBACK;")
         .expect("end the plan transaction");
+}
+
+fn explain(name: &str, statement: &str, parameter_types: &str, arguments: &str) {
+    explain_with(
+        name,
+        &format!("{CUSTOM_PLANS_SQL};"),
+        statement,
+        parameter_types,
+        arguments,
+    );
 }
 
 /// The host load average, recorded beside latency samples.
@@ -4127,32 +7189,47 @@ fn load_average() -> String {
         .unwrap_or_else(|_| "uptime: unavailable".to_string())
 }
 
-/// Resolver wall-clock latency over repeated requests, after warm-up.
+/// Resolver wall-clock latency over 40 requests after three warm-up reads,
+/// with the statement count of one captured read and the response shape.
 fn latency(fx: &Fixture, label: &str, input: &MetricDashboardInput) {
+    let (outcome, statements) = captured_statements(input);
     for _ in 0..3 {
-        metric_dashboard(&fx.pool, input).expect("warm-up read");
+        let _ = metric_dashboard(&fx.pool, input);
     }
     let mut samples: Vec<StdDuration> = (0..40)
         .map(|_| {
             let started = Instant::now();
-            let dashboard = metric_dashboard(&fx.pool, input).expect("measured read");
+            let result = metric_dashboard(&fx.pool, input);
             let elapsed = started.elapsed();
-            assert!(!dashboard.totals.is_empty());
+            assert_eq!(result.is_ok(), outcome.is_ok(), "{label}: a stable outcome");
             elapsed
         })
         .collect();
     samples.sort();
     let percentile = |p: f64| samples[((samples.len() as f64 * p).ceil() as usize).max(1) - 1];
-    let dashboard = metric_dashboard(&fx.pool, input).expect("shape read");
+    let shape = match &outcome {
+        Ok(dashboard) => format!(
+            "totals={} timeline_cells={} countries={} institutions={} coverage={:?} warnings={:?}",
+            dashboard.totals.len(),
+            dashboard.timeline.len(),
+            dashboard.countries.len(),
+            dashboard.institutions.len(),
+            dashboard.coverage.status,
+            codes(dashboard),
+        ),
+        Err(error) => format!("error={}", error.code()),
+    };
     println!(
-        "{label}: n=40 p50={:?} p95={:?} max={:?} | totals={} timeline_cells={} coverage={:?} warnings={:?}",
+        "{label}: n=40 p50={:?} p95={:?} max={:?} statements={} | {shape}",
         percentile(0.50),
         percentile(0.95),
         samples[samples.len() - 1],
-        dashboard.totals.len(),
-        dashboard.timeline.len(),
-        dashboard.coverage.status,
-        codes(&dashboard),
+        statements.len(),
+    );
+    assert!(
+        statements.len() <= 16,
+        "{label}: {:?}",
+        statement_names(&statements)
     );
 }
 
@@ -4161,11 +7238,11 @@ fn latency(fx: &Fixture, label: &str, input: &MetricDashboardInput) {
 fn metric_dashboard_query_plan_and_latency_evidence() {
     let (_guard, fx) = setup();
     let built = Instant::now();
-    let grid = plan_fixture(&fx);
+    let scope = plan_fixture(&fx);
     println!("plan fixture built in {:?}", built.elapsed());
     for (label, query) in [
         (
-            "selected publisher works",
+            "publisher A works",
             format!(
                 "(SELECT COUNT(*) FROM work w JOIN imprint i ON i.imprint_id = w.imprint_id \
                   WHERE i.publisher_id = '{}')",
@@ -4178,237 +7255,398 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
             "(SELECT COUNT(*) FROM metric_rollup_work_day)".to_string(),
         ),
         (
+            "metric_rollup_work_month rows",
+            "(SELECT COUNT(*) FROM metric_rollup_work_month)".to_string(),
+        ),
+        (
+            "metric_rollup_work_country_month rows",
+            "(SELECT COUNT(*) FROM metric_rollup_work_country_month)".to_string(),
+        ),
+        (
+            "metric_rollup_work_institution_month rows",
+            "(SELECT COUNT(*) FROM metric_rollup_work_institution_month)".to_string(),
+        ),
+        (
+            "metric_rollup_work_month_ambiguity rows",
+            "(SELECT COUNT(*) FROM metric_rollup_work_month_ambiguity)".to_string(),
+        ),
+        (
             "metric_coverage rows",
             "(SELECT COUNT(*) FROM metric_coverage)".to_string(),
         ),
         (
-            "metric_import rows",
-            "(SELECT COUNT(*) FROM metric_import)".to_string(),
+            "unresolved identifier quarantine rows",
+            "(SELECT COUNT(*) FROM metric_identifier_quarantine q \
+               LEFT JOIN metric_identifier_quarantine_reconciliation r \
+                 ON r.identifier_quarantine_id = q.identifier_quarantine_id \
+              WHERE r.resolved_at IS NULL)"
+                .to_string(),
         ),
         (
             "unapplied work-day deltas",
             "(SELECT COUNT(*) FROM metric_rollup_delta WHERE status <> 'APPLIED')".to_string(),
         ),
+        (
+            "indexes on the monthly projections",
+            "(SELECT COUNT(*) FROM pg_indexes WHERE tablename LIKE 'metric_rollup_work_%month%')"
+                .to_string(),
+        ),
     ] {
         println!("{label}: {}", scalar_i64(&fx.pool, &query));
     }
 
-    let start = plan_start();
-    let publishers = uuid_array(&[fx.publisher_id]);
-    let one_platform = uuid_array(&[fx.platform_id]);
-    let one_measure = uuid_array(&[fx.sessions]);
-    let all_platforms = uuid_array(&grid.platforms);
-    let all_measures = uuid_array(&grid.measures);
-    let year_end = start + Duration::days(366);
-    let grid_end = start + Duration::days(200);
-    let account_ids: Vec<Uuid> = {
+    // 366 days with clipped leading and trailing months: 15 March 2025 to
+    // 15 March 2026 inclusive, so eleven complete months are monthly rows.
+    let (start, end) = (d(2025, 3, 15), d(2026, 3, 16));
+    let day_end = start + Duration::days(200);
+    let three = vec![
+        fx.publisher_id,
+        fx.other_publisher_id,
+        scope.third_publisher,
+    ];
+    let base = |publishers: &[Uuid], grain, to: NaiveDate| {
+        let mut input = request(
+            fx.publisher_id,
+            start,
+            to,
+            &scope.platforms,
+            &scope.measures,
+            Some(grain),
+        );
+        input.selector.publisher_ids = Some(publishers.to_vec());
+        input
+    };
+    let month = |publishers: &[Uuid]| base(publishers, MetricTimelineGrain::Month, end);
+
+    // Plans of every statement with the arguments the resolver binds.
+    let id_list = |query: String| -> String {
         #[derive(diesel::QueryableByName)]
         struct Row {
             #[diesel(sql_type = SqlUuid)]
-            source_account_id: Uuid,
+            id: Uuid,
         }
         let mut connection = fx.pool.get().expect("Failed to get DB connection");
-        sql_query(format!(
-            "SELECT source_account_id FROM metric_source_account \
-             WHERE expected_publisher_id = '{}'",
-            fx.publisher_id
-        ))
-        .load::<Row>(&mut connection)
-        .expect("the selected publisher's accounts")
-        .into_iter()
-        .map(|row| row.source_account_id)
-        .collect()
+        let ids: Vec<Uuid> = sql_query(query)
+            .load::<Row>(&mut connection)
+            .expect("plan argument ids")
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        uuid_array(&ids)
     };
-    let accounts = uuid_array(&account_ids);
-
-    explain("PUBLISHERS_SQL", PUBLISHERS_SQL, "uuid[]", &publishers);
-    explain("FRONTIER_SQL", FRONTIER_SQL, "", "");
+    let works_of = |publishers: &[Uuid]| {
+        id_list(format!(
+            "SELECT w.work_id AS id FROM work w JOIN imprint i \
+               ON i.imprint_id = w.imprint_id WHERE i.publisher_id = ANY({}) \
+             ORDER BY 1",
+            uuid_array(publishers)
+        ))
+    };
+    let accounts_of = |publishers: &[Uuid]| {
+        id_list(format!(
+            "SELECT source_account_id AS id FROM metric_source_account \
+               WHERE expected_publisher_id = ANY({}) ORDER BY 1",
+            uuid_array(publishers)
+        ))
+    };
+    let platforms = uuid_array(&scope.platforms);
+    let measures = uuid_array(&scope.measures);
+    let one = uuid_array(&[fx.publisher_id]);
+    let split = Split::of(start, end);
+    let (interior_start, interior_end) = (split.interior_start, split.interior_end);
+    println!("\n{}", load_average());
     explain(
-        "ACCOUNTS_SQL (5 platforms)",
-        ACCOUNTS_SQL,
-        "uuid[], uuid[], text",
-        &format!("{publishers}, {all_platforms}, 'DRIVER'"),
+        "PUBLISHERS_SQL (3 publishers)",
+        PUBLISHERS_SQL,
+        "uuid[]",
+        &uuid_array(&three),
     );
     explain(
-        "DAY_SUMS_SQL (366 days, 1 platform x 1 measure)",
-        DAY_SUMS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
-        &format!("{publishers}, '{start}', '{year_end}', {one_platform}, {one_measure}"),
+        "WORKS_SQL (1 publisher, no other selector)",
+        WORKS_SQL,
+        "uuid[], uuid[], uuid[], uuid[], text[], text[], uuid[], uuid[], bigint",
+        &format!("{one}, '{{}}', '{{}}', '{{}}', '{{}}', '{{}}', '{{}}', '{{}}', 2001"),
     );
     explain(
-        "DAY_SUMS_SQL (200 days, 5 platforms x 5 measures)",
-        DAY_SUMS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
-        &format!("{publishers}, '{start}', '{grid_end}', {all_platforms}, {all_measures}"),
-    );
-    explain(
-        "ASSERTIONS_SQL (366 days, 1 platform x 1 measure)",
-        ASSERTIONS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
+        "WORKS_SQL (series, language, funding and affiliation)",
+        WORKS_SQL,
+        "uuid[], uuid[], uuid[], uuid[], text[], text[], uuid[], uuid[], bigint",
         &format!(
-            "{}, '{start}', '{year_end}', {one_platform}, {one_measure}",
-            uuid_array(&[fx.account_id])
+            "{one}, '{{}}', {series}, '{{}}', '{{}}', ARRAY['eng'], {funders}, {affiliated}, 2001",
+            series = uuid_array(&scope.series[..5]),
+            funders = uuid_array(&scope.funders[..5]),
+            affiliated = uuid_array(&scope.affiliated),
         ),
     );
     explain(
-        "ASSERTIONS_SQL (200 days, 5 platforms x 5 measures)",
-        ASSERTIONS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
-        &format!("{accounts}, '{start}', '{grid_end}', {all_platforms}, {all_measures}"),
-    );
-    explain(
-        "LAG_SQL (366 days, 1 platform x 1 measure, W = 0)",
-        LAG_SQL,
-        "bigint, uuid[], date, date, uuid[], uuid[]",
-        &format!("0, {publishers}, '{start}', '{year_end}', {one_platform}, {one_measure}"),
-    );
-    explain(
-        "REPRESENTED_SQL (366 days, both filters omitted)",
+        "REPRESENTED_SQL (1 publisher, both filters omitted)",
         REPRESENTED_SQL,
-        "uuid[], date, date, uuid[], uuid[], text",
+        "uuid[], date, date, date, date, uuid[], uuid[], uuid[], text",
         &format!(
-            "{publishers}, '{start}', '{year_end}', ARRAY[]::uuid[], ARRAY[]::uuid[], 'DRIVER'"
+            "{works}, '{start}', '{interior_start}', '{interior_end}', '{end}', '{{}}', '{{}}', \
+             {one}, 'DRIVER'",
+            works = works_of(&[fx.publisher_id])
         ),
     );
     explain(
-        "IDENTIFIER_QUALITY_SQL (366 days, 5 platforms x 5 measures)",
+        "IDENTIFIER_QUALITY_SQL (3 represented publishers, 5x5, 366 days)",
         IDENTIFIER_QUALITY_SQL,
         "uuid[], date, date, uuid[], uuid[]",
-        &format!("{publishers}, '{start}', '{year_end}', {all_platforms}, {all_measures}"),
-    );
-
-    // Diagnostic only: the same statements with sequential scans disabled,
-    // showing that the existing MET-WP4-01 projection indexes and the
-    // existing attribution indexes can serve them when the selected
-    // publisher is a small fraction of the projection. In this fixture the
-    // selected publisher holds about half of all projection rows, so the
-    // planner's own choice above is a parallel sequential scan.
-    let no_seqscan = "SET LOCAL enable_seqscan = off;";
-    explain_with(
-        "DAY_SUMS_SQL (366 days, 1 platform x 1 measure) [enable_seqscan = off]",
-        no_seqscan,
-        DAY_SUMS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
-        &format!("{publishers}, '{start}', '{year_end}', {one_platform}, {one_measure}"),
-    );
-    explain_with(
-        "DAY_SUMS_SQL (200 days, 5 platforms x 5 measures) [enable_seqscan = off]",
-        no_seqscan,
-        DAY_SUMS_SQL,
-        "uuid[], date, date, uuid[], uuid[]",
-        &format!("{publishers}, '{start}', '{grid_end}', {all_platforms}, {all_measures}"),
-    );
-    explain_with(
-        "LAG_SQL (366 days, 1 platform x 1 measure, W = 0) [enable_seqscan = off]",
-        no_seqscan,
-        LAG_SQL,
-        "bigint, uuid[], date, date, uuid[], uuid[]",
-        &format!("0, {publishers}, '{start}', '{year_end}', {one_platform}, {one_measure}"),
-    );
-
-    let run_shapes = |phase: &str| {
-        println!("\n== {phase} ==");
-        println!("{}", load_average());
-        explain(
-            &format!("DAY_SUMS_SQL (366 days, 5 platforms x 5 measures) [{phase}]"),
-            DAY_SUMS_SQL,
-            "uuid[], date, date, uuid[], uuid[]",
-            &format!("{publishers}, '{start}', '{year_end}', {all_platforms}, {all_measures}"),
-        );
-        latency(
-            &fx,
-            "366 days, 1 platform x 1 measure, DAY (366 cells)",
-            &request(
-                fx.publisher_id,
-                start,
-                year_end,
-                &[fx.platform_id],
-                &[fx.sessions],
-                Some(MetricTimelineGrain::Day),
-            ),
-        );
-        latency(
-            &fx,
-            "200 days, 5 platforms x 5 measures, DAY (5000 cells)",
-            &request(
-                fx.publisher_id,
-                start,
-                grid_end,
-                &grid.platforms,
-                &grid.measures,
-                Some(MetricTimelineGrain::Day),
-            ),
-        );
-        latency(
-            &fx,
-            "366 days, 5 platforms x 5 measures, MONTH (325 cells)",
-            &request(
-                fx.publisher_id,
-                start,
-                year_end,
-                &grid.platforms,
-                &grid.measures,
-                Some(MetricTimelineGrain::Month),
-            ),
-        );
-        let mut omitted = request(
-            fx.publisher_id,
-            start,
-            year_end,
-            &[],
-            &[],
-            Some(MetricTimelineGrain::Month),
-        );
-        omitted.platforms = None;
-        omitted.measures = None;
-        latency(
-            &fx,
-            "366 days, filters omitted (resolves 5 x 5), MONTH",
-            &omitted,
-        );
-        println!("{}", load_average());
-    };
-
-    // Representative: every base cell has exactly one representation, as a
-    // managed source reports either country rows or a total, not both.
-    run_shapes("representative: one representation per base cell");
-
-    // Stress: half the selected publisher's works additionally carry an
-    // undimensioned aggregate for every day alongside their country rows, so
-    // every day group needs the aggregate-precedence path.
-    exec(
-        &fx.pool,
         &format!(
-            "INSERT INTO metric_rollup_work_day \
-                 (work_id, platform_id, measure_id, day, value, watermark) \
-             SELECT w.work_id, '{platform}', '{sessions}', g.day::date, 30, 1 \
-             FROM (SELECT work_id, row_number() OVER (ORDER BY work_id) AS rn \
-                   FROM work WHERE imprint_id = '{imprint}') w \
-             CROSS JOIN generate_series(DATE '{start}', DATE '{start}' + 365, interval '1 day') AS g(day) \
-             WHERE w.rn <= 300; \
-             ANALYZE metric_rollup_work_day;",
-            platform = fx.platform_id,
-            sessions = fx.sessions,
-            imprint = grid.imprint,
+            "{}, '{start}', '{end}', {platforms}, {measures}",
+            uuid_array(&three)
         ),
     );
-    println!(
-        "metric_rollup_work_day rows after stress rows: {}",
-        scalar_i64(&fx.pool, "(SELECT COUNT(*) FROM metric_rollup_work_day)")
+    explain(
+        "ACCOUNTS_SQL (3 publishers, 5 platforms)",
+        ACCOUNTS_SQL,
+        "uuid[], uuid[], text",
+        &format!("{}, {platforms}, 'DRIVER'", uuid_array(&three)),
     );
-    let candidate_days: Vec<String> = (0..366)
-        .map(|offset| format!("'{}'", start + Duration::days(offset)))
+    explain(
+        "CANONICAL_SQL (3 publishers' works, 5x5, 366 days, lagging)",
+        CANONICAL_SQL,
+        "boolean, bigint, uuid[], date, date, uuid[], uuid[]",
+        &format!(
+            "TRUE, 1, {works}, '{start}', '{end}', {platforms}, {measures}",
+            works = works_of(&three)
+        ),
+    );
+    for (label, publishers) in [
+        ("1 publisher", vec![fx.publisher_id]),
+        ("3 publishers", three.clone()),
+    ] {
+        explain(
+            &format!("MONTHS_SQL ({label}, 5x5, 11 complete months, both sections)"),
+            MONTHS_SQL,
+            "uuid[], uuid[], uuid[], date, date, boolean, boolean, bigint",
+            &format!(
+                "{works}, {platforms}, {measures}, '{interior_start}', '{interior_end}', TRUE, \
+                 TRUE, 2001",
+                works = works_of(&publishers)
+            ),
+        );
+        explain(
+            &format!("DAY_SUMS_SQL ({label}, 5x5, clipped edges)"),
+            DAY_SUMS_SQL,
+            "uuid[], date, date, date, date, uuid[], uuid[]",
+            &format!(
+                "{works}, '{start}', '{interior_start}', '{interior_end}', '{end}', {platforms}, \
+                 {measures}",
+                works = works_of(&publishers)
+            ),
+        );
+        explain(
+            &format!("DAY_SECTIONS_SQL ({label}, 5x5, clipped edges, both sections)"),
+            DAY_SECTIONS_SQL,
+            "uuid[], date, date, date, date, uuid[], uuid[], boolean, boolean, bigint",
+            &format!(
+                "{works}, '{start}', '{interior_start}', '{interior_end}', '{end}', {platforms}, \
+                 {measures}, TRUE, TRUE, 2001",
+                works = works_of(&publishers)
+            ),
+        );
+        explain(
+            &format!("ASSERTIONS_SQL ({label}, 5x5, 366 days)"),
+            ASSERTIONS_SQL,
+            "uuid[], date, date, uuid[], uuid[]",
+            &format!(
+                "{accounts}, '{start}', '{end}', {platforms}, {measures}",
+                accounts = accounts_of(&publishers)
+            ),
+        );
+    }
+    explain(
+        "DAY_SUMS_SQL (1 publisher, 5x5, 200 days, DAY timeline)",
+        DAY_SUMS_SQL,
+        "uuid[], date, date, date, date, uuid[], uuid[]",
+        &format!(
+            "{works}, '{start}', '{day_end}', '{day_end}', '{day_end}', {platforms}, {measures}",
+            works = works_of(&[fx.publisher_id])
+        ),
+    );
+    let candidate_days: Vec<String> = days_of(start, interior_start)
+        .into_iter()
+        .map(|day| format!("'{day}'"))
         .collect();
     explain(
-        "DIMENSION_CELLS_SQL (366 candidate days, 1 platform x 1 measure) [stress]",
+        "DIMENSION_CELLS_SQL (1 publisher, leading edge of one platform x measure)",
         DIMENSION_CELLS_SQL,
         "uuid[], uuid[], uuid[], date[]",
         &format!(
-            "{publishers}, {platforms}, {measures}, ARRAY[{days}]::date[]",
-            platforms = uuid_array(&vec![fx.platform_id; 366]),
-            measures = uuid_array(&vec![fx.sessions; 366]),
+            "{works}, {candidate_platforms}, {candidate_measures}, ARRAY[{days}]::date[]",
+            works = works_of(&[fx.publisher_id]),
+            candidate_platforms = uuid_array(&vec![scope.platforms[1]; candidate_days.len()]),
+            candidate_measures = uuid_array(&vec![scope.measures[2]; candidate_days.len()]),
             days = candidate_days.join(","),
         ),
     );
-    run_shapes("stress: aggregate plus country breakdown in half of all base cells");
+    // Diagnostic: the generic plans the custom-plan setting avoids.
+    let generic = "SET LOCAL plan_cache_mode = force_generic_plan;";
+    explain_with(
+        "MONTHS_SQL (1 publisher, 5x5, 11 complete months, both sections) [generic]",
+        generic,
+        MONTHS_SQL,
+        "uuid[], uuid[], uuid[], date, date, boolean, boolean, bigint",
+        &format!(
+            "{works}, {platforms}, {measures}, '{interior_start}', '{interior_end}', TRUE, TRUE, \
+             2001",
+            works = works_of(&[fx.publisher_id])
+        ),
+    );
+    explain_with(
+        "DAY_SUMS_SQL (1 publisher, 5x5, 200 days, DAY timeline) [generic]",
+        generic,
+        DAY_SUMS_SQL,
+        "uuid[], date, date, date, date, uuid[], uuid[]",
+        &format!(
+            "{works}, '{start}', '{day_end}', '{day_end}', '{day_end}', {platforms}, {measures}",
+            works = works_of(&[fx.publisher_id])
+        ),
+    );
+
+    println!("\n== latency ==\n{}", load_average());
+    let a = [fx.publisher_id];
+    latency(
+        &fx,
+        "S1 1 publisher, 366 days, 5x5, MONTH, both sections",
+        &month(&a),
+    );
+    latency(
+        &fx,
+        "S2 3 publishers, 366 days, 5x5, MONTH, both sections",
+        &month(&three),
+    );
+    let mut countries_only = month(&a);
+    countries_only.include_institutions = Some(false);
+    latency(
+        &fx,
+        "S3 1 publisher, 366 days, 5x5, MONTH, countries only",
+        &countries_only,
+    );
+    let mut institutions_only = month(&a);
+    institutions_only.include_countries = Some(false);
+    latency(
+        &fx,
+        "S4 1 publisher, 366 days, 5x5, MONTH, institutions only",
+        &institutions_only,
+    );
+    latency(
+        &fx,
+        "S5 1 publisher, 200 days, 5x5, DAY (5000 cells), both sections",
+        &base(&a, MetricTimelineGrain::Day, day_end),
+    );
+    let mut single_day = base(&a, MetricTimelineGrain::Day, end);
+    single_day.platforms = Some(vec![fx.platform_id]);
+    single_day.measures = Some(vec![fx.sessions]);
+    latency(
+        &fx,
+        "S5b 1 publisher, 366 days, 1x1, DAY (366 cells), both sections",
+        &single_day,
+    );
+    latency(
+        &fx,
+        "S5c 3 publishers, 200 days, 5x5, DAY (5000 cells), both sections",
+        &base(&three, MetricTimelineGrain::Day, day_end),
+    );
+    let mut five_hundred = month(&a);
+    five_hundred.selector.work_ids = Some(scope.works[..500].to_vec());
+    latency(
+        &fx,
+        "S6 500 workIds, 366 days, 5x5, MONTH, both sections",
+        &five_hundred,
+    );
+    for (label, edit) in [
+        (
+            "S7a seriesIds (5 of 20)",
+            Box::new(|s: &mut MetricSelectorInput| s.series_ids = Some(scope.series[..5].to_vec()))
+                as Box<dyn Fn(&mut MetricSelectorInput)>,
+        ),
+        (
+            "S7b languages [FRE]",
+            Box::new(|s: &mut MetricSelectorInput| s.languages = Some(vec![LanguageCode::Fre])),
+        ),
+        (
+            "S7c fundingInstitutionIds (5 of 50)",
+            Box::new(|s: &mut MetricSelectorInput| {
+                s.funding_institution_ids = Some(scope.funders[..5].to_vec())
+            }),
+        ),
+        (
+            "S7d affiliationInstitutionIds (10)",
+            Box::new(|s: &mut MetricSelectorInput| {
+                s.affiliation_institution_ids = Some(scope.affiliated.clone())
+            }),
+        ),
+        (
+            "S7e series + languages + funding + affiliation + workTypes",
+            Box::new(|s: &mut MetricSelectorInput| {
+                s.series_ids = Some(scope.series[..10].to_vec());
+                s.languages = Some(vec![LanguageCode::Eng]);
+                s.funding_institution_ids = Some(scope.funders.clone());
+                s.affiliation_institution_ids = Some(scope.affiliated.clone());
+                s.work_types = Some(vec![WorkType::Monograph, WorkType::BookChapter]);
+            }),
+        ),
+    ] {
+        let mut input = month(&a);
+        edit(&mut input.selector);
+        latency(
+            &fx,
+            &format!("{label}, 366 days, 5x5, MONTH, both sections"),
+            &input,
+        );
+    }
+    let mut zero = month(&a);
+    zero.selector.imprint_ids = Some(vec![scope.other_imprint]);
+    latency(
+        &fx,
+        "S8 zero-work intersection, 366 days, 5x5, MONTH",
+        &zero,
+    );
+    let mut omitted = month(&a);
+    omitted.platforms = None;
+    omitted.measures = None;
+    latency(
+        &fx,
+        "S9 1 publisher, filters omitted (resolves 5x5), MONTH, both sections",
+        &omitted,
+    );
+    let mut own_imprint = month(&three);
+    own_imprint.selector.imprint_ids = Some(vec![scope.imprint]);
+    latency(
+        &fx,
+        "S10 3 publishers selected, 1 represented by imprint, MONTH, both sections",
+        &own_imprint,
+    );
+
+    // An active native MONTH record intersecting the request fails it.
+    let (native_record, native_revision) = (Uuid::new_v4(), Uuid::new_v4());
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record (record_id, identity_hash, work_id, platform_id, \
+                 measure_id, period_start, period_end, reporting_grain, \
+                 winning_source_account_id) \
+             VALUES ('{native_record}', 'plan-native', '{work}', '{platform}', '{measure}', \
+                     '2025-06-01', '2025-07-01', 'MONTH', '{account}'); \
+             INSERT INTO metric_record_revision (record_revision_id, record_id, \
+                 revision_number, import_id, value, content_hash, status) \
+             VALUES ('{native_revision}', '{native_record}', 1, '{import}', 5, 'plan-native', \
+                     'CURRENT'); \
+             UPDATE metric_record SET current_revision_id = '{native_revision}' \
+              WHERE record_id = '{native_record}';",
+            work = scope.works[0],
+            platform = fx.platform_id,
+            measure = fx.sessions,
+            account = fx.account_id,
+            import = fx.canonical_import,
+        ),
+    );
+    latency(
+        &fx,
+        "S11 unsupported native MONTH grain, 366 days, 5x5, MONTH",
+        &month(&a),
+    );
+    println!("{}", load_average());
 }

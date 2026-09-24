@@ -2256,12 +2256,12 @@ impl QueryRoot {
     // that guard: `SUPERUSER`, `METRICS_INGEST_SERVICE`,
     // `DISSEMINATION_WORKER` and every publisher-scoped role are refused.
     // Holding the role never supplies publisher entitlement; the dashboard
-    // additionally requires `METRICS_DASHBOARD` for the selected publisher
-    // inside its own read.
+    // additionally requires `METRICS_DASHBOARD` for every selected publisher
+    // inside its own read (`MET-WP4-03B`).
     // ----------------------------------------------------------------------
 
     #[graphql(
-        description = "Coverage-aware Metrics totals and timeline for one bounded request. Requires the METRICS_READ_SERVICE role, and the selected publisher must be entitled to the Metrics dashboard. Absent values are null unless complete coverage justifies a zero, and the response reports its coverage, freshness and warnings"
+        description = "Coverage-aware Metrics totals, timeline, countries and institutions for one bounded request. Requires the METRICS_READ_SERVICE role, and every selected publisher must be entitled to the Metrics dashboard. Absent totals and timeline values are null unless complete coverage justifies a zero, country and institution rows list only known values, and the response reports its coverage, freshness and warnings. A request intersecting Metrics reported for a whole month or reporting period fails with METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
     )]
     fn metric_dashboard(
         context: &Context,

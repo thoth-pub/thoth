@@ -763,9 +763,11 @@ Contract properties a later consumer may rely on:
 Scope boundaries a consumer must not infer:
 
 - No GraphQL operation, type, field, argument or scalar was added or
-  changed; `metricDashboard` (section 4.1) still serves from
-  `metric_rollup_work_day`. The monthly tables, their flags and ambiguity
-  state reach no API in `MET-WP4-03A`.
+  changed; at `MET-WP4-03A`, `metricDashboard` (section 4.1) still served
+  from `metric_rollup_work_day` only. The monthly tables, their flags and
+  ambiguity state reached no API in `MET-WP4-03A`; their one reader is the
+  `MET-WP4-03B` dashboard contract of section 4.2, which reads them and
+  never writes them.
 - There is no callable rebuild, repair or reconciliation operation, no
   rollup or rebuild generation, no `metric_rollup_work_month_state`, no
   `metric_work_dimension` and no secondary index.
@@ -784,7 +786,9 @@ Semantics: OR within lists, AND between dimensions, exclusive end date, bounded 
 
 `MET-WP4-02` (issue #910) delivers the MOM-1 read surface: one coverage-aware
 dashboard query and the two registry lists a service needs to form its UUID
-filters.
+filters. `MET-WP4-03B` (section 4.2) completes the dashboard contract
+additively: every property below still holds except where section 4.2
+states how it is extended.
 
 Operations, each requiring exactly `METRICS_READ_SERVICE` through
 `PolicyContext::require_metrics_read_service()` before any Metrics-specific
@@ -863,12 +867,12 @@ Contract properties consumers may rely on:
   capability, and no package name appears in Metrics code. The registry lists
   need no publisher and no entitlement.
 - **Plural selector, one publisher in MOM-1.** `publisherIds` is plural, and
-  the read is written over a publisher set. MOM-1 serves exactly one publisher
-  per request: none, several or an unknown ID is `METRIC_QUERY_INVALID`, never
-  a first-item choice, a truncation or a combination. That is a milestone
-  restriction, not a statement that a dashboard can only represent one
-  publisher. Serving authorized groups of publishers needs its own reviewed
-  entitlement and aggregation contract.
+  the read is written over a publisher set. MOM-1 served exactly one
+  publisher per request: none, several or an unknown ID was
+  `METRIC_QUERY_INVALID`, never a first-item choice, a truncation or a
+  combination. `MET-WP4-03B` replaces that milestone restriction with the
+  reviewed one-to-three publisher entitlement and aggregation contract of
+  section 4.2.
 - **Attribution.** Works are attributed to publishers through current
   `work -> imprint -> publisher` metadata at read time. A moved work's
   projected history follows it; nothing is rewritten.
@@ -982,9 +986,11 @@ Scope boundaries a consumer must not infer:
 - Countries, institutions, works sections, pagination, the deferred selector
   dimensions (`imprintIds`, `seriesIds`, `workIds`, `dois`, `workTypes`,
   `languages`, funding and affiliation institutions, `includeDescendants`),
-  `metricWidget` and entity-level Metrics fields are not part of this
-  contract. Adding them with their approved names is additive and needs its
-  own specification.
+  `metricWidget` and entity-level Metrics fields were not part of the
+  `MET-WP4-02` contract. `MET-WP4-03B` adds the country and institution
+  sections and every one of those selector dimensions except `dois` and
+  `includeDescendants` (section 4.2); the rest still needs its own
+  specification.
 - The read calls no external service. Browser clients must not hold the
   `METRICS_READ_SERVICE` credential; they reach this contract through a
   Thoth-owned server route.
@@ -996,6 +1002,213 @@ Scope boundaries a consumer must not infer:
   Generated/exhaustive clients must tolerate the new warning enum before
   CloudFront production activation, and consumers must not coerce `null`
   Metrics values to zero.
+
+### 4.2 Complete dashboard contract (`MET-WP4-03B`)
+
+`MET-WP4-03B` (issue #946, through Specification Amendments 1 and 2)
+completes
+`metricDashboard` for the dashboard cutover: one server-side query resolves
+current metadata selectors, serves complete calendar months from the
+`MET-WP4-03A` monthly projections (section 3.6) and clipped edge days from
+the work-day projection, and returns graph-ready totals, timeline, countries
+and institutions with section-aware coverage. It preserves the
+`MET-WP7-PREREQ-04` identifier-quality contract of section 4.1 unchanged
+except for the represented-publisher scope below. No operation, role,
+capability, migration, table or index is added; `metricMeasures` and
+`metricPlatforms` are unchanged.
+
+Additive GraphQL contract (every existing field, argument, nullability, enum
+value and authorization of section 4.1 is unchanged):
+
+```graphql
+input MetricSelectorInput {
+  publisherIds: [Uuid!]
+  imprintIds: [Uuid!]
+  seriesIds: [Uuid!]
+  workIds: [Uuid!]
+  workTypes: [WorkType!]
+  languages: [LanguageCode!]
+  fundingInstitutionIds: [Uuid!]
+  affiliationInstitutionIds: [Uuid!]
+}
+
+input MetricDashboardInput {
+  # ...section 4.1 fields...
+  includeCountries: Boolean = true
+  includeInstitutions: Boolean = true
+}
+
+type MetricDashboard {
+  # ...section 4.1 fields...
+  countries: [MetricCountryTotal!]!
+  institutions: [MetricInstitutionTotal!]!
+}
+
+type MetricCountryTotal {
+  platformId: Uuid! measureId: Uuid! countryCode: String! value: BigInt!
+}
+type MetricInstitutionTotal {
+  platformId: Uuid! measureId: Uuid! institutionId: Uuid!
+  institutionName: String! ror: Ror value: BigInt!
+}
+```
+
+The one new error classification is `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`.
+`UNRESOLVED_IDENTIFIERS` is the existing `MET-WP7-PREREQ-04` warning, not a
+`MET-WP4-03B` addition.
+
+Contract properties consumers may rely on:
+
+- **Publishers.** `publisherIds` holds one to three unique IDs. None, more
+  than three or a duplicate is `METRIC_QUERY_INVALID`, and so is an unknown
+  publisher. Every selected publisher must independently hold
+  `METRICS_DASHBOARD`; one that does not makes the whole request `NO_ACCESS`,
+  even when the selector would exclude its works. There is no entitled-subset
+  response, no `SUPERUSER` shortcut and no new role: the resolver still
+  requires exactly `METRICS_READ_SERVICE` first.
+- **Selector.** Values within one list are alternatives (OR); different
+  lists must all match (AND); an omitted or empty optional list does not
+  restrict. Works are resolved from current metadata, before any Metrics
+  value is read: current `work -> imprint -> publisher` ownership; imprint;
+  explicit work; work type; a series by direct issue membership or, for a
+  `book-chapter`, through a current `is-child-of` parent issued in it; any
+  language record of the work whatever its relation; any funding by a
+  selected institution; any contribution affiliated with a selected
+  institution. No metadata copy is stored for Metrics.
+- **Selector bounds and validity.** `workIds` at most 500; `imprintIds`,
+  `seriesIds`, `workTypes`, `languages`, `fundingInstitutionIds` and
+  `affiliationInstitutionIds` at most 50 each (work types have only six
+  values, so more than six is always a duplicate). One value beyond a bound
+  is `METRIC_QUERY_LIMIT_EXCEEDED`; a duplicate value is
+  `METRIC_QUERY_INVALID`; an explicit ID that exists nowhere is
+  `METRIC_QUERY_INVALID`. An existing ID that belongs to another publisher,
+  or matches none of the other selected works, is valid and may resolve to
+  no works. Unknown `WorkType` or `LanguageCode` values are refused by
+  GraphQL input coercion before the resolver. A selection resolving to more
+  than 2,000 works is `METRIC_QUERY_LIMIT_EXCEEDED`. No bound is met by
+  truncation.
+- **Represented publishers.** After resolution only the publishers owning at
+  least one resolved work take part in source accounts, coverage, lag,
+  values and identifier quality. An omitted `platforms` or `measures`
+  resolves from the state represented for the resolved works: the
+  projections, terminal coverage from an eligible account of a represented
+  publisher, or unresolved identifier quarantine of a represented publisher.
+- **No works.** A valid selection resolving to no works succeeds. With an
+  omitted platform or measure dimension nothing is represented, so the
+  response is the section 4.1 empty shape: no totals, timeline, countries,
+  institutions or items, `UNKNOWN`, `dataThrough` `null`, one
+  `UNKNOWN_COVERAGE` warning, `isPartial` true. With both dimensions
+  explicit the combinations are listed with `null` values and `UNKNOWN`
+  coverage: no zero is invented from an empty metadata scope. With no
+  represented publisher, unresolved quarantine neither discovers a pair nor
+  emits `UNRESOLVED_IDENTIFIERS`.
+- **Identifier quality (Amendment 2).** The `MET-WP7-PREREQ-04` rules of
+  section 4.1 hold unchanged for the represented publishers: unresolved
+  quarantine is scoped by the immutable import publisher, the quarantine
+  platform and measure and the half-open period, ignores current source
+  enablement, is never matched to a resolved work, DOI or current imprint,
+  series, language, funding or affiliation metadata, and is therefore more
+  conservative than the work-scoped values and lag. An explicitly selected
+  publisher without a resolved work contributes none of it. Every overlapped
+  served day is identifier-incomplete; one day mask governs complete-month
+  buckets, clipped buckets and totals alike, so an otherwise empty value is
+  `null` while a projected value stays exact. It sets the fixed
+  `UNRESOLVED_IDENTIFIERS` warning (in the section 4.1 order) and
+  `isPartial`, whatever the section flags, and it never changes coverage
+  status, items, dimension flags, `dataThrough`, `rollupWatermark`,
+  dimensional rows or ambiguity.
+- **Complete months and edge days.** The calendar months wholly inside
+  `[startDate, endDate)` are read from `metric_rollup_work_month`,
+  `metric_rollup_work_country_month`, `metric_rollup_work_institution_month`
+  and `metric_rollup_work_month_ambiguity`, summing their resolved rows
+  without re-resolving or re-ranking them; the clipped leading and trailing
+  days are read from `metric_rollup_work_day` and resolved per base cell as
+  section 4.1 and section 3.6 resolve them. Totals, countries and
+  institutions add both parts. `AUTO` remains `DAY`. A `DAY` timeline reads
+  every day from the work-day projection; a `MONTH` timeline takes a complete
+  month's bucket from the monthly projection and a clipped bucket from its
+  days. The values equal the section 4.1 day-by-day values for the same
+  resolved request, which the tests prove against an independent oracle.
+- **Countries and institutions.** Only known values are listed: no synthetic
+  unknown country or institution, and no zero for an absent one. Country
+  values use the target-dimension rule of section 3.6 (the unique least
+  country-bearing representation); `countryCode` is the Metrics uppercase
+  ISO 3166-1 alpha-2 code, not Thoth's alpha-3 `CountryCode`. Institution
+  values use the mirror rule, with the name and nullable ROR of the current
+  Thoth institution read set-wise in the same snapshot. Countries are ordered
+  by `(platformId, measureId, countryCode)` and institutions by
+  `(platformId, measureId, institutionId)`, never by display text. At most
+  2,000 institution rows are returned; more is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never a truncated list. Country rows are
+  bounded by the combinations and the alpha-2 code space.
+- **Section inclusion.** `includeCountries` and `includeInstitutions`
+  default to true. A section that is false returns no rows, cannot fail the
+  request through its own ambiguity and cannot downgrade the shared coverage
+  through its own dimension; it never removes a dimensional dependency the
+  totals and timeline themselves have.
+- **Ambiguity.** A total-ambiguous base cell or month fails the request with
+  `MOM1_DIMENSION_SCOPE_AMBIGUOUS` whatever the section flags. A country- or
+  institution-ambiguous month or edge day fails it only when that section is
+  returned. Complete months use the monthly ambiguity state; edge days use
+  the equivalent day-level resolution.
+- **Section-specific coverage (Amendment 1).** Per platform, measure and
+  day, coverage is first combined across the represented publishers: a
+  publisher without an assertion makes the day `UNKNOWN`, otherwise the worst
+  status wins (`UNKNOWN`, then `PARTIAL`, then `COMPLETE`, with
+  `COMPLETED_WITH_ERRORS` downgrading `COMPLETE` to `PARTIAL` first), and the
+  country and institution flags combine by AND. The totals and timeline then
+  use only the dimensions their own served representation depends on,
+  range-wide per combination exactly as section 4.1, and that alone decides
+  their zero or `null`. A returned country section additionally needs
+  country coverage on every day, and institution coverage when any country
+  value came from rows also broken down by institution; a returned
+  institution section mirrors it. The shared `coverage.items[].status`,
+  `coverage.status`, item and top-level `dataThrough`, warnings and
+  `isPartial` take, per day, the worst of the totals and every returned
+  section, so requesting an incompletely covered section can make them more
+  conservative without changing any total or timeline value.
+  `countryCoverage` and `institutionCoverage` remain the combined dimension
+  facts.
+- **Native grains.** The projections serve `DAY` canonical records only. If
+  a canonical record of `MONTH` or `REPORTING_PERIOD` grain for a resolved
+  work, served platform and served measure overlaps `[startDate, endDate)`
+  and its `current_revision_id` names a `CURRENT` revision, the whole request
+  fails with `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` and a fixed message;
+  nothing is silently omitted. A record whose pointer names a `RETRACTED`
+  revision, with no `CURRENT` revision, is withdrawn and does not fail it.
+  Contradictory committed state — no pointer, a pointer to a `SUPERSEDED`
+  revision, or a `RETRACTED` pointer beside a `CURRENT` revision — fails
+  closed as `INTERNAL_ERROR`.
+- **Lag scope.** `ROLLUP_LAG` and the lag part of `dataThrough` count only
+  unapplied work-day deltas above the frontier for the resolved works,
+  range, served platforms and served measures. Identifier quality does not
+  widen it.
+- **Execution.** Everything still runs on one connection in one
+  `READ ONLY, REPEATABLE READ` transaction, starting with
+  `SET LOCAL plan_cache_mode = force_custom_plan` so each statement is
+  planned for its actual arrays and bounds. The longest request path is
+  exactly sixteen database statements counted conservatively — the pool's
+  own checkout `SELECT 1`, `BEGIN`, the planner setting, twelve queries
+  including the identifier-quality query, and `COMMIT` — whatever the number
+  of publishers, works, days, months, countries, institutions or quarantine
+  rows: the frontier is read with the publishers, explicit selector IDs are
+  checked while the works are resolved, native grains and lag share one
+  statement, each monthly and edge-day section statement runs at most once,
+  and no work or institution is looked up individually. The per-publisher
+  coverage day series is a `MATERIALIZED` CTE.
+- **Activation gate.** The monthly projections are served only once, under
+  separate authorization, the `MET-WP4-03A` migration has run and a full
+  historical rebuild has been reconciled at a recorded work-day frontier
+  (section 3.6). Merging this contract activates nothing.
+
+Scope boundaries a consumer must not infer:
+
+- `dois`, `includeDescendants`, works sections and pagination,
+  `metricWidget` and entity-level Metrics fields remain deferred.
+- No native `MONTH` or `REPORTING_PERIOD` serving is implemented; such
+  records only fail an intersecting request.
+- The read writes nothing: no projection, monthly row, delta, frontier or
+  coverage is repaired or recorded, and no external service is called.
 
 ## 5. Publisher import
 
