@@ -536,9 +536,7 @@ fn historical_evidence_consistent(
     let Some(details) = provenance.details.as_object() else {
         return false;
     };
-    let schema_is_supported = details
-        .get("schema")
-        .and_then(serde_json::Value::as_str)
+    let schema_is_supported = details.get("schema").and_then(serde_json::Value::as_str)
         == Some(PROVENANCE_DETAILS_SCHEMA);
     let reason_is_unknown_doi = details
         .get("reason_code")

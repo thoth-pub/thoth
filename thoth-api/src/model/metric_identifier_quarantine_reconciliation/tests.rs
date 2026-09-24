@@ -556,7 +556,12 @@ fn reporting_grain_inconsistency_retries_exactly_and_keeps_later_due_work_live()
 
     let first = reconcile(&f, 2);
     assert_eq!(
-        (first.attempted, first.resolved, first.pending, first.blocked),
+        (
+            first.attempted,
+            first.resolved,
+            first.pending,
+            first.blocked
+        ),
         (2, 0, 1, 1)
     );
     assert_eq!(
@@ -585,7 +590,12 @@ fn reporting_grain_inconsistency_retries_exactly_and_keeps_later_due_work_live()
     mark_due(&f, inconsistent.quarantine_id);
     let second = reconcile(&f, 1);
     assert_eq!(
-        (second.attempted, second.resolved, second.pending, second.blocked),
+        (
+            second.attempted,
+            second.resolved,
+            second.pending,
+            second.blocked
+        ),
         (1, 0, 0, 1)
     );
     assert_eq!(
