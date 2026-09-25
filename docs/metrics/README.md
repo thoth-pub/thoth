@@ -39,6 +39,10 @@ Sphinx:
 - normalizes source data;
 - submits bounded idempotent batches to Thoth;
 - applies restartable orchestration;
+- orchestrates normal rollup claim/completion while Thoth maintains both
+  work-day and affected monthly projections transactionally;
+- orchestrates the separately authorized initial/exceptional monthly rebuild
+  and periodic reconciliation workflow through protected Thoth operations;
 - delivers eligible OPERAS exports;
 - imports only allowed OPERAS-only mappings;
 - records reconciliation outcomes in Thoth.
@@ -51,20 +55,37 @@ Dashboard and widget clients stop querying OPERAS directly and use authenticated
 
 Thoth alone decides whether an observation becomes canonical.
 
-It owns metrics tables and constraints, identifier resolution, registries, publisher approvals, import state, hashes, duplicates, revisions, conflicts, coverage, rollups, authorization, entitlements, OPERAS ledgers and reconciliation records.
+It owns metrics tables and constraints, identifier resolution, registries,
+publisher approvals, import state, hashes, duplicates, revisions, conflicts,
+coverage, rollups, authorization, entitlements, OPERAS ledgers and
+reconciliation records. Thoth also owns all work-day/monthly projection
+arithmetic, the durable rollup frontier and the actual execution of any full
+derived-state rebuild.
 
 ### Sphinx
 
-Sphinx is stateless orchestration and interoperability.
+Sphinx is stateless orchestration and interoperability. It may decide when to
+invoke approved Thoth Metrics operations — including normal rollup completion,
+the initial/exceptional full monthly rebuild and periodic reconciliation — but
+the state transition and projection semantics stay inside Thoth.
 
 It must not:
 
 - write directly to PostgreSQL;
+- calculate or supply work-day/monthly projection values, or implement a
+  second rebuild algorithm outside Thoth;
 - keep canonical state in local SQLite or S3;
 - decide canonical conflict winners outside Thoth;
 - send driver output directly to OPERAS;
 - store browser-facing service credentials;
 - claim guaranteed OPERAS inbound completeness without a complete discovery mechanism.
+
+A full monthly rebuild is not a recurring monthly job. Normal monthly
+projections are maintained continuously by Thoth as Sphinx completes rollup
+deltas. Full rebuild is reserved for initial historical population and
+separately authorized repair/recovery. Periodic reconciliation may be
+scheduled independently; a mismatch must not silently auto-rebuild derived
+state.
 
 ### Clients
 
