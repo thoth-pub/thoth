@@ -296,15 +296,21 @@ Scope boundaries a consumer must not infer:
   `reporting_grain = DAY` spanning exactly one calendar day. Deltas of other
   grains are durable and pending, carry no position, and never block the
   work-day frontier; their projection and claim design is deferred.
-- `metric_rollup_work_day` is the only projection this contract applies
-  deltas to. The derived monthly projections `MET-WP4-03A` maintains beneath
-  the same completion (section 3.6) are fed from it and expose no operation.
-- There is no callable rebuild operation. Delta state is reachable only
-  through the two operations above. Projected values and the watermark time
-  are read only through the `MET-WP4-02` coverage-aware `metricDashboard`
-  (section 4.1), which exposes no projection row, delta, claim or sequence.
-- Sphinx orchestrates and never writes the Thoth database. All projection
-  arithmetic executes inside Thoth.
+- The two normal rollup operations above remain the orchestration surface:
+  Sphinx claims a bounded batch and completes it, while Thoth applies the
+  work-day changes and continuously recomputes the affected
+  `MET-WP4-03A` monthly projection keys inside that same completion
+  transaction (section 3.6). There is no end-of-month rebuild job.
+- A full monthly rebuild is exceptional derived-state maintenance: initial
+  historical population after the 03A migration, separately authorized
+  repair/recovery, or explicit validation. At this merged baseline there is
+  still no callable production rebuild operation. `MET-WP4-03A-OPS-01`
+  (#949) specifies a future protected internal Thoth rebuild operation that
+  Sphinx will orchestrate; delta state remains reachable only through the two
+  normal operations above.
+- Sphinx orchestrates and never writes the Thoth database or supplies monthly
+  projection values. All normal projection arithmetic and any future full
+  rebuild execute inside Thoth.
 
 Error surface (known limitation): rollup rejections — an out-of-range limit,
 an unknown, stale, foreign or reclaimed token, an expired lease, a blocked
@@ -733,28 +739,35 @@ Contract properties a later consumer may rely on:
   timeout-after-commit replay of an applied token stays read-only and
   rewrites no monthly row. Values are signed 64-bit and a monthly sum that
   overflows fails the batch closed; nothing wraps or narrows.
-- **Rebuild from work-day state only.** The reviewed rebuild procedure
-  (compiled with the tests; no callable operation is added) locks the same
-  state row, checks that no day row is watermarked above the durable
-  frontier, truncates the four tables, reads every month key represented in
-  `metric_rollup_work_day`, and replays the completion's own nine-statement
-  keyed recomputation over those keys in chunks of at most 50. It executes
-  the same statements, resolution text and index paths as incremental
-  maintenance and reads nothing else. At the same work-day state and
-  frontier it reproduces incrementally maintained identities, values,
-  dependency flags, ambiguity flags and row watermarks exactly, in both
-  directions.
+- **Rebuild from work-day state only.** The reviewed full-rebuild procedure
+  currently remains test-only. It locks the same state row, checks that no day
+  row is watermarked above the durable frontier, truncates the four tables,
+  reads every month key represented in `metric_rollup_work_day`, and replays
+  the completion's own nine-statement keyed recomputation over those keys in
+  chunks of at most 50. It executes the same statements, resolution text and
+  index paths as incremental maintenance and reads nothing else. At the same
+  work-day state and frontier it reproduces incrementally maintained
+  identities, values, dependency flags, ambiguity flags and row watermarks
+  exactly, in both directions. This is not normal monthly processing:
+  `MET-WP4-03A-OPS-01` (#949) reserves full rebuild for initial historical
+  population and exceptional repair/recovery, with Sphinx orchestrating a
+  future protected Thoth-owned operation rather than implementing the
+  arithmetic itself.
 - **Initially empty; activation is gated.** The migration populates
-  nothing, which is safe because `MET-WP4-03A` adds no reader. No consumer
-  may serve from the monthly tables until, under separate authorization, the
-  migration has been executed, a full historical rebuild from
-  `metric_rollup_work_day` has populated them, and that rebuild has been
+  nothing, which is safe because `MET-WP4-03A` adds no reader. In test and
+  production the approved Thoth deployment runs pending migrations through
+  `thoth init` before starting the API; this automatic migration side effect
+  is expected and must be named in the deployment authorization rather than
+  replaced by an artificial pre-deployment migration run. No consumer may
+  serve from the monthly tables until the migration has succeeded, Sphinx has
+  orchestrated a separately authorized full historical rebuild through the
+  protected Thoth operation, and the rebuilt state has been independently
   reconciled — exact values, dependency flags, ambiguity state and row
   watermarks — at a recorded `applied_through_sequence`. `MET-WP4-03B`
-  serving activation and the downstream dashboard cutover are prohibited
-  while the tables are empty, partially rebuilt or unreconciled. After a
-  downgrade and reapplication the same gate applies again, because the
-  completion maintains only the months it touches from then on.
+  serving activation and downstream dashboard cutover remain prohibited while
+  the tables are empty, partially rebuilt or unreconciled. After a downgrade
+  and reapplication the same gate applies again, because normal completion
+  maintains only the months it subsequently touches.
 - **No native MONTH or REPORTING_PERIOD serving.** These projections are
   aggregations of resolved `DAY`-grain work-day rows. Canonical records of
   any other grain remain outside the work-day stream and are not projected
@@ -768,11 +781,17 @@ Scope boundaries a consumer must not infer:
   ambiguity state reached no API in `MET-WP4-03A`; their one reader is the
   `MET-WP4-03B` dashboard contract of section 4.2, which reads them and
   never writes them.
-- There is no callable rebuild, repair or reconciliation operation, no
-  rollup or rebuild generation, no `metric_rollup_work_month_state`, no
-  `metric_work_dimension` and no secondary index.
-- Sphinx orchestrates and never writes the Thoth database; all monthly
-  arithmetic executes inside Thoth's completion transaction.
+- At the current merged baseline there is no callable production rebuild,
+  repair or full-projection reconciliation operation. `MET-WP4-03A-OPS-01`
+  (#949) now specifies a protected internal Thoth rebuild operation as a
+  required follow-up contract; the Thoth contract must be merged before
+  `thoth-sphinx` consumes it. No `metric_rollup_work_month_state`,
+  `metric_work_dimension` or secondary index is implied.
+- Sphinx owns orchestration, including the future initial/exceptional rebuild
+  and periodic reconciliation workflow, but never writes the Thoth database
+  or computes monthly projection values. Normal incremental maintenance and
+  every full rebuild remain Thoth-owned database operations. A periodic
+  reconciliation mismatch must alert/HOLD rather than silently auto-rebuild.
 
 ## 4. Dashboard/widget
 

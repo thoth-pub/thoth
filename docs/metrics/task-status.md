@@ -170,6 +170,54 @@ queue abstraction would require its own explicit cross-programme ADR.
 depends on WP4 and on its own approved bounded slice specifications, and no
 Metrics implementation is authorized — by `ADR-0008` or otherwise.
 
+### 3.2 Current WP4 monthly-projection operations control
+
+As of 2026-09-25, `MET-WP4-03A` and `MET-WP4-03B` source are merged on the
+`feature/metrics` programme integration branch. Production serving from the
+03A monthly projections remains blocked by
+`MET-WP4-03A-OPS-01` ([#949](https://github.com/thoth-pub/thoth/issues/949)),
+a CRITICAL operational-control task.
+
+Specification Amendment 1 on #949 freezes the ownership model:
+
+- normal monthly projections are **continuous incremental state**, not a
+  monthly rebuild job;
+- `thoth-sphinx` orchestrates bounded rollup claim/completion, while Thoth
+  atomically maintains the work-day projection and affected monthly keys;
+- full historical rebuild is exceptional/on-demand: initial cutover or
+  separately authorized repair/recovery;
+- the full rebuild executes inside Thoth from
+  `metric_rollup_work_day` under Thoth's frontier/transaction semantics;
+- Sphinx will orchestrate the future protected Thoth rebuild contract and
+  periodic reconciliation, but never writes PostgreSQL or supplies projected
+  values;
+- a reconciliation mismatch alerts/HOLDs and must not silently auto-rebuild;
+- test/production Thoth deployment is expected to run pending migrations
+  through `thoth init`; deployment authorization must name that migration
+  side effect explicitly.
+
+This is now a cross-repository dependency. Implementation must be decomposed:
+
+```text
+thoth
+  protected rebuild/reconciliation contract
+  -> independent review
+  -> merge
+
+thoth-sphinx
+  consume exact merged Thoth contract
+  -> orchestration/reconciliation implementation
+  -> independent review
+
+integration review
+  -> exact-frontier initial rebuild/reconciliation
+  -> later serving/activation gate
+```
+
+The Thoth contract must be merged before Sphinx consumes it. #949 currently
+authorizes no implementation, production/shared database access, deployment,
+rebuild or activation.
+
 ## 4. Branch strategy
 
 ```text
