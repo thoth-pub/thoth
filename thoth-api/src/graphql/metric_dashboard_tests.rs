@@ -1,12 +1,15 @@
-//! `MET-WP4-02` protected Metrics read-service evidence at the API boundary.
+//! `MET-WP4-02` and `MET-WP4-03B` protected Metrics read-service evidence at
+//! the API boundary.
 //!
 //! These tests exercise the real production schema and the real resolvers
 //! against a disposable database: the three approved read operations, their
 //! exact `METRICS_READ_SERVICE` authorization and complete negative matrix,
 //! the fact that denial precedes every Metrics read, the separate
-//! `METRICS_DASHBOARD` publisher entitlement, the protected registry lists and
-//! their bound, the frozen error classifications, `BigInt` transport, the
-//! strictly additive SDL and unchanged unrelated behaviour.
+//! `METRICS_DASHBOARD` entitlement of every selected publisher, the protected
+//! registry lists and their bound, the frozen error classifications and the
+//! one `MET-WP4-03B` addition, `BigInt` transport, the country and
+//! institution sections, the strictly additive SDL and unchanged unrelated
+//! behaviour.
 //!
 //! Coverage, freshness, snapshot, bounds and additivity semantics are proven
 //! with the read itself, in `crate::model::metric_dashboard::tests`.
@@ -25,7 +28,7 @@ use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::metric_dashboard::tests::{
     apply_all, commit, commit_dims, cover, day_n, exec, insert_institution, insert_measure,
-    projection_sql, quarantine, setup, Dims, Fixture,
+    projection_sql, publisher_sql, quarantine, setup, works_sql, Dims, Fixture,
 };
 use crate::model::metric_platform::tests::{insert_platform_row, setup_registry_db};
 use crate::model::tests::db as test_db;
@@ -149,6 +152,8 @@ const DASHBOARD: &str = "query Dashboard($input: MetricDashboardInput!) { \
     metricDashboard(input: $input) { \
       totals { platformId measureId value } \
       timeline { platformId measureId startDate endDate value } \
+      countries { platformId measureId countryCode value } \
+      institutions { platformId measureId institutionId institutionName ror value } \
       coverage { status items { platformId measureId status dataThrough \
                                 countryCoverage institutionCoverage } } \
       asOf dataThrough rollupWatermark warnings { code message } isPartial } }";
@@ -417,27 +422,69 @@ async fn the_dashboard_requires_publisher_entitlement_that_no_role_supplies() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_plural_selector_accepts_exactly_one_publisher_in_mom_1() {
+async fn the_selector_accepts_one_to_three_entitled_publishers() {
     let (_guard, fx) = setup();
+    let third = Uuid::new_v4();
+    let third_work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(third, "SPHINX"),
+            works_sql(third, &[third_work])
+        ),
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 1);
+    commit(
+        &fx,
+        fx.other_work,
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        20,
+    );
+    commit(&fx, third_work, fx.platform_id, fx.sessions, day_n(1), 300);
+    apply_all(&fx.pool);
     let schema = create_schema();
     let context = context_for(&fx.pool, Some(reader()));
 
-    let one = run(
-        &schema,
-        &context,
-        DASHBOARD,
-        dashboard_variables(&fx, json!([fx.publisher_id])),
-    )
-    .await;
-    assert!(data(&one, "metricDashboard").is_object());
+    for (publishers, expected) in [
+        (json!([fx.publisher_id]), "1"),
+        (json!([fx.publisher_id, fx.other_publisher_id]), "21"),
+        (
+            json!([fx.publisher_id, fx.other_publisher_id, third]),
+            "321",
+        ),
+    ] {
+        let served = run(
+            &schema,
+            &context,
+            DASHBOARD,
+            dashboard_variables(&fx, publishers),
+        )
+        .await;
+        assert_eq!(
+            data(&served, "metricDashboard")["totals"][0]["value"],
+            json!(expected)
+        );
+    }
 
-    // MOM-1 runtime cardinality: none, several and unknown are all refused
-    // with a query-validation error, never truncated, combined or emptied.
+    // None, four, a duplicate and an unknown publisher are all refused with
+    // a query-validation error, never truncated, deduplicated or emptied.
     for (label, publishers) in [
         ("omitted", JsonValue::Null),
         ("empty", json!([])),
-        ("two", json!([fx.publisher_id, fx.other_publisher_id])),
-        ("unknown", json!([Uuid::new_v4()])),
+        (
+            "four",
+            json!([
+                fx.publisher_id,
+                fx.other_publisher_id,
+                third,
+                Uuid::new_v4()
+            ]),
+        ),
+        ("duplicate", json!([fx.publisher_id, fx.publisher_id])),
+        ("unknown", json!([fx.publisher_id, Uuid::new_v4()])),
     ] {
         let response = run(
             &schema,
@@ -449,6 +496,24 @@ async fn the_plural_selector_accepts_exactly_one_publisher_in_mom_1() {
         let message = assert_classified(&response, "METRIC_QUERY_INVALID");
         assert!(message.contains("publisher"), "{label}: {message}");
     }
+
+    // One unentitled publisher refuses the whole request, whatever the
+    // others hold.
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE publisher SET subscription_package = 'OBELISK' WHERE publisher_id = '{third}';"
+        ),
+    );
+    assert_unauthorized(
+        &run(
+            &schema,
+            &context,
+            DASHBOARD,
+            dashboard_variables(&fx, json!([fx.publisher_id, fx.other_publisher_id, third])),
+        )
+        .await,
+    );
 }
 
 // ==========================================================================
@@ -509,6 +574,46 @@ async fn every_bounded_failure_carries_its_frozen_classification() {
             "11 measures",
             with(json!({ "measures": (0..11).map(|_| Uuid::new_v4()).collect::<Vec<_>>() })),
             "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "501 work IDs",
+            with(json!({ "selector": {
+                "publisherIds": [fx.publisher_id],
+                "workIds": (0..501).map(|_| Uuid::new_v4()).collect::<Vec<_>>(),
+            } })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "51 imprint IDs",
+            with(json!({ "selector": {
+                "publisherIds": [fx.publisher_id],
+                "imprintIds": (0..51).map(|_| Uuid::new_v4()).collect::<Vec<_>>(),
+            } })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "duplicate languages",
+            with(json!({ "selector": {
+                "publisherIds": [fx.publisher_id],
+                "languages": ["ENG", "ENG"],
+            } })),
+            "METRIC_QUERY_INVALID",
+        ),
+        (
+            "unknown series",
+            with(json!({ "selector": {
+                "publisherIds": [fx.publisher_id],
+                "seriesIds": [Uuid::new_v4()],
+            } })),
+            "METRIC_QUERY_INVALID",
+        ),
+        (
+            "unknown affiliation institution",
+            with(json!({ "selector": {
+                "publisherIds": [fx.publisher_id],
+                "affiliationInstitutionIds": [Uuid::new_v4()],
+            } })),
+            "METRIC_QUERY_INVALID",
         ),
     ] {
         let response = run(&schema, &context, DASHBOARD, variables).await;
@@ -913,12 +1018,23 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     for (declaration, expected) in [
         (
             "input MetricDashboardInput {",
-            "selector:MetricSelectorInput!startDate:Date!endDate:Date!measures:[Uuid!]platforms:[Uuid!]timelineGrain:MetricTimelineGrain=",
+            "selector:MetricSelectorInput!startDate:Date!endDate:Date!measures:[Uuid!]platforms:[Uuid!]timelineGrain:MetricTimelineGrain=includeCountries:Boolean=trueincludeInstitutions:Boolean=true",
         ),
-        ("input MetricSelectorInput {", "publisherIds:[Uuid!]"),
+        (
+            "input MetricSelectorInput {",
+            "publisherIds:[Uuid!]imprintIds:[Uuid!]seriesIds:[Uuid!]workIds:[Uuid!]workTypes:[WorkType!]languages:[LanguageCode!]fundingInstitutionIds:[Uuid!]affiliationInstitutionIds:[Uuid!]",
+        ),
         (
             "type MetricDashboard {",
-            "totals:[MetricTotal!]!timeline:[MetricTimeBucket!]!coverage:MetricCoverage!asOf:Timestamp!dataThrough:DaterollupWatermark:Timestamp!warnings:[MetricWarning!]!isPartial:Boolean!",
+            "totals:[MetricTotal!]!timeline:[MetricTimeBucket!]!countries:[MetricCountryTotal!]!institutions:[MetricInstitutionTotal!]!coverage:MetricCoverage!asOf:Timestamp!dataThrough:DaterollupWatermark:Timestamp!warnings:[MetricWarning!]!isPartial:Boolean!",
+        ),
+        (
+            "type MetricCountryTotal {",
+            "platformId:Uuid!measureId:Uuid!countryCode:String!value:BigInt!",
+        ),
+        (
+            "type MetricInstitutionTotal {",
+            "platformId:Uuid!measureId:Uuid!institutionId:Uuid!institutionName:String!ror:Rorvalue:BigInt!",
         ),
         ("type MetricTotal {", "platformId:Uuid!measureId:Uuid!value:BigInt"),
         (
@@ -938,6 +1054,13 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     // `markupFormat: MarkupFormat = "JATS_XML"` arguments are rendered.
     assert!(sdl_block(&sdl, "input MetricDashboardInput {")
         .contains("timelineGrain: MetricTimelineGrain = \"AUTO\""));
+    for section in ["includeCountries", "includeInstitutions"] {
+        assert!(
+            sdl_block(&sdl, "input MetricDashboardInput {")
+                .contains(&format!("{section}: Boolean = true")),
+            "{section} defaults to true"
+        );
+    }
     assert_eq!(
         enum_values(&sdl, "enum MetricCoverageStatus {"),
         ["COMPLETE", "PARTIAL", "UNKNOWN"]
@@ -969,7 +1092,12 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     // The plural selector is the public contract; there is no singular one.
     assert!(!signatures(sdl_block(&sdl, "input MetricSelectorInput {")).contains("publisherId:"));
     // Numeric Metrics values are never 32-bit Ints or floats.
-    for block in ["type MetricTotal {", "type MetricTimeBucket {"] {
+    for block in [
+        "type MetricTotal {",
+        "type MetricTimeBucket {",
+        "type MetricCountryTotal {",
+        "type MetricInstitutionTotal {",
+    ] {
         let body = sdl_block(&sdl, block);
         assert!(
             !body.contains(": Int") && !body.contains(": Float"),
@@ -981,40 +1109,25 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
 #[test]
 fn deferred_dashboard_surface_is_absent() {
     let sdl = create_schema().as_sdl();
-    let dashboard = sdl_block(&sdl, "type MetricDashboard {");
-    for deferred in ["countries", "institutions", "works", "workPage", "pageInfo"] {
+    let dashboard = signatures(sdl_block(&sdl, "type MetricDashboard {"));
+    for deferred in ["works:", "workPage", "pageInfo"] {
         assert!(
             !dashboard.contains(deferred),
-            "`{deferred}` is not part of MOM-1"
+            "`{deferred}` is deferred beyond MET-WP4-03B"
         );
     }
-    let selector = sdl_block(&sdl, "input MetricSelectorInput {");
-    for deferred in [
-        "imprintIds",
-        "seriesIds",
-        "workIds",
-        "dois",
-        "workTypes",
-        "languages",
-        "fundingInstitutionIds",
-        "affiliationInstitutionIds",
-        "includeDescendants",
-    ] {
+    let selector = signatures(sdl_block(&sdl, "input MetricSelectorInput {"));
+    for deferred in ["dois", "includeDescendants", "publisherId:"] {
         assert!(
             !selector.contains(deferred),
-            "`{deferred}` is deferred from MOM-1"
+            "`{deferred}` is deferred beyond MET-WP4-03B"
         );
     }
-    let input = sdl_block(&sdl, "input MetricDashboardInput {");
-    for deferred in [
-        "includeCountries",
-        "includeInstitutions",
-        "includeWorks",
-        "workPage",
-    ] {
+    let input = signatures(sdl_block(&sdl, "input MetricDashboardInput {"));
+    for deferred in ["includeWorks", "workPage"] {
         assert!(
             !input.contains(deferred),
-            "`{deferred}` is deferred from MOM-1"
+            "`{deferred}` is deferred beyond MET-WP4-03B"
         );
     }
     for absent in ["metricWidget", "MetricWidget", "type MetricRollupWorkDay "] {
@@ -1111,4 +1224,179 @@ async fn unrelated_public_queries_are_unchanged() {
         json!("net_units")
     );
     assert_unauthorized(&run(&schema, &superuser, MEASURES, json!({})).await);
+}
+
+// ==========================================================================
+// MET-WP4-03B additions through the API
+// ==========================================================================
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn country_and_institution_sections_are_served_by_default_as_bigint_strings() {
+    let (_guard, fx) = setup();
+    let institution_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO institution (institution_id, institution_name, ror) \
+             VALUES ('{institution_id}', 'Sample University', 'https://ror.org/0abcdef12');"
+        ),
+    );
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        Dims {
+            country: Some("GB"),
+            ..Dims::default()
+        },
+        i64::MAX,
+    );
+    commit_dims(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        day_n(1),
+        Dims {
+            country: Some("GB"),
+            ..Dims::default()
+        },
+        i64::MAX,
+    );
+    // Another measure, so no projected monthly total of a work exceeds the
+    // signed 64-bit range the MET-WP4-03A projection stores.
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.units,
+        day_n(2),
+        Dims {
+            institution: Some(institution_id),
+            ..Dims::default()
+        },
+        7,
+    );
+    apply_all(&fx.pool);
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+    let both_measures = || {
+        let mut variables = dashboard_variables(&fx, json!([fx.publisher_id]));
+        variables["input"]["measures"] = json!([fx.sessions, fx.units]);
+        variables
+    };
+
+    let response = run(&schema, &context, DASHBOARD, both_measures()).await;
+    let dashboard = data(&response, "metricDashboard");
+    assert_eq!(
+        dashboard["countries"],
+        json!([{
+            "platformId": fx.platform_id,
+            "measureId": fx.sessions,
+            "countryCode": "GB",
+            "value": "18446744073709551614",
+        }])
+    );
+    assert_eq!(
+        dashboard["institutions"],
+        json!([{
+            "platformId": fx.platform_id,
+            "measureId": fx.units,
+            "institutionId": institution_id,
+            "institutionName": "Sample University",
+            "ror": "https://ror.org/0abcdef12",
+            "value": "7",
+        }])
+    );
+    assert_eq!(dashboard["institutions"][0]["measureId"], json!(fx.units));
+
+    let mut variables = both_measures();
+    variables["input"]["includeCountries"] = json!(false);
+    variables["input"]["includeInstitutions"] = json!(false);
+    let omitted = run(&schema, &context, DASHBOARD, variables).await;
+    let omitted = data(&omitted, "metricDashboard");
+    assert_eq!(omitted["countries"], json!([]));
+    assert_eq!(omitted["institutions"], json!([]));
+    assert_eq!(omitted["totals"], dashboard["totals"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_active_native_grain_record_is_classified_without_detail() {
+    let (_guard, fx) = setup();
+    let record_id = Uuid::new_v4();
+    let revision_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, platform_id, measure_id, period_start, \
+                  period_end, reporting_grain, winning_source_account_id) \
+             VALUES ('{record_id}', 'native-{record_id}', '{work}', '{platform}', '{measure}', \
+                     '2026-03-01', '2026-04-01', 'MONTH', '{account}'); \
+             INSERT INTO metric_record_revision \
+                 (record_revision_id, record_id, revision_number, import_id, value, \
+                  content_hash, status) \
+             VALUES ('{revision_id}', '{record_id}', 1, '{import}', 5, 'content-{revision_id}', \
+                     'CURRENT'); \
+             UPDATE metric_record SET current_revision_id = '{revision_id}' \
+              WHERE record_id = '{record_id}';",
+            work = fx.works[0],
+            platform = fx.platform_id,
+            measure = fx.sessions,
+            account = fx.account_id,
+            import = fx.canonical_import,
+        ),
+    );
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+    let response = run(
+        &schema,
+        &context,
+        DASHBOARD,
+        dashboard_variables(&fx, json!([fx.publisher_id])),
+    )
+    .await;
+    let message = assert_classified(&response, "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN");
+    assert!(!message.contains(&record_id.to_string()));
+    assert!(!message.contains("MONTH"), "{message}");
+    // Another platform is outside the record's scope and is served.
+    let mut variables = dashboard_variables(&fx, json!([fx.publisher_id]));
+    variables["input"]["platforms"] = json!([fx.other_platform_id]);
+    assert!(data(
+        &run(&schema, &context, DASHBOARD, variables).await,
+        "metricDashboard"
+    )
+    .is_object());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn unknown_enum_selector_values_are_refused_before_the_resolver() {
+    let (_guard, fx) = setup();
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+    for (field, value) in [("workTypes", "PAMPHLET"), ("languages", "XXX")] {
+        let mut variables = dashboard_variables(&fx, json!([fx.publisher_id]));
+        variables["input"]["selector"][field] = json!([value]);
+        let response = run(&schema, &context, DASHBOARD, variables).await;
+        let errors = response["errors"].as_array().expect("errors array");
+        assert!(!errors.is_empty(), "{field}: {response}");
+        assert!(
+            errors
+                .iter()
+                .all(|error| error["extensions"]["type"].is_null()),
+            "{field}: GraphQL input coercion, not a Metrics classification: {response}"
+        );
+        assert!(response["data"].is_null(), "{field}");
+    }
+    // Known values reach the resolver.
+    let mut variables = dashboard_variables(&fx, json!([fx.publisher_id]));
+    variables["input"]["selector"]["workTypes"] = json!(["MONOGRAPH", "BOOK_CHAPTER"]);
+    variables["input"]["selector"]["languages"] = json!(["ENG"]);
+    assert!(data(
+        &run(&schema, &context, DASHBOARD, variables).await,
+        "metricDashboard"
+    )
+    .is_object());
 }
