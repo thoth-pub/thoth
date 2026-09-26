@@ -10,11 +10,20 @@
 //! `MET-WP4-03A` adds no operation, type, field or argument: the derived
 //! monthly projections are maintained inside the existing completion and
 //! never cross the API. The evidence here is that the resolver path still
-//! maintains them and that the generated schema is byte-for-byte unchanged in
-//! its rollup surface.
+//! maintains them.
+//!
+//! `MET-WP4-03A-OPS-02` adds exactly two further protected operations,
+//! `verifyMetricRollupMonths` and `rebuildMetricRollupMonths`, under the same
+//! `METRICS_INGEST_SERVICE`-only boundary. The evidence here is their
+//! complete authorization matrix, that a denied request issues no
+//! rollup-specific statement at all, the exact bounded result and input
+//! shapes, the fixed rejections as seen through GraphQL, and that the
+//! generated schema gains exactly those two operations and three result
+//! types, one input type, and no query-side surface.
 //!
 //! Frontier, lease, atomicity, arithmetic, watermark, monthly resolution,
-//! rebuild and migration evidence lives with the durable state itself, in
+//! verification, rebuild, rollback, concurrency and migration evidence lives
+//! with the durable state itself, in
 //! `crate::model::metric_rollup_delta::tests`.
 
 #![cfg(all(test, feature = "backend"))]
@@ -33,8 +42,8 @@ use crate::db::PgPool;
 use crate::model::metric_platform::tests::setup_registry_db;
 use crate::model::metric_record_revision::tests::fixture_record;
 use crate::model::metric_rollup_delta::tests::{
-    commit_work_day_delta, day, deltas, month_rows, projection, state, DayDimensions, DAY_ONE,
-    DAY_TWO,
+    commit_work_day_delta, day, deltas, logging_pool, month_rows, projection, state, DayDimensions,
+    DAY_ONE, DAY_TWO,
 };
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
@@ -126,6 +135,54 @@ fn complete(claim_token: Uuid) -> String {
     format!(
         "mutation {{ completeMetricRollupDeltas(input: {{ claimToken: \"{claim_token}\" }}) \
            {{ appliedThroughSequence watermarkAt }} }}"
+    )
+}
+
+/// Every field of the verification result, once.
+const VERIFICATION_FIELDS: &str = "appliedThroughSequence nextSequence watermarkAt \
+     maxWorkDayWatermark workDayRowCount representedMonthKeyCount \
+     total { expectedRows actualRows missingRows extraRows mismatchedRows } \
+     country { expectedRows actualRows missingRows extraRows mismatchedRows } \
+     institution { expectedRows actualRows missingRows extraRows mismatchedRows } \
+     ambiguity { expectedRows actualRows missingRows extraRows mismatchedRows } \
+     matches";
+
+fn verify_document() -> String {
+    format!("mutation {{ verifyMetricRollupMonths {{ {VERIFICATION_FIELDS} }} }}")
+}
+
+fn rebuild_document(expected: &str) -> String {
+    format!(
+        "mutation {{ rebuildMetricRollupMonths(input: {{ expectedAppliedThroughSequence: \
+           \"{expected}\" }}) {{ rebuilt verification {{ {VERIFICATION_FIELDS} }} }} }}"
+    )
+}
+
+/// The captured statements that touch rollup state at all, without the
+/// bind suffix Diesel's instrumentation appends to a query's text.
+fn rollup_statements(log: &std::sync::Mutex<Vec<String>>) -> Vec<String> {
+    log.lock()
+        .expect("statement log")
+        .iter()
+        .map(|statement| {
+            statement
+                .split_once(" -- binds:")
+                .map_or(statement.as_str(), |(text, _)| text)
+                .to_string()
+        })
+        .filter(|statement| {
+            statement.contains("metric_rollup") || statement.to_uppercase().starts_with("BEGIN")
+        })
+        .collect()
+}
+
+fn ingest_context(pool: &Arc<PgPool>) -> Context {
+    context_for(
+        pool,
+        Some(user_with(
+            INGEST_USER,
+            &[(Role::MetricsIngestService, "org-1")],
+        )),
     )
 }
 
@@ -380,6 +437,109 @@ async fn the_ingest_role_confers_no_other_authority() {
     assert_unauthorized(&response);
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn every_row_of_the_authorization_matrix_holds_for_the_verification() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let (logged, log) = logging_pool();
+    // Warm the captured connection so a checkout issues nothing later.
+    let _ = run(&schema, &ingest_context(&logged), &verify_document()).await;
+
+    for (label, user, allowed) in matrix("org-1") {
+        log.lock().expect("statement log").clear();
+        let context = context_for(&logged, user);
+        let response = run(&schema, &context, &verify_document()).await;
+        if allowed {
+            let verification = data(&response, "verifyMetricRollupMonths").clone();
+            assert_eq!(verification["matches"], json!(true), "{label}: {response}");
+            assert_eq!(verification["appliedThroughSequence"], json!("0"));
+            assert_eq!(verification["nextSequence"], json!("3"), "{label}");
+            assert!(
+                rollup_statements(&log)
+                    .iter()
+                    .any(|s| s.contains("metric_rollup_work_day")),
+                "{label}: the authorized verification reads rollup state"
+            );
+        } else {
+            assert_unauthorized(&response);
+            assert_eq!(
+                rollup_statements(&log),
+                Vec::<String>::new(),
+                "{label}: a denied verification must open no transaction and read no rollup state"
+            );
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn every_row_of_the_authorization_matrix_holds_for_the_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let (logged, log) = logging_pool();
+    let _ = run(&schema, &ingest_context(&logged), &verify_document()).await;
+    let before = state(&pool);
+
+    for (label, user, allowed) in matrix("org-1") {
+        log.lock().expect("statement log").clear();
+        let context = context_for(&logged, user);
+        let response = run(&schema, &context, &rebuild_document("0")).await;
+        if allowed {
+            let result = data(&response, "rebuildMetricRollupMonths").clone();
+            // Nothing is applied yet, so the empty monthly state is exact
+            // for the empty work-day projection: a healthy no-op.
+            assert_eq!(result["rebuilt"], json!(false), "{label}: {response}");
+            assert_eq!(result["verification"]["matches"], json!(true));
+            assert!(rollup_statements(&log)
+                .iter()
+                .any(|s| s.contains("metric_rollup_work_day_state") && s.ends_with("FOR UPDATE")));
+        } else {
+            assert_unauthorized(&response);
+            assert_eq!(
+                rollup_statements(&log),
+                Vec::<String>::new(),
+                "{label}: a denied rebuild must open no transaction and touch no rollup state"
+            );
+        }
+        assert_eq!(
+            state(&pool),
+            before,
+            "{label}: the frontier row is untouched"
+        );
+        assert!(month_rows(&pool).is_empty(), "{label}");
+        assert_eq!(deltas(&pool).len(), 2, "{label}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_invalid_expected_frontier_is_rejected_by_the_resolver_without_any_rollup_statement() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let (logged, log) = logging_pool();
+    let context = ingest_context(&logged);
+    let _ = run(&schema, &context, &verify_document()).await;
+
+    for invalid in ["", "abc", "-1", "+1", "1.0", "9223372036854775808"] {
+        log.lock().expect("statement log").clear();
+        let response = run(&schema, &context, &rebuild_document(invalid)).await;
+        let (message, kind) = only_error(&response);
+        assert_eq!(kind, "INTERNAL_ERROR");
+        assert_eq!(
+            message,
+            "The expected applied-through sequence must be a decimal string holding a \
+             non-negative 64-bit integer. Nothing was rebuilt.",
+            "{invalid:?}"
+        );
+        assert_eq!(
+            log.lock().expect("statement log").clone(),
+            Vec::<String>::new(),
+            "{invalid:?}: an invalid frontier reaches no statement"
+        );
+    }
+}
+
 // ==========================================================================
 // The operations as seen through GraphQL
 // ==========================================================================
@@ -488,6 +648,110 @@ async fn the_completion_resolver_maintains_the_monthly_projections() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_verification_and_rebuild_round_trip_through_the_resolvers() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let context = ingest_context(&pool);
+
+    let claims = data(
+        &run(&schema, &context, CLAIM).await,
+        "claimMetricRollupDeltas",
+    )
+    .clone();
+    let token: Uuid = claims[0]["claimToken"]
+        .as_str()
+        .expect("claimToken")
+        .parse()
+        .expect("a UUID claim token");
+    run(&schema, &context, &complete(token)).await;
+    assert_eq!(month_rows(&pool).len(), 1);
+
+    // Healthy: every 64-bit fact is a decimal string, every family is
+    // exact, and the frontier facts are the completion's.
+    let verification = data(
+        &run(&schema, &context, &verify_document()).await,
+        "verifyMetricRollupMonths",
+    )
+    .clone();
+    let exact_one = json!({
+        "expectedRows": "1", "actualRows": "1",
+        "missingRows": "0", "extraRows": "0", "mismatchedRows": "0"
+    });
+    let exact_none = json!({
+        "expectedRows": "0", "actualRows": "0",
+        "missingRows": "0", "extraRows": "0", "mismatchedRows": "0"
+    });
+    assert_eq!(verification["appliedThroughSequence"], json!("2"));
+    assert_eq!(verification["nextSequence"], json!("3"));
+    assert!(verification["watermarkAt"].is_string());
+    assert_eq!(verification["maxWorkDayWatermark"], json!("2"));
+    assert_eq!(verification["workDayRowCount"], json!("2"));
+    assert_eq!(verification["representedMonthKeyCount"], json!("1"));
+    assert_eq!(verification["total"], exact_one);
+    assert_eq!(verification["country"], exact_none);
+    assert_eq!(verification["institution"], exact_none);
+    assert_eq!(verification["ambiguity"], exact_none);
+    assert_eq!(verification["matches"], json!(true));
+
+    // A healthy rebuild at the pinned frontier is a no-op with the same
+    // verification, and the surrogate id proves no row was rewritten.
+    let surrogate = month_rows(&pool)[0].rollup_work_month_id;
+    let result = data(
+        &run(&schema, &context, &rebuild_document("2")).await,
+        "rebuildMetricRollupMonths",
+    )
+    .clone();
+    assert_eq!(result["rebuilt"], json!(false));
+    assert_eq!(result["verification"], verification);
+    assert_eq!(month_rows(&pool)[0].rollup_work_month_id, surrogate);
+
+    // Empty monthly state: verification reports the missing row without
+    // its contents, and the rebuild at the pinned frontier repopulates it
+    // and returns an exact verification.
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    diesel::sql_query("TRUNCATE TABLE metric_rollup_work_month")
+        .execute(&mut connection)
+        .expect("truncate");
+    drop(connection);
+    let verification = data(
+        &run(&schema, &context, &verify_document()).await,
+        "verifyMetricRollupMonths",
+    )
+    .clone();
+    assert_eq!(
+        verification["total"],
+        json!({
+            "expectedRows": "1", "actualRows": "0",
+            "missingRows": "1", "extraRows": "0", "mismatchedRows": "0"
+        })
+    );
+    assert_eq!(verification["matches"], json!(false));
+    assert!(month_rows(&pool).is_empty(), "verification wrote nothing");
+
+    let result = data(
+        &run(&schema, &context, &rebuild_document("2")).await,
+        "rebuildMetricRollupMonths",
+    )
+    .clone();
+    assert_eq!(result["rebuilt"], json!(true));
+    assert_eq!(result["verification"]["matches"], json!(true));
+    assert_eq!(result["verification"]["total"], exact_one);
+    assert_eq!(result["verification"]["appliedThroughSequence"], json!("2"));
+    let rows = month_rows(&pool);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].value, 30);
+    assert_ne!(rows[0].rollup_work_month_id, surrogate);
+    assert_eq!(
+        state(&pool).applied_through_sequence,
+        2,
+        "the frontier never moves"
+    );
+    assert_eq!(projection(&pool).len(), 2);
+    assert!(deltas(&pool).iter().all(|row| row.status == "APPLIED"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_bounded_rejections_reach_the_caller_without_leaking_state() {
     let (_guard, pool) = setup_registry_db();
     seeded(&pool);
@@ -538,6 +802,26 @@ async fn the_bounded_rejections_reach_the_caller_without_leaking_state() {
         deltas(&pool).iter().all(|row| row.status == "PENDING"),
         "a rejected request must change no durable state"
     );
+
+    // A stale pinned frontier is rejected with the fixed message and, like
+    // every rollup rejection, discloses no frontier value, row, SQL,
+    // principal or database detail.
+    let response = run(&schema, &context, &rebuild_document("7")).await;
+    let (message, kind) = only_error(&response);
+    assert_eq!(kind, "INTERNAL_ERROR");
+    assert_eq!(
+        message,
+        "The expected applied-through sequence does not match the current durable rollup \
+         frontier. Nothing was rebuilt; verify again and pin the current frontier."
+    );
+    for leaked in ["metric_rollup", "SELECT", "postgres", INGEST_USER, "0", "7"] {
+        assert!(
+            !message.contains(leaked),
+            "the rejection leaked `{leaked}`: {message}"
+        );
+    }
+    assert!(month_rows(&pool).is_empty());
+    assert_eq!(state(&pool).applied_through_sequence, 0);
 }
 
 // ==========================================================================
@@ -565,7 +849,7 @@ fn signatures(block: &str) -> String {
 }
 
 #[test]
-fn the_sdl_declares_exactly_the_two_approved_operations() {
+fn the_sdl_declares_exactly_the_four_approved_operations() {
     let sdl = create_schema().as_sdl();
     let mutation_root = sdl_block(&sdl, "type MutationRoot {");
     let mutation_signatures = signatures(mutation_root);
@@ -573,28 +857,141 @@ fn the_sdl_declares_exactly_the_two_approved_operations() {
     for operation in [
         "claimMetricRollupDeltas(limit:Int!):[MetricRollupDeltaClaim!]!",
         "completeMetricRollupDeltas(input:CompleteMetricRollupDeltasInput!):MetricRollupWatermark!",
+        "verifyMetricRollupMonths:MetricRollupMonthVerification!",
+        "rebuildMetricRollupMonths(input:RebuildMetricRollupMonthsInput!):MetricRollupMonthRebuildResult!",
     ] {
-        assert!(
-            mutation_signatures.contains(operation),
-            "the approved operation `{operation}` is missing from MutationRoot: \
-             {mutation_signatures}"
+        assert_eq!(
+            mutation_signatures.matches(operation).count(),
+            1,
+            "the approved operation `{operation}` must be declared exactly once in \
+             MutationRoot: {mutation_signatures}"
         );
     }
 
-    // Exactly two, and no third rollup operation by analogy. A callable
-    // rebuild, a retry, a release, an unclaim or an administrative repair
-    // each need their own authorization matrix and rollback semantics.
-    let rollup_fields = mutation_root
+    // Exactly four — the two `MET-WP4-01` application operations and the two
+    // `MET-WP4-03A-OPS-02` maintenance operations — and no fifth rollup
+    // operation by analogy. A retry, a release, an unclaim, a repair, a
+    // reconciliation ledger write or a scheduled rebuild each need their own
+    // authorization matrix and rollback semantics.
+    let rollup_fields: Vec<&str> = mutation_root
         .lines()
+        .map(str::trim_start)
         .filter(|line| {
-            let line = line.trim_start();
             line.starts_with("claimMetricRollup")
                 || line.starts_with("completeMetricRollup")
+                || line.starts_with("verifyMetricRollup")
+                || line.starts_with("rebuildMetricRollup")
                 || line.contains("Rollup(")
+                || line.contains("Rollup:")
                 || line.starts_with("rebuildMetric")
+                || line.starts_with("verifyMetric")
+                || line.starts_with("reconcileMetricRollup")
+                || line.starts_with("repairMetric")
         })
-        .count();
-    assert_eq!(rollup_fields, 2, "MutationRoot: {mutation_root}");
+        .collect();
+    assert_eq!(rollup_fields.len(), 4, "MutationRoot: {rollup_fields:?}");
+    // And none of them reaches QueryRoot.
+    let query_root = sdl_block(&sdl, "type QueryRoot {");
+    for absent in [
+        "verifyMetricRollup",
+        "rebuildMetricRollup",
+        "metricRollup",
+        "MetricRollupMonth",
+        "Rollup",
+    ] {
+        assert!(
+            !query_root.contains(absent),
+            "no rollup maintenance or read surface may reach QueryRoot: `{absent}`"
+        );
+    }
+}
+
+#[test]
+fn the_verification_and_rebuild_types_are_bounded_and_exactly_the_approved_shape() {
+    let sdl = create_schema().as_sdl();
+
+    let family = sdl_block(&sdl, "type MetricRollupMonthProjectionVerification {");
+    assert_eq!(
+        signatures(family),
+        "expectedRows:String!actualRows:String!missingRows:String!extraRows:String!\
+         mismatchedRows:String!",
+        "the per-family verification carries exactly five bounded counts"
+    );
+
+    let verification = sdl_block(&sdl, "type MetricRollupMonthVerification {");
+    assert_eq!(
+        signatures(verification),
+        "appliedThroughSequence:String!nextSequence:String!watermarkAt:Timestamp!\
+         maxWorkDayWatermark:StringworkDayRowCount:String!representedMonthKeyCount:String!\
+         total:MetricRollupMonthProjectionVerification!\
+         country:MetricRollupMonthProjectionVerification!\
+         institution:MetricRollupMonthProjectionVerification!\
+         ambiguity:MetricRollupMonthProjectionVerification!matches:Boolean!",
+        "the verification carries exactly the approved fields, with only \
+         maxWorkDayWatermark nullable"
+    );
+
+    let result = sdl_block(&sdl, "type MetricRollupMonthRebuildResult {");
+    assert_eq!(
+        signatures(result),
+        "rebuilt:Boolean!verification:MetricRollupMonthVerification!"
+    );
+
+    // The rebuild takes the pinned frontier and nothing else: no key, id,
+    // value, dimension, flag, watermark, SQL or repair instruction.
+    let input = sdl_block(&sdl, "input RebuildMetricRollupMonthsInput {");
+    assert_eq!(signatures(input), "expectedAppliedThroughSequence:String!");
+
+    // No unbounded or row-level surface: nothing in the three result types
+    // names a row, an identity, a value, a list or a mismatch detail.
+    for block in [family, verification, result] {
+        let block_signatures = signatures(block);
+        for forbidden in ["[", "Uuid", "value", "rowId", "mismatches", "rows:", "Int!"] {
+            assert!(
+                !block_signatures.contains(forbidden),
+                "a bounded verification type must not expose `{forbidden}`: {block_signatures}"
+            );
+        }
+    }
+    // Exactly these four new declarations, each once, and no sibling type
+    // by analogy.
+    for declaration in [
+        "type MetricRollupMonthProjectionVerification {",
+        "type MetricRollupMonthVerification {",
+        "type MetricRollupMonthRebuildResult {",
+        "input RebuildMetricRollupMonthsInput {",
+    ] {
+        assert_eq!(sdl.matches(declaration).count(), 1, "{declaration}");
+    }
+    let mut month_declarations: Vec<&str> = sdl
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("type ")
+                .or_else(|| line.strip_prefix("input "))
+                .and_then(|rest| rest.strip_suffix(" {"))
+        })
+        .filter(|name| name.contains("MetricRollupMonth"))
+        .collect();
+    month_declarations.sort_unstable();
+    assert_eq!(
+        month_declarations,
+        [
+            "MetricRollupMonthProjectionVerification",
+            "MetricRollupMonthRebuildResult",
+            "MetricRollupMonthVerification",
+            "RebuildMetricRollupMonthsInput",
+        ],
+        "no other MetricRollupMonth* type may exist"
+    );
+    for absent in [
+        "input VerifyMetricRollupMonthsInput",
+        "type MetricRollupMonthMismatch",
+        "type MetricRollupMonthRow",
+        "reconcileMetricRollupMonths",
+        "recordMetricReconciliation",
+    ] {
+        assert!(!sdl.contains(absent), "`{absent}` must not be declared");
+    }
 }
 
 #[test]
@@ -648,14 +1045,14 @@ fn the_added_types_expose_progress_state_and_no_read_surface() {
         );
     }
     // MET-WP4-03A introduces derived monthly state and no reader of it: no
-    // monthly type, field, selector, rebuild or ambiguity surface may appear
-    // until the separately specified MET-WP4-03B read contract.
+    // monthly row type, selector or ambiguity surface may appear beyond the
+    // separately specified MET-WP4-03B read contract and the bounded
+    // MET-WP4-03A-OPS-02 verification/rebuild counts proven below.
     for absent in [
         "MetricRollupWorkMonth",
         "MetricRollupWorkCountryMonth",
         "MetricRollupWorkInstitutionMonth",
         "MetricRollupWorkMonthAmbiguity",
-        "rebuildMetricRollup",
         "monthAmbiguity",
         "rollupWorkMonth",
     ] {
@@ -672,6 +1069,11 @@ fn the_added_types_expose_progress_state_and_no_read_surface() {
         "sequence: Int",
         "appliedThroughSequence: Int",
         "watermark: Int",
+        "nextSequence: Int",
+        "maxWorkDayWatermark: Int",
+        "workDayRowCount: Int",
+        "representedMonthKeyCount: Int",
+        "Rows: Int",
     ] {
         assert!(
             !sdl.contains(forbidden),
