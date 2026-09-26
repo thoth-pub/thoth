@@ -45,7 +45,10 @@ use crate::model::{
     metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
     metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
     metric_record_provenance::MetricRecordProvenanceClassification,
-    metric_rollup_delta::{MetricRollupDeltaClaim, MetricRollupWatermark},
+    metric_rollup_delta::{
+        MetricRollupDeltaClaim, MetricRollupMonthProjectionVerification,
+        MetricRollupMonthRebuildResult, MetricRollupMonthVerification, MetricRollupWatermark,
+    },
     metric_source::{MetricSource, MetricSourceAcquisitionType},
     metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
     metric_source_checkpoint::{
@@ -3893,6 +3896,151 @@ impl MetricRollupWatermark {
     )]
     pub fn watermark_at(&self) -> Timestamp {
         self.watermark_at
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics monthly verification and rebuild (`MET-WP4-03A-OPS-02`)
+//
+// These three object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` monthly maintenance operations and by nothing
+// else. They carry bounded counts and frontier facts only: no monthly row,
+// identity, value or mismatch detail is exposed, and no field on `QueryRoot`
+// or on any public type navigates into them. Every 64-bit sequence, count
+// and watermark position is a decimal string for the same reason the rollup
+// types above use strings.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Bounded verification counts for one monthly projection family: the rows the work-day projection implies, the rows the table holds, and how many logical identities are missing, extra or mismatched between them."
+)]
+impl MetricRollupMonthProjectionVerification {
+    #[graphql(
+        description = "How many rows the independently derived expected state contains, as a decimal string"
+    )]
+    pub fn expected_rows(&self) -> String {
+        self.expected_rows.to_string()
+    }
+
+    #[graphql(
+        description = "How many rows the projection table actually holds, as a decimal string"
+    )]
+    pub fn actual_rows(&self) -> String {
+        self.actual_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Expected logical identities absent from the table, as a decimal string"
+    )]
+    pub fn missing_rows(&self) -> String {
+        self.missing_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Table rows whose logical identity is absent from the expected state, as a decimal string"
+    )]
+    pub fn extra_rows(&self) -> String {
+        self.extra_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Logical identities present on both sides whose value, dependency flag, ambiguity flag or watermark differs, as a decimal string"
+    )]
+    pub fn mismatched_rows(&self) -> String {
+        self.mismatched_rows.to_string()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One coherent verification of the four derived monthly projections against the state independently derived from the work-day projection at one durable rollup frontier."
+)]
+impl MetricRollupMonthVerification {
+    #[graphql(
+        description = "The durable frontier W the verification was taken at, as a decimal string"
+    )]
+    pub fn applied_through_sequence(&self) -> String {
+        self.applied_through_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "The next work-day position to be allocated, as a decimal string. nextSequence - 1 above appliedThroughSequence is ordinary pending rollup lag, not monthly corruption"
+    )]
+    pub fn next_sequence(&self) -> String {
+        self.next_sequence.to_string()
+    }
+
+    #[graphql(description = "When the current frontier was established")]
+    pub fn watermark_at(&self) -> Timestamp {
+        self.watermark_at
+    }
+
+    #[graphql(
+        description = "The greatest work-day row watermark, as a decimal string, or null when the work-day projection is empty. It is never above the frontier in a returned verification"
+    )]
+    pub fn max_work_day_watermark(&self) -> Option<String> {
+        self.max_work_day_watermark
+            .map(|watermark| watermark.to_string())
+    }
+
+    #[graphql(description = "How many work-day projection rows exist, as a decimal string")]
+    pub fn work_day_row_count(&self) -> String {
+        self.work_day_row_count.to_string()
+    }
+
+    #[graphql(
+        description = "How many distinct (work, platform, measure, month) keys the work-day projection represents, as a decimal string"
+    )]
+    pub fn represented_month_key_count(&self) -> String {
+        self.represented_month_key_count.to_string()
+    }
+
+    #[graphql(description = "Verification of the resolved monthly total projection")]
+    pub fn total(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.total
+    }
+
+    #[graphql(description = "Verification of the resolved monthly per-country projection")]
+    pub fn country(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country
+    }
+
+    #[graphql(description = "Verification of the resolved monthly per-institution projection")]
+    pub fn institution(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution
+    }
+
+    #[graphql(description = "Verification of the sparse monthly ambiguity state")]
+    pub fn ambiguity(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.ambiguity
+    }
+
+    #[graphql(
+        description = "True only when every projection family has zero missing, extra and mismatched rows and no monthly row is watermarked above the frontier"
+    )]
+    pub fn matches(&self) -> bool {
+        self.matches
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The receipt of one monthly rebuild request."
+)]
+impl MetricRollupMonthRebuildResult {
+    #[graphql(
+        description = "False when the monthly state was already exact at the pinned frontier and nothing was truncated or written; true when the four monthly datasets were replaced and verified exact in the same committed transaction"
+    )]
+    pub fn rebuilt(&self) -> bool {
+        self.rebuilt
+    }
+
+    #[graphql(
+        description = "The exact independently derived verification the transaction committed with"
+    )]
+    pub fn verification(&self) -> &MetricRollupMonthVerification {
+        &self.verification
     }
 }
 

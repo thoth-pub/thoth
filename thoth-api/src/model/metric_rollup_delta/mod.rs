@@ -23,14 +23,25 @@
 //! been resolved. See [`crud`] for the two protected operations and their
 //! exact transaction shapes.
 //!
-//! What is still deliberately absent: any callable rebuild operation, any
-//! reader of the monthly projections, any retry/backoff or poison-skipping
-//! behaviour, and any progress stream for a non-`DAY` grain. A poison
-//! frontier blocks and waits for separately authorized repair rather than
-//! being stepped over. The monthly tables are created empty by their
-//! migration and may not be served from until a separately authorized
-//! historical rebuild has populated and reconciled them at a recorded
-//! work-day frontier.
+//! `MET-WP4-03A-OPS-02` adds the two protected maintenance operations the
+//! monthly layer needs before it may be served from: a database-read-only
+//! consistency verification that independently derives the expected monthly
+//! state from `metric_rollup_work_day` and compares all four monthly
+//! datasets by bounded counts (see [`verification`]), and an exceptional,
+//! self-verifying full rebuild at a caller-pinned frontier that replaces the
+//! four monthly datasets only when they are not already exact (see
+//! [`crud`]). Neither reads or writes canonical state, rollup deltas, the
+//! work-day projection or the durable frontier.
+//!
+//! What is still deliberately absent: any reader of the monthly projections
+//! other than the separately specified `MET-WP4-03B` dashboard, any
+//! retry/backoff or poison-skipping behaviour, any scheduled or automatic
+//! rebuild, and any progress stream for a non-`DAY` grain. A poison frontier
+//! blocks and waits for separately authorized repair rather than being
+//! stepped over. A verification mismatch never invokes a rebuild by itself.
+//! The monthly tables are created empty by their migration and may not be
+//! served from until a separately authorized rebuild has populated them and
+//! an independent verification is exact at a recorded work-day frontier.
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -306,7 +317,119 @@ pub struct CompleteMetricRollupDeltasInput {
     pub claim_token: Uuid,
 }
 
+/// The largest number of represented month keys one full monthly rebuild
+/// supports (`MET-WP4-03A-OPS-02`).
+///
+/// A work-day projection representing more keys than this is rejected before
+/// any monthly row is touched. It is a safety envelope for the one
+/// all-or-nothing rebuild transaction, not a production SLO, and it is not
+/// raised silently: a larger corpus needs a separately approved envelope.
+pub const METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS: i64 = 100_000;
+
+/// The largest number of month keys one rebuild chunk recomputes at once:
+/// the same bound as a claim batch, so a rebuild replays exactly the keyed
+/// recomputation shape a completion uses.
+pub const METRIC_ROLLUP_REBUILD_CHUNK_KEYS: usize = METRIC_ROLLUP_CLAIM_MAX_BATCH as usize;
+
+/// The server-side elapsed ceiling of one whole rebuild operation, in
+/// seconds, covering its initial verification, every rebuild chunk, its
+/// post-rebuild verification and the moment before commit.
+///
+/// Exceeding it at any checkpoint fails the operation and rolls the whole
+/// transaction back, so no partially rebuilt monthly state can commit.
+pub const METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS: u64 = 120;
+
+/// The `lock_timeout` a rebuild transaction sets locally, in seconds.
+pub const METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS: u64 = 5;
+
+/// The `statement_timeout` both a verification and a rebuild transaction set
+/// locally, in seconds.
+pub const METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS: u64 = 30;
+
+/// Bounded verification counts for one monthly projection family
+/// (`MET-WP4-03A-OPS-02`).
+///
+/// Only counts leave Thoth: no row identity, value or mismatch detail is
+/// carried. `missing_rows` counts expected logical identities absent from the
+/// actual table, `extra_rows` actual identities absent from the expected
+/// state, and `mismatched_rows` identities present on both sides whose
+/// value, dependency flag, ambiguity flag or watermark differs.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MetricRollupMonthProjectionVerification {
+    pub expected_rows: i64,
+    pub actual_rows: i64,
+    pub missing_rows: i64,
+    pub extra_rows: i64,
+    pub mismatched_rows: i64,
+}
+
+/// One coherent verification of the four monthly projections against the
+/// state independently derived from `metric_rollup_work_day`
+/// (`MET-WP4-03A-OPS-02`).
+///
+/// `applied_through_sequence` is the frontier `W` the verification was taken
+/// at, and `next_sequence - 1 > W` is ordinary pending rollup lag, never
+/// monthly corruption. `max_work_day_watermark` is `None` when the work-day
+/// projection is empty; it is never above `W` in a returned value, because a
+/// work-day row above the frontier fails the operation closed instead.
+/// `matches` is true only when every family has zero missing, extra and
+/// mismatched rows and no monthly row is watermarked above `W`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupMonthVerification {
+    pub applied_through_sequence: i64,
+    pub next_sequence: i64,
+    pub watermark_at: Timestamp,
+    pub max_work_day_watermark: Option<i64>,
+    pub work_day_row_count: i64,
+    pub represented_month_key_count: i64,
+    pub total: MetricRollupMonthProjectionVerification,
+    pub country: MetricRollupMonthProjectionVerification,
+    pub institution: MetricRollupMonthProjectionVerification,
+    pub ambiguity: MetricRollupMonthProjectionVerification,
+    pub matches: bool,
+}
+
+/// The receipt of one rebuild request (`MET-WP4-03A-OPS-02`).
+///
+/// `rebuilt = false` means the monthly state was already exact at the pinned
+/// frontier and nothing was truncated or written; `rebuilt = true` means the
+/// four monthly datasets were replaced and independently verified exact
+/// inside the same committed transaction. In both cases `verification` is
+/// the exact state the transaction committed with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildResult {
+    pub rebuilt: bool,
+    pub verification: MetricRollupMonthVerification,
+}
+
+/// Which frontier a rebuild is pinned to.
+///
+/// This carries the caller's expected `applied_through_sequence` and
+/// **nothing else**: no work, month, platform or measure identity, value,
+/// dimension, dependency or ambiguity flag, watermark, SQL or repair
+/// instruction is accepted. Thoth derives every monthly row from the durable
+/// work-day projection alone, so a caller can only say which frontier it
+/// believes the monthly state should be rebuilt at, and a stale frontier is
+/// rejected before any monthly row is touched.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which durable rollup frontier the monthly rebuild is pinned to")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RebuildMetricRollupMonthsInput {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The current appliedThroughSequence the caller observed, as a decimal string holding a non-negative 64-bit integer. It is the only accepted input: the rebuild is rejected before any monthly row is touched if the durable frontier differs, and every rebuilt value is derived from durable work-day state"
+        )
+    )]
+    pub expected_applied_through_sequence: String,
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
 #[cfg(all(test, feature = "backend"))]
 pub(crate) mod tests;
+#[cfg(feature = "backend")]
+pub mod verification;

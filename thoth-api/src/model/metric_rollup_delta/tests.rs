@@ -33,11 +33,24 @@
 //! differential against an independent per-day oracle, incremental/rebuild
 //! equality and the populated migration round trip.
 //!
+//! The `MET-WP4-03A-OPS-02` half, at the end of this file, asserts the
+//! protected monthly verification and rebuild contract: the read-only
+//! repeatable-read verification snapshot that writes nothing, the
+//! independent set-based expected-state derivation against the same per-day
+//! oracle, detection of empty, missing, extra, corrupted, mis-identified,
+//! mis-flagged and mis-watermarked monthly rows, the pinned-frontier rebuild
+//! that is a no-op when the monthly state is already exact, its input,
+//! frontier, key-count, timeout and elapsed-ceiling rejections before any
+//! monthly mutation, failure-injection rollback at every stage, the state it
+//! leaves untouched, its serialization through the singleton state row, and
+//! the production-shaped performance evidence.
+//!
 //! GraphQL authorization, resolver wiring and SDL evidence live in
 //! `crate::graphql::metric_rollup_tests`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -49,18 +62,28 @@ use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::{sql_query, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
-use thoth_errors::ThothError;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::crud::{
-    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_month_projections,
-    recompute_month_projections, MonthKey, MONTH_MAINTENANCE_STATEMENTS,
-    MONTH_MAINTENANCE_STATEMENT_COUNT,
+    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
+    rebuild_metric_rollup_months_within, rebuild_month_projections, recompute_month_projections,
+    MonthKey, MONTH_MAINTENANCE_STATEMENTS, MONTH_MAINTENANCE_STATEMENT_COUNT,
+    REBUILD_ELAPSED_CEILING, REBUILD_LOCK_TIMEOUT_SQL, REBUILD_MONTH_KEYS_SQL,
+    REBUILD_STATEMENT_TIMEOUT_SQL, REBUILD_TRUNCATE_SQL,
+};
+use super::verification::{
+    verify_metric_rollup_months, FRONTIER_SQL, TRANSACTION_MODE_SQL, VERIFICATION_LOCK_SQL,
+    VERIFICATION_SQL, VERIFICATION_STATEMENT_TIMEOUT_SQL, WORK_DAY_STATS_SQL,
 };
 use super::{
-    MetricRollupDelta, MetricRollupWorkCountryMonth, MetricRollupWorkDay, MetricRollupWorkDayState,
-    MetricRollupWorkInstitutionMonth, MetricRollupWorkMonth, MetricRollupWorkMonthAmbiguity,
-    METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_LEASE_SECONDS,
+    MetricRollupDelta, MetricRollupMonthProjectionVerification, MetricRollupMonthRebuildResult,
+    MetricRollupMonthVerification, MetricRollupWorkCountryMonth, MetricRollupWorkDay,
+    MetricRollupWorkDayState, MetricRollupWorkInstitutionMonth, MetricRollupWorkMonth,
+    MetricRollupWorkMonthAmbiguity, METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_LEASE_SECONDS,
+    METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS, METRIC_ROLLUP_REBUILD_CHUNK_KEYS,
+    METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS, METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS,
+    METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS,
 };
 use crate::db::{PgPool, MIGRATIONS};
 use crate::model::metric_import::tests::check_constraint_names;
@@ -3576,7 +3599,7 @@ impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for StatementLog {
 }
 
 /// A one-connection pool whose statements are captured.
-fn logging_pool() -> (Arc<PgPool>, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn logging_pool() -> (Arc<PgPool>, Arc<Mutex<Vec<String>>>) {
     let log = Arc::new(Mutex::new(Vec::new()));
     let pool = Pool::builder()
         .max_size(1)
@@ -4380,33 +4403,31 @@ fn a_monthly_sum_that_overflows_a_bigint_fails_closed_and_changes_nothing() {
 // Fixed-seed differential and incremental/rebuild equality
 // ---------------------------------------------------------------------------
 
-#[test]
-fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
-    let (_guard, pool) = setup_registry_db();
-    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
-    let other_work = insert_extra_work(&pool, &fixture);
+/// Seed the fixed-seed differential fixture over the shared fixture: two
+/// works, three months, fourteen days each, zero to three rows per base cell
+/// over every one of the eight masks, then a revision (possibly to zero) on
+/// about a quarter of the records. Returns the pinned cardinality label.
+fn seed_differential_fixture(pool: &PgPool, fixture: &RecordFixture) -> String {
+    let other_work = insert_extra_work(pool, fixture);
     let works = [
         (
             fixture.work_id,
             [
                 fixture.publication_id,
-                insert_extra_publication(&pool, fixture.work_id, "Paperback"),
+                insert_extra_publication(pool, fixture.work_id, "Paperback"),
             ],
         ),
         (
             other_work,
             [
-                insert_extra_publication(&pool, other_work, "PDF"),
-                insert_extra_publication(&pool, other_work, "Paperback"),
+                insert_extra_publication(pool, other_work, "PDF"),
+                insert_extra_publication(pool, other_work, "Paperback"),
             ],
         ),
     ];
     let countries = ["GB", "US", "DE"];
-    let institutions = [fixture.institution_id, insert_extra_institution(&pool)];
+    let institutions = [fixture.institution_id, insert_extra_institution(pool)];
 
-    // Bounded generated data: two works, three months, fourteen days each,
-    // zero to three rows per base cell over every one of the eight masks,
-    // then a revision (possibly to zero) on about a quarter of the records.
     let mut generator = Generator(DIFFERENTIAL_SEED);
     let mut records: Vec<(Uuid, i64)> = Vec::new();
     for (work_id, publications) in works {
@@ -4431,7 +4452,7 @@ fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
                     };
                     let value = 1 + generator.below(100) as i64;
                     let record_id =
-                        commit_cell_delta(&pool, &fixture, work_id, on, dimensions, value);
+                        commit_cell_delta(pool, fixture, work_id, on, dimensions, value);
                     records.push((record_id, value));
                 }
             }
@@ -4441,11 +4462,11 @@ fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
     for (record_id, value) in records.clone() {
         if generator.below(4) == 0 {
             let new_value = generator.below(121) as i64;
-            commit_revision_delta(&pool, &fixture, record_id, 2, new_value, value);
+            commit_revision_delta(pool, fixture, record_id, 2, new_value, value);
             revisions += 1;
         }
     }
-    let delta_count = deltas(&pool).len();
+    let delta_count = deltas(pool).len();
     let cardinality = format!(
         "seed {DIFFERENTIAL_SEED}: {} records, {revisions} revisions, {delta_count} deltas",
         records.len()
@@ -4456,6 +4477,15 @@ fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
         (120, 33, 153),
         "{cardinality}"
     );
+    cardinality
+}
+
+#[test]
+fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let cardinality = seed_differential_fixture(&pool, &fixture);
+    let delta_count = deltas(&pool).len();
 
     let frontier = apply_everything(&pool);
     assert_eq!(frontier, delta_count as i64);
@@ -5406,4 +5436,2329 @@ fn evidence_month_maintenance_cost_plans_and_locks() {
             samples.len()
         );
     }
+}
+
+// ===========================================================================
+// MET-WP4-03A-OPS-02: protected monthly verification and rebuild
+// ===========================================================================
+
+/// The six rollup tables a verification may read and must never write.
+const ROLLUP_TABLES: [&str; 6] = [
+    "metric_rollup_work_day",
+    "metric_rollup_work_day_state",
+    "metric_rollup_work_month",
+    "metric_rollup_work_country_month",
+    "metric_rollup_work_institution_month",
+    "metric_rollup_work_month_ambiguity",
+];
+
+/// The generic WP9 reconciliation ledgers this contract must never touch.
+const RECONCILIATION_LEDGERS: [&str; 2] =
+    ["metric_reconciliation_run", "metric_reconciliation_issue"];
+
+fn verification(pool: &PgPool) -> MetricRollupMonthVerification {
+    verify_metric_rollup_months(pool).expect("verification")
+}
+
+fn rebuild(pool: &PgPool, frontier: i64) -> ThothResult<MetricRollupMonthRebuildResult> {
+    rebuild_metric_rollup_months(pool, &frontier.to_string())
+}
+
+/// Run a statement and return how many rows it affected.
+fn exec_count(pool: &PgPool, statement: &str) -> usize {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(statement)
+        .execute(&mut connection)
+        .unwrap_or_else(|error| panic!("statement failed: {statement}: {error:?}"))
+}
+
+/// Run a statement that must affect exactly one row.
+fn exec_one(pool: &PgPool, statement: &str) {
+    assert_eq!(exec_count(pool, statement), 1, "{statement}");
+}
+
+/// An order-independent digest of every row of one table, or `None` when
+/// the table is empty.
+fn table_digest(pool: &PgPool, table: &str) -> Option<String> {
+    #[derive(diesel::QueryableByName)]
+    struct Digest {
+        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+        digest: Option<String>,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(format!(
+        "SELECT md5(string_agg(t::text, '|' ORDER BY t::text)) AS digest FROM {table} t"
+    ))
+    .load::<Digest>(&mut connection)
+    .expect("Failed to digest the table")
+    .pop()
+    .and_then(|row| row.digest)
+}
+
+/// The surrogate ids of every row of the four monthly tables, sorted, so a
+/// delete-and-reinsert of the same logical rows is visible.
+fn month_surrogates(pool: &PgPool) -> Vec<Uuid> {
+    let mut ids: Vec<Uuid> = month_rows(pool)
+        .into_iter()
+        .map(|row| row.rollup_work_month_id)
+        .chain(
+            country_rows(pool)
+                .into_iter()
+                .map(|row| row.rollup_work_country_month_id),
+        )
+        .chain(
+            institution_rows(pool)
+                .into_iter()
+                .map(|row| row.rollup_work_institution_month_id),
+        )
+        .chain(
+            ambiguity_rows(pool)
+                .into_iter()
+                .map(|row| row.rollup_work_month_ambiguity_id),
+        )
+        .collect();
+    ids.sort();
+    ids
+}
+
+/// Everything a rebuild must leave untouched, captured for comparison.
+#[derive(Debug, PartialEq, Eq)]
+struct UntouchedState {
+    projection: Vec<MetricRollupWorkDay>,
+    deltas: Vec<MetricRollupDelta>,
+    state: MetricRollupWorkDayState,
+    records: Option<String>,
+    revisions: Option<String>,
+    reconciliation_rows: i64,
+}
+
+impl UntouchedState {
+    fn capture(pool: &PgPool) -> Self {
+        UntouchedState {
+            projection: projection(pool),
+            deltas: deltas(pool),
+            state: state(pool),
+            records: table_digest(pool, "metric_record"),
+            revisions: table_digest(pool, "metric_record_revision"),
+            reconciliation_rows: RECONCILIATION_LEDGERS
+                .iter()
+                .map(|ledger| scalar_i64(pool, &format!("(SELECT COUNT(*) FROM {ledger})")))
+                .sum(),
+        }
+    }
+}
+
+/// The distinct `(work, platform, measure, month)` keys of the given rows.
+fn represented_month_keys(days: &[MetricRollupWorkDay]) -> i64 {
+    days.iter()
+        .map(|row| {
+            (
+                row.work_id,
+                row.platform_id,
+                row.measure_id,
+                first_of_month(row.day),
+            )
+        })
+        .collect::<BTreeSet<_>>()
+        .len() as i64
+}
+
+fn family(
+    expected_rows: i64,
+    actual_rows: i64,
+    missing_rows: i64,
+    extra_rows: i64,
+    mismatched_rows: i64,
+) -> MetricRollupMonthProjectionVerification {
+    MetricRollupMonthProjectionVerification {
+        expected_rows,
+        actual_rows,
+        missing_rows,
+        extra_rows,
+        mismatched_rows,
+    }
+}
+
+fn exact_family(rows: i64) -> MetricRollupMonthProjectionVerification {
+    family(rows, rows, 0, 0, 0)
+}
+
+/// Assert a verification is exact and agrees with the oracle's
+/// cardinalities and the current frontier and work-day facts.
+fn assert_exact_verification(pool: &PgPool, verification: &MetricRollupMonthVerification) {
+    let days = projection(pool);
+    let oracle = oracle_month_state(&days);
+    let state = state(pool);
+    assert!(verification.matches, "{verification:?}");
+    assert_eq!(
+        verification.total,
+        exact_family(oracle.totals.len() as i64),
+        "totals"
+    );
+    assert_eq!(
+        verification.country,
+        exact_family(oracle.countries.len() as i64),
+        "countries"
+    );
+    assert_eq!(
+        verification.institution,
+        exact_family(oracle.institutions.len() as i64),
+        "institutions"
+    );
+    assert_eq!(
+        verification.ambiguity,
+        exact_family(oracle.ambiguity.len() as i64),
+        "ambiguity"
+    );
+    assert_eq!(
+        verification.applied_through_sequence,
+        state.applied_through_sequence
+    );
+    assert_eq!(verification.next_sequence, state.next_sequence);
+    assert_eq!(verification.watermark_at, state.watermark_at);
+    assert_eq!(
+        verification.max_work_day_watermark,
+        days.iter().map(|row| row.watermark).max()
+    );
+    assert_eq!(verification.work_day_row_count, days.len() as i64);
+    assert_eq!(
+        verification.represented_month_key_count,
+        represented_month_keys(&days)
+    );
+}
+
+/// The differential fixture, applied through the frontier, with every
+/// monthly family populated.
+fn settled_differential_fixture(pool: &PgPool) -> (RecordFixture, i64) {
+    let (fixture, _record_id) = fixture_record(pool, "identity-base");
+    seed_differential_fixture(pool, &fixture);
+    let frontier = apply_everything(pool);
+    let settled = month_state(pool);
+    assert!(
+        !settled.totals.is_empty()
+            && !settled.countries.is_empty()
+            && !settled.institutions.is_empty()
+            && !settled.ambiguity.is_empty(),
+        "the fixture must populate every monthly family"
+    );
+    (fixture, frontier)
+}
+
+/// A trigger with an arbitrary plpgsql body, dropped on scope exit.
+///
+/// The failure-injection, pause and corruption triggers of this section are
+/// all instances: a body that raises, a body that sleeps, and a body that
+/// alters the row being written.
+struct InjectedTrigger {
+    pool: Arc<PgPool>,
+    name: String,
+    table: String,
+}
+
+impl InjectedTrigger {
+    fn install(
+        pool: &Arc<PgPool>,
+        timing_and_event: &str,
+        table: &str,
+        level: &str,
+        when: Option<&str>,
+        body: &str,
+    ) -> Self {
+        let name = format!("thoth_ops02_test_{}", Uuid::new_v4().simple());
+        exec(
+            pool,
+            &format!(
+                "CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS \
+                 $$ BEGIN {body} END $$"
+            ),
+        );
+        let when = when.map(|w| format!(" WHEN ({w})")).unwrap_or_default();
+        exec(
+            pool,
+            &format!(
+                "CREATE TRIGGER {name} {timing_and_event} ON {table} \
+                 FOR EACH {level}{when} EXECUTE FUNCTION {name}()"
+            ),
+        );
+        InjectedTrigger {
+            pool: Arc::clone(pool),
+            name,
+            table: table.to_string(),
+        }
+    }
+
+    fn failing(pool: &Arc<PgPool>, timing_and_event: &str, table: &str) -> Self {
+        Self::install(
+            pool,
+            timing_and_event,
+            table,
+            "ROW",
+            None,
+            "RAISE EXCEPTION 'thoth test failure injection'; RETURN NULL;",
+        )
+    }
+}
+
+impl Drop for InjectedTrigger {
+    fn drop(&mut self) {
+        let Ok(mut connection) = self.pool.get() else {
+            return;
+        };
+        let _ = sql_query(format!(
+            "DROP TRIGGER IF EXISTS {} ON {}",
+            self.name, self.table
+        ))
+        .execute(&mut connection);
+        let _ =
+            sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name)).execute(&mut connection);
+    }
+}
+
+/// Every statement captured so far, in execution order, without the bind
+/// suffix Diesel's instrumentation appends to a query's text.
+fn captured(log: &Mutex<Vec<String>>) -> Vec<String> {
+    log.lock()
+        .expect("statement log")
+        .iter()
+        .map(|statement| {
+            statement
+                .split_once(" -- binds:")
+                .map_or(statement.as_str(), |(text, _)| text)
+                .to_string()
+        })
+        .collect()
+}
+
+/// The message of a database-level failure surfaced through the rollup
+/// operations: an injected trigger, a lock timeout, a statement timeout.
+fn database_failure(error: &ThothError) -> String {
+    match error {
+        ThothError::DatabaseError(message) => message.to_string(),
+        other => panic!("expected a database failure, got {other:?}"),
+    }
+}
+
+/// How many backends of this database are currently waiting on a lock.
+fn backends_waiting_on_a_lock(pool: &PgPool) -> i64 {
+    scalar_i64(
+        pool,
+        "(SELECT COUNT(*) FROM pg_stat_activity \
+          WHERE datname = current_database() AND wait_event_type = 'Lock')",
+    )
+}
+
+/// A pool wide enough for several concurrent rollup operations at once.
+fn wide_pool() -> Arc<PgPool> {
+    Arc::new(
+        Pool::builder()
+            .max_size(6)
+            .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+            .expect("Failed to create the wide pool"),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Approved constants and structural independence
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_verification_and_rebuild_envelope_is_the_approved_one() {
+    assert_eq!(METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS, 100_000);
+    assert_eq!(METRIC_ROLLUP_REBUILD_CHUNK_KEYS, 50);
+    assert_eq!(
+        METRIC_ROLLUP_REBUILD_CHUNK_KEYS,
+        METRIC_ROLLUP_CLAIM_MAX_BATCH as usize
+    );
+    assert_eq!(METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS, 120);
+    assert_eq!(REBUILD_ELAPSED_CEILING, Duration::from_secs(120));
+    assert_eq!(METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS, 5);
+    assert_eq!(METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS, 30);
+    assert_eq!(REBUILD_LOCK_TIMEOUT_SQL, "SET LOCAL lock_timeout = '5s'");
+    assert_eq!(
+        REBUILD_STATEMENT_TIMEOUT_SQL,
+        "SET LOCAL statement_timeout = '30s'"
+    );
+    assert_eq!(
+        VERIFICATION_STATEMENT_TIMEOUT_SQL,
+        "SET LOCAL statement_timeout = '30s'"
+    );
+    assert!(REBUILD_TRUNCATE_SQL.starts_with("TRUNCATE TABLE"));
+    for table in MONTH_TABLES {
+        assert!(REBUILD_TRUNCATE_SQL.contains(&format!("public.{table}")));
+    }
+    assert!(REBUILD_MONTH_KEYS_SQL.ends_with("ORDER BY 1, 2, 3, 4"));
+}
+
+#[test]
+fn the_verifier_shares_no_sql_with_the_monthly_writer_and_only_reads() {
+    // The verification statements are reads, take no row lock, and contain
+    // no writer statement, writer resolution text or writer key input.
+    for statement in [
+        VERIFICATION_SQL,
+        WORK_DAY_STATS_SQL,
+        FRONTIER_SQL,
+        TRANSACTION_MODE_SQL,
+    ] {
+        let upper = statement.to_uppercase();
+        assert!(
+            upper.starts_with("SELECT") || upper.starts_with("WITH"),
+            "{statement}"
+        );
+        for forbidden in [
+            "INSERT ",
+            "UPDATE ",
+            "DELETE ",
+            "TRUNCATE",
+            "FOR UPDATE",
+            "FOR SHARE",
+            "UNNEST(",
+        ] {
+            assert!(
+                !upper.contains(forbidden),
+                "verification SQL must not contain `{forbidden}`: {statement}"
+            );
+        }
+        for writer in MONTH_MAINTENANCE_STATEMENTS {
+            assert!(
+                !statement.contains(writer),
+                "verification SQL must not embed a writer statement"
+            );
+        }
+    }
+    // The one non-query statement is a table-level ACCESS SHARE lock on
+    // exactly the four monthly projection tables: no row lock, no stronger
+    // mode, no other table.
+    let lock: String = VERIFICATION_LOCK_SQL
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(lock.starts_with("LOCK TABLE "), "{lock}");
+    assert!(lock.ends_with(" IN ACCESS SHARE MODE"), "{lock}");
+    let mut locked: Vec<&str> = lock
+        .trim_start_matches("LOCK TABLE ")
+        .trim_end_matches(" IN ACCESS SHARE MODE")
+        .split(',')
+        .map(str::trim)
+        .collect();
+    locked.sort_unstable();
+    let mut expected: Vec<String> = MONTH_TABLES
+        .iter()
+        .map(|table| format!("public.{table}"))
+        .collect();
+    expected.sort();
+    assert_eq!(
+        locked, expected,
+        "the lock names exactly the four monthly tables"
+    );
+    for forbidden in [
+        "FOR UPDATE",
+        "FOR SHARE",
+        "EXCLUSIVE",
+        "ROW ",
+        "NOWAIT",
+        "work_day",
+    ] {
+        assert!(
+            !lock.contains(forbidden),
+            "the lock must not use `{forbidden}`: {lock}"
+        );
+    }
+
+    // The writer resolves each cell through a fixed, hand-written case table
+    // over its represented bitmap; the verifier derives the resolution of
+    // every one of the 256 possible represented sets from the minimality
+    // definition itself, by an inclusion anti-join, and looks each cell up.
+    // Neither text appears in the other.
+    assert!(VERIFICATION_SQL.contains("generate_series(0, 255)"));
+    assert!(VERIFICATION_SQL.contains("NOT EXISTS"));
+    assert!(VERIFICATION_SQL.contains("(o.m & c.m) = o.m"));
+    for case_table in [
+        "WHEN represented & 1 <> 0 THEN 0",
+        "WHEN represented = 128 THEN 7",
+        "WHEN represented & 8 <> 0 AND represented & 64 <> 0 THEN NULL",
+        "WHEN represented & 8 <> 0 AND represented & 32 <> 0 THEN NULL",
+        "r.mask IN (3, 6)",
+        "r.mask IN (3, 5)",
+    ] {
+        assert!(
+            !VERIFICATION_SQL.contains(case_table),
+            "the verifier must not carry the writer's case table: `{case_table}`"
+        );
+    }
+    for writer in MONTH_MAINTENANCE_STATEMENTS {
+        assert!(!writer.contains("NOT EXISTS"));
+        assert!(!writer.contains("generate_series"));
+    }
+
+    // The verifier's source calls no writer function and names no writer
+    // constant outside its documentation, and opens exactly one read-only
+    // repeatable-read transaction on exactly one connection.
+    let source = include_str!("verification.rs");
+    let code: String = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "recompute_month_projections",
+        "MONTH_",
+        "rebuild_month_projections",
+        "replace_month_projections",
+        "TRUNCATE",
+    ] {
+        assert!(
+            !code.contains(forbidden),
+            "verification.rs must not reference `{forbidden}` in code"
+        );
+    }
+    let chain: String = code.split_whitespace().collect();
+    assert!(chain.contains(".build_transaction().read_only().repeatable_read().run(|connection|{"));
+    assert_eq!(
+        code.matches("db.get()").count(),
+        1,
+        "exactly one connection"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Verification
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_healthy_incremental_state_verifies_exact_against_the_independent_expected_state() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+
+    // Incremental state equals the per-day oracle (proven by the
+    // differential test) and the verifier finds it exact, so the verifier's
+    // expected state equals the oracle on every identity, value, flag and
+    // watermark of every family.
+    let verified = verification(&pool);
+    assert_exact_verification(&pool, &verified);
+    assert_eq!(verified.applied_through_sequence, frontier);
+    assert_eq!(verified.next_sequence, frontier + 1);
+    assert_eq!(verified.max_work_day_watermark, Some(frontier));
+    let oracle = oracle_month_state(&projection(&pool));
+    assert_eq!(month_state(&pool), oracle);
+}
+
+#[test]
+fn an_empty_work_day_projection_verifies_exact_and_empty() {
+    let (_guard, pool) = setup_registry_db();
+    let verified = verification(&pool);
+    assert!(verified.matches);
+    assert_eq!(verified.applied_through_sequence, 0);
+    assert_eq!(verified.next_sequence, 1);
+    assert_eq!(verified.max_work_day_watermark, None);
+    assert_eq!(verified.work_day_row_count, 0);
+    assert_eq!(verified.represented_month_key_count, 0);
+    for family in [
+        &verified.total,
+        &verified.country,
+        &verified.institution,
+        &verified.ambiguity,
+    ] {
+        assert_eq!(*family, exact_family(0));
+    }
+}
+
+#[test]
+fn initially_empty_monthly_tables_are_detected_as_entirely_missing() {
+    let (_guard, pool) = setup_registry_db();
+    settled_differential_fixture(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    let verified = verification(&pool);
+    assert!(!verified.matches);
+    let expected = |rows: usize| family(rows as i64, 0, rows as i64, 0, 0);
+    assert_eq!(verified.total, expected(oracle.totals.len()));
+    assert_eq!(verified.country, expected(oracle.countries.len()));
+    assert_eq!(verified.institution, expected(oracle.institutions.len()));
+    assert_eq!(verified.ambiguity, expected(oracle.ambiguity.len()));
+}
+
+#[test]
+fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
+    let (_guard, pool) = setup_registry_db();
+    settled_differential_fixture(&pool);
+    let healthy = verification(&pool);
+
+    /// The mismatch counts of the corrupted family first, then the other
+    /// three.
+    type Mismatches = fn(&MetricRollupMonthVerification) -> [i64; 4];
+    let corruptions: [(&str, &str, Mismatches); 4] = [
+        (
+            "total value",
+            "UPDATE metric_rollup_work_month SET value = value + 1 \
+             WHERE rollup_work_month_id = \
+                 (SELECT rollup_work_month_id FROM metric_rollup_work_month \
+                  ORDER BY rollup_work_month_id LIMIT 1)",
+            |v| {
+                [
+                    v.total.mismatched_rows,
+                    v.country.mismatched_rows,
+                    v.institution.mismatched_rows,
+                    v.ambiguity.mismatched_rows,
+                ]
+            },
+        ),
+        (
+            "country value",
+            "UPDATE metric_rollup_work_country_month SET value = value - 1 \
+             WHERE rollup_work_country_month_id = \
+                 (SELECT rollup_work_country_month_id FROM metric_rollup_work_country_month \
+                  ORDER BY rollup_work_country_month_id LIMIT 1)",
+            |v| {
+                [
+                    v.country.mismatched_rows,
+                    v.total.mismatched_rows,
+                    v.institution.mismatched_rows,
+                    v.ambiguity.mismatched_rows,
+                ]
+            },
+        ),
+        (
+            "institution value",
+            "UPDATE metric_rollup_work_institution_month SET value = value * 2 + 1 \
+             WHERE rollup_work_institution_month_id = \
+                 (SELECT rollup_work_institution_month_id \
+                  FROM metric_rollup_work_institution_month \
+                  ORDER BY rollup_work_institution_month_id LIMIT 1)",
+            |v| {
+                [
+                    v.institution.mismatched_rows,
+                    v.total.mismatched_rows,
+                    v.country.mismatched_rows,
+                    v.ambiguity.mismatched_rows,
+                ]
+            },
+        ),
+        (
+            "ambiguity flags",
+            "UPDATE metric_rollup_work_month_ambiguity \
+             SET total_ambiguous = TRUE, country_ambiguous = TRUE, institution_ambiguous = TRUE \
+             WHERE rollup_work_month_ambiguity_id = \
+                 (SELECT rollup_work_month_ambiguity_id FROM metric_rollup_work_month_ambiguity \
+                  WHERE NOT (total_ambiguous AND country_ambiguous AND institution_ambiguous) \
+                  ORDER BY rollup_work_month_ambiguity_id LIMIT 1)",
+            |v| {
+                [
+                    v.ambiguity.mismatched_rows,
+                    v.total.mismatched_rows,
+                    v.country.mismatched_rows,
+                    v.institution.mismatched_rows,
+                ]
+            },
+        ),
+    ];
+    for (label, corruption, mismatches) in corruptions {
+        let before = month_state(&pool);
+        exec_one(&pool, corruption);
+        let verified = verification(&pool);
+        assert!(!verified.matches, "{label}");
+        assert_eq!(mismatches(&verified), [1, 0, 0, 0], "{label}: {verified:?}");
+        // Counts, not row contents: expected and actual cardinalities are
+        // unchanged, and nothing is missing or extra.
+        for family in [
+            (&verified.total, &healthy.total),
+            (&verified.country, &healthy.country),
+            (&verified.institution, &healthy.institution),
+            (&verified.ambiguity, &healthy.ambiguity),
+        ] {
+            assert_eq!(family.0.expected_rows, family.1.expected_rows, "{label}");
+            assert_eq!(family.0.actual_rows, family.1.actual_rows, "{label}");
+            assert_eq!(family.0.missing_rows, 0, "{label}");
+            assert_eq!(family.0.extra_rows, 0, "{label}");
+        }
+        // Repair by rebuild, then continue with the next family.
+        assert!(
+            rebuild(&pool, verified.applied_through_sequence)
+                .expect("rebuild")
+                .rebuilt
+        );
+        assert_eq!(
+            month_state(&pool),
+            before,
+            "{label}: the rebuild restores the state"
+        );
+    }
+}
+
+#[test]
+fn a_missing_row_and_an_extra_row_are_counted_as_such() {
+    let (_guard, pool) = setup_registry_db();
+    settled_differential_fixture(&pool);
+    let healthy = verification(&pool);
+
+    exec_one(
+        &pool,
+        "DELETE FROM metric_rollup_work_month WHERE rollup_work_month_id = \
+             (SELECT rollup_work_month_id FROM metric_rollup_work_month \
+              ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert!(!verified.matches);
+    assert_eq!(
+        verified.total,
+        family(
+            healthy.total.expected_rows,
+            healthy.total.actual_rows - 1,
+            1,
+            0,
+            0
+        )
+    );
+    assert_eq!(verified.country, healthy.country);
+    assert_eq!(verified.institution, healthy.institution);
+    assert_eq!(verified.ambiguity, healthy.ambiguity);
+
+    // An extra row under an identity the work-day projection does not imply:
+    // a copy of a real row moved to a month with no day rows at all.
+    exec_one(
+        &pool,
+        "INSERT INTO metric_rollup_work_country_month \
+             (work_id, publication_id, platform_id, measure_id, month_start, country_code, \
+              value, requires_institution_coverage, watermark) \
+         SELECT work_id, publication_id, platform_id, measure_id, DATE '2030-01-01', \
+                country_code, value, requires_institution_coverage, watermark \
+         FROM metric_rollup_work_country_month \
+         ORDER BY rollup_work_country_month_id LIMIT 1",
+    );
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.country,
+        family(
+            healthy.country.expected_rows,
+            healthy.country.actual_rows + 1,
+            0,
+            1,
+            0
+        )
+    );
+    assert!(!verified.matches);
+}
+
+#[test]
+fn a_wrong_publication_country_or_institution_identity_is_missing_plus_extra() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _frontier) = settled_differential_fixture(&pool);
+    let healthy = verification(&pool);
+
+    // A total row re-attributed to a publication no day row carries.
+    let other_publication = insert_extra_publication(&pool, fixture.work_id, "Epub");
+    exec_one(
+        &pool,
+        &format!(
+            "UPDATE metric_rollup_work_month SET publication_id = '{other_publication}' \
+             WHERE rollup_work_month_id = \
+                 (SELECT rollup_work_month_id FROM metric_rollup_work_month \
+                  WHERE work_id = '{}' AND publication_id IS NULL \
+                  ORDER BY rollup_work_month_id LIMIT 1)",
+            fixture.work_id
+        ),
+    );
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.total,
+        family(
+            healthy.total.expected_rows,
+            healthy.total.actual_rows,
+            1,
+            1,
+            0
+        ),
+        "publication identity"
+    );
+    assert!(!verified.matches);
+    assert!(
+        rebuild(&pool, verified.applied_through_sequence)
+            .expect("rebuild")
+            .rebuilt
+    );
+
+    // A country row re-attributed to a country no day row carries.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_country_month SET country_code = 'ZZ' \
+         WHERE rollup_work_country_month_id = \
+             (SELECT rollup_work_country_month_id FROM metric_rollup_work_country_month \
+              ORDER BY rollup_work_country_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.country,
+        family(
+            healthy.country.expected_rows,
+            healthy.country.actual_rows,
+            1,
+            1,
+            0
+        ),
+        "country identity"
+    );
+    assert!(!verified.matches);
+    assert!(
+        rebuild(&pool, verified.applied_through_sequence)
+            .expect("rebuild")
+            .rebuilt
+    );
+
+    // An institution row re-attributed to an institution no day row carries.
+    let other_institution = insert_extra_institution(&pool);
+    exec_one(
+        &pool,
+        &format!(
+            "UPDATE metric_rollup_work_institution_month SET institution_id = '{other_institution}' \
+             WHERE rollup_work_institution_month_id = \
+                 (SELECT rollup_work_institution_month_id \
+                  FROM metric_rollup_work_institution_month \
+                  ORDER BY rollup_work_institution_month_id LIMIT 1)"
+        ),
+    );
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.institution,
+        family(
+            healthy.institution.expected_rows,
+            healthy.institution.actual_rows,
+            1,
+            1,
+            0
+        ),
+        "institution identity"
+    );
+    assert!(!verified.matches);
+}
+
+#[test]
+fn a_wrong_dependency_flag_ambiguity_flag_or_watermark_is_a_mismatch() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let healthy = verification(&pool);
+
+    // Dependency flag on a total row.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month \
+         SET requires_country_coverage = NOT requires_country_coverage \
+         WHERE rollup_work_month_id = \
+             (SELECT rollup_work_month_id FROM metric_rollup_work_month \
+              ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert_eq!(verified.total.mismatched_rows, 1, "dependency flag");
+    assert_eq!(verified.total.expected_rows, healthy.total.expected_rows);
+    assert!(!verified.matches);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+
+    // Dependency flag on an institution row.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_institution_month \
+         SET requires_country_coverage = NOT requires_country_coverage \
+         WHERE rollup_work_institution_month_id = \
+             (SELECT rollup_work_institution_month_id \
+              FROM metric_rollup_work_institution_month \
+              ORDER BY rollup_work_institution_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.institution.mismatched_rows, 1,
+        "institution dependency"
+    );
+    assert!(!verified.matches);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+
+    // One ambiguity flag flipped on a row where another flag keeps the row
+    // representable.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month_ambiguity \
+         SET country_ambiguous = NOT country_ambiguous \
+         WHERE rollup_work_month_ambiguity_id = \
+             (SELECT rollup_work_month_ambiguity_id FROM metric_rollup_work_month_ambiguity \
+              WHERE total_ambiguous OR institution_ambiguous \
+              ORDER BY rollup_work_month_ambiguity_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert_eq!(verified.ambiguity.mismatched_rows, 1, "ambiguity flag");
+    assert!(!verified.matches);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+
+    // A watermark that is wrong but still at or below the frontier.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_country_month SET watermark = watermark - 1 \
+         WHERE rollup_work_country_month_id = \
+             (SELECT rollup_work_country_month_id FROM metric_rollup_work_country_month \
+              WHERE watermark > 1 ORDER BY rollup_work_country_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert_eq!(verified.country.mismatched_rows, 1, "watermark");
+    assert!(!verified.matches);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+
+    // A monthly watermark above the frontier: a mismatch, and an invariant
+    // failure that alone makes the verification inexact.
+    exec_one(
+        &pool,
+        &format!(
+            "UPDATE metric_rollup_work_month_ambiguity SET watermark = {} \
+             WHERE rollup_work_month_ambiguity_id = \
+                 (SELECT rollup_work_month_ambiguity_id FROM metric_rollup_work_month_ambiguity \
+                  ORDER BY rollup_work_month_ambiguity_id LIMIT 1)",
+            frontier + 7
+        ),
+    );
+    let verified = verification(&pool);
+    assert_eq!(verified.ambiguity.mismatched_rows, 1, "watermark above W");
+    assert!(!verified.matches);
+    assert_eq!(verified.applied_through_sequence, frontier);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+    assert_exact_verification(&pool, &verification(&pool));
+}
+
+#[test]
+fn a_work_day_row_watermarked_above_the_frontier_fails_verification_closed() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    exec(
+        &pool,
+        &format!(
+            "UPDATE metric_rollup_work_day SET watermark = {} \
+             WHERE rollup_work_day_id = \
+                 (SELECT rollup_work_day_id FROM metric_rollup_work_day \
+                  ORDER BY rollup_work_day_id LIMIT 1)",
+            frontier + 1
+        ),
+    );
+    let error = verify_metric_rollup_months(&pool).expect_err("must fail closed");
+    assert!(
+        matches!(&error, ThothError::InternalError(message)
+            if message.contains("watermarked above the durable frontier")),
+        "unexpected failure: {error:?}"
+    );
+    // The rebuild refuses for the same reason, before touching anything.
+    let surrogates = month_surrogates(&pool);
+    let error = rebuild(&pool, frontier).expect_err("must refuse");
+    assert!(
+        matches!(&error, ThothError::InternalError(message)
+            if message.contains("watermarked above the durable frontier")),
+        "unexpected failure: {error:?}"
+    );
+    assert_eq!(month_surrogates(&pool), surrogates);
+}
+
+#[test]
+fn pending_rollup_lag_is_not_reported_as_monthly_corruption() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+
+    // Three committed, unapplied deltas: allocated positions above W.
+    for on in [DAY_ONE, DAY_TWO, DAY_THREE] {
+        day_delta(&pool, &fixture, on, GB, 5);
+    }
+    let verified = verification(&pool);
+    assert_exact_verification(&pool, &verified);
+    assert_eq!(verified.applied_through_sequence, frontier);
+    assert_eq!(verified.next_sequence, frontier + 4);
+    assert!(verified.next_sequence - 1 > verified.applied_through_sequence);
+    assert_eq!(verified.max_work_day_watermark, Some(frontier));
+
+    // And a rebuild pinned to W is a no-op under the same lag.
+    let result = rebuild(&pool, frontier).expect("rebuild");
+    assert!(!result.rebuilt);
+    assert_eq!(result.verification, verified);
+    assert_eq!(state(&pool).applied_through_sequence, frontier);
+}
+
+#[test]
+fn verification_runs_in_one_read_only_repeatable_read_transaction_and_writes_nothing() {
+    let (_guard, pool) = setup_registry_db();
+    settled_differential_fixture(&pool);
+    let (logged, log) = logging_pool();
+
+    // Every kind of write to every rollup table would raise; the
+    // verification still succeeds, so it attempted none.
+    let _guards: Vec<InjectedTrigger> = ROLLUP_TABLES
+        .iter()
+        .flat_map(|table| {
+            [
+                InjectedTrigger::failing(&pool, "BEFORE INSERT OR UPDATE OR DELETE", table),
+                InjectedTrigger::install(
+                    &pool,
+                    "BEFORE TRUNCATE",
+                    table,
+                    "STATEMENT",
+                    None,
+                    "RAISE EXCEPTION 'thoth test failure injection'; RETURN NULL;",
+                ),
+            ]
+        })
+        .collect();
+    let before_ids = month_surrogates(&pool);
+    let before = UntouchedState::capture(&pool);
+    let before_months = (
+        month_rows(&pool),
+        country_rows(&pool),
+        institution_rows(&pool),
+        ambiguity_rows(&pool),
+    );
+
+    log.lock().expect("statement log").clear();
+    let verified = verify_metric_rollup_months(&logged).expect("verification");
+    assert_exact_verification(&pool, &verified);
+
+    let statements = captured(&log);
+    let begin = statements
+        .iter()
+        .find(|statement| statement.to_uppercase().starts_with("BEGIN"))
+        .expect("a transaction begins");
+    assert!(begin.contains("READ ONLY"), "{begin}");
+    assert!(begin.contains("REPEATABLE READ"), "{begin}");
+    let after_begin: Vec<&String> = statements
+        .iter()
+        .skip_while(|statement| !statement.to_uppercase().starts_with("BEGIN"))
+        .skip(1)
+        .collect();
+    // The lock is the only statement between the timeout and the first
+    // query, so it is held before the snapshot is frozen.
+    assert_eq!(after_begin[0].as_str(), VERIFICATION_STATEMENT_TIMEOUT_SQL);
+    assert_eq!(after_begin[1].as_str(), VERIFICATION_LOCK_SQL);
+    assert_eq!(after_begin[2].as_str(), TRANSACTION_MODE_SQL);
+    assert_eq!(after_begin[3].as_str(), FRONTIER_SQL);
+    assert_eq!(after_begin[4].as_str(), WORK_DAY_STATS_SQL);
+    assert_eq!(after_begin[5].as_str(), VERIFICATION_SQL);
+    assert!(after_begin[6].to_uppercase().starts_with("COMMIT"));
+    assert_eq!(after_begin.len(), 7, "{after_begin:?}");
+    let first_select = after_begin
+        .iter()
+        .position(|statement| {
+            let upper = statement.to_uppercase();
+            upper.starts_with("SELECT") || upper.starts_with("WITH")
+        })
+        .expect("a query");
+    let lock = after_begin
+        .iter()
+        .position(|statement| statement.starts_with("LOCK TABLE"))
+        .expect("the lock");
+    assert!(lock < first_select, "the lock must precede every query");
+    assert_eq!(
+        after_begin
+            .iter()
+            .filter(|statement| statement.starts_with("LOCK"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        statements
+            .iter()
+            .filter(|statement| statement.to_uppercase().starts_with("BEGIN"))
+            .count(),
+        1,
+        "exactly one transaction"
+    );
+    for statement in &statements {
+        let upper = statement.to_uppercase();
+        assert!(!upper.contains("FOR UPDATE"), "{statement}");
+        for write in ["INSERT ", "UPDATE ", "DELETE ", "TRUNCATE"] {
+            assert!(
+                !upper.starts_with(write) && !upper.contains(&format!(" {write}")),
+                "verification must not write: {statement}"
+            );
+        }
+    }
+
+    assert_eq!(month_surrogates(&pool), before_ids);
+    assert_eq!(UntouchedState::capture(&pool), before);
+    assert_eq!(
+        (
+            month_rows(&pool),
+            country_rows(&pool),
+            institution_rows(&pool),
+            ambiguity_rows(&pool),
+        ),
+        before_months
+    );
+}
+
+#[test]
+fn an_expected_monthly_sum_that_overflows_fails_verification_and_rebuild_closed() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, i64::MAX);
+    let frontier = apply_everything(&pool);
+    assert_eq!(frontier, 1);
+
+    // Out-of-band: a second day row of the same month that the completion
+    // path would have refused. The expected monthly sum no longer fits.
+    exec(
+        &pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                 measure_id, day, country_code, institution_id, value, watermark) \
+             VALUES ('{}', NULL, '{}', '{}', DATE '2026-03-02', NULL, NULL, 1, 1)",
+            fixture.work_id, fixture.platform_id, fixture.measure_id
+        ),
+    );
+    let error = verify_metric_rollup_months(&pool).expect_err("must fail closed");
+    assert!(
+        rejection(&error).starts_with("Deriving the expected monthly projections would overflow"),
+        "unexpected failure: {error:?}"
+    );
+    let surrogates = month_surrogates(&pool);
+    let error = rebuild(&pool, frontier).expect_err("must fail closed");
+    assert!(
+        rejection(&error).starts_with("Deriving the expected monthly projections would overflow"),
+        "unexpected failure: {error:?}"
+    );
+    assert_eq!(month_surrogates(&pool), surrogates, "nothing was rebuilt");
+}
+
+// ---------------------------------------------------------------------------
+// Rebuild: input, frontier and envelope rejections before any mutation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_invalid_expected_frontier_is_rejected_before_any_database_access() {
+    let (_guard, pool) = setup_registry_db();
+    let (logged, log) = logging_pool();
+    // Warm the pool so a later checkout issues no connection statement.
+    verification(&logged);
+    log.lock().expect("statement log").clear();
+
+    for invalid in [
+        "",
+        " ",
+        "abc",
+        "-1",
+        "+1",
+        " 1",
+        "1 ",
+        "1.0",
+        "1e3",
+        "0x1",
+        "٣",
+        "9223372036854775808",
+        "99999999999999999999",
+    ] {
+        let error = rebuild_metric_rollup_months(&logged, invalid).expect_err(invalid);
+        assert_eq!(
+            rejection(&error),
+            "The expected applied-through sequence must be a decimal string holding a \
+             non-negative 64-bit integer. Nothing was rebuilt.",
+            "{invalid:?}"
+        );
+    }
+    assert!(
+        captured(&log).is_empty(),
+        "an invalid frontier must reach no statement: {:?}",
+        captured(&log)
+    );
+
+    // The boundary values parse.
+    assert!(
+        !rebuild_metric_rollup_months(&pool, "0")
+            .expect("zero is the empty frontier")
+            .rebuilt
+    );
+    let error = rebuild_metric_rollup_months(&pool, "9223372036854775807").expect_err("stale");
+    assert!(rejection(&error).starts_with("The expected applied-through sequence does not match"));
+}
+
+#[test]
+fn a_stale_expected_frontier_is_rejected_before_any_monthly_mutation() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let (logged, log) = logging_pool();
+
+    // Stale against healthy state, and stale against empty state: both are
+    // rejected without a truncate, a delete or an insert, so the caller
+    // learns nothing about the monthly state and changes nothing.
+    for empty in [false, true] {
+        if empty {
+            exec(&pool, REBUILD_TRUNCATE_SQL);
+        }
+        let surrogates = month_surrogates(&pool);
+        let untouched = UntouchedState::capture(&pool);
+        for stale in [frontier - 1, frontier + 1, 0] {
+            log.lock().expect("statement log").clear();
+            let error = rebuild(&logged, stale).expect_err("stale frontier");
+            assert_eq!(
+                rejection(&error),
+                "The expected applied-through sequence does not match the current durable \
+                 rollup frontier. Nothing was rebuilt; verify again and pin the current \
+                 frontier."
+            );
+            let statements = captured(&log);
+            assert!(statements.iter().any(|s| s.contains("FOR UPDATE")));
+            for statement in &statements {
+                let upper = statement.to_uppercase();
+                assert!(!upper.contains("TRUNCATE"), "{statement}");
+                assert!(!upper.starts_with("DELETE"), "{statement}");
+                assert!(!upper.starts_with("INSERT"), "{statement}");
+            }
+            // Rejected before the work-day facts or the comparison were read.
+            assert!(!statements.iter().any(|s| s == WORK_DAY_STATS_SQL));
+            assert!(!statements.iter().any(|s| s == VERIFICATION_SQL));
+            assert!(statements
+                .last()
+                .expect("a statement")
+                .starts_with("ROLLBACK"));
+        }
+        assert_eq!(month_surrogates(&pool), surrogates, "empty = {empty}");
+        assert_eq!(UntouchedState::capture(&pool), untouched, "empty = {empty}");
+    }
+}
+
+#[test]
+fn more_than_the_supported_month_keys_are_rejected_before_any_monthly_mutation() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // 100,001 represented month keys for one work, straight into the
+    // work-day projection: every month from 1000-01 to 9333-05 inclusive.
+    exec(
+        &pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                 measure_id, day, country_code, institution_id, value, watermark) \
+             SELECT '{}', NULL, '{}', '{}', m::date, NULL, NULL, 1, 1 \
+             FROM generate_series(DATE '1000-01-01', DATE '9333-05-01', interval '1 month') m",
+            fixture.work_id, fixture.platform_id, fixture.measure_id
+        ),
+    );
+    exec(
+        &pool,
+        "UPDATE metric_rollup_work_day_state SET next_sequence = 2, applied_through_sequence = 1",
+    );
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_day)"),
+        METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS + 1
+    );
+    // A marker row that a rebuild would have truncated.
+    exec(
+        &pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_month (work_id, publication_id, platform_id, \
+                 measure_id, month_start, value, requires_country_coverage, \
+                 requires_institution_coverage, watermark) \
+             VALUES ('{}', NULL, '{}', '{}', DATE '1000-01-01', 999, FALSE, FALSE, 1)",
+            fixture.work_id, fixture.platform_id, fixture.measure_id
+        ),
+    );
+    let marker = month_rows(&pool);
+    assert_eq!(marker.len(), 1);
+
+    let (logged, log) = logging_pool();
+    let error = rebuild(&logged, 1).expect_err("too many keys");
+    assert_eq!(
+        rejection(&error),
+        "The work-day projection represents more month keys than one full monthly \
+         rebuild supports. Nothing was rebuilt."
+    );
+    let statements = captured(&log);
+    assert!(statements.iter().any(|s| s == WORK_DAY_STATS_SQL));
+    assert!(!statements.iter().any(|s| s == VERIFICATION_SQL));
+    assert!(!statements
+        .iter()
+        .any(|s| s.to_uppercase().contains("TRUNCATE")));
+    assert_eq!(
+        month_rows(&pool),
+        marker,
+        "the marker row survives untouched"
+    );
+
+    // The verification itself still runs and reports the envelope facts.
+    let verified = verification(&pool);
+    assert_eq!(
+        verified.represented_month_key_count,
+        METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS + 1
+    );
+    assert!(!verified.matches);
+}
+
+// ---------------------------------------------------------------------------
+// Rebuild: healthy no-op, real rebuilds, and what they leave untouched
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_healthy_rebuild_call_is_a_read_only_no_op_with_rebuilt_false() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let (logged, log) = logging_pool();
+    let surrogates = month_surrogates(&pool);
+    let rows_before = (
+        month_rows(&pool),
+        country_rows(&pool),
+        institution_rows(&pool),
+        ambiguity_rows(&pool),
+    );
+    let untouched = UntouchedState::capture(&pool);
+    // Any monthly write would raise; the healthy path performs none.
+    let _guards: Vec<InjectedTrigger> = MONTH_TABLES
+        .iter()
+        .flat_map(|table| {
+            [
+                InjectedTrigger::failing(&pool, "BEFORE INSERT OR UPDATE OR DELETE", table),
+                InjectedTrigger::install(
+                    &pool,
+                    "BEFORE TRUNCATE",
+                    table,
+                    "STATEMENT",
+                    None,
+                    "RAISE EXCEPTION 'thoth test failure injection'; RETURN NULL;",
+                ),
+            ]
+        })
+        .collect();
+
+    for _ in 0..3 {
+        log.lock().expect("statement log").clear();
+        let result = rebuild(&logged, frontier).expect("healthy rebuild");
+        assert!(!result.rebuilt);
+        assert_exact_verification(&pool, &result.verification);
+
+        // Timeouts first, then the state-row lock, then the facts and the
+        // one verification, then commit: no truncate, delete or insert.
+        let statements = captured(&log);
+        let after_begin: Vec<&String> = statements
+            .iter()
+            .skip_while(|statement| !statement.to_uppercase().starts_with("BEGIN"))
+            .skip(1)
+            .collect();
+        assert_eq!(after_begin[0].as_str(), REBUILD_LOCK_TIMEOUT_SQL);
+        assert_eq!(after_begin[1].as_str(), REBUILD_STATEMENT_TIMEOUT_SQL);
+        assert!(after_begin[2].contains("metric_rollup_work_day_state"));
+        assert!(after_begin[2].ends_with("FOR UPDATE"));
+        assert_eq!(after_begin[3].as_str(), WORK_DAY_STATS_SQL);
+        assert_eq!(after_begin[4].as_str(), VERIFICATION_SQL);
+        assert!(after_begin[5].to_uppercase().starts_with("COMMIT"));
+        assert_eq!(after_begin.len(), 6, "{after_begin:?}");
+    }
+    assert_eq!(month_surrogates(&pool), surrogates);
+    assert_eq!(
+        (
+            month_rows(&pool),
+            country_rows(&pool),
+            institution_rows(&pool),
+            ambiguity_rows(&pool),
+        ),
+        rows_before
+    );
+    assert_eq!(UntouchedState::capture(&pool), untouched);
+}
+
+#[test]
+fn an_empty_monthly_state_is_rebuilt_to_the_independent_expected_state_and_nothing_else_moves() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let incremental = month_state(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    let untouched = UntouchedState::capture(&pool);
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+    assert_eq!(month_state(&pool), MonthState::default());
+    let (logged, log) = logging_pool();
+
+    let result = rebuild(&logged, frontier).expect("rebuild");
+    assert!(result.rebuilt);
+    assert_exact_verification(&pool, &result.verification);
+    assert_eq!(month_state(&pool), incremental, "rebuild vs incremental");
+    assert_eq!(month_state(&pool), oracle, "rebuild vs oracle");
+    assert_watermarks_within(&month_state(&pool), frontier);
+
+    // The receipt is the same verification a fresh read-only snapshot gives.
+    assert_eq!(verification(&pool), result.verification);
+
+    // Truncate, then the keyed recomputation in chunks, then one more
+    // verification before commit.
+    let statements = captured(&log);
+    let truncate = statements
+        .iter()
+        .position(|s| s == REBUILD_TRUNCATE_SQL)
+        .expect("one truncate");
+    let verifications: Vec<usize> = statements
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| *s == VERIFICATION_SQL)
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(verifications.len(), 2);
+    assert!(verifications[0] < truncate && truncate < verifications[1]);
+    assert_eq!(
+        statements
+            .iter()
+            .filter(|s| *s == REBUILD_TRUNCATE_SQL)
+            .count(),
+        1
+    );
+    let keys = represented_month_keys(&projection(&pool)) as usize;
+    let chunks = keys.div_ceil(METRIC_ROLLUP_REBUILD_CHUNK_KEYS);
+    assert_eq!(
+        captured_month_statements(&log).len(),
+        chunks * MONTH_MAINTENANCE_STATEMENT_COUNT,
+        "one nine-statement recomputation per chunk"
+    );
+    assert!(statements
+        .last()
+        .expect("a statement")
+        .starts_with("COMMIT"));
+
+    // Work-day rows, deltas, the frontier row (including its timestamps),
+    // canonical records and revisions, and the generic reconciliation
+    // ledgers are byte-for-byte what they were.
+    assert_eq!(UntouchedState::capture(&pool), untouched);
+    assert_eq!(untouched.reconciliation_rows, 0);
+}
+
+#[test]
+fn a_corrupted_monthly_state_is_replaced_whole_by_the_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+    let incremental = month_state(&pool);
+    let surrogates = month_surrogates(&pool);
+    let untouched = UntouchedState::capture(&pool);
+
+    // Corruption in every family at once: a value, an identity, a flag, a
+    // watermark, a missing row and an extra row.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month SET value = value + 10 \
+         WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
+             FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_country_month SET country_code = 'ZZ' \
+         WHERE rollup_work_country_month_id = (SELECT rollup_work_country_month_id \
+             FROM metric_rollup_work_country_month ORDER BY rollup_work_country_month_id LIMIT 1)",
+    );
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_institution_month \
+         SET requires_country_coverage = NOT requires_country_coverage \
+         WHERE rollup_work_institution_month_id = (SELECT rollup_work_institution_month_id \
+             FROM metric_rollup_work_institution_month \
+             ORDER BY rollup_work_institution_month_id LIMIT 1)",
+    );
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month_ambiguity SET watermark = 1 \
+         WHERE rollup_work_month_ambiguity_id = (SELECT rollup_work_month_ambiguity_id \
+             FROM metric_rollup_work_month_ambiguity WHERE watermark > 1 \
+             ORDER BY rollup_work_month_ambiguity_id LIMIT 1)",
+    );
+    exec_one(
+        &pool,
+        "DELETE FROM metric_rollup_work_month WHERE rollup_work_month_id = \
+             (SELECT rollup_work_month_id FROM metric_rollup_work_month \
+              ORDER BY rollup_work_month_id DESC LIMIT 1)",
+    );
+    exec(
+        &pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_month (work_id, publication_id, platform_id, \
+                 measure_id, month_start, value, requires_country_coverage, \
+                 requires_institution_coverage, watermark) \
+             VALUES ('{}', NULL, '{}', '{}', DATE '2031-06-01', 1, FALSE, FALSE, 1)",
+            fixture.work_id, fixture.platform_id, fixture.measure_id
+        ),
+    );
+    let corrupted = verification(&pool);
+    assert!(!corrupted.matches);
+    assert_eq!(corrupted.total.mismatched_rows, 1);
+    assert_eq!(corrupted.total.missing_rows, 1);
+    assert_eq!(corrupted.total.extra_rows, 1);
+    assert_eq!(corrupted.country.missing_rows, 1);
+    assert_eq!(corrupted.country.extra_rows, 1);
+    assert_eq!(corrupted.institution.mismatched_rows, 1);
+    assert_eq!(corrupted.ambiguity.mismatched_rows, 1);
+
+    let result = rebuild(&pool, frontier).expect("rebuild");
+    assert!(result.rebuilt);
+    assert_exact_verification(&pool, &result.verification);
+    assert_eq!(month_state(&pool), incremental);
+    let rebuilt = month_surrogates(&pool);
+    assert_eq!(rebuilt.len(), surrogates.len());
+    assert!(
+        rebuilt.iter().all(|id| !surrogates.contains(id)),
+        "a real rebuild replaces every monthly row"
+    );
+    assert_eq!(UntouchedState::capture(&pool), untouched);
+}
+
+// ---------------------------------------------------------------------------
+// Rebuild: rollback under injected failure, mismatch and the elapsed ceiling
+// ---------------------------------------------------------------------------
+
+/// Everything in the four monthly tables, surrogate ids included.
+fn month_tables(
+    pool: &PgPool,
+) -> (
+    Vec<MetricRollupWorkMonth>,
+    Vec<MetricRollupWorkCountryMonth>,
+    Vec<MetricRollupWorkInstitutionMonth>,
+    Vec<MetricRollupWorkMonthAmbiguity>,
+) {
+    (
+        month_rows(pool),
+        country_rows(pool),
+        institution_rows(pool),
+        ambiguity_rows(pool),
+    )
+}
+
+#[test]
+fn an_injected_failure_after_the_truncate_rolls_back_all_four_projections() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    // Corrupt one row so the rebuild takes the real path.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month SET value = value + 1 \
+         WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
+             FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    let before = month_tables(&pool);
+    let untouched = UntouchedState::capture(&pool);
+
+    for table in MONTH_TABLES {
+        let (logged, log) = logging_pool();
+        {
+            let _injected = InjectedTrigger::failing(&pool, "BEFORE INSERT", table);
+            let error = rebuild(&logged, frontier).expect_err("the injected failure must fail");
+            assert!(
+                database_failure(&error).contains("thoth test failure injection"),
+                "{table}: {error:?}"
+            );
+        }
+        let statements = captured(&log);
+        assert!(
+            statements.iter().any(|s| s == REBUILD_TRUNCATE_SQL),
+            "{table}: the failure happened after the truncate"
+        );
+        assert!(statements
+            .last()
+            .expect("a statement")
+            .starts_with("ROLLBACK"));
+        assert_eq!(
+            month_tables(&pool),
+            before,
+            "{table}: everything rolled back"
+        );
+        assert_eq!(UntouchedState::capture(&pool), untouched, "{table}");
+    }
+
+    // Without the injection the same call rebuilds.
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+    assert_exact_verification(&pool, &verification(&pool));
+}
+
+#[test]
+fn an_injected_failure_in_a_later_chunk_rolls_back_the_earlier_chunks_too() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // 51 represented month keys of one work: the last one, in deterministic
+    // key order, is alone in the second chunk.
+    for index in 0..51_u32 {
+        day_delta(
+            &pool,
+            &fixture,
+            ymd(distinct_month(index)),
+            AGG,
+            i64::from(index) + 1,
+        );
+    }
+    let frontier = apply_everything(&pool);
+    assert_eq!(month_rows(&pool).len(), 51);
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month SET value = value + 1 \
+         WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
+             FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    let before = month_tables(&pool);
+    let last_month = distinct_month(50);
+
+    let (logged, log) = logging_pool();
+    {
+        let _injected = InjectedTrigger::install(
+            &pool,
+            "BEFORE INSERT",
+            "metric_rollup_work_month",
+            "ROW",
+            Some(&format!("NEW.month_start = DATE '{last_month}'")),
+            "RAISE EXCEPTION 'thoth test failure injection'; RETURN NULL;",
+        );
+        rebuild(&logged, frontier).expect_err("the second chunk must fail");
+    }
+    // The first chunk's nine statements ran to completion and the second
+    // chunk had begun; all of it rolled back.
+    let month_statements = captured_month_statements(&log);
+    assert!(
+        month_statements.len() > MONTH_MAINTENANCE_STATEMENT_COUNT,
+        "{month_statements:?}"
+    );
+    assert_eq!(
+        &month_statements[..MONTH_MAINTENANCE_STATEMENT_COUNT],
+        (0..MONTH_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>()
+    );
+    assert!(captured(&log)
+        .last()
+        .expect("a statement")
+        .starts_with("ROLLBACK"));
+    assert_eq!(month_tables(&pool), before);
+
+    let result = rebuild(&pool, frontier).expect("rebuild");
+    assert!(result.rebuilt);
+    assert_eq!(result.verification.total, exact_family(51));
+    assert_eq!(result.verification.represented_month_key_count, 51);
+}
+
+#[test]
+fn a_post_rebuild_verification_mismatch_rolls_back_the_whole_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let untouched = UntouchedState::capture(&pool);
+
+    // From empty, and from corrupted state: a writer that silently produces
+    // a wrong row is caught by the post-rebuild verification and nothing
+    // commits.
+    for start in ["empty", "corrupted"] {
+        if start == "empty" {
+            exec(&pool, REBUILD_TRUNCATE_SQL);
+        } else {
+            assert!(rebuild(&pool, frontier).expect("restore").rebuilt);
+            exec_one(
+                &pool,
+                "UPDATE metric_rollup_work_country_month SET value = value + 1 \
+                 WHERE rollup_work_country_month_id = (SELECT rollup_work_country_month_id \
+                     FROM metric_rollup_work_country_month \
+                     ORDER BY rollup_work_country_month_id LIMIT 1)",
+            );
+        }
+        let before = month_tables(&pool);
+        let (logged, log) = logging_pool();
+        {
+            let _corrupting = InjectedTrigger::install(
+                &pool,
+                "BEFORE INSERT",
+                "metric_rollup_work_institution_month",
+                "ROW",
+                None,
+                "NEW.value := NEW.value + 1; RETURN NEW;",
+            );
+            let error = rebuild(&logged, frontier).expect_err("the mismatch must fail");
+            assert!(
+                matches!(&error, ThothError::InternalError(message)
+                    if message.contains("do not match their independently derived expected state")),
+                "{start}: {error:?}"
+            );
+        }
+        let statements = captured(&log);
+        assert_eq!(
+            statements.iter().filter(|s| *s == VERIFICATION_SQL).count(),
+            2,
+            "{start}: both verifications ran"
+        );
+        assert!(statements
+            .last()
+            .expect("a statement")
+            .starts_with("ROLLBACK"));
+        assert_eq!(month_tables(&pool), before, "{start}: nothing committed");
+        assert_eq!(UntouchedState::capture(&pool), untouched, "{start}");
+    }
+}
+
+#[test]
+fn exceeding_the_elapsed_ceiling_fails_and_rolls_back_at_every_checkpoint() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let untouched = UntouchedState::capture(&pool);
+    let message = "The monthly rebuild exceeded its server-side elapsed ceiling and was rolled \
+                   back. Nothing was rebuilt.";
+
+    // Healthy state: the checkpoint immediately after the initial
+    // verification fires, before the no-op return.
+    let before = month_tables(&pool);
+    let (logged, log) = logging_pool();
+    let error = rebuild_metric_rollup_months_within(&logged, &frontier.to_string(), Duration::ZERO)
+        .expect_err("ceiling");
+    assert_eq!(rejection(&error), message);
+    assert!(captured(&log)
+        .last()
+        .expect("a statement")
+        .starts_with("ROLLBACK"));
+    assert_eq!(month_tables(&pool), before);
+
+    // Empty state: the same checkpoint fires before the truncate.
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+    let (logged, log) = logging_pool();
+    let error = rebuild_metric_rollup_months_within(&logged, &frontier.to_string(), Duration::ZERO)
+        .expect_err("ceiling");
+    assert_eq!(rejection(&error), message);
+    assert!(!captured(&log).iter().any(|s| s == REBUILD_TRUNCATE_SQL));
+    assert_eq!(month_state(&pool), MonthState::default());
+
+    // A ceiling that admits the initial verification but not the first
+    // chunk: the truncate and the first chunk ran and were rolled back.
+    let started = Instant::now();
+    let initial = verification(&pool);
+    let initial_cost = started.elapsed();
+    assert!(!initial.matches);
+    let (logged, log) = logging_pool();
+    let _pause = InjectedTrigger::install(
+        &pool,
+        "AFTER INSERT",
+        "metric_rollup_work_month_ambiguity",
+        "STATEMENT",
+        None,
+        "PERFORM pg_sleep(1.5); RETURN NULL;",
+    );
+    let error = rebuild_metric_rollup_months_within(
+        &logged,
+        &frontier.to_string(),
+        initial_cost + Duration::from_millis(500),
+    )
+    .expect_err("ceiling between chunks");
+    assert_eq!(rejection(&error), message);
+    let statements = captured(&log);
+    assert!(statements.iter().any(|s| s == REBUILD_TRUNCATE_SQL));
+    assert!(!captured_month_statements(&log).is_empty());
+    assert!(statements
+        .last()
+        .expect("a statement")
+        .starts_with("ROLLBACK"));
+    assert_eq!(
+        month_state(&pool),
+        MonthState::default(),
+        "nothing committed"
+    );
+    assert_eq!(UntouchedState::capture(&pool), untouched);
+    drop(_pause);
+
+    // The production ceiling admits the whole rebuild.
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+    assert_exact_verification(&pool, &verification(&pool));
+}
+
+#[test]
+fn a_lock_timeout_behind_a_held_state_row_fails_the_rebuild_without_mutation() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    let held = HeldTransaction::start(
+        "SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE".to_string(),
+    );
+    let started = Instant::now();
+    let error = rebuild(&pool, frontier).expect_err("the lock timeout must fire");
+    let waited = started.elapsed();
+    held.commit();
+    assert!(
+        database_failure(&error).contains("lock timeout"),
+        "unexpected failure: {error:?}"
+    );
+    assert!(
+        waited >= Duration::from_secs(5) && waited < Duration::from_secs(20),
+        "waited {waited:?}"
+    );
+    assert_eq!(
+        month_state(&pool),
+        MonthState::default(),
+        "nothing was rebuilt"
+    );
+    assert_eq!(state(&pool).applied_through_sequence, frontier);
+
+    // Once the row is free the same call rebuilds.
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+}
+
+// ---------------------------------------------------------------------------
+// Rebuild: serialization through the singleton state row
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_rebuild_waits_behind_a_held_state_row_and_then_proceeds() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let held = HeldTransaction::start(
+        "SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE".to_string(),
+    );
+    let waiting_before = backends_waiting_on_a_lock(&pool);
+
+    let rebuild_pool = Arc::clone(&pool);
+    let rebuilding = thread::spawn(move || rebuild(&rebuild_pool, frontier));
+    thread::sleep(Duration::from_millis(400));
+    assert!(
+        !rebuilding.is_finished(),
+        "the rebuild must wait for the row"
+    );
+    assert_eq!(backends_waiting_on_a_lock(&pool), waiting_before + 1);
+
+    held.commit();
+    let result = rebuilding.join().expect("join").expect("rebuild");
+    assert!(!result.rebuilt);
+    assert_exact_verification(&pool, &result.verification);
+}
+
+#[test]
+fn normal_completion_and_allocation_wait_behind_a_rebuild_and_then_resume_correctly() {
+    let (_guard, _registry_pool) = setup_registry_db();
+    let pool = wide_pool();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+
+    // A live claimed batch to complete, and a fresh delta to allocate, both
+    // prepared before the rebuild starts.
+    for on in [DAY_ONE, DAY_TWO] {
+        day_delta(&pool, &fixture, on, GB, 3);
+    }
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    assert_eq!(claims.len(), 2);
+    let token = claims[0].claim_token;
+    let record_id = insert_day_record(&pool, &fixture, "identity-late", day(DAY_THREE), AGG);
+    let revision_id = insert_current_revision(&pool, &fixture, record_id, 1, 4);
+
+    // A real rebuild that pauses for two seconds while holding the state row.
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+    let _pause = InjectedTrigger::install(
+        &pool,
+        "BEFORE TRUNCATE",
+        "metric_rollup_work_month",
+        "STATEMENT",
+        None,
+        "PERFORM pg_sleep(2); RETURN NULL;",
+    );
+    let waiting_before = backends_waiting_on_a_lock(&pool);
+    let rebuild_pool = Arc::clone(&pool);
+    let rebuilding = thread::spawn(move || {
+        let result = rebuild(&rebuild_pool, frontier);
+        (result, Instant::now())
+    });
+    thread::sleep(Duration::from_millis(500));
+
+    let completion_pool = Arc::clone(&pool);
+    let completing = thread::spawn(move || {
+        let result = complete_metric_rollup_deltas(&completion_pool, CLAIMANT, token);
+        (result, Instant::now())
+    });
+    let ingest_pool = Arc::clone(&pool);
+    let allocating = thread::spawn(move || {
+        let result = insert_delta_row(&ingest_pool, None, record_id, revision_id, 4, "PENDING");
+        (result, Instant::now())
+    });
+    thread::sleep(Duration::from_millis(500));
+
+    assert!(
+        !rebuilding.is_finished(),
+        "the rebuild is still holding the row"
+    );
+    assert!(!completing.is_finished(), "the completion must wait");
+    assert!(!allocating.is_finished(), "the allocation must wait");
+    assert_eq!(
+        backends_waiting_on_a_lock(&pool),
+        waiting_before + 2,
+        "both wait on a lock"
+    );
+    assert_eq!(state(&pool).applied_through_sequence, frontier);
+
+    let (rebuild_result, rebuild_done) = rebuilding.join().expect("join");
+    let result = rebuild_result.expect("rebuild");
+    assert!(result.rebuilt);
+    assert_eq!(result.verification.applied_through_sequence, frontier);
+
+    let (completion_result, completion_done) = completing.join().expect("join");
+    let watermark = completion_result.expect("the completion resumes");
+    assert_eq!(watermark.applied_through_sequence, frontier + 2);
+    assert!(completion_done >= rebuild_done);
+    let (allocation_result, allocation_done) = allocating.join().expect("join");
+    allocation_result.expect("the allocation resumes");
+    assert!(allocation_done >= rebuild_done);
+
+    // The completion maintained its months incrementally on top of the
+    // rebuilt state, the new delta took the next position, and the whole
+    // monthly state is exact against the independent verifier.
+    let latest = deltas(&pool);
+    assert_eq!(
+        latest.last().expect("the newest delta").work_day_sequence,
+        Some(frontier + 3)
+    );
+    assert_eq!(state(&pool).applied_through_sequence, frontier + 2);
+    assert_eq!(month_state(&pool), oracle_month_state(&projection(&pool)));
+    let verified = verification(&pool);
+    assert_exact_verification(&pool, &verified);
+    assert_eq!(verified.applied_through_sequence, frontier + 2);
+    assert_eq!(verified.next_sequence, frontier + 4);
+}
+
+// ---------------------------------------------------------------------------
+// Verification versus rebuild: the TRUNCATE MVCC anomaly is closed
+// ---------------------------------------------------------------------------
+
+/// A pause point inside a pooled connection's own thread.
+///
+/// The instrumentation hook runs synchronously before a statement is sent,
+/// so blocking in it holds the connection's transaction open — locks held,
+/// snapshot frozen or not yet frozen, exactly as it stands — with the next
+/// statement not yet issued. That is what lets a test freeze the production
+/// verifier or the production rebuild at a chosen statement, deterministic
+/// and without sleeping, and release it when the other side has produced
+/// its lock evidence. It fires once, for the first statement whose text
+/// starts with `prefix`.
+#[derive(Debug)]
+struct PausePoint {
+    prefix: &'static str,
+    armed: AtomicBool,
+    reached: Sender<()>,
+    release: Mutex<Receiver<()>>,
+    log: Arc<Mutex<Vec<String>>>,
+}
+
+/// The pool customizer that installs a [`PausePoint`] on every connection.
+#[derive(Debug)]
+struct PauseCustomizer(Arc<PausePoint>);
+
+impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for PauseCustomizer {
+    fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+        let pause = Arc::clone(&self.0);
+        connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+            if let InstrumentationEvent::StartQuery { query, .. } = event {
+                let text = query.to_string();
+                if text.starts_with(pause.prefix) && pause.armed.swap(false, Ordering::SeqCst) {
+                    // If the test has already failed and dropped its handle,
+                    // both calls just return, so the paused connection continues
+                    // and releases its locks instead of hanging.
+                    let _ = pause.reached.send(());
+                    let _ = pause.release.lock().expect("release channel").recv();
+                }
+                pause.log.lock().expect("statement log").push(text);
+            }
+        });
+        Ok(())
+    }
+}
+
+/// The test's handle on a [`PausePoint`].
+struct PauseHandle {
+    reached: Receiver<()>,
+    release: Sender<()>,
+}
+
+impl PauseHandle {
+    /// Wait until the paused connection has reached its statement.
+    fn wait_reached(&self) {
+        match self.reached.recv_timeout(Duration::from_secs(30)) {
+            Ok(()) => {}
+            Err(RecvTimeoutError::Timeout) => panic!("the pause point was not reached"),
+            Err(RecvTimeoutError::Disconnected) => panic!("the paused connection went away"),
+        }
+    }
+
+    fn release(&self) {
+        self.release
+            .send(())
+            .expect("the paused connection is waiting");
+    }
+}
+
+impl Drop for PauseHandle {
+    /// A test that fails before releasing still lets the paused connection
+    /// run to completion, so its transaction and locks end promptly.
+    fn drop(&mut self) {
+        let _ = self.release.send(());
+    }
+}
+
+/// A one-connection pool that pauses before the first statement starting
+/// with `prefix`, and captures every statement.
+fn pausing_pool(prefix: &'static str) -> (Arc<PgPool>, PauseHandle, Arc<Mutex<Vec<String>>>) {
+    let (reached_tx, reached_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let pause = Arc::new(PausePoint {
+        prefix,
+        armed: AtomicBool::new(true),
+        reached: reached_tx,
+        release: Mutex::new(release_rx),
+        log: Arc::clone(&log),
+    });
+    let pool = Pool::builder()
+        .max_size(1)
+        .connection_customizer(Box::new(PauseCustomizer(pause)))
+        .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+        .expect("Failed to create the pausing pool");
+    (
+        Arc::new(pool),
+        PauseHandle {
+            reached: reached_rx,
+            release: release_tx,
+        },
+        log,
+    )
+}
+
+/// `(pid, granted)` of every relation lock of `mode` on `table`, from the
+/// server's own lock table.
+fn relation_locks(pool: &PgPool, table: &str, mode: &str) -> Vec<(i32, bool)> {
+    #[derive(diesel::QueryableByName)]
+    struct LockRow {
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        pid: i32,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        granted: bool,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(
+        "SELECT l.pid, l.granted FROM pg_locks l \
+         JOIN pg_class c ON c.oid = l.relation \
+         WHERE l.locktype = 'relation' AND c.relnamespace = 'public'::regnamespace \
+           AND c.relname = $1 AND l.mode = $2 \
+         ORDER BY l.pid",
+    )
+    .bind::<diesel::sql_types::Text, _>(table)
+    .bind::<diesel::sql_types::Text, _>(mode)
+    .load::<LockRow>(&mut connection)
+    .expect("Failed to read pg_locks")
+    .into_iter()
+    .map(|row| (row.pid, row.granted))
+    .collect()
+}
+
+/// `(wait_event_type, current query)` of one backend.
+fn backend(pool: &PgPool, pid: i32) -> (Option<String>, String) {
+    #[derive(diesel::QueryableByName)]
+    struct ActivityRow {
+        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+        wait_event_type: Option<String>,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        query: String,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let row = sql_query("SELECT wait_event_type, query FROM pg_stat_activity WHERE pid = $1")
+        .bind::<diesel::sql_types::Integer, _>(pid)
+        .load::<ActivityRow>(&mut connection)
+        .expect("Failed to read pg_stat_activity")
+        .pop()
+        .expect("the backend exists");
+    (row.wait_event_type, row.query)
+}
+
+/// Poll the server's lock table until `condition` holds, or fail after
+/// thirty seconds. Waiting on evidence, not on elapsed time.
+fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !condition() {
+        assert!(
+            Instant::now() < deadline,
+            "{label}: lock evidence never appeared"
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// The pids holding a granted lock of `mode` on all four monthly tables.
+fn holders_on_all_month_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
+    let mut holders: Option<BTreeSet<i32>> = None;
+    for table in MONTH_TABLES {
+        let pids: BTreeSet<i32> = relation_locks(pool, table, mode)
+            .into_iter()
+            .filter(|(_, granted)| *granted)
+            .map(|(pid, _)| pid)
+            .collect();
+        holders = Some(match holders {
+            None => pids,
+            Some(so_far) => so_far.intersection(&pids).copied().collect(),
+        });
+    }
+    holders.unwrap_or_default().into_iter().collect()
+}
+
+#[test]
+fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    // Empty monthly state, so the rebuild must take the real TRUNCATE path
+    // and the verifier's snapshot has an unmistakable identity: every
+    // expected row missing, nothing actual.
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    // The production verifier, paused just before its comparison: its lock
+    // is held, its snapshot is frozen, and its transaction is open.
+    let (paused, pause, verifier_log) = pausing_pool(VERIFICATION_SQL);
+    let verifying = thread::spawn(move || verify_metric_rollup_months(&paused));
+    pause.wait_reached();
+    let holders = holders_on_all_month_tables(&pool, "AccessShareLock");
+    assert_eq!(
+        holders.len(),
+        1,
+        "the verifier holds ACCESS SHARE on all four: {holders:?}"
+    );
+    let verifier_pid = holders[0];
+
+    // A real rebuild now runs its whole pre-truncate path and must stop at
+    // the TRUNCATE, queued for ACCESS EXCLUSIVE behind the verifier's lock.
+    let rebuild_pool = Arc::clone(&pool);
+    let rebuilding = thread::spawn(move || rebuild(&rebuild_pool, frontier));
+    let mut rebuild_pid = 0;
+    wait_for_lock_evidence("rebuild queued behind the verifier", || {
+        relation_locks(&pool, "metric_rollup_work_month", "AccessExclusiveLock")
+            .into_iter()
+            .any(|(pid, granted)| {
+                rebuild_pid = pid;
+                !granted
+            })
+    });
+    assert_ne!(rebuild_pid, verifier_pid);
+    let (wait_event_type, query) = backend(&pool, rebuild_pid);
+    assert_eq!(wait_event_type.as_deref(), Some("Lock"), "{query}");
+    assert!(query.starts_with("TRUNCATE TABLE"), "{query}");
+    for table in MONTH_TABLES {
+        assert!(
+            relation_locks(&pool, table, "AccessExclusiveLock")
+                .iter()
+                .all(|(pid, granted)| *pid != rebuild_pid || !*granted),
+            "{table}: the rebuild holds no exclusive lock while the verifier is open"
+        );
+    }
+    assert!(!rebuilding.is_finished());
+    assert!(!verifying.is_finished());
+
+    // Release the verifier: it completes under its own snapshot and commits,
+    // and only then can the rebuild truncate. The ordering is established by
+    // the lock evidence above and by the content each side returns, never by
+    // comparing clocks across threads.
+    pause.release();
+    let verified = verifying.join().expect("join").expect("verification");
+    let rebuilt = rebuilding.join().expect("join").expect("rebuild");
+
+    // One coherent pre-rebuild snapshot: the empty monthly state it locked,
+    // not a partially or fully rebuilt one.
+    assert!(!verified.matches);
+    let missing = |rows: usize| family(rows as i64, 0, rows as i64, 0, 0);
+    assert_eq!(verified.total, missing(oracle.totals.len()));
+    assert_eq!(verified.country, missing(oracle.countries.len()));
+    assert_eq!(verified.institution, missing(oracle.institutions.len()));
+    assert_eq!(verified.ambiguity, missing(oracle.ambiguity.len()));
+    assert_eq!(verified.applied_through_sequence, frontier);
+    let statements = captured(&verifier_log);
+    let lock = statements
+        .iter()
+        .position(|s| s == VERIFICATION_LOCK_SQL)
+        .expect("the lock");
+    let first_query = statements
+        .iter()
+        .position(|s| s == TRANSACTION_MODE_SQL)
+        .expect("the first query");
+    assert!(lock < first_query);
+
+    // The rebuild then succeeded whole, and the final state verifies exact.
+    assert!(rebuilt.rebuilt);
+    assert!(rebuilt.verification.matches);
+    assert_eq!(month_state(&pool), oracle);
+    let after = verification(&pool);
+    assert_exact_verification(&pool, &after);
+    assert_eq!(after, rebuilt.verification);
+}
+
+#[test]
+fn a_verifier_waits_before_its_snapshot_while_a_real_rebuild_holds_the_monthly_tables() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    // The production rebuild, paused just after its TRUNCATE executed: it
+    // holds ACCESS EXCLUSIVE on all four monthly tables and has not
+    // repopulated them yet.
+    let (paused, pause, rebuild_log) = pausing_pool(REBUILD_MONTH_KEYS_SQL);
+    let rebuilding = thread::spawn(move || rebuild(&paused, frontier));
+    pause.wait_reached();
+    let holders = holders_on_all_month_tables(&pool, "AccessExclusiveLock");
+    assert_eq!(
+        holders.len(),
+        1,
+        "the rebuild holds ACCESS EXCLUSIVE on all four: {holders:?}"
+    );
+    let rebuild_pid = holders[0];
+    assert!(captured(&rebuild_log)
+        .iter()
+        .any(|s| s == REBUILD_TRUNCATE_SQL));
+
+    // The production verifier must now wait at its LOCK, before any query
+    // and therefore before it has a snapshot at all.
+    let (logged, verifier_log) = logging_pool();
+    let verifying = thread::spawn(move || verify_metric_rollup_months(&logged));
+    let mut verifier_pid = 0;
+    wait_for_lock_evidence("verifier queued behind the rebuild", || {
+        relation_locks(&pool, "metric_rollup_work_month", "AccessShareLock")
+            .into_iter()
+            .any(|(pid, granted)| {
+                verifier_pid = pid;
+                !granted
+            })
+    });
+    assert_ne!(verifier_pid, rebuild_pid);
+    let (wait_event_type, query) = backend(&pool, verifier_pid);
+    assert_eq!(wait_event_type.as_deref(), Some("Lock"), "{query}");
+    assert!(query.starts_with("LOCK TABLE"), "{query}");
+    assert!(!verifying.is_finished());
+    // Inside its transaction the verifier has issued the timeout and the
+    // lock and nothing else: no query, so no snapshot. (The pool's own
+    // connection check on checkout precedes BEGIN and is not part of it.)
+    let in_transaction: Vec<String> = captured(&verifier_log)
+        .into_iter()
+        .skip_while(|s| !s.to_uppercase().starts_with("BEGIN"))
+        .skip(1)
+        .collect();
+    assert_eq!(
+        in_transaction,
+        vec![
+            VERIFICATION_STATEMENT_TIMEOUT_SQL.to_string(),
+            VERIFICATION_LOCK_SQL.to_string()
+        ],
+        "no query has been issued yet"
+    );
+
+    // Release the rebuild: it repopulates, verifies and commits; the
+    // verifier then obtains its lock, freezes its snapshot, and sees exactly
+    // the committed rebuilt state. Had its snapshot been frozen before the
+    // rebuild's TRUNCATE committed, the non-MVCC-safe truncate would have
+    // shown it four empty tables and every expected row as missing.
+    pause.release();
+    let rebuilt = rebuilding.join().expect("join").expect("rebuild");
+    assert!(rebuilt.rebuilt);
+    let verified = verifying.join().expect("join").expect("verification");
+    assert!(verified.matches, "{verified:?}");
+    assert_eq!(verified, rebuilt.verification);
+    assert_exact_verification(&pool, &verified);
+    assert_eq!(month_state(&pool), oracle);
+}
+
+// ---------------------------------------------------------------------------
+// Performance evidence (MET-WP4-03A-OPS-02, Amendments 1 and 2)
+// ---------------------------------------------------------------------------
+
+/// Bounded local evidence for the implementation report: on the
+/// production-shaped `MET-WP4-03A` fixture, the read-only verification
+/// (2 warm-ups, 10 measured), five real rebuilds from empty or corrupted
+/// monthly state, and ten healthy no-op rebuild calls. Durations are
+/// printed raw with p50/p95/max and the approved bounds are asserted. Run
+/// explicitly with `--ignored --nocapture`.
+#[test]
+#[ignore = "bounded local performance evidence; run explicitly"]
+fn evidence_month_verification_and_rebuild_envelope() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let works: i64 = std::env::var("THOTH_EVIDENCE_WORKS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(2_000);
+    let started = Instant::now();
+    let rows = seed_production_shaped_days(&pool, &fixture, works);
+    let frontier = state(&pool).applied_through_sequence;
+    let keys = scalar_i64(
+        &pool,
+        "(SELECT COUNT(*) FROM (SELECT DISTINCT work_id, platform_id, measure_id, \
+             date_trunc('month', day) FROM metric_rollup_work_day) k)",
+    );
+    println!(
+        "fixture: {rows} work-day rows over {works} works x 365 days, {keys} represented month keys, \
+         frontier {frontier}, seeded in {:?}",
+        started.elapsed()
+    );
+    let report = |label: &str, samples: &mut Vec<Duration>| {
+        let raw: Vec<String> = samples
+            .iter()
+            .map(|d| format!("{:.3}s", d.as_secs_f64()))
+            .collect();
+        let (p50, p95, max) = percentiles(samples);
+        println!(
+            "{label}: raw [{}]; p50 {:.3}s p95 {:.3}s max {:.3}s",
+            raw.join(", "),
+            p50 as f64 / 1e6,
+            p95 as f64 / 1e6,
+            max as f64 / 1e6
+        );
+        (p50, p95, max)
+    };
+
+    // Initial population from empty monthly state (real rebuild 1 of 5).
+    let mut rebuilds = Vec::new();
+    for run in 1..=5 {
+        if run % 2 == 1 {
+            exec(&pool, REBUILD_TRUNCATE_SQL);
+        } else {
+            exec_one(
+                &pool,
+                "UPDATE metric_rollup_work_month SET value = value + 1 \
+                 WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
+                     FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
+            );
+        }
+        let started = Instant::now();
+        let result = rebuild(&pool, frontier).expect("rebuild");
+        let elapsed = started.elapsed();
+        assert!(result.rebuilt, "run {run} must take the real rebuild path");
+        assert!(result.verification.matches);
+        println!(
+            "real rebuild {run} ({}): {:.3}s; totals {} country {} institution {} ambiguity {}",
+            if run % 2 == 1 {
+                "from empty"
+            } else {
+                "from corrupted"
+            },
+            elapsed.as_secs_f64(),
+            result.verification.total.actual_rows,
+            result.verification.country.actual_rows,
+            result.verification.institution.actual_rows,
+            result.verification.ambiguity.actual_rows,
+        );
+        rebuilds.push(elapsed);
+    }
+    let (_p50, _p95, rebuild_max) = report("real rebuild (5 measured)", &mut rebuilds);
+
+    // Verification: two warm-ups, ten measured, over the healthy state.
+    let mut verifications = Vec::new();
+    for run in 0..12 {
+        let started = Instant::now();
+        let verified = verification(&pool);
+        let elapsed = started.elapsed();
+        assert!(verified.matches);
+        assert_eq!(verified.represented_month_key_count, keys);
+        if run < 2 {
+            println!(
+                "verification warm-up {}: {:.3}s",
+                run + 1,
+                elapsed.as_secs_f64()
+            );
+        } else {
+            verifications.push(elapsed);
+        }
+    }
+    let (_p50, verification_p95, _max) = report("verification (10 measured)", &mut verifications);
+
+    // Healthy no-op rebuild: ten measured.
+    let mut noops = Vec::new();
+    for _ in 0..10 {
+        let started = Instant::now();
+        let result = rebuild(&pool, frontier).expect("healthy rebuild");
+        let elapsed = started.elapsed();
+        assert!(!result.rebuilt);
+        assert!(result.verification.matches);
+        noops.push(elapsed);
+    }
+    let (_p50, noop_p95, _max) = report("healthy no-op rebuild (10 measured)", &mut noops);
+
+    println!(
+        "historical MET-WP4-03A full-rebuild observations for diagnostic comparison only: \
+         11.3s, 11.4s (two runs, not a p95)"
+    );
+    assert!(
+        rows >= 1_100_000 && keys >= 24_000,
+        "fixture too small: {rows} rows, {keys} keys"
+    );
+    assert!(verification_p95 < 30_000_000, "verification p95 >= 30s");
+    assert!(rebuild_max < 120_000_000, "real rebuild max >= 120s");
+    assert!(noop_p95 < 30_000_000, "healthy no-op p95 >= 30s");
 }

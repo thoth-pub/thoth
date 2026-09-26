@@ -303,14 +303,15 @@ Scope boundaries a consumer must not infer:
   transaction (section 3.6). There is no end-of-month rebuild job.
 - A full monthly rebuild is exceptional derived-state maintenance: initial
   historical population after the 03A migration, separately authorized
-  repair/recovery, or explicit validation. At this merged baseline there is
-  still no callable production rebuild operation. `MET-WP4-03A-OPS-01`
-  (#949) specifies a future protected internal Thoth rebuild operation that
-  Sphinx will orchestrate; delta state remains reachable only through the two
-  normal operations above.
+  repair/recovery, or explicit validation. It is not monthly processing.
+  `MET-WP4-03A-OPS-02` (section 3.7) delivers the protected internal
+  verification and rebuild operations that Sphinx orchestrates for that
+  purpose; delta state remains reachable only through the two normal
+  operations above, and neither maintenance operation reads or writes a
+  delta.
 - Sphinx orchestrates and never writes the Thoth database or supplies monthly
-  projection values. All normal projection arithmetic and any future full
-  rebuild execute inside Thoth.
+  projection values. All normal projection arithmetic and every full rebuild
+  execute inside Thoth.
 
 Error surface (known limitation): rollup rejections — an out-of-range limit,
 an unknown, stale, foreign or reclaimed token, an expired lease, a blocked
@@ -740,19 +741,18 @@ Contract properties a later consumer may rely on:
   rewrites no monthly row. Values are signed 64-bit and a monthly sum that
   overflows fails the batch closed; nothing wraps or narrows.
 - **Rebuild from work-day state only.** The reviewed full-rebuild procedure
-  currently remains test-only. It locks the same state row, checks that no day
-  row is watermarked above the durable frontier, truncates the four tables,
-  reads every month key represented in `metric_rollup_work_day`, and replays
-  the completion's own nine-statement keyed recomputation over those keys in
-  chunks of at most 50. It executes the same statements, resolution text and
-  index paths as incremental maintenance and reads nothing else. At the same
-  work-day state and frontier it reproduces incrementally maintained
-  identities, values, dependency flags, ambiguity flags and row watermarks
-  exactly, in both directions. This is not normal monthly processing:
-  `MET-WP4-03A-OPS-01` (#949) reserves full rebuild for initial historical
-  population and exceptional repair/recovery, with Sphinx orchestrating a
-  future protected Thoth-owned operation rather than implementing the
-  arithmetic itself.
+  locks the same state row, checks that no day row is watermarked above the
+  durable frontier, truncates the four tables, reads every month key
+  represented in `metric_rollup_work_day`, and replays the completion's own
+  nine-statement keyed recomputation over those keys in chunks of at most 50.
+  It executes the same statements, resolution text and index paths as
+  incremental maintenance and reads nothing else. At the same work-day state
+  and frontier it reproduces incrementally maintained identities, values,
+  dependency flags, ambiguity flags and row watermarks exactly, in both
+  directions. `MET-WP4-03A-OPS-02` (section 3.7) exposes this procedure as
+  the protected `rebuildMetricRollupMonths` operation, guarded by an
+  independent verification before and after; it remains exceptional
+  maintenance, never normal monthly processing.
 - **Initially empty; activation is gated.** The migration populates
   nothing, which is safe because `MET-WP4-03A` adds no reader. In test and
   production the approved Thoth deployment runs pending migrations through
@@ -781,17 +781,231 @@ Scope boundaries a consumer must not infer:
   ambiguity state reached no API in `MET-WP4-03A`; their one reader is the
   `MET-WP4-03B` dashboard contract of section 4.2, which reads them and
   never writes them.
-- At the current merged baseline there is no callable production rebuild,
-  repair or full-projection reconciliation operation. `MET-WP4-03A-OPS-01`
-  (#949) now specifies a protected internal Thoth rebuild operation as a
-  required follow-up contract; the Thoth contract must be merged before
-  `thoth-sphinx` consumes it. No `metric_rollup_work_month_state`,
-  `metric_work_dimension` or secondary index is implied.
-- Sphinx owns orchestration, including the future initial/exceptional rebuild
-  and periodic reconciliation workflow, but never writes the Thoth database
-  or computes monthly projection values. Normal incremental maintenance and
-  every full rebuild remain Thoth-owned database operations. A periodic
-  reconciliation mismatch must alert/HOLD rather than silently auto-rebuild.
+- The only monthly maintenance surface is the pair of protected operations
+  of section 3.7: a read-only consistency verification and an exceptional,
+  self-verifying full rebuild. There is no repair, row-level patching or
+  generic full-projection reconciliation-ledger operation. No
+  `metric_rollup_work_month_state`, `metric_work_dimension` or secondary
+  index is implied.
+- Sphinx owns orchestration, including the initial/exceptional rebuild and
+  any periodic verification workflow, but never writes the Thoth database or
+  computes monthly projection values. Normal incremental maintenance and
+  every full rebuild remain Thoth-owned database operations. A verification
+  mismatch must alert/HOLD rather than silently auto-rebuild; Thoth never
+  invokes a rebuild on its own.
+
+### 3.7 Protected monthly verification and rebuild contract (`MET-WP4-03A-OPS-02`)
+
+`MET-WP4-03A-OPS-02` (issue #951, through Specification Amendments 1 and 2)
+delivers the minimum protected producer contract Sphinx needs to establish
+that the four derived monthly projections of section 3.6 exactly match the
+authoritative work-day projection at one durable frontier, and to request
+one exceptional full rebuild at a caller-pinned frontier. Continuous normal
+incremental maintenance inside `completeMetricRollupDeltas` (sections 3.1
+and 3.6) is unchanged. Thoth remains sole owner of projection arithmetic,
+locking and PostgreSQL mutation.
+
+Operations, both requiring exactly `METRICS_INGEST_SERVICE` and both
+authorized before any rollup-specific database read, lock or write:
+
+```graphql
+verifyMetricRollupMonths: MetricRollupMonthVerification!
+rebuildMetricRollupMonths(input: RebuildMetricRollupMonthsInput!): MetricRollupMonthRebuildResult!
+```
+
+```graphql
+input RebuildMetricRollupMonthsInput {
+  expectedAppliedThroughSequence: String!
+}
+
+type MetricRollupMonthProjectionVerification {
+  expectedRows: String!
+  actualRows: String!
+  missingRows: String!
+  extraRows: String!
+  mismatchedRows: String!
+}
+
+type MetricRollupMonthVerification {
+  appliedThroughSequence: String!
+  nextSequence: String!
+  watermarkAt: Timestamp!
+  maxWorkDayWatermark: String
+  workDayRowCount: String!
+  representedMonthKeyCount: String!
+  total: MetricRollupMonthProjectionVerification!
+  country: MetricRollupMonthProjectionVerification!
+  institution: MetricRollupMonthProjectionVerification!
+  ambiguity: MetricRollupMonthProjectionVerification!
+  matches: Boolean!
+}
+
+type MetricRollupMonthRebuildResult {
+  rebuilt: Boolean!
+  verification: MetricRollupMonthVerification!
+}
+```
+
+Authorization matrix, identical for both operations: `METRICS_INGEST_SERVICE`
+is allowed; anonymous callers, `SUPERUSER`, `METRICS_READ_SERVICE`,
+publisher-scoped human roles, `DISSEMINATION_WORKER` and every other machine
+role are denied, and a denied request opens no transaction and issues no
+rollup-specific statement. Both operations live on `MutationRoot`:
+verification is database-read-only in effect but is an internal operational
+service command, not a product query surface, and no field on `QueryRoot`
+or on any public type reaches any of these types.
+
+Contract properties consumers may rely on:
+
+- **Verification is one read-only snapshot.** `verifyMetricRollupMonths`
+  runs on one pooled connection in one PostgreSQL transaction opened
+  `READ ONLY` at `REPEATABLE READ`, with `SET LOCAL statement_timeout =
+  '30s'`, no `FOR UPDATE` and zero database writes; the operation asserts
+  the transaction mode it was granted before reading anything and fails
+  closed otherwise. Within that snapshot it reads
+  `metric_rollup_work_day_state` (`nextSequence`, `appliedThroughSequence =
+  W`, `watermarkAt`), the work-day facts (`maxWorkDayWatermark`,
+  `workDayRowCount`, `representedMonthKeyCount`), the actual state of all
+  four monthly tables and the independently derived expected state.
+- **One table-level read lock closes the `TRUNCATE` anomaly.** Immediately
+  after the statement timeout and before its first query — and therefore
+  before its `REPEATABLE READ` snapshot is frozen — the verifier executes
+  `LOCK TABLE` on exactly the four monthly projection tables `IN ACCESS
+  SHARE MODE`, and holds that lock until the transaction ends. PostgreSQL's
+  `TRUNCATE` is not MVCC-safe: a snapshot taken before a concurrent
+  rebuild's truncate would see the tables it had not yet accessed as empty.
+  `ACCESS SHARE` is a table-level read lock, not a row lock: it conflicts
+  only with `ACCESS EXCLUSIVE`, which the exceptional rebuild's `TRUNCATE`
+  takes, and not with the `ROW EXCLUSIVE` locks of normal incremental
+  completion, so routine monthly maintenance is never blocked by a
+  verification. If the verifier holds the lock first, a rebuild waits at its
+  `TRUNCATE` until the verification commits; if a rebuild already holds the
+  tables exclusively, the verifier waits before establishing its snapshot,
+  bounded by its 30-second statement timeout, and then sees the committed
+  rebuilt state. Verification remains database-read-only; the lock exists
+  solely to prevent that anomaly and changes no specification architecture.
+- **Independent expected state.** The expected monthly state is derived by
+  separate set-based PostgreSQL SQL from `metric_rollup_work_day` alone. It
+  shares no statement, constant or macro with the monthly writer, never
+  calls the writer's recomputation, never proves correctness by rebuilding
+  and reading the rebuild, and never loads the work-day projection into
+  application memory. Where the writer resolves each daily base cell through
+  a fixed case table, the verifier derives the resolution of every possible
+  represented mask set from the generic minimality rule of section 3.6 (the
+  Amendment 6 total rule; the unique least mask containing the target
+  dimension under set inclusion, with incomparable minima recorded as
+  ambiguity) and compares by logical identity, `NULL`-safe on
+  `publication_id` exactly as the tables' `UNIQUE NULLS NOT DISTINCT`
+  identities are.
+- **Bounded counts only.** Per family — `total`, `country`, `institution`,
+  `ambiguity` — the result carries `expectedRows`, `actualRows`,
+  `missingRows` (expected identity absent from the table), `extraRows`
+  (table identity absent from the expected state) and `mismatchedRows`
+  (same identity on both sides with a differing value, publication,
+  country or institution identity, dependency flag, ambiguity flag or
+  watermark). No row identity, value or mismatch detail leaves Thoth.
+  `matches` is true only when every family has zero missing, extra and
+  mismatched rows and no monthly row is watermarked above `W`.
+- **Lag is not corruption; damage fails closed.** `nextSequence - 1 > W` is
+  ordinary pending rollup lag and is reported as such. A work-day row
+  watermarked above `W` is an internal invariant violation: both operations
+  fail closed rather than describe it. An expected monthly sum that would
+  overflow a signed 64-bit total fails both operations closed.
+- **Rebuild input is the pinned frontier only.** The caller supplies
+  `expectedAppliedThroughSequence` as a decimal string holding a
+  non-negative 64-bit integer, and nothing else: no work, month, platform or
+  measure identity, value, dimension, coverage or ambiguity flag, watermark,
+  SQL or repair instruction. An invalid string is a bounded validation error
+  decided before any database access.
+- **Self-verifying all-or-nothing rebuild.** `rebuildMetricRollupMonths`
+  runs one transaction that, in order: sets `SET LOCAL lock_timeout = '5s'`
+  and `SET LOCAL statement_timeout = '30s'`; locks the singleton
+  `metric_rollup_work_day_state` row `FOR UPDATE`; requires the current
+  `appliedThroughSequence` to equal the pinned frontier; requires no
+  work-day row above it; requires at most 100000 represented month keys;
+  independently verifies the current monthly state; and, only if that
+  verification is not exact, truncates exactly the four monthly tables,
+  recomputes every represented month key in deterministic chunks of at most
+  50 through the completion's own reviewed recomputation, independently
+  verifies the rebuilt state again in the same transaction, and commits only
+  an exact result. A stale frontier, a work-day row above the frontier, more
+  than 100000 keys, a lock or statement timeout, an injected or database
+  failure at any stage, an inexact post-rebuild verification, an overflow,
+  or more than 120 seconds of server-side elapsed time — the clock starts
+  before the initial verification and is checked after it, after every
+  chunk, immediately before and after the post-rebuild verification and
+  immediately before commit — fails the operation and rolls the complete
+  transaction back. No partially rebuilt monthly state can commit.
+- **Healthy rebuild is a no-op.** When the monthly state already verifies
+  exact at the pinned frontier, the result is `rebuilt: false` with that
+  verification, and no `TRUNCATE`, `DELETE`, `INSERT` or monthly surrogate-id
+  rewrite occurs. A repeated call is therefore idempotent in effect.
+- **What a rebuild never touches.** Only the four monthly tables of section
+  3.6 are written. `metric_rollup_work_day`, every rollup delta and its
+  status, sequence, claim and lease, `metric_rollup_work_day_state`
+  (`next_sequence`, `applied_through_sequence`, `watermark_at`), canonical
+  `metric_record`/`metric_record_revision` state and the generic
+  `metric_reconciliation_run`/`metric_reconciliation_issue` ledgers are left
+  unchanged. The rebuild cannot advance the frontier.
+- **Serialization through the state row.** The rebuild holds the same
+  singleton state-row lock every claim, completion and work-day sequence
+  allocation takes. Normal completion and allocation wait behind it, the
+  rebuild commits at `W`, the waiting work resumes, and later completions
+  maintain the affected months incrementally on top of the rebuilt state.
+  No maintenance mode, coordination table, queue, pause flag, scheduler or
+  process-wide mutex exists.
+- **Bounds are safety envelopes, not SLOs.** `MAX_REBUILD_MONTH_KEYS =
+  100000`, chunk size 50, verification `statement_timeout = 30s`, rebuild
+  `lock_timeout = 5s`, rebuild `statement_timeout = 30s`, total rebuild
+  elapsed ceiling 120s. They are not raised silently; a larger corpus or a
+  different envelope needs a separately approved amendment.
+- **Positions and counts are strings.** Every 64-bit sequence, count and
+  watermark position crosses GraphQL as a decimal `String`, never as the
+  32-bit `Int`.
+
+Supported orchestration lifecycle:
+
+```text
+verify
+-> exact: healthy, no rebuild
+
+initial empty state, or separately authorized repair/recovery
+-> capture W from the verification
+-> rebuild(expectedAppliedThroughSequence = W)
+-> the rebuild commits only if its own independent verification is exact
+-> verify again later to establish current health
+```
+
+Scope boundaries a consumer must not infer:
+
+- Sphinx is the eventual orchestrator of verification and of the
+  initial/exceptional rebuild. It never supplies projection values,
+  dimensions, flags, watermarks or SQL, and never writes PostgreSQL.
+- A rebuild is initial/exceptional maintenance only. It is not a monthly
+  job, is never scheduled by Thoth, and is never invoked automatically when
+  a verification mismatches; a mismatch is an alert/HOLD for a separately
+  authorized decision.
+- The generic WP9 reconciliation persistence (`metric_reconciliation_run`,
+  `metric_reconciliation_issue`) is a separate domain. Neither operation
+  creates, reads or updates a row of it, and no `recordMetricReconciliation`
+  or similar operation exists. Persisting a rollup verification in that
+  ledger would need its own cross-work-package decision.
+- Neither operation is a reader of monthly values: the one read surface
+  remains the `MET-WP4-03B` dashboard contract of section 4.2.
+- Merging this contract activates nothing: no migration, table, index,
+  dependency, role, provider or runtime behaviour is introduced, and any
+  real verification or rebuild execution, Sphinx consumer binding,
+  deployment and production activation remain separately authorized gates.
+
+Error surface (known limitation): as for section 3.1, rejections — an
+invalid or stale expected frontier, more than 100000 represented month keys,
+the elapsed ceiling, an overflowing expected total, a work-day row above the
+frontier and a post-rebuild mismatch — are returned as GraphQL errors with
+stable messages and the generic `INTERNAL_ERROR` extension type, and a lock
+or statement timeout surfaces as the database's own cancellation message. No
+message carries a frontier value, row, SQL, principal or connection detail.
+A consumer that needs to classify these programmatically requires a
+separately specified stable error code.
 
 ## 4. Dashboard/widget
 

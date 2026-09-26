@@ -59,8 +59,12 @@ use crate::model::{
         MetricPlatformMeasure, NewMetricPlatformMeasure, PatchMetricPlatformMeasure,
     },
     metric_rollup_delta::{
-        crud::{claim_metric_rollup_deltas, complete_metric_rollup_deltas},
-        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupWatermark,
+        crud::{
+            claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
+        },
+        verification::verify_metric_rollup_months,
+        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupMonthRebuildResult,
+        MetricRollupMonthVerification, MetricRollupWatermark, RebuildMetricRollupMonthsInput,
     },
     metric_source::{
         crud::{create_metric_source, update_metric_source},
@@ -290,6 +294,32 @@ fn complete_rollup_deltas(
     complete_metric_rollup_deltas(&context.db, claimant, data.claim_token)
 }
 
+/// Authorize a monthly verification and delegate to the read-only snapshot.
+///
+/// `MET-WP4-03A-OPS-02` reuses exactly the rollup service boundary above:
+/// the check runs before the verifier is called, and therefore before any
+/// rollup-specific database read, so a denied request opens no transaction
+/// and reads no rollup state at all.
+fn verify_rollup_months(context: &Context) -> ThothResult<MetricRollupMonthVerification> {
+    authorize_metric_rollup_service(context)?;
+    verify_metric_rollup_months(&context.db)
+}
+
+/// Authorize a monthly rebuild and delegate to the self-verifying
+/// transaction.
+///
+/// The resolver authorizes and passes the caller's pinned frontier string
+/// through, nothing more. Its validation, the frontier comparison, the
+/// state-row lock, every derived row and both independent verifications
+/// happen inside the coordinator's single transaction.
+fn rebuild_rollup_months(
+    context: &Context,
+    data: &RebuildMetricRollupMonthsInput,
+) -> ThothResult<MetricRollupMonthRebuildResult> {
+    authorize_metric_rollup_service(context)?;
+    rebuild_metric_rollup_months(&context.db, &data.expected_applied_through_sequence)
+}
+
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
@@ -397,6 +427,26 @@ impl MutationRoot {
         input: CompleteMetricRollupDeltasInput,
     ) -> FieldResult<MetricRollupWatermark> {
         complete_rollup_deltas(context, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Verify the four derived monthly projections against the state independently derived from the work-day projection, in one read-only repeatable-read snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. Returns bounded counts per projection family and the frontier the snapshot was taken at; pending rollup lag above the frontier is reported as such and is not monthly corruption. A mismatch never triggers a rebuild by itself."
+    )]
+    fn verify_metric_rollup_months(
+        context: &Context,
+    ) -> FieldResult<MetricRollupMonthVerification> {
+        verify_rollup_months(context).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Rebuild the four derived monthly projections from the work-day projection at the caller-pinned durable frontier, in one all-or-nothing transaction beneath the rollup state-row lock. Requires the METRICS_INGEST_SERVICE role. A frontier that no longer matches, a work-day row above the frontier, or more than 100000 represented month keys is rejected before any monthly row is touched. Monthly state that already verifies exact is left untouched and returns rebuilt: false. Otherwise the four tables are truncated, recomputed in chunks of at most 50 month keys, and independently verified again; anything short of an exact match, any failure, and more than 120 seconds of server-side elapsed time roll the whole rebuild back. The frontier, the work-day projection, rollup deltas and canonical records are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
+    )]
+    fn rebuild_metric_rollup_months(
+        context: &Context,
+        #[graphql(description = "Which durable rollup frontier the rebuild is pinned to")]
+        input: RebuildMetricRollupMonthsInput,
+    ) -> FieldResult<MetricRollupMonthRebuildResult> {
+        rebuild_rollup_months(context, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(

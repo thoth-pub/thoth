@@ -1,16 +1,20 @@
-//! The two named domain operations of the MOM-1 rollup application path
-//! (`MET-WP4-01`) and the derived monthly serving layer maintained beneath
-//! the second of them (`MET-WP4-03A`).
+//! The named domain operations of the MOM-1 rollup application path
+//! (`MET-WP4-01`), the derived monthly serving layer maintained beneath the
+//! completion (`MET-WP4-03A`), and the exceptional protected full rebuild of
+//! that layer (`MET-WP4-03A-OPS-02`).
 //!
 //! `Crud` is deliberately **not** implemented for `metric_rollup_delta`,
 //! `metric_rollup_work_day`, `metric_rollup_work_day_state` or any of the
 //! four monthly tables. There is no generic create/update/delete surface for
-//! rollup state: the two functions here are the only supported writes, and
-//! each one implements exactly one transition of the approved protocol. The
-//! monthly projections are written only by [`complete_metric_rollup_deltas`],
-//! inside its transaction and beneath its state-row lock; the test-only
-//! rebuild at the end of this file is the reviewed rebuild procedure, not a
-//! callable surface.
+//! rollup state: the functions here are the only supported writes, and each
+//! one implements exactly one transition of the approved protocol. The
+//! monthly projections are written by [`complete_metric_rollup_deltas`],
+//! inside its transaction and beneath its state-row lock, and — only when an
+//! independent verification finds them inexact at a caller-pinned frontier —
+//! replaced whole by [`rebuild_metric_rollup_months`], inside one
+//! self-verifying transaction beneath the same lock. The read-only
+//! verification both of them rely on lives in [`super::verification`] and
+//! shares no SQL with the writer here.
 //!
 //! Every mechanism here is programme-local. There is no generic job
 //! framework, no reusable lease abstraction and no cross-programme claim
@@ -31,6 +35,7 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;
+use std::time::{Duration, Instant};
 
 use chrono::{Datelike, NaiveDate};
 use diesel::pg::PgConnection;
@@ -42,10 +47,15 @@ use diesel::{Connection, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
+use super::verification::{
+    require_work_day_within_frontier, verify_month_projections, work_day_stats, FrontierSnapshot,
+};
 use super::{
-    MetricRollupDeltaClaim, MetricRollupWatermark, METRIC_ROLLUP_CLAIM_MAX_BATCH,
-    METRIC_ROLLUP_CLAIM_MIN_BATCH, METRIC_ROLLUP_DELTA_APPLIED, METRIC_ROLLUP_DELTA_CLAIMED,
-    METRIC_ROLLUP_DELTA_PENDING, METRIC_ROLLUP_LEASE_SECONDS,
+    MetricRollupDeltaClaim, MetricRollupMonthRebuildResult, MetricRollupWatermark,
+    METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_CLAIM_MIN_BATCH, METRIC_ROLLUP_DELTA_APPLIED,
+    METRIC_ROLLUP_DELTA_CLAIMED, METRIC_ROLLUP_DELTA_PENDING, METRIC_ROLLUP_LEASE_SECONDS,
+    METRIC_ROLLUP_REBUILD_CHUNK_KEYS, METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS,
+    METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS,
 };
 use crate::db::PgPool;
 use crate::model::Timestamp;
@@ -59,7 +69,7 @@ const WORK_DAY_GRAIN: &str = "DAY";
 /// dedicated stable `extensions.type` is introduced for rollup rejections and
 /// these surface as `INTERNAL_ERROR` with an exact message. The messages are
 /// fixed and carry no token, principal, canonical value or database detail.
-fn rejected(message: &'static str) -> ThothError {
+pub(crate) fn rejected(message: &'static str) -> ThothError {
     ThothError::DatabaseConstraintError(Cow::Borrowed(message))
 }
 
@@ -67,7 +77,7 @@ fn rejected(message: &'static str) -> ThothError {
 ///
 /// Reached only if a row violates the closed lifecycle constraint, so it
 /// fails the transaction closed instead of unwrapping.
-fn broken_invariant(message: &'static str) -> ThothError {
+pub(crate) fn broken_invariant(message: &'static str) -> ThothError {
     ThothError::InternalError(message.to_string())
 }
 
@@ -84,6 +94,16 @@ struct StateRow {
     applied_through_sequence: i64,
     #[diesel(sql_type = Timestamptz)]
     watermark_at: Timestamp,
+}
+
+impl From<&StateRow> for FrontierSnapshot {
+    fn from(state: &StateRow) -> Self {
+        FrontierSnapshot {
+            next_sequence: state.next_sequence,
+            applied_through_sequence: state.applied_through_sequence,
+            watermark_at: state.watermark_at,
+        }
+    }
 }
 
 /// One candidate row of the claim scan.
@@ -676,9 +696,9 @@ fn apply_delta(connection: &mut PgConnection, row: &BatchRow, sequence: i64) -> 
 //
 // The statements receive the affected keys as four parallel arrays through
 // `unnest`, so one statement serves one key or fifty, and the statement count
-// is fixed at nine whatever the key count. The test-only rebuild at the end
-// of this file replays exactly these statements over every represented month
-// key, in chunks bounded like a claim batch.
+// is fixed at nine whatever the key count. The full rebuild later in this
+// file replays exactly these statements over every represented month key, in
+// chunks bounded like a claim batch.
 
 /// The distinct affected month keys of one completion, from four parallel
 /// arrays.
@@ -1048,7 +1068,7 @@ fn month_arithmetic(error: DieselError) -> ThothError {
 }
 
 // ---------------------------------------------------------------------------
-// Full rebuild (reviewed procedure; test-only, no callable surface)
+// MET-WP4-03A-OPS-02: rebuildMetricRollupMonths
 // ---------------------------------------------------------------------------
 
 /// The rebuild's source watermark bound: the whole work-day projection.
@@ -1058,7 +1078,6 @@ pub(crate) const REBUILD_SOURCE_WATERMARK_SQL: &str =
 
 /// Fresh derived state for the rebuild: one `TRUNCATE`, not keyed deletes,
 /// so a production-shaped rebuild leaves no dead-tuple bloat.
-#[cfg(test)]
 pub(crate) const REBUILD_TRUNCATE_SQL: &str = "TRUNCATE TABLE \
          public.metric_rollup_work_month, \
          public.metric_rollup_work_country_month, \
@@ -1067,15 +1086,25 @@ pub(crate) const REBUILD_TRUNCATE_SQL: &str = "TRUNCATE TABLE \
 
 /// Every month key represented in the work-day projection, in a
 /// deterministic order.
-#[cfg(test)]
 pub(crate) const REBUILD_MONTH_KEYS_SQL: &str =
     "SELECT DISTINCT r.work_id, r.platform_id, r.measure_id, \
             date_trunc('month', r.day)::date AS month_start \
      FROM public.metric_rollup_work_day r \
      ORDER BY 1, 2, 3, 4";
 
+/// The local lock timeout of a rebuild transaction:
+/// [`super::METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS`].
+pub(crate) const REBUILD_LOCK_TIMEOUT_SQL: &str = "SET LOCAL lock_timeout = '5s'";
+
+/// The local statement timeout of a rebuild transaction:
+/// [`super::METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS`].
+pub(crate) const REBUILD_STATEMENT_TIMEOUT_SQL: &str = "SET LOCAL statement_timeout = '30s'";
+
+/// The server-side elapsed ceiling of one whole rebuild operation.
+pub(crate) const REBUILD_ELAPSED_CEILING: Duration =
+    Duration::from_secs(METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS);
+
 /// One represented month key.
-#[cfg(test)]
 #[derive(diesel::QueryableByName)]
 struct MonthKeyRow {
     #[diesel(sql_type = SqlUuid)]
@@ -1088,24 +1117,213 @@ struct MonthKeyRow {
     month_start: NaiveDate,
 }
 
-/// Rebuild all four monthly datasets from `metric_rollup_work_day` alone.
+/// Parse the caller's pinned frontier.
+///
+/// Exactly a decimal string of ASCII digits that fits a non-negative `i64`:
+/// no sign, no whitespace, no exponent, no other radix. Anything else is the
+/// bounded validation error, decided before a connection is taken.
+fn parse_expected_frontier(expected: &str) -> ThothResult<i64> {
+    let valid = !expected.is_empty()
+        && expected.len() <= 19
+        && expected.bytes().all(|byte| byte.is_ascii_digit());
+    valid
+        .then(|| expected.parse::<i64>().ok())
+        .flatten()
+        .ok_or_else(|| {
+            rejected(
+                "The expected applied-through sequence must be a decimal string \
+                 holding a non-negative 64-bit integer. Nothing was rebuilt.",
+            )
+        })
+}
+
+/// Fail the transaction once the whole operation has run for longer than
+/// `ceiling`.
+fn require_within_ceiling(clock: &Instant, ceiling: Duration) -> ThothResult<()> {
+    if clock.elapsed() > ceiling {
+        return Err(rejected(
+            "The monthly rebuild exceeded its server-side elapsed ceiling and was \
+             rolled back. Nothing was rebuilt.",
+        ));
+    }
+    Ok(())
+}
+
+/// Replace the four monthly datasets from `metric_rollup_work_day` alone,
+/// inside the caller's transaction and beneath the state-row lock the caller
+/// already holds.
+///
+/// Truncates the four tables, reads every represented month key in a
+/// deterministic order, and replays [`recompute_month_projections`] over
+/// those keys in chunks of at most [`METRIC_ROLLUP_REBUILD_CHUNK_KEYS`]:
+/// exactly the statements, resolution text and index paths a completion
+/// uses, so the rebuilt state is by construction what incremental
+/// maintenance produces. `after_chunk` runs after every chunk and may fail
+/// the transaction, which is how the rebuild's elapsed ceiling is enforced
+/// between chunks. Returns the number of keys recomputed.
+fn replace_month_projections(
+    connection: &mut PgConnection,
+    frontier: i64,
+    mut after_chunk: impl FnMut() -> ThothResult<()>,
+) -> ThothResult<usize> {
+    diesel::sql_query(REBUILD_TRUNCATE_SQL).execute(connection)?;
+    let keys: Vec<MonthKeyRow> = diesel::sql_query(REBUILD_MONTH_KEYS_SQL).load(connection)?;
+    for chunk in keys.chunks(METRIC_ROLLUP_REBUILD_CHUNK_KEYS) {
+        let keys: BTreeSet<MonthKey> = chunk
+            .iter()
+            .map(|key| {
+                (
+                    key.work_id,
+                    key.platform_id,
+                    key.measure_id,
+                    key.month_start,
+                )
+            })
+            .collect();
+        recompute_month_projections(connection, &keys, frontier)?;
+        after_chunk()?;
+    }
+    Ok(keys.len())
+}
+
+/// Rebuild the four monthly datasets at a caller-pinned frontier, only if
+/// they are not already exact, and commit only if the rebuilt state is
+/// independently verified exact.
+///
+/// One transaction on one connection performs, in order:
+///
+/// 1. `SET LOCAL lock_timeout = '5s'` and `SET LOCAL statement_timeout =
+///    '30s'`;
+/// 2. lock the singleton progress row `FOR UPDATE` — the same serialization
+///    point every claim, completion and work-day sequence allocation takes,
+///    so nothing can change the work-day projection or the frontier
+///    underneath the rebuild, and every such operation waits until it
+///    commits;
+/// 3. require `applied_through_sequence` to equal the caller's expected
+///    frontier `W`, and reject otherwise before any monthly row is touched;
+/// 4. require no work-day row to be watermarked above `W`;
+/// 5. count the represented month keys and reject more than
+///    [`METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS`] before any monthly row is
+///    touched;
+/// 6. independently verify the current monthly state at `W`
+///    ([`verify_month_projections`]); if it is exact, return
+///    `rebuilt = false` with that verification and **no** `TRUNCATE`,
+///    `DELETE`, `INSERT` or surrogate-id rewrite of any monthly row;
+/// 7. otherwise truncate the four tables and recompute every represented
+///    month key in deterministic chunks of at most fifty
+///    ([`replace_month_projections`]);
+/// 8. independently verify the rebuilt state again, in this same
+///    transaction, and fail — rolling the whole rebuild back — unless it is
+///    exact;
+/// 9. return `rebuilt = true` with that exact verification.
+///
+/// A server-side elapsed clock starts when the transaction body begins,
+/// before the initial verification, and is checked immediately after the
+/// initial verification, after every rebuild chunk, immediately before the
+/// post-rebuild verification, immediately after it, and immediately before
+/// the successful return; at any of those points more than
+/// [`REBUILD_ELAPSED_CEILING`] elapsed fails the transaction.
+///
+/// It is **all or nothing**: any rejection, invariant failure, statement
+/// failure, lock or statement timeout, elapsed-ceiling failure or inexact
+/// post-rebuild verification rolls the complete transaction back, so no
+/// partially rebuilt monthly state can commit. The operation writes only the
+/// four monthly tables. It never advances or otherwise mutates the frontier,
+/// `next_sequence` or `watermark_at`, never touches a work-day row, a delta,
+/// a canonical record or revision, and never creates or updates a generic
+/// reconciliation ledger row.
+pub(crate) fn rebuild_metric_rollup_months(
+    db: &PgPool,
+    expected_applied_through_sequence: &str,
+) -> ThothResult<MetricRollupMonthRebuildResult> {
+    rebuild_metric_rollup_months_within(
+        db,
+        expected_applied_through_sequence,
+        REBUILD_ELAPSED_CEILING,
+    )
+}
+
+/// [`rebuild_metric_rollup_months`] with an explicit elapsed ceiling.
+///
+/// The production entry point passes [`REBUILD_ELAPSED_CEILING`]; tests
+/// pass a zero ceiling to prove that an exceeded ceiling fails and rolls the
+/// transaction back without waiting two minutes.
+pub(crate) fn rebuild_metric_rollup_months_within(
+    db: &PgPool,
+    expected_applied_through_sequence: &str,
+    ceiling: Duration,
+) -> ThothResult<MetricRollupMonthRebuildResult> {
+    let expected = parse_expected_frontier(expected_applied_through_sequence)?;
+
+    let mut connection = db.get()?;
+    connection.transaction(|connection| {
+        let clock = Instant::now();
+        diesel::sql_query(REBUILD_LOCK_TIMEOUT_SQL).execute(connection)?;
+        diesel::sql_query(REBUILD_STATEMENT_TIMEOUT_SQL).execute(connection)?;
+
+        let state = lock_state(connection)?;
+        if state.applied_through_sequence != expected {
+            return Err(rejected(
+                "The expected applied-through sequence does not match the current \
+                 durable rollup frontier. Nothing was rebuilt; verify again and pin \
+                 the current frontier.",
+            ));
+        }
+        let frontier = FrontierSnapshot::from(&state);
+
+        let stats = work_day_stats(connection)?;
+        require_work_day_within_frontier(&frontier, &stats)?;
+        if stats.month_key_count > METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS {
+            return Err(rejected(
+                "The work-day projection represents more month keys than one full \
+                 monthly rebuild supports. Nothing was rebuilt.",
+            ));
+        }
+
+        let before = verify_month_projections(connection, &frontier, &stats)?;
+        require_within_ceiling(&clock, ceiling)?;
+        if before.matches {
+            return Ok(MetricRollupMonthRebuildResult {
+                rebuilt: false,
+                verification: before,
+            });
+        }
+
+        replace_month_projections(connection, expected, || {
+            require_within_ceiling(&clock, ceiling)
+        })?;
+
+        require_within_ceiling(&clock, ceiling)?;
+        let stats = work_day_stats(connection)?;
+        let after = verify_month_projections(connection, &frontier, &stats)?;
+        require_within_ceiling(&clock, ceiling)?;
+        if !after.matches {
+            return Err(broken_invariant(
+                "the rebuilt monthly projections do not match their independently \
+                 derived expected state; the rebuild was rolled back",
+            ));
+        }
+        require_within_ceiling(&clock, ceiling)?;
+        Ok(MetricRollupMonthRebuildResult {
+            rebuilt: true,
+            verification: after,
+        })
+    })
+}
+
+/// Rebuild all four monthly datasets from `metric_rollup_work_day` alone,
+/// unconditionally.
 ///
 /// This is the reviewed deterministic rebuild procedure `MET-WP4-03A`
-/// requires as evidence, compiled only for tests: the task adds no callable
-/// rebuild operation, and a historical production rebuild is a separately
-/// authorized operational action. One transaction on one connection locks
-/// the singleton state row `FOR UPDATE` — the same serialization point every
-/// completion takes, so no completion can change the work-day projection
-/// under the rebuild — checks that no day row is watermarked above the
-/// durable frontier, truncates the four tables, reads every represented
-/// month key, and then replays [`recompute_month_projections`] over those
-/// keys in chunks of at most [`METRIC_ROLLUP_CLAIM_MAX_BATCH`]: exactly the
-/// statements, resolution text and index paths a completion uses, so the
-/// rebuilt state is by construction what incremental maintenance produces.
-/// A rebuild therefore costs a bounded number of keyed recomputations rather
-/// than one whole-table plan, and reads no canonical record, revision or
-/// delta. Returns the `applied_through_sequence` the rebuilt state
-/// corresponds to.
+/// requires as evidence, compiled only for tests. It is the same replacement
+/// [`rebuild_metric_rollup_months`] performs, without the caller-pinned
+/// frontier, the healthy no-op path, the timeouts, the elapsed ceiling or
+/// the two independent verifications, so tests can compare an unconditional
+/// replacement against incrementally maintained state and against the
+/// verifier. One transaction on one connection locks the singleton state row
+/// `FOR UPDATE`, checks that no day row is watermarked above the durable
+/// frontier, and replaces the four tables. Returns the
+/// `applied_through_sequence` the rebuilt state corresponds to.
 #[cfg(test)]
 pub(crate) fn rebuild_month_projections(db: &PgPool) -> ThothResult<i64> {
     let mut connection = db.get()?;
@@ -1123,22 +1341,7 @@ pub(crate) fn rebuild_month_projections(db: &PgPool) -> ThothResult<i64> {
                 "a work-day projection row is watermarked above the durable frontier",
             ));
         }
-        diesel::sql_query(REBUILD_TRUNCATE_SQL).execute(connection)?;
-        let keys: Vec<MonthKeyRow> = diesel::sql_query(REBUILD_MONTH_KEYS_SQL).load(connection)?;
-        for chunk in keys.chunks(METRIC_ROLLUP_CLAIM_MAX_BATCH as usize) {
-            let keys: BTreeSet<MonthKey> = chunk
-                .iter()
-                .map(|key| {
-                    (
-                        key.work_id,
-                        key.platform_id,
-                        key.measure_id,
-                        key.month_start,
-                    )
-                })
-                .collect();
-            recompute_month_projections(connection, &keys, state.applied_through_sequence)?;
-        }
+        replace_month_projections(connection, state.applied_through_sequence, || Ok(()))?;
         Ok(state.applied_through_sequence)
     })
 }
