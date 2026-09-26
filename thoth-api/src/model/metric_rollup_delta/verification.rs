@@ -26,11 +26,20 @@
 //! The callable operation, [`verify_metric_rollup_months`], runs on one
 //! pooled connection in one `READ ONLY`, `REPEATABLE READ` transaction with
 //! no row lock, so it sees one coherent snapshot of the frontier, the
-//! work-day projection and all four monthly tables, and cannot write. The
-//! same comparison, [`verify_month_projections`], is also run twice inside
-//! the rebuild transaction in `crud.rs`: before deciding whether anything
-//! must be rebuilt, and after rebuilding, where an inexact result rolls the
-//! whole rebuild back.
+//! work-day projection and all four monthly tables, and cannot write. Before
+//! that snapshot is frozen it takes one table-level `ACCESS SHARE` lock on
+//! exactly the four monthly tables, for one reason only: PostgreSQL's
+//! `TRUNCATE` is not MVCC-safe, so a snapshot taken before a concurrent
+//! rebuild's truncate would otherwise see the tables it had not yet touched
+//! as empty. `ACCESS SHARE` conflicts only with `ACCESS EXCLUSIVE`, which is
+//! what the rebuild's `TRUNCATE` takes, and not with the `ROW EXCLUSIVE`
+//! locks of normal incremental completion, so routine monthly maintenance
+//! stays concurrent with verification while an exceptional truncate cannot
+//! cross a verifier's snapshot in either direction. The same comparison,
+//! [`verify_month_projections`], is also run twice inside the rebuild
+//! transaction in `crud.rs`: before deciding whether anything must be
+//! rebuilt, and after rebuilding, where an inexact result rolls the whole
+//! rebuild back.
 
 use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
@@ -619,6 +628,27 @@ pub(crate) fn verify_month_projections(
 /// [`super::METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS`].
 pub(crate) const VERIFICATION_STATEMENT_TIMEOUT_SQL: &str = "SET LOCAL statement_timeout = '30s'";
 
+/// The one table-level lock the verification takes, before its first query
+/// and therefore before its `REPEATABLE READ` snapshot is frozen.
+///
+/// Exactly the four monthly projection tables, in `ACCESS SHARE` mode: the
+/// weakest table lock, granted to every ordinary reader, conflicting only
+/// with `ACCESS EXCLUSIVE`. It exists solely to close PostgreSQL's
+/// non-MVCC-safe `TRUNCATE` anomaly: with the lock held from before the
+/// snapshot until commit, the rebuild's `TRUNCATE` (which needs
+/// `ACCESS EXCLUSIVE`) either finished and committed before the lock was
+/// granted — and the snapshot then sees the rebuilt state — or waits until
+/// the verification commits. Normal completion writes the monthly tables
+/// under `ROW EXCLUSIVE`, which does not conflict, so incremental
+/// maintenance is never held up by a verification. It is not a row lock,
+/// takes no `FOR UPDATE`/`FOR SHARE`, and the transaction remains read-only.
+pub(crate) const VERIFICATION_LOCK_SQL: &str = "LOCK TABLE \
+         public.metric_rollup_work_month, \
+         public.metric_rollup_work_country_month, \
+         public.metric_rollup_work_institution_month, \
+         public.metric_rollup_work_month_ambiguity \
+     IN ACCESS SHARE MODE";
+
 /// The transaction mode the verification asserts before reading anything.
 #[derive(diesel::QueryableByName)]
 struct TransactionModeRow {
@@ -640,8 +670,14 @@ pub(crate) const TRANSACTION_MODE_SQL: &str =
 /// the server refuses every write in a read-only transaction, and the
 /// operation additionally asserts the mode it was granted before it reads
 /// anything, so a misconfigured connection fails closed rather than
-/// silently verifying under `READ COMMITTED`. Within that snapshot it reads
-/// the frontier, the work-day facts and the comparison, in that order.
+/// silently verifying under `READ COMMITTED`. The statement order is fixed:
+/// the local statement timeout, then [`VERIFICATION_LOCK_SQL`] — which must
+/// precede the first query, because a `REPEATABLE READ` snapshot is frozen
+/// by the first query and a snapshot older than a concurrent `TRUNCATE`
+/// would see the truncated tables as empty — then the transaction-mode
+/// assertion, which freezes the snapshot, then the frontier, the work-day
+/// facts and the comparison. The statement timeout also bounds how long the
+/// lock may wait behind an in-flight rebuild.
 ///
 /// `next_sequence - 1 > applied_through_sequence` is ordinary pending rollup
 /// lag and is returned as such, never reported as monthly corruption. A
@@ -657,6 +693,7 @@ pub(crate) fn verify_metric_rollup_months(
         .repeatable_read()
         .run(|connection| {
             diesel::sql_query(VERIFICATION_STATEMENT_TIMEOUT_SQL).execute(connection)?;
+            diesel::sql_query(VERIFICATION_LOCK_SQL).execute(connection)?;
             require_read_only_repeatable_read(connection)?;
             let frontier = read_frontier(connection)?;
             let stats = work_day_stats(connection)?;

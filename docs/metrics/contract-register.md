@@ -867,6 +867,23 @@ Contract properties consumers may rely on:
   W`, `watermarkAt`), the work-day facts (`maxWorkDayWatermark`,
   `workDayRowCount`, `representedMonthKeyCount`), the actual state of all
   four monthly tables and the independently derived expected state.
+- **One table-level read lock closes the `TRUNCATE` anomaly.** Immediately
+  after the statement timeout and before its first query — and therefore
+  before its `REPEATABLE READ` snapshot is frozen — the verifier executes
+  `LOCK TABLE` on exactly the four monthly projection tables `IN ACCESS
+  SHARE MODE`, and holds that lock until the transaction ends. PostgreSQL's
+  `TRUNCATE` is not MVCC-safe: a snapshot taken before a concurrent
+  rebuild's truncate would see the tables it had not yet accessed as empty.
+  `ACCESS SHARE` is a table-level read lock, not a row lock: it conflicts
+  only with `ACCESS EXCLUSIVE`, which the exceptional rebuild's `TRUNCATE`
+  takes, and not with the `ROW EXCLUSIVE` locks of normal incremental
+  completion, so routine monthly maintenance is never blocked by a
+  verification. If the verifier holds the lock first, a rebuild waits at its
+  `TRUNCATE` until the verification commits; if a rebuild already holds the
+  tables exclusively, the verifier waits before establishing its snapshot,
+  bounded by its 30-second statement timeout, and then sees the committed
+  rebuilt state. Verification remains database-read-only; the lock exists
+  solely to prevent that anomaly and changes no specification architecture.
 - **Independent expected state.** The expected monthly state is derived by
   separate set-based PostgreSQL SQL from `metric_rollup_work_day` alone. It
   shares no statement, constant or macro with the monthly writer, never

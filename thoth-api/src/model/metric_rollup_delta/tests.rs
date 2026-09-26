@@ -49,7 +49,8 @@
 //! `crate::graphql::metric_rollup_tests`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -72,8 +73,8 @@ use super::crud::{
     REBUILD_STATEMENT_TIMEOUT_SQL, REBUILD_TRUNCATE_SQL,
 };
 use super::verification::{
-    verify_metric_rollup_months, FRONTIER_SQL, TRANSACTION_MODE_SQL, VERIFICATION_SQL,
-    VERIFICATION_STATEMENT_TIMEOUT_SQL, WORK_DAY_STATS_SQL,
+    verify_metric_rollup_months, FRONTIER_SQL, TRANSACTION_MODE_SQL, VERIFICATION_LOCK_SQL,
+    VERIFICATION_SQL, VERIFICATION_STATEMENT_TIMEOUT_SQL, WORK_DAY_STATS_SQL,
 };
 use super::{
     MetricRollupDelta, MetricRollupMonthProjectionVerification, MetricRollupMonthRebuildResult,
@@ -5824,6 +5825,45 @@ fn the_verifier_shares_no_sql_with_the_monthly_writer_and_only_reads() {
             );
         }
     }
+    // The one non-query statement is a table-level ACCESS SHARE lock on
+    // exactly the four monthly projection tables: no row lock, no stronger
+    // mode, no other table.
+    let lock: String = VERIFICATION_LOCK_SQL
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(lock.starts_with("LOCK TABLE "), "{lock}");
+    assert!(lock.ends_with(" IN ACCESS SHARE MODE"), "{lock}");
+    let mut locked: Vec<&str> = lock
+        .trim_start_matches("LOCK TABLE ")
+        .trim_end_matches(" IN ACCESS SHARE MODE")
+        .split(',')
+        .map(str::trim)
+        .collect();
+    locked.sort_unstable();
+    let mut expected: Vec<String> = MONTH_TABLES
+        .iter()
+        .map(|table| format!("public.{table}"))
+        .collect();
+    expected.sort();
+    assert_eq!(
+        locked, expected,
+        "the lock names exactly the four monthly tables"
+    );
+    for forbidden in [
+        "FOR UPDATE",
+        "FOR SHARE",
+        "EXCLUSIVE",
+        "ROW ",
+        "NOWAIT",
+        "work_day",
+    ] {
+        assert!(
+            !lock.contains(forbidden),
+            "the lock must not use `{forbidden}`: {lock}"
+        );
+    }
+
     // The writer resolves each cell through a fixed, hand-written case table
     // over its represented bitmap; the verifier derives the resolution of
     // every one of the 256 possible represented sets from the minimality
@@ -6382,13 +6422,35 @@ fn verification_runs_in_one_read_only_repeatable_read_transaction_and_writes_not
         .skip_while(|statement| !statement.to_uppercase().starts_with("BEGIN"))
         .skip(1)
         .collect();
+    // The lock is the only statement between the timeout and the first
+    // query, so it is held before the snapshot is frozen.
     assert_eq!(after_begin[0].as_str(), VERIFICATION_STATEMENT_TIMEOUT_SQL);
-    assert_eq!(after_begin[1].as_str(), TRANSACTION_MODE_SQL);
-    assert_eq!(after_begin[2].as_str(), FRONTIER_SQL);
-    assert_eq!(after_begin[3].as_str(), WORK_DAY_STATS_SQL);
-    assert_eq!(after_begin[4].as_str(), VERIFICATION_SQL);
-    assert!(after_begin[5].to_uppercase().starts_with("COMMIT"));
-    assert_eq!(after_begin.len(), 6, "{after_begin:?}");
+    assert_eq!(after_begin[1].as_str(), VERIFICATION_LOCK_SQL);
+    assert_eq!(after_begin[2].as_str(), TRANSACTION_MODE_SQL);
+    assert_eq!(after_begin[3].as_str(), FRONTIER_SQL);
+    assert_eq!(after_begin[4].as_str(), WORK_DAY_STATS_SQL);
+    assert_eq!(after_begin[5].as_str(), VERIFICATION_SQL);
+    assert!(after_begin[6].to_uppercase().starts_with("COMMIT"));
+    assert_eq!(after_begin.len(), 7, "{after_begin:?}");
+    let first_select = after_begin
+        .iter()
+        .position(|statement| {
+            let upper = statement.to_uppercase();
+            upper.starts_with("SELECT") || upper.starts_with("WITH")
+        })
+        .expect("a query");
+    let lock = after_begin
+        .iter()
+        .position(|statement| statement.starts_with("LOCK TABLE"))
+        .expect("the lock");
+    assert!(lock < first_select, "the lock must precede every query");
+    assert_eq!(
+        after_begin
+            .iter()
+            .filter(|statement| statement.starts_with("LOCK"))
+            .count(),
+        1
+    );
     assert_eq!(
         statements
             .iter()
@@ -7227,6 +7289,350 @@ fn normal_completion_and_allocation_wait_behind_a_rebuild_and_then_resume_correc
     assert_exact_verification(&pool, &verified);
     assert_eq!(verified.applied_through_sequence, frontier + 2);
     assert_eq!(verified.next_sequence, frontier + 4);
+}
+
+// ---------------------------------------------------------------------------
+// Verification versus rebuild: the TRUNCATE MVCC anomaly is closed
+// ---------------------------------------------------------------------------
+
+/// A pause point inside a pooled connection's own thread.
+///
+/// The instrumentation hook runs synchronously before a statement is sent,
+/// so blocking in it holds the connection's transaction open — locks held,
+/// snapshot frozen or not yet frozen, exactly as it stands — with the next
+/// statement not yet issued. That is what lets a test freeze the production
+/// verifier or the production rebuild at a chosen statement, deterministic
+/// and without sleeping, and release it when the other side has produced
+/// its lock evidence. It fires once, for the first statement whose text
+/// starts with `prefix`.
+#[derive(Debug)]
+struct PausePoint {
+    prefix: &'static str,
+    armed: AtomicBool,
+    reached: Sender<()>,
+    release: Mutex<Receiver<()>>,
+    log: Arc<Mutex<Vec<String>>>,
+}
+
+/// The pool customizer that installs a [`PausePoint`] on every connection.
+#[derive(Debug)]
+struct PauseCustomizer(Arc<PausePoint>);
+
+impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for PauseCustomizer {
+    fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+        let pause = Arc::clone(&self.0);
+        connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+            if let InstrumentationEvent::StartQuery { query, .. } = event {
+                let text = query.to_string();
+                if text.starts_with(pause.prefix) && pause.armed.swap(false, Ordering::SeqCst) {
+                    // If the test has already failed and dropped its handle,
+                    // both calls just return, so the paused connection continues
+                    // and releases its locks instead of hanging.
+                    let _ = pause.reached.send(());
+                    let _ = pause.release.lock().expect("release channel").recv();
+                }
+                pause.log.lock().expect("statement log").push(text);
+            }
+        });
+        Ok(())
+    }
+}
+
+/// The test's handle on a [`PausePoint`].
+struct PauseHandle {
+    reached: Receiver<()>,
+    release: Sender<()>,
+}
+
+impl PauseHandle {
+    /// Wait until the paused connection has reached its statement.
+    fn wait_reached(&self) {
+        match self.reached.recv_timeout(Duration::from_secs(30)) {
+            Ok(()) => {}
+            Err(RecvTimeoutError::Timeout) => panic!("the pause point was not reached"),
+            Err(RecvTimeoutError::Disconnected) => panic!("the paused connection went away"),
+        }
+    }
+
+    fn release(&self) {
+        self.release
+            .send(())
+            .expect("the paused connection is waiting");
+    }
+}
+
+impl Drop for PauseHandle {
+    /// A test that fails before releasing still lets the paused connection
+    /// run to completion, so its transaction and locks end promptly.
+    fn drop(&mut self) {
+        let _ = self.release.send(());
+    }
+}
+
+/// A one-connection pool that pauses before the first statement starting
+/// with `prefix`, and captures every statement.
+fn pausing_pool(prefix: &'static str) -> (Arc<PgPool>, PauseHandle, Arc<Mutex<Vec<String>>>) {
+    let (reached_tx, reached_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let pause = Arc::new(PausePoint {
+        prefix,
+        armed: AtomicBool::new(true),
+        reached: reached_tx,
+        release: Mutex::new(release_rx),
+        log: Arc::clone(&log),
+    });
+    let pool = Pool::builder()
+        .max_size(1)
+        .connection_customizer(Box::new(PauseCustomizer(pause)))
+        .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+        .expect("Failed to create the pausing pool");
+    (
+        Arc::new(pool),
+        PauseHandle {
+            reached: reached_rx,
+            release: release_tx,
+        },
+        log,
+    )
+}
+
+/// `(pid, granted)` of every relation lock of `mode` on `table`, from the
+/// server's own lock table.
+fn relation_locks(pool: &PgPool, table: &str, mode: &str) -> Vec<(i32, bool)> {
+    #[derive(diesel::QueryableByName)]
+    struct LockRow {
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        pid: i32,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        granted: bool,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    sql_query(
+        "SELECT l.pid, l.granted FROM pg_locks l \
+         JOIN pg_class c ON c.oid = l.relation \
+         WHERE l.locktype = 'relation' AND c.relnamespace = 'public'::regnamespace \
+           AND c.relname = $1 AND l.mode = $2 \
+         ORDER BY l.pid",
+    )
+    .bind::<diesel::sql_types::Text, _>(table)
+    .bind::<diesel::sql_types::Text, _>(mode)
+    .load::<LockRow>(&mut connection)
+    .expect("Failed to read pg_locks")
+    .into_iter()
+    .map(|row| (row.pid, row.granted))
+    .collect()
+}
+
+/// `(wait_event_type, current query)` of one backend.
+fn backend(pool: &PgPool, pid: i32) -> (Option<String>, String) {
+    #[derive(diesel::QueryableByName)]
+    struct ActivityRow {
+        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+        wait_event_type: Option<String>,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        query: String,
+    }
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let row = sql_query("SELECT wait_event_type, query FROM pg_stat_activity WHERE pid = $1")
+        .bind::<diesel::sql_types::Integer, _>(pid)
+        .load::<ActivityRow>(&mut connection)
+        .expect("Failed to read pg_stat_activity")
+        .pop()
+        .expect("the backend exists");
+    (row.wait_event_type, row.query)
+}
+
+/// Poll the server's lock table until `condition` holds, or fail after
+/// thirty seconds. Waiting on evidence, not on elapsed time.
+fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while !condition() {
+        assert!(
+            Instant::now() < deadline,
+            "{label}: lock evidence never appeared"
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// The pids holding a granted lock of `mode` on all four monthly tables.
+fn holders_on_all_month_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
+    let mut holders: Option<BTreeSet<i32>> = None;
+    for table in MONTH_TABLES {
+        let pids: BTreeSet<i32> = relation_locks(pool, table, mode)
+            .into_iter()
+            .filter(|(_, granted)| *granted)
+            .map(|(pid, _)| pid)
+            .collect();
+        holders = Some(match holders {
+            None => pids,
+            Some(so_far) => so_far.intersection(&pids).copied().collect(),
+        });
+    }
+    holders.unwrap_or_default().into_iter().collect()
+}
+
+#[test]
+fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    // Empty monthly state, so the rebuild must take the real TRUNCATE path
+    // and the verifier's snapshot has an unmistakable identity: every
+    // expected row missing, nothing actual.
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    // The production verifier, paused just before its comparison: its lock
+    // is held, its snapshot is frozen, and its transaction is open.
+    let (paused, pause, verifier_log) = pausing_pool(VERIFICATION_SQL);
+    let verifying = thread::spawn(move || verify_metric_rollup_months(&paused));
+    pause.wait_reached();
+    let holders = holders_on_all_month_tables(&pool, "AccessShareLock");
+    assert_eq!(
+        holders.len(),
+        1,
+        "the verifier holds ACCESS SHARE on all four: {holders:?}"
+    );
+    let verifier_pid = holders[0];
+
+    // A real rebuild now runs its whole pre-truncate path and must stop at
+    // the TRUNCATE, queued for ACCESS EXCLUSIVE behind the verifier's lock.
+    let rebuild_pool = Arc::clone(&pool);
+    let rebuilding = thread::spawn(move || rebuild(&rebuild_pool, frontier));
+    let mut rebuild_pid = 0;
+    wait_for_lock_evidence("rebuild queued behind the verifier", || {
+        relation_locks(&pool, "metric_rollup_work_month", "AccessExclusiveLock")
+            .into_iter()
+            .any(|(pid, granted)| {
+                rebuild_pid = pid;
+                !granted
+            })
+    });
+    assert_ne!(rebuild_pid, verifier_pid);
+    let (wait_event_type, query) = backend(&pool, rebuild_pid);
+    assert_eq!(wait_event_type.as_deref(), Some("Lock"), "{query}");
+    assert!(query.starts_with("TRUNCATE TABLE"), "{query}");
+    for table in MONTH_TABLES {
+        assert!(
+            relation_locks(&pool, table, "AccessExclusiveLock")
+                .iter()
+                .all(|(pid, granted)| *pid != rebuild_pid || !*granted),
+            "{table}: the rebuild holds no exclusive lock while the verifier is open"
+        );
+    }
+    assert!(!rebuilding.is_finished());
+    assert!(!verifying.is_finished());
+
+    // Release the verifier: it completes under its own snapshot and commits,
+    // and only then can the rebuild truncate. The ordering is established by
+    // the lock evidence above and by the content each side returns, never by
+    // comparing clocks across threads.
+    pause.release();
+    let verified = verifying.join().expect("join").expect("verification");
+    let rebuilt = rebuilding.join().expect("join").expect("rebuild");
+
+    // One coherent pre-rebuild snapshot: the empty monthly state it locked,
+    // not a partially or fully rebuilt one.
+    assert!(!verified.matches);
+    let missing = |rows: usize| family(rows as i64, 0, rows as i64, 0, 0);
+    assert_eq!(verified.total, missing(oracle.totals.len()));
+    assert_eq!(verified.country, missing(oracle.countries.len()));
+    assert_eq!(verified.institution, missing(oracle.institutions.len()));
+    assert_eq!(verified.ambiguity, missing(oracle.ambiguity.len()));
+    assert_eq!(verified.applied_through_sequence, frontier);
+    let statements = captured(&verifier_log);
+    let lock = statements
+        .iter()
+        .position(|s| s == VERIFICATION_LOCK_SQL)
+        .expect("the lock");
+    let first_query = statements
+        .iter()
+        .position(|s| s == TRANSACTION_MODE_SQL)
+        .expect("the first query");
+    assert!(lock < first_query);
+
+    // The rebuild then succeeded whole, and the final state verifies exact.
+    assert!(rebuilt.rebuilt);
+    assert!(rebuilt.verification.matches);
+    assert_eq!(month_state(&pool), oracle);
+    let after = verification(&pool);
+    assert_exact_verification(&pool, &after);
+    assert_eq!(after, rebuilt.verification);
+}
+
+#[test]
+fn a_verifier_waits_before_its_snapshot_while_a_real_rebuild_holds_the_monthly_tables() {
+    let (_guard, pool) = setup_registry_db();
+    let (_fixture, frontier) = settled_differential_fixture(&pool);
+    let oracle = oracle_month_state(&projection(&pool));
+    exec(&pool, REBUILD_TRUNCATE_SQL);
+
+    // The production rebuild, paused just after its TRUNCATE executed: it
+    // holds ACCESS EXCLUSIVE on all four monthly tables and has not
+    // repopulated them yet.
+    let (paused, pause, rebuild_log) = pausing_pool(REBUILD_MONTH_KEYS_SQL);
+    let rebuilding = thread::spawn(move || rebuild(&paused, frontier));
+    pause.wait_reached();
+    let holders = holders_on_all_month_tables(&pool, "AccessExclusiveLock");
+    assert_eq!(
+        holders.len(),
+        1,
+        "the rebuild holds ACCESS EXCLUSIVE on all four: {holders:?}"
+    );
+    let rebuild_pid = holders[0];
+    assert!(captured(&rebuild_log)
+        .iter()
+        .any(|s| s == REBUILD_TRUNCATE_SQL));
+
+    // The production verifier must now wait at its LOCK, before any query
+    // and therefore before it has a snapshot at all.
+    let (logged, verifier_log) = logging_pool();
+    let verifying = thread::spawn(move || verify_metric_rollup_months(&logged));
+    let mut verifier_pid = 0;
+    wait_for_lock_evidence("verifier queued behind the rebuild", || {
+        relation_locks(&pool, "metric_rollup_work_month", "AccessShareLock")
+            .into_iter()
+            .any(|(pid, granted)| {
+                verifier_pid = pid;
+                !granted
+            })
+    });
+    assert_ne!(verifier_pid, rebuild_pid);
+    let (wait_event_type, query) = backend(&pool, verifier_pid);
+    assert_eq!(wait_event_type.as_deref(), Some("Lock"), "{query}");
+    assert!(query.starts_with("LOCK TABLE"), "{query}");
+    assert!(!verifying.is_finished());
+    // Inside its transaction the verifier has issued the timeout and the
+    // lock and nothing else: no query, so no snapshot. (The pool's own
+    // connection check on checkout precedes BEGIN and is not part of it.)
+    let in_transaction: Vec<String> = captured(&verifier_log)
+        .into_iter()
+        .skip_while(|s| !s.to_uppercase().starts_with("BEGIN"))
+        .skip(1)
+        .collect();
+    assert_eq!(
+        in_transaction,
+        vec![
+            VERIFICATION_STATEMENT_TIMEOUT_SQL.to_string(),
+            VERIFICATION_LOCK_SQL.to_string()
+        ],
+        "no query has been issued yet"
+    );
+
+    // Release the rebuild: it repopulates, verifies and commits; the
+    // verifier then obtains its lock, freezes its snapshot, and sees exactly
+    // the committed rebuilt state. Had its snapshot been frozen before the
+    // rebuild's TRUNCATE committed, the non-MVCC-safe truncate would have
+    // shown it four empty tables and every expected row as missing.
+    pause.release();
+    let rebuilt = rebuilding.join().expect("join").expect("rebuild");
+    assert!(rebuilt.rebuilt);
+    let verified = verifying.join().expect("join").expect("verification");
+    assert!(verified.matches, "{verified:?}");
+    assert_eq!(verified, rebuilt.verification);
+    assert_exact_verification(&pool, &verified);
+    assert_eq!(month_state(&pool), oracle);
 }
 
 // ---------------------------------------------------------------------------
