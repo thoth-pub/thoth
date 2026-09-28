@@ -89,6 +89,14 @@ pub enum ThothError {
     )]
     DimensionDigitalError,
     #[error(
+        "Accessibility Standard must be a WCAG standard. EPUB Accessibility and PDF/UA standards belong in Additional Accessibility Standard."
+    )]
+    AccessibilityStandardSlotError,
+    #[error(
+        "Additional Accessibility Standard must be an EPUB Accessibility or PDF/UA standard. WCAG standards belong in Accessibility Standard."
+    )]
+    AccessibilityAdditionalStandardSlotError,
+    #[error(
         "Price values must be greater than zero. To indicate an unpriced Publication, omit all Prices."
     )]
     PriceZeroError,

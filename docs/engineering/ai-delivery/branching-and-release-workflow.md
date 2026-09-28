@@ -160,15 +160,25 @@ Every task uses a fresh branch and one PR. Do not create a long-lived `feature/p
 
 ### Thoth Metrics
 
-The Metrics design requires repository-local integration branches after branch readiness:
+The Metrics design requires repository-local integration branches after branch readiness. In each affected repository:
+
+```text
+<development-branch>
+  -> feature/metrics
+  -> feature/metrics--<slice>
+  -> feature/metrics
+  -> <development-branch>
+```
+
+`<development-branch>` is that repository's own verified development branch, as recorded in its repository-map entry and in `docs/engineering/repository-map/branch-topology.md`, not `thoth`'s spelling (see section 6). In `thoth-pub/thoth` it is `develop`, so this repository's Metrics flow is:
 
 ```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
 
-Each focused Metrics child branch is created from `feature/metrics`, targets `feature/metrics`, and does not target `develop` directly. `ADR-0009` standardizes the repository ref spelling of that child branch; it does not amend the substantive Metrics architecture.
+Each focused Metrics child branch is created from `feature/metrics`, targets `feature/metrics`, and does not target the `<development-branch>` directly. `ADR-0009` standardizes the repository ref spelling of that child branch; it does not amend the substantive Metrics architecture.
 
-Each affected repository owns its own `feature/metrics` integration branch and final PR. No physical branch spans repositories.
+Each affected repository owns its own `feature/metrics` integration branch and its own final PR into its own `<development-branch>`. No physical branch spans repositories.
 
 ## 6. Multi-repository programmes
 
@@ -177,7 +187,8 @@ default branch, active development branch and target release flow — is
 authoritative in that repository's own `docs/engineering/repository-map/`
 entry, verified from live GitHub state. Repositories are not required to share
 `thoth`'s `develop`/`master` names or flow: for example, at time of writing
-`thoth-app` and `thoth-pyramid` develop on `dev` and release from `main`, while
+`thoth-app` and `thoth-pyramid` develop on `dev` and release from `main`,
+`metrics-dashboard` permanently develops on `dev` and releases from `main`, and
 `thoth-dissemination`, `thoth-strapi` and the standalone `thoth-client` develop
 on `develop`.
 
@@ -192,7 +203,7 @@ For example:
 thoth:              feature/metrics -> develop
 thoth-sphinx:        feature/metrics -> develop   (Sphinx's own develop)
 thoth-app:           feature/metrics -> dev        (thoth-app's own active branch, until BR-APP-01 normalizes it)
-metrics-dashboard:   feature/metrics -> dev        (until BR-DASH-01 normalizes it)
+metrics-dashboard:   feature/metrics -> dev        (metrics-dashboard's permanent development branch)
 ```
 
 Each repository has:

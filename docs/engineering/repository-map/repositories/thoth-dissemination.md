@@ -9,9 +9,11 @@ Existing execution engine for delivering metadata and files to external distribu
 GitHub default/release: `main`
 Development: `develop`
 Normal feature PRs currently target `develop`
-Target release branch: `master`
+Established `<release-branch>`: `main`, **preserved**
 
-BR-DIS-01 must normalize the release branch before final programme release.
+Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and is preserved. No `master` branch is created and the GitHub default is not switched.
+
+BR-DIS-01 must complete the remaining readiness — protections for the verified release and development branches, and verification of the release/tag and production external-write workflows against `main` — before final programme release. It remains a separate, separately authorized and unimplemented task, and remains HIGH risk because of those production external-write workflows.
 
 ## Stack
 

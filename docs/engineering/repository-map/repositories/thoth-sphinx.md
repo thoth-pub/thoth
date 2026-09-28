@@ -9,6 +9,7 @@ Planned metrics collection, normalization, orchestration, rollup application, OP
 Visibility: private
 GitHub default branch: `main`
 Active development branch: `develop`
+Established `<release-branch>`: `main`, **preserved** under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md)
 CI: none — `actions/workflows` reports zero workflows on the repository
 Deployment: none verified
 
@@ -35,13 +36,13 @@ repository-local root `AGENTS.md` and subsequently corrected its recorded
 content (`CTRL-REPO-SPHINX-01` and its reconciliation follow-ups, merged
 through that repository's own pull requests). That divergence is
 repository-control history. It is **not** branch normalization, and it is not
-runtime or bootstrap implementation: no `master` branch has been established
-by it, and no runtime, bootstrap, Cargo, CI or provider implementation exists
-on either branch — there is no Cargo workspace, no crate or module structure,
-no GitHub Actions workflow, no protection evidence and no provisioned runtime.
+runtime or bootstrap implementation: no runtime, bootstrap, Cargo, CI or
+provider implementation exists on either branch — there is no Cargo workspace,
+no crate or module structure, no GitHub Actions workflow, no protection evidence
+and no provisioned runtime.
 
 The repository therefore remains **bootstrap-only and
-non-implementation-ready**. Branch normalization (`BR-SPHINX-01`) and
+non-implementation-ready**. Branch readiness (`BR-SPHINX-01`) and
 bootstrap (`SPHINX-BOOT-01`) remain separate, separately scoped and separately
 authorized tasks, and both remain unimplemented. Neither is performed nor
 authorized by this record, and this record performs no branch normalization.
@@ -60,28 +61,31 @@ Sphinx
 
 The private Metrics design contains an obsolete spelling. Its exact Drive revision is recorded in `docs/engineering/design-references.md`.
 
-## Required branch normalization
+## Required branch readiness
 
 BR-SPHINX-01 is a separate, separately authorized task. It remains distinct
-from SPHINX-BOOT-01 and is not performed by this record. It must:
+from SPHINX-BOOT-01 and is not performed by this record. Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) it must
+**not** create `master` and must **not** switch the GitHub default branch for
+naming consistency: `main` is this repository's established release/default
+branch and is preserved. BR-SPHINX-01 must be re-specified against `ADR-0011`
+once that decision is repository-authoritative. It must:
 
-- create `master` from current `main`;
+- preserve `main` as the release/default branch;
 - retain and verify the existing `develop` branch;
 - align `develop` with the approved bootstrap base, preserving the root
   `AGENTS.md` already present on `develop`;
-- make `master` the release/default branch;
-- protect `master` and `develop`;
-- retain `main` until references are confirmed absent.
+- protect `main` and `develop`;
+- reconcile the repository-local controls against the verified branch state.
 
 Because `main` is currently behind `develop` by the repository-control and
-reconciliation commits described above, any normalization plan must state
-explicitly what `master` created from `main` contains, and must not assume the
-two branches are interchangeable.
+reconciliation commits described above, any readiness plan must state explicitly
+what each branch contains, and must not assume the two branches are
+interchangeable.
 
 The resulting flow is:
 
 ```text
-develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop -> master
+develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop -> main
 ```
 
 Focused Metrics child branches are created from `feature/metrics` and target

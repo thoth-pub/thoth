@@ -4,7 +4,13 @@ Status: ACTIVE TRACKER
 Programme owner: CTO
 Master issue: [#766](https://github.com/thoth-pub/thoth/issues/766)
 Approved design: [private Google Doc](https://docs.google.com/document/d/11AeQFGpm0kUZajBM5PrAqsttmzJlpUrt89tGYyVM8c0/edit), Drive revision `6`
-Last updated: 2026-09-12 (`MET-WP1-13`, issue
+Last updated: 2026-09-21 (`BR-DASH-01C-CONTROL-RECONCILIATION`, issue
+[#931](https://github.com/thoth-pub/thoth/issues/931): the BR-DASH-01 row and
+the branch strategy reconciled to the approved permanent `metrics-dashboard`
+`feature/* -> dev -> main` topology, with each repository's Metrics flow
+resolved through its own verified `<development-branch>`. Task statuses, risks,
+WP entry gates and the other repositories' rows are unchanged). Previously
+2026-09-12 (`MET-WP1-13`, issue
 [#904](https://github.com/thoth-pub/thoth/issues/904): the protected Metrics
 source and source-account administration GraphQL foundation slice is
 implemented on its slice branch `feature/metrics--wp1-source-admin`; the exact
@@ -54,7 +60,17 @@ Authorization Amendment 1; additive and inactive: no source, account, platform
 or checkpoint row is seeded, no private `CF-GATE-01` provider value or
 credential enters the repository, and no CloudFront driver, Sphinx, ingestion
 or collection behaviour exists or is activated. Exact review and authorization
-provenance is retained in the owning issue. WP1 remains `IN PROGRESS`.)
+provenance is retained in the owning issue. WP1 remains `IN PROGRESS`). Previously
+2026-09-09 (`CTRL-BRANCH-RELEASE-01`, issue
+[#897](https://github.com/thoth-pub/thoth/issues/897): branch-readiness rows
+reconciled to `ADR-0011`, which preserves each repository's established
+release/default branch, so no `BR-` task converts a release branch. Task
+statuses, risks, dependencies and the WP entry gates are unchanged. Previously
+2026-08-25 (`MET-CTRL-01-CLOSEOUT-01`, issue
+[#834](https://github.com/thoth-pub/thoth/issues/834)): `MET-CTRL-01` recorded
+as `MERGED - COMPLETE` and its dependency satisfied, so WP1's remaining entry
+gates are `feature/metrics` authorization and one approved bounded WP1 child
+specification; later Sphinx/client/source/WP5 gates unchanged)
 
 ## 1. Control rule
 
@@ -81,12 +97,14 @@ A work package is not one implementation task. Each must be decomposed into boun
 | MET-WP1-13 Metrics source and source-account administration GraphQL foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-source-admin` | `feature/metrics--wp1-source-admin` -> `feature/metrics` | Adds the protected SUPERUSER-only administrative GraphQL surface for exactly `metric_source` and `metric_source_account`: four create/update mutations and two bounded by-code administrative lookups, all six authorized through the repository-authoritative `require_superuser()` guard before any operation-specific database read, row lock or write, and no checkpoint administration. Adds migration `20260912_v1.9.0` creating the named `metric_source_driver_key_check` CHECK (a `DRIVER` source requires a non-blank `driver_key`; every other acquisition type requires `NULL`; enforced identically at the application boundary and validated against existing rows on apply without rewriting them) and the parallel append-only `metric_source_registry_history` audit with its two closed enums, written atomically with every committed create/update and carrying the exact persisted before/after state and the authenticated actor; `MET-WP1-12`'s closed `metric_registry_history` is not extended. Administration uses exact stable `TEXT` codes with no normalisation, account creation names source and platform by code, `Patch...` inputs are complete replacements of exactly the approved mutable fields, and source `code`/`acquisitionType`/`driverKey` and account `code`/source/platform/`externalKey`/`expectedPublisherId` are immutable and not expressible. Source-account configuration is exposed only as the closed typed representation frozen by Specification Amendment 1 — `EMPTY` (semantic `{}`) or `CLOUDFRONT_LEGACY_S3_V1` (exactly the `cloudfront-source-account/1` / `LEGACY_S3` shape with the caller's exact non-blank hostname, bucket and prefix, hostname equal to the immutable `externalKey`, and creatable only with a non-null `expectedPublisherId` naming an existing publisher per Specification Amendment 2) — bound by the closed compatibility matrix to the resolved source's immutable `acquisition_type` and `driver_key`; stored values pass a fail-closed decoder before return, update or audit serialization, otherwise yielding one sanitized failure with no disclosure, no update and no audit row. No-ops are decided by semantic JSONB equality; concurrency is serialized last-write-wins with exactly one canonical-row `FOR UPDATE` lock and no parent-row lock. Strictly additive SDL, with `MET-WP1-12`'s point-in-time guards reconciled under Implementation Authorization Amendment 1 to admit exactly these six operations. Additive and inactive: no source, account, platform or checkpoint seed, no private `CF-GATE-01` value or credential, and no CloudFront driver, Sphinx, ingestion, checkpoint or collection behaviour. Exact review and authorization provenance is retained in the owning issue | [#904](https://github.com/thoth-pub/thoth/issues/904) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
+| CTRL-BRANCH-RELEASE-01 Preserve established release branch names | `thoth` | MEDIUM | APPROVED | `develop` at `4546cb632428872b961ad6c17282984d298e3ade` -> `develop` | Delivers [`ADR-0011`](../engineering/decisions/ADR-0011-preserve-established-release-branch-names.md). The exact ADR-0011 decision and task specification hold CTO approval under [#897](https://github.com/thoth-pub/thoth/issues/897). `APPROVED` is the durable decision state; it does **not** make ADR-0011 repository-authoritative. Repository authority additionally requires independent exact-head source review, separate merge authorization, and merge into and reachability from `develop`. Documentation/control only: no runtime, schema, migration, API, auth, workflow, settings, provider or production effect. GitHub remains authoritative for live pull-request, CI and merge state | [#897](https://github.com/thoth-pub/thoth/issues/897) |
+| BR-SPHINX-01 Sphinx branch readiness | `thoth-sphinx` | MEDIUM | BLOCKED | observed `main` default, `develop` active; `main` preserved as `<release-branch>` | CTRL-BRANCH-RELEASE-01 / `ADR-0011` repository-authoritative, then re-specification; approved readiness spec. Protect `main` and `develop`, align `develop` with the approved bootstrap base, reconcile repository-local controls. No `master` is created and the default branch is not switched | #766 |
 | SPHINX-BOOT-01 Repository bootstrap | `thoth-sphinx` | MEDIUM | BLOCKED | current `develop`; target `develop` after BR-SPHINX-01 verification | MET-CTRL-01 (**satisfied**); BR-SPHINX-01; approved bootstrap spec | #766 |
 | THOTH-DB-CTRL-01 Diesel generation procedure | `thoth` | HIGH | SUPERSEDED | `develop` -> `develop` | Structural-synchronizer architecture superseded by ADR-0003; implementation PR #777 closed unmerged with no code becoming authoritative. Replaced by THOTH-DB-CTRL-02. | #766 |
 | THOTH-DB-CTRL-02 Repository-authoritative schema contract | `thoth` | HIGH | MERGED - REPOSITORY-AUTHORITATIVE | `develop` at `4c53709befc91acb481beac54a1d314926b61d76` -> `develop` | Delivered ADR-0003 (Architecture A) and directly related cleanup through PR [#778](https://github.com/thoth-pub/thoth/pull/778), merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`. CG-12 is resolved and the shared Diesel schema-control dependency is satisfied. | #766 |
-| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | observed `dev -> main`; reconcile stale `develop`, then normalize to `develop -> master` | Vercel rollback | #766 |
-| BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main` | npm release protection | #766 |
-| BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main` | Vercel branch plan | #766 |
+| BR-DASH-01 Dashboard branch readiness | dashboard | HIGH | BLOCKED | permanent `feature/* -> dev -> main`: `dev` is the approved development/integration branch and `main` is preserved as `<release-branch>`; no `dev -> develop` normalization. Stale legacy `develop` is not a workflow branch and has not been deleted | Separately authorized stale `develop` cleanup, branch protections and CI/lint/test readiness (CG-11); Vercel branch settings verified under separate provider-read authorization, with rollback, before any change that affects Vercel. Vercel production stays on `main` and is not moved | #766 |
+| BR-WIDGET-01 Widget branch readiness | widget | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | npm release protection | #766 |
+| BR-APP-01 App branch readiness | app | HIGH | BLOCKED | actual `dev`/`main`; `main` preserved as `<release-branch>`; development branch normalizes to `develop` | Vercel branch plan for previews and builds; production stays on `main` | #766 |
 
 ## 3. Work packages
 
@@ -221,12 +239,29 @@ rebuild or activation.
 ## 4. Branch strategy
 
 ```text
+<development-branch>
+  -> feature/metrics
+  -> feature/metrics--<slice>
+  -> feature/metrics
+  -> <development-branch>
+```
+
+`<development-branch>` is each affected repository's own verified, approved
+development branch as recorded in
+[`branch-topology.md`](../engineering/repository-map/branch-topology.md); it is
+not assumed from `thoth`'s spelling. In `thoth` it is `develop`, so the Thoth
+flow is:
+
+```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
 
+In `metrics-dashboard` it is `dev`, that repository's approved permanent
+development branch.
+
 Each affected repository owns its own `feature/metrics` integration branch.
 Focused Metrics child branches are created from it and target it; they do not
-target `develop` directly. Under
+target the `<development-branch>` directly. Under
 [`ADR-0009`](../engineering/decisions/ADR-0009-programme-integration-branch-namespace.md)
 the child branch is a **sibling** of the integration branch, separated by the
 reserved `--` token. `feature/metrics/<slice>` is not usable beneath a live
@@ -234,15 +269,24 @@ reserved `--` token. `feature/metrics/<slice>` is not usable beneath a live
 the same path. `ADR-0009` standardizes the repository ref spelling only; it does
 not amend the substantive Metrics architecture.
 
-Do not create integration branches until a verified `develop` branch and release-protection decision exist.
+Each repository's release branch is its own verified established release/default
+branch. Under
+[`ADR-0011`](../engineering/decisions/ADR-0011-preserve-established-release-branch-names.md)
+that branch is preserved: `main` stays `main` and `master` stays `master`, and
+no `BR-` readiness task converts a release branch. `ADR-0011` changes no Metrics
+architecture and creates no branch.
+
+Do not create a repository's integration branch until its verified, approved `<development-branch>` and a release-protection decision exist.
 
 Before creating any Metrics branch, run the fail-closed namespace preflight in
 `AGENTS.md` section 5.1 against live refs.
 
-For `metrics-dashboard`, do not create `feature/metrics` from the stale
-`develop` branch. BR-DASH-01 must first reconcile active `dev` history into the
-target `develop` branch, or an explicit CTO exception must authorize another
-verified base.
+For `metrics-dashboard`, `feature/metrics` is created only from a verified
+`dev` head, under separate branch-creation authorization, and never from the
+stale legacy `develop` ref. Because `dev` is that repository's approved
+permanent development branch, no `dev -> develop` reconciliation precedes it.
+The stale `develop` ref has not been deleted; its deletion is a separately
+authorized action.
 
 ## 5. Immediate next actions
 
@@ -288,4 +332,17 @@ verified base.
    any additional implementation; none exists, and none is authorized by this
    record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
-   its own path; it does not gate Thoth WP1 entry.
+   its own path; it does not gate Thoth WP1 entry. The Sphinx lane order is:
+
+   ```text
+   CTRL-BRANCH-RELEASE-01
+     -> BR-SPHINX-01
+     -> SPHINX-BOOT-01
+     -> MET-WP6-01
+   ```
+
+   `BR-SPHINX-01` must be re-specified against `ADR-0011` — preserving `main`,
+   protecting `main` and `develop`, and creating no `master` — and may only be
+   approved once `ADR-0011` is repository-authoritative, which requires
+   independent exact-head review of `CTRL-BRANCH-RELEASE-01` and merge into
+   `develop`. None of those tasks is authorized by this record.
