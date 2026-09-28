@@ -5,23 +5,47 @@ Evidence date: 2026-07-24 for `thoth`, `thoth-app`, `thoth-dissemination`,
 `metrics-dashboard`, `metrics-widget`, `cc-license`; independently re-verified
 2026-08-15 for `thoth-sphinx`, and newly added and verified 2026-08-15 for
 `thoth-client` (standalone), `thoth-pyramid`, `thoth-strapi`; `baboon` newly
-added and verified 2026-08-16.
+added and verified 2026-08-16. Target policy reconciled 2026-09-09 under
+[`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md);
+no branch was created, renamed, moved or deleted by that reconciliation.
+`metrics-dashboard` permanent `dev`/`main` topology reconciled and its branch
+heads re-verified 2026-09-21 under `BR-DASH-01C-CONTROL-RECONCILIATION`
+([#931](https://github.com/thoth-pub/thoth/issues/931)); no branch was created,
+renamed, moved or deleted by that reconciliation either.
 
 ## 1. Target repository policy
 
 Normal task flow:
 
 ```text
-feature/<area>/<task> -> develop -> master
+feature/<area>/<task> -> <development-branch> -> <release-branch>
 ```
 
 Approved programme-integration flow, where the slice branch is a **sibling** of the integration branch:
 
 ```text
-feature/<programme>--<slice> -> feature/<programme> -> develop -> master
+feature/<programme>--<slice> -> feature/<programme> -> <development-branch> -> <release-branch>
 ```
 
-`develop` is the target development branch. `master` is the target release/default branch. Merged task and slice branches are deleted.
+`<development-branch>` is the repository's verified active development branch. `<release-branch>` is the repository's verified established release/default branch. Merged task and slice branches are deleted.
+
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md), shared doctrine standardizes the **role** of the release branch, not its spelling. `<release-branch>` resolves from each repository's own verified live state, not from a global default:
+
+- a repository already established on `main` remains on `main`;
+- a repository already established on `master` remains on `master`;
+- `main` must not be created, renamed, moved or substituted merely because another repository uses `main`, and `master` must not be created, renamed, moved or substituted merely because another repository uses `master`;
+- changing an established release/default branch requires a separately scoped repository-local decision and task, justified by a reason other than naming consistency, which assesses GitHub settings and protections, CI filters, deployment and provider routing, release and publication automation, external references, compatibility and rollback as applicable;
+- branch protections, CI, release automation, deployment configuration and publication configuration bind to the repository's verified release branch rather than to a globally assumed `main` or `master`.
+
+Development-branch policy is independent of release-branch naming. A repository-local readiness task may still normalize an active `dev` branch to `develop` where that is separately justified and approved. That normalization is not a mandate: an approved repository-local decision may instead retain `dev` permanently, as `metrics-dashboard` does (section 3.3).
+
+For `thoth-pub/thoth` those roles resolve to `develop` and `master`, so this repository's own flow remains:
+
+```text
+feature/<area>/<task> -> develop -> master
+```
+
+The standalone `thoth-pub/thoth-client` and `baboon` likewise resolve `<release-branch>` to `master`. The repositories listed in section 3 as established on `main` resolve it to `main`.
 
 An approved programme design decides whether it uses direct task PRs or a programme integration branch.
 
@@ -35,7 +59,23 @@ The approved design requires one fresh branch and one PR per task. Each task tar
 
 ### Thoth Metrics
 
-The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches are created from that integration branch and target it, followed by a final repository-local PR to `develop`; they do not target `develop` directly.
+The Metrics design requires one repository-local `feature/metrics` integration branch per affected repository after branch readiness. Bounded child branches are created from that integration branch and target it, followed by a final repository-local PR to that repository's verified `<development-branch>`; they do not target the `<development-branch>` directly.
+
+```text
+<development-branch>
+  -> feature/metrics
+  -> feature/metrics--<slice>
+  -> feature/metrics
+  -> <development-branch>
+```
+
+`<development-branch>` resolves from each affected repository's own verified,
+approved development branch in section 3, not from `thoth`'s spelling or from
+shared naming convention. For `thoth` it is `develop`; for `metrics-dashboard`
+it is `dev`, that repository's approved permanent development branch. This is
+the resolution `ADR-0009` section 4.3 already states for final programme
+integration, `feature/<programme> -> <repository development branch>`, and it
+changes no substantive Metrics architecture.
 
 Under `ADR-0009` those child branches are spelled:
 
@@ -47,19 +87,23 @@ feature/metrics--<slice>
 
 ## 3. Observed state
 
-| Repository | GitHub default | Active development | Observed release flow | Target-policy state |
-|---|---|---|---|---|
-| `thoth` | `master` | `develop` | `develop -> master` | conforms |
-| `thoth-app` | `main` | `dev` | `dev -> main` | normalization required |
-| `thoth-dissemination` | `main` | `develop` | `develop -> main` | release-branch normalization required |
-| `thoth-sphinx` | `main` | `develop` | none; `main` is placeholder-README-only, `develop` is ahead by the repository-control root `AGENTS.md` only; bootstrap-only, zero workflows | `master`/protection/bootstrap required |
-| `thoth-client` (standalone `thoth-pub/thoth-client`) | `master` | `develop` | `develop -> master` (feature PRs merge to `develop`; `develop` is 1 commit ahead of `master` via a release merge) | conforms to the `develop -> master` pattern |
-| `thoth-pyramid` | `main` | `dev` | not yet observed as a completed release cycle | normalization required if brought under target topology |
-| `thoth-strapi` | `main` | `develop` | not yet observed as a completed release cycle | normalization required if brought under target topology |
-| `metrics-dashboard` | `main` | `dev` | `dev -> main` | development/release/Vercel normalization required |
-| `metrics-widget` | `main` | `dev` | releases from `main` | normalization required |
-| `cc-license` | `main` | `develop` | release branch `main` | release-branch normalization required |
-| `baboon` | `master` | `develop` | `develop -> release/* -> master`, tagged and merged back into `develop` | conforms |
+The `<release-branch>` column records each repository's verified established release/default branch. Under `ADR-0011` that value is preserved, so no row requires release-branch renaming. The remaining-work column records only work that is independently justified by something other than branch spelling.
+
+| Repository | GitHub default | Active development | `<release-branch>` | Observed release flow | Remaining readiness work |
+|---|---|---|---|---|---|
+| `thoth` | `master` | `develop` | `master` | `develop -> master` | none; conforms |
+| `thoth-app` | `main` | `dev` | `main` (preserved) | `dev -> main` | development-branch normalization `dev -> develop`, protections, CI and readiness, with the Vercel verification those changes actually require (`BR-APP-01`) |
+| `thoth-dissemination` | `main` | `develop` | `main` (preserved) | `develop -> main` | protection and release-readiness work, including its production external-write workflows (`BR-DIS-01`) |
+| `thoth-sphinx` | `main` | `develop` | `main` (preserved) | none; `main` is placeholder-README-only, `develop` is ahead by the repository-control root `AGENTS.md` only; bootstrap-only, zero workflows | protect `main` and `develop`, preserve the existing `develop` lineage, reconcile repository-local controls (`BR-SPHINX-01`); bootstrap remains `SPHINX-BOOT-01` |
+| `thoth-client` (standalone `thoth-pub/thoth-client`) | `master` | `develop` | `master` | `develop -> master` (feature PRs merge to `develop`; `develop` is 1 commit ahead of `master` via a release merge) | none; conforms |
+| `thoth-pyramid` | `main` | `dev` | `main` (preserved) | not yet observed as a completed release cycle | any future development-branch normalization is separate; no normalization task is authorized |
+| `thoth-strapi` | `main` | `develop` | `main` (preserved) | not yet observed as a completed release cycle | any future topology or readiness work is separate and must account for its publication-capable pull-request workflow; no normalization task is authorized |
+| `metrics-dashboard` | `main` | `dev` (approved permanent) | `main` (preserved, Vercel-backed) | `dev -> main` | topology settled as permanent `feature/* -> dev -> main`, with no `dev -> develop` normalization (section 3.3); still open and separate: cleanup of the stale legacy `develop` ref (not deleted; deletion separately authorized), protections, and CI/lint/test readiness under CG-11 (`BR-DASH-01`); Vercel production is **not** moved |
+| `metrics-widget` | `main` | `dev` | `main` (preserved) | releases from `main` | development-branch and CI normalization, npm release protection (`BR-WIDGET-01`) |
+| `cc-license` | `main` | `develop` | `main` (preserved) | release branch `main` | publication readiness and protection (`BR-LIC-01`) |
+| `baboon` | `master` | `develop` | `master` | `develop -> release/* -> master`, tagged and merged back into `develop` | none; conforms |
+
+No repository in this table requires a release-branch rename. Rows whose remaining readiness work is non-empty describe genuinely open protection, development-branch, CI, provider, publication or bootstrap gaps, each owned by a separately scoped and separately authorized task. Removing the rename does **not** close those gaps and does not by itself lower any task's risk; see section 5.
 
 ### 3.1 2026-08-15 re-verification notes
 
@@ -79,11 +123,12 @@ that statement is not accurate. Both branches exist and have **diverged**:
 
 The divergence is completed repository-control and reconciliation work only:
 the commits that added the repository-local root `AGENTS.md` and subsequently
-corrected its recorded content. It is **not** branch normalization — no
-`master` branch has been established by it — and it is not runtime, bootstrap,
-Cargo, CI or provider implementation. The repository has zero GitHub Actions
-workflows and no such implementation, so it remains bootstrap-only and
-non-implementation-ready. `BR-SPHINX-01` and `SPHINX-BOOT-01` remain separate,
+corrected its recorded content. It is **not** branch normalization, and it is
+not runtime, bootstrap, Cargo, CI or provider implementation. The repository has
+zero GitHub Actions workflows and no such implementation, so it remains
+bootstrap-only and non-implementation-ready. Under `ADR-0011` `main` remains
+this repository's established release/default branch and no `master` branch is
+required or authorized. `BR-SPHINX-01` and `SPHINX-BOOT-01` remain separate,
 separately authorized and unimplemented tasks; see
 `repositories/thoth-sphinx.md`. The row above is corrected accordingly and no
 branch normalization is performed.
@@ -112,9 +157,29 @@ created or required for `baboon`**, and none is authorized by this record. See
 state and the three distinct workflow classes, including the HIGH-risk
 pull-request-triggered production SFTP scratch write.
 
-No branch normalization is performed by this record. Rows marked
-"normalization required" describe a gap against the target topology only; a
-normalization task remains separately scoped and separately authorized.
+No branch normalization is performed by this record. Rows with remaining
+readiness work describe a gap against the target topology only; the owning task
+remains separately scoped and separately authorized.
+
+### 3.3 2026-09-21 `metrics-dashboard` permanent topology
+
+`thoth-pub/metrics-dashboard` permanently uses `dev` as its
+development/integration branch and its established `main` as its
+release/default branch:
+
+```text
+feature/* -> dev -> main
+```
+
+This approved repository-local decision resolves the development-branch question
+that `ADR-0011` section 4.4 leaves independent of release-branch naming. It
+amends neither `ADR-0011` nor `ADR-0009`. No `dev -> develop` normalization is
+planned. The stale legacy `develop` ref is not a workflow branch and has **not**
+been deleted; its deletion remains a separately authorized action. Live branch
+heads were re-verified on 2026-09-21 and are recorded in
+`repositories/metrics-dashboard.md`. No branch, GitHub setting, protection, CI
+or Vercel configuration was created or changed by this record, and the
+remaining protection, stale-ref and CI readiness work in section 5 stays open.
 
 ## 4. Control rule
 
@@ -122,6 +187,8 @@ Every task specification records:
 
 - verified existing base branch;
 - verified PR target;
+- the repository's verified `<development-branch>` and `<release-branch>`, taken
+  from live state rather than from shared naming convention;
 - approved target topology;
 - normalization dependency or temporary CTO exception;
 - programme workflow: `STANDARD` or `PROGRAMME_INTEGRATION`;
@@ -131,80 +198,123 @@ No agent creates a branch from a name that has not been verified to exist.
 
 Before creating any governed ref, run the fail-closed namespace preflight in `AGENTS.md` section 5.1 against live refs, symmetrically: a new flat ref requires that no descendant namespace already occupies its location, and a new descendant ref requires that no flat parent ref already occupies its location. On failure, HOLD. No collision may be worked around by deleting, renaming or moving another branch.
 
-## 5. Required normalization tasks
+## 5. Required branch-readiness tasks
 
-### BR-APP-01 - Normalize `thoth-app`
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md)
+none of these tasks converts a release branch. Each repository keeps its
+established release/default branch, and what remains below is the independently
+justified development-branch, protection, CI, provider and publication readiness
+work.
 
-- create `master` from current `main`;
-- create or rename `develop` from current `dev`;
-- update default branch and protections;
-- update Vercel production branch from `main` to `master`;
-- verify previews from feature/develop branches;
-- preserve rollback to the last `main` deployment;
-- retain `main` and `dev` until references are verified.
+Removing the release-branch rename does **not** automatically lower a task's
+risk. Each risk statement below is reassessed from the task's remaining CI,
+provider, deployment, publishing and external-write effects only. None of these
+tasks is authorized by this record.
 
-Risk: HIGH because Vercel production routing changes.
+### BR-APP-01 - `thoth-app` branch readiness
 
-### BR-DIS-01 - Normalize `thoth-dissemination`
+- preserve `main` as the established release/default branch; do not create
+  `master` and do not change the GitHub default for naming consistency;
+- create or rename `develop` from current `dev`, where separately justified;
+- update protections for the verified release and development branches;
+- verify previews from feature and development branches;
+- verify that the Vercel production branch remains `main` and that rollback to
+  the last `main` deployment is preserved;
+- retain `dev` until references are verified.
 
-- create `master` from current `main`;
+Risk: HIGH. Vercel production routing is **not** moved for branch spelling, but
+the development-branch change still touches preview and build configuration for
+a production-serving Vercel project, and must be verified with rollback
+evidence.
+
+### BR-DIS-01 - `thoth-dissemination` branch readiness
+
+- preserve `main` as the established release/default branch; do not create
+  `master`;
 - retain `develop`;
-- update default branch and protections;
-- verify release/tag and production-write workflows;
-- retain `main` until external references are checked.
+- update protections for the verified release and development branches;
+- verify release/tag and production-write workflows against the verified release
+  branch;
+- verify that no external reference assumes a different release branch.
 
-Risk: HIGH because the repository contains production external-write workflows.
+Risk: HIGH because the repository contains production external-write workflows,
+which must be re-verified against the verified release branch regardless of its
+name.
 
 ### BR-SPHINX-01 - Complete `thoth-sphinx` topology
 
-- create `master` from current `main`, which is placeholder-README-only and
-  behind `develop`;
+- preserve `main` as the established release/default branch; do **not** create
+  `master` and do not switch the default branch;
 - retain the existing `develop` branch, preserving the root `AGENTS.md` it
-  already carries;
+  already carries and the repository-control lineage it records;
 - align `develop` with the approved bootstrap base before implementation;
-- make `master` the release/default branch;
-- add protections to `master` and `develop`;
+- add protections to `main` and `develop`;
+- reconcile repository-local controls against the verified branch state,
+  recording that `main` is behind `develop` by the repository-control and
+  reconciliation commits;
 - perform SPHINX-BOOT-01, which is a separate task, on a task branch from
-  `develop`;
-- retain `main` until references are confirmed absent.
+  `develop`.
 
-Risk: MEDIUM before runtime exists.
+Risk: MEDIUM before runtime exists. This task must be re-specified against
+`ADR-0011` once that decision is repository-authoritative, and is not authorized
+by this record.
 
-### BR-DASH-01 - Normalize `metrics-dashboard`
+### BR-DASH-01 - `metrics-dashboard` branch readiness
 
-- verify `dev`, `develop`, `main`, recent merged pull requests and Vercel branch
-  settings;
-- reconcile the active `dev` history into the target `develop` branch, using a
-  fast-forward only when Git proves it is safe;
-- otherwise use a separately reviewed merge or replacement plan that preserves
-  history;
-- create `master` from the verified current `main`;
-- update the default branch, protections and Vercel production branch only under
-  this separately approved HIGH-risk task;
-- retain `main`, `dev` and the old `develop` reference until all external
-  references and rollback requirements are verified;
-- prohibit creation of `feature/metrics` from stale `develop`.
+Topology: **settled** as permanent `feature/* -> dev -> main` (section 3.3).
+`dev` is the approved permanent development/integration branch and the
+established Vercel-backed `main` remains the release/default branch. No
+development-branch normalization and no `dev -> develop` reconciliation is
+required. Do **not** create `master` and do **not** move Vercel production.
 
-Risk: HIGH because production deployment routing changes.
+Remaining readiness work, still open, each part separately scoped and
+separately authorized:
 
-### BR-WIDGET-01 - Normalize `metrics-widget`
+- verify the live `dev`, stale `develop` and `main` heads, recent merged pull
+  requests and, under separate provider-read authorization, Vercel branch
+  settings before any stale-ref deletion or protection change, with verified
+  rollback for any change that affects Vercel;
+- clean up the stale legacy `develop` ref, which is not a workflow branch and
+  has **not** been deleted: retain it until its deletion is separately
+  authorized, and never use it as a base or pull-request target;
+- update protections for the verified `main` and `dev` branches;
+- add CI, tests and the lint and production-build gate under
+  [CG-11](./control-gaps.md#cg-11---ci-gaps);
+- prohibit creation of `feature/metrics` from stale `develop`; a
+  repository-local `feature/metrics` is created only from a verified `dev`
+  head, under section 6.
 
-- create `master` from current `main`;
-- create or rename `develop` from `dev`;
-- update CI filters;
+The topology decision itself requires no Vercel production or default-routing
+change.
+
+Risk: HIGH, unchanged by the topology decision. This repository serves
+production from Vercel on `main`. Settling the topology removes the
+development-branch reconciliation from this task, but removing work does not by
+itself lower risk; the remaining stale-ref, protection and CI work is reassessed
+by its own separately scoped task.
+
+### BR-WIDGET-01 - `metrics-widget` branch readiness
+
+- preserve `main` as the established release/default branch; do not create
+  `master`;
+- create or rename `develop` from `dev`, where separately justified;
+- update CI filters to the verified branches;
 - preserve GitHub-release-to-npm publishing;
-- verify release tags use `master`;
-- retain old branches until automation/consumers are verified.
+- verify release tags continue to resolve against the verified release branch;
+- retain old branches until automation and consumers are verified.
 
-Risk: HIGH because release automation publishes a public package.
+Risk: HIGH because release automation publishes a public package, and CI-filter
+and development-branch changes touch the path that leads to that publication.
 
-### BR-LIC-01 - Normalize `cc-license`
+### BR-LIC-01 - `cc-license` branch readiness
 
-- create `master` from current `main`;
+- preserve `main` as the established release/default branch; do not create
+  `master`;
 - retain `develop`;
-- update CI filters and default branch;
-- verify crate publication;
-- retain `main` until release references are checked.
+- update CI filters and protections for the verified branches;
+- verify crate publication against the verified release branch;
+- record the publication command, credentials, approval and rollback/yank
+  procedure, which remain unverified.
 
 Risk: MEDIUM.
 
@@ -214,8 +324,12 @@ Publisher Services tasks may begin only when their repository's actual developme
 
 A repository-local Metrics `feature/metrics` branch may be created only when:
 
-- that repository has a verified `develop` branch;
-- normalization is complete or a CTO exception is recorded;
+- that repository has a verified `<development-branch>` that is its approved
+  development branch under sections 3 and 5 (for example `develop` in `thoth`
+  and `dev` in `metrics-dashboard`), and `feature/metrics` is created from that
+  branch's verified head, never from a stale or legacy ref;
+- the remaining branch-readiness work in section 5 is complete or a CTO
+  exception is recorded;
 - Metrics control task `MET-CTRL-01` is merged;
 - required shared ADRs are approved;
 - CI can validate the intended slices;

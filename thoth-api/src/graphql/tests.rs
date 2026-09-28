@@ -23,7 +23,10 @@ use crate::model::{
     locale::LocaleCode,
     location::{Location, LocationPlatform, NewLocation, PatchLocation},
     price::{CurrencyCode, NewPrice, PatchPrice, Price},
-    publication::{NewPublication, PatchPublication, Publication, PublicationType},
+    publication::{
+        AccessibilityException, AccessibilityStandard, NewPublication, PatchPublication,
+        Publication, PublicationType,
+    },
     publisher::{NewPublisher, PatchPublisher, Publisher},
     r#abstract::{Abstract, AbstractType, NewAbstract, PatchAbstract},
     reference::{NewReference, PatchReference, Reference},
@@ -3196,6 +3199,340 @@ fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
         publications.is_empty(),
         "Invalid ISBN should not create publication rows"
     );
+}
+
+const PRIMARY_ACCESSIBILITY_STANDARDS: [AccessibilityStandard; 4] = [
+    AccessibilityStandard::Wcag21aa,
+    AccessibilityStandard::Wcag21aaa,
+    AccessibilityStandard::Wcag22aa,
+    AccessibilityStandard::Wcag22aaa,
+];
+const ADDITIONAL_ACCESSIBILITY_STANDARDS: [AccessibilityStandard; 6] = [
+    AccessibilityStandard::EpubA11y10aa,
+    AccessibilityStandard::EpubA11y10aaa,
+    AccessibilityStandard::EpubA11y11aa,
+    AccessibilityStandard::EpubA11y11aaa,
+    AccessibilityStandard::PdfUa1,
+    AccessibilityStandard::PdfUa2,
+];
+
+fn make_new_accessible_publication(
+    work_id: Uuid,
+    publication_type: PublicationType,
+    standard: Option<AccessibilityStandard>,
+    additional: Option<AccessibilityStandard>,
+    exception: Option<AccessibilityException>,
+) -> NewPublication {
+    NewPublication {
+        publication_type,
+        work_id,
+        isbn: None,
+        width_mm: None,
+        width_in: None,
+        height_mm: None,
+        height_in: None,
+        depth_mm: None,
+        depth_in: None,
+        weight_g: None,
+        weight_oz: None,
+        accessibility_standard: standard,
+        accessibility_additional_standard: additional,
+        accessibility_exception: exception,
+        accessibility_report_url: None,
+    }
+}
+
+/// A new Monograph Work of the seeded imprint, to hold the Publications of one test.
+fn create_accessibility_test_work(schema: &Schema, context: &Context, seed: &SeedData) -> Uuid {
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-accessibility-slots")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        schema,
+        context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    json_uuid(&work["workId"])
+}
+
+/// Run a publication write the API must refuse, and return the message it refuses it with.
+fn refused_publication_write<T>(
+    schema: &Schema,
+    context: &Context,
+    mutation: &str,
+    input_type: &str,
+    data: T,
+) -> String
+where
+    T: ToInputValue<DefaultScalarValue>,
+{
+    let query =
+        format!("mutation($data: {input_type}!) {{ {mutation}(data: $data) {{ publicationId }} }}");
+    let mut vars = Variables::new();
+    insert_var(&mut vars, "data", data);
+    let (value, errors) = block_on_graphql(juniper::execute(&query, None, schema, &vars, context))
+        .expect("GraphQL execution should succeed with field errors");
+    let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+    assert!(
+        !errors.is_empty(),
+        "Expected {mutation} to be refused, got: {payload:?}"
+    );
+    assert!(
+        payload.get(mutation).is_none() || payload[mutation].is_null(),
+        "Expected no {mutation} payload when refused, got: {payload:?}"
+    );
+    errors[0].error().message().to_string()
+}
+
+#[test]
+fn graphql_publication_writes_reject_every_wrong_slot_accessibility_standard() {
+    use crate::schema::publication::dsl as publication_dsl;
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-slot-rejection");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+    // An EPUB with no accessibility state, for every refused update to target.
+    let existing = create_with_data(
+        &schema,
+        &context,
+        "createPublication",
+        "NewPublication",
+        "publicationId",
+        make_new_accessible_publication(work_id, PublicationType::Epub, None, None, None),
+    );
+    let existing = Publication::from_id(pool.as_ref(), &json_uuid(&existing["publicationId"]))
+        .expect("Failed to fetch publication");
+
+    let primary_error = thoth_errors::ThothError::AccessibilityStandardSlotError.to_string();
+    let additional_error =
+        thoth_errors::ThothError::AccessibilityAdditionalStandardSlotError.to_string();
+    let wrong_slot_writes = ADDITIONAL_ACCESSIBILITY_STANDARDS
+        .into_iter()
+        .map(|standard| (Some(standard), None, &primary_error))
+        .chain(
+            PRIMARY_ACCESSIBILITY_STANDARDS
+                .into_iter()
+                .map(|additional| (None, Some(additional), &additional_error)),
+        );
+
+    for (standard, additional, expected) in wrong_slot_writes {
+        // Created as a PDF, which the work does not hold yet, so nothing but the slot can refuse it.
+        let create = refused_publication_write(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            make_new_accessible_publication(
+                work_id,
+                PublicationType::Pdf,
+                standard,
+                additional,
+                None,
+            ),
+        );
+        assert_eq!(
+            &create, expected,
+            "createPublication {standard:?} {additional:?}"
+        );
+
+        let mut patch = patch_publication(&existing);
+        patch.accessibility_standard = standard;
+        patch.accessibility_additional_standard = additional;
+        let update = refused_publication_write(
+            &schema,
+            &context,
+            "updatePublication",
+            "PatchPublication",
+            patch,
+        );
+        assert_eq!(
+            &update, expected,
+            "updatePublication {standard:?} {additional:?}"
+        );
+    }
+
+    // Nothing was persisted: the work holds the one EPUB, still without accessibility state.
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let publications = publication_dsl::publication
+        .filter(publication_dsl::work_id.eq(work_id))
+        .load::<Publication>(&mut connection)
+        .expect("Failed to query publications for work");
+    assert_eq!(publications.len(), 1);
+    assert_eq!(publications[0].accessibility_standard, None);
+    assert_eq!(publications[0].accessibility_additional_standard, None);
+}
+
+#[test]
+fn graphql_publication_writes_persist_every_accessibility_value_in_its_own_slot() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-slot-acceptance");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+
+    // Each additional standard on the one e-publication type the database lets carry it, and
+    // every WCAG standard beside it: every enum member reaches its own slot through the API.
+    let additional_types = [
+        (AccessibilityStandard::EpubA11y10aa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y10aaa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y11aa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y11aaa, PublicationType::Epub),
+        (AccessibilityStandard::PdfUa1, PublicationType::Pdf),
+        (AccessibilityStandard::PdfUa2, PublicationType::Pdf),
+    ];
+    for (index, (additional, publication_type)) in additional_types.into_iter().enumerate() {
+        let standard =
+            PRIMARY_ACCESSIBILITY_STANDARDS[index % PRIMARY_ACCESSIBILITY_STANDARDS.len()];
+
+        // Created with both slots filled.
+        let created = create_with_data(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            "publicationId",
+            make_new_accessible_publication(
+                work_id,
+                publication_type,
+                Some(standard),
+                Some(additional),
+                None,
+            ),
+        );
+        let created = Publication::from_id(pool.as_ref(), &json_uuid(&created["publicationId"]))
+            .expect("Failed to fetch publication");
+        assert_eq!(created.accessibility_standard, Some(standard));
+        assert_eq!(created.accessibility_additional_standard, Some(additional));
+
+        // Updated through every WCAG standard, alone and beside the additional standard.
+        for primary in PRIMARY_ACCESSIBILITY_STANDARDS {
+            for with_additional in [None, Some(additional)] {
+                let mut patch = patch_publication(&created);
+                patch.accessibility_standard = Some(primary);
+                patch.accessibility_additional_standard = with_additional;
+                update_with_data(
+                    &schema,
+                    &context,
+                    "updatePublication",
+                    "PatchPublication",
+                    "publicationId",
+                    patch,
+                );
+                let stored = Publication::from_id(pool.as_ref(), &created.publication_id)
+                    .expect("Failed to fetch publication");
+                assert_eq!(stored.accessibility_standard, Some(primary));
+                assert_eq!(stored.accessibility_additional_standard, with_additional);
+            }
+        }
+
+        // Free the work's one publication of this type for the next case.
+        let stored = Publication::from_id(pool.as_ref(), &created.publication_id)
+            .expect("Failed to fetch publication");
+        stored
+            .delete(pool.as_ref())
+            .expect("Failed to delete publication");
+    }
+
+    // Each EAA exception persists, and the slot invariant introduces no exclusivity of its own.
+    for exception in [
+        AccessibilityException::MicroEnterprises,
+        AccessibilityException::DisproportionateBurden,
+        AccessibilityException::FundamentalAlteration,
+    ] {
+        let created = create_with_data(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            "publicationId",
+            make_new_accessible_publication(
+                work_id,
+                PublicationType::Epub,
+                None,
+                None,
+                Some(exception),
+            ),
+        );
+        let created = Publication::from_id(pool.as_ref(), &json_uuid(&created["publicationId"]))
+            .expect("Failed to fetch publication");
+        assert_eq!(created.accessibility_exception, Some(exception));
+        created
+            .delete(pool.as_ref())
+            .expect("Failed to delete publication");
+    }
+}
+
+#[test]
+fn graphql_slot_valid_accessibility_states_the_database_forbids_are_still_refused_by_it() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-db-rules");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+    let slot_errors = [
+        thoth_errors::ThothError::AccessibilityStandardSlotError.to_string(),
+        thoth_errors::ThothError::AccessibilityAdditionalStandardSlotError.to_string(),
+    ];
+
+    // Correctly slotted, but outside the pre-existing database rules this task leaves unchanged:
+    // a standard beside an exception, an additional standard without a primary one, and a
+    // standard on a print Publication.
+    for (publication_type, standard, additional, exception, constraint) in [
+        (
+            PublicationType::Epub,
+            Some(AccessibilityStandard::Wcag21aa),
+            Some(AccessibilityStandard::EpubA11y11aa),
+            Some(AccessibilityException::MicroEnterprises),
+            "check_standard_or_exception",
+        ),
+        (
+            PublicationType::Epub,
+            None,
+            Some(AccessibilityStandard::EpubA11y11aa),
+            None,
+            "check_standard_or_exception",
+        ),
+        (
+            PublicationType::Paperback,
+            Some(AccessibilityStandard::Wcag21aa),
+            None,
+            None,
+            "check_accessibility_standard_rules",
+        ),
+    ] {
+        let message = refused_publication_write(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            make_new_accessible_publication(
+                work_id,
+                publication_type,
+                standard,
+                additional,
+                exception,
+            ),
+        );
+        assert!(
+            !slot_errors.contains(&message),
+            "The slot invariant must not refuse a correctly slotted state, got: {message}"
+        );
+        assert!(
+            message.contains(constraint),
+            "Expected the database's {constraint} to refuse it, got: {message}"
+        );
+    }
 }
 
 #[test]

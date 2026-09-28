@@ -179,6 +179,32 @@ pub enum AccessibilityStandard {
     PdfUa2,
 }
 
+impl AccessibilityStandard {
+    /// Whether the standard belongs in a Publication's primary accessibility standard slot: the
+    /// WCAG standards. Every other standard belongs in the additional slot. The match is
+    /// exhaustive so that a new standard must be assigned a slot explicitly.
+    pub fn is_primary_standard(&self) -> bool {
+        match self {
+            AccessibilityStandard::Wcag21aa
+            | AccessibilityStandard::Wcag21aaa
+            | AccessibilityStandard::Wcag22aa
+            | AccessibilityStandard::Wcag22aaa => true,
+            AccessibilityStandard::EpubA11y10aa
+            | AccessibilityStandard::EpubA11y10aaa
+            | AccessibilityStandard::EpubA11y11aa
+            | AccessibilityStandard::EpubA11y11aaa
+            | AccessibilityStandard::PdfUa1
+            | AccessibilityStandard::PdfUa2 => false,
+        }
+    }
+
+    /// Whether the standard belongs in a Publication's additional accessibility standard slot:
+    /// the EPUB Accessibility and PDF/UA standards.
+    pub fn is_additional_standard(&self) -> bool {
+        !self.is_primary_standard()
+    }
+}
+
 #[cfg_attr(
     feature = "backend",
     derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
@@ -364,6 +390,8 @@ pub trait PublicationProperties {
     fn isbn(&self) -> &Option<Isbn>;
     fn isbn_mut(&mut self) -> &mut Option<Isbn>;
     fn work_id(&self) -> &Uuid;
+    fn accessibility_standard(&self) -> &Option<AccessibilityStandard>;
+    fn accessibility_additional_standard(&self) -> &Option<AccessibilityStandard>;
 
     fn normalise_isbn(&mut self) -> ThothResult<()> {
         let normalised = self
@@ -430,6 +458,26 @@ pub trait PublicationProperties {
         Ok(())
     }
 
+    /// The accessibility slot invariant the ONIX exporters rely on: the primary standard slot
+    /// holds a WCAG standard only, and the additional standard slot an EPUB Accessibility or
+    /// PDF/UA standard only. It constrains nothing else: which standards and exceptions a type of
+    /// Publication may hold, together or alone, is not decided here.
+    fn validate_accessibility_constraints(&self) -> ThothResult<()> {
+        if self
+            .accessibility_standard()
+            .is_some_and(|standard| !standard.is_primary_standard())
+        {
+            return Err(ThothError::AccessibilityStandardSlotError);
+        }
+        if self
+            .accessibility_additional_standard()
+            .is_some_and(|standard| !standard.is_additional_standard())
+        {
+            return Err(ThothError::AccessibilityAdditionalStandardSlotError);
+        }
+        Ok(())
+    }
+
     #[cfg(feature = "backend")]
     fn is_chapter(&self, db: &crate::db::PgPool) -> ThothResult<bool> {
         use crate::model::work::WorkType;
@@ -456,7 +504,8 @@ pub trait PublicationProperties {
         if self.is_chapter(db)? {
             self.validate_chapter_constraints()?;
         }
-        self.validate_dimensions_constraints()
+        self.validate_dimensions_constraints()?;
+        self.validate_accessibility_constraints()
     }
 }
 
@@ -498,6 +547,12 @@ macro_rules! publication_properties {
             }
             fn work_id(&self) -> &Uuid {
                 &self.work_id
+            }
+            fn accessibility_standard(&self) -> &Option<AccessibilityStandard> {
+                &self.accessibility_standard
+            }
+            fn accessibility_additional_standard(&self) -> &Option<AccessibilityStandard> {
+                &self.accessibility_additional_standard
             }
         }
     };
