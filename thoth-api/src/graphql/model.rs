@@ -3903,17 +3903,19 @@ impl MetricRollupWatermark {
 // Metrics monthly verification and rebuild (`MET-WP4-03A-OPS-02`)
 //
 // These three object types are returned by the two protected
-// `METRICS_INGEST_SERVICE` monthly maintenance operations and by nothing
-// else. They carry bounded counts and frontier facts only: no monthly row,
-// identity, value or mismatch detail is exposed, and no field on `QueryRoot`
-// or on any public type navigates into them. Every 64-bit sequence, count
+// `METRICS_INGEST_SERVICE` derived-state maintenance operations and by
+// nothing else. They carry bounded counts and frontier facts only: no
+// projection row, identity, value or mismatch detail is exposed, and no
+// field on `QueryRoot` or on any public type navigates into them.
+// `MET-WP4-03C-A` extends the verification to the six derived projection
+// families (four monthly, two yearly) with exactly two additive fields. Every 64-bit sequence, count
 // and watermark position is a decimal string for the same reason the rollup
 // types above use strings.
 // --------------------------------------------------------------------------
 
 #[juniper::graphql_object(
     Context = Context,
-    description = "Bounded verification counts for one monthly projection family: the rows the work-day projection implies, the rows the table holds, and how many logical identities are missing, extra or mismatched between them."
+    description = "Bounded verification counts for one derived rollup projection family, monthly or yearly: the rows the work-day projection implies, the rows the table holds, and how many logical identities are missing, extra or mismatched between them."
 )]
 impl MetricRollupMonthProjectionVerification {
     #[graphql(
@@ -3954,7 +3956,7 @@ impl MetricRollupMonthProjectionVerification {
 
 #[juniper::graphql_object(
     Context = Context,
-    description = "One coherent verification of the four derived monthly projections against the state independently derived from the work-day projection at one durable rollup frontier."
+    description = "One coherent verification of the six derived rollup projection families (monthly total, monthly country, monthly institution, monthly ambiguity, yearly country, yearly institution) against the state independently derived from the work-day projection at one durable rollup frontier."
 )]
 impl MetricRollupMonthVerification {
     #[graphql(
@@ -3965,7 +3967,7 @@ impl MetricRollupMonthVerification {
     }
 
     #[graphql(
-        description = "The next work-day position to be allocated, as a decimal string. nextSequence - 1 above appliedThroughSequence is ordinary pending rollup lag, not monthly corruption"
+        description = "The next work-day position to be allocated, as a decimal string. nextSequence - 1 above appliedThroughSequence is ordinary pending rollup lag, not projection corruption"
     )]
     pub fn next_sequence(&self) -> String {
         self.next_sequence.to_string()
@@ -3996,28 +3998,48 @@ impl MetricRollupMonthVerification {
         self.represented_month_key_count.to_string()
     }
 
-    #[graphql(description = "Verification of the resolved monthly total projection")]
+    #[graphql(
+        description = "Verification of the resolved monthly total projection (monthly family)"
+    )]
     pub fn total(&self) -> &MetricRollupMonthProjectionVerification {
         &self.total
     }
 
-    #[graphql(description = "Verification of the resolved monthly per-country projection")]
+    #[graphql(
+        description = "Verification of the resolved monthly per-country projection (monthly family)"
+    )]
     pub fn country(&self) -> &MetricRollupMonthProjectionVerification {
         &self.country
     }
 
-    #[graphql(description = "Verification of the resolved monthly per-institution projection")]
+    #[graphql(
+        description = "Verification of the resolved monthly per-institution projection (monthly family)"
+    )]
     pub fn institution(&self) -> &MetricRollupMonthProjectionVerification {
         &self.institution
     }
 
-    #[graphql(description = "Verification of the sparse monthly ambiguity state")]
+    #[graphql(description = "Verification of the sparse monthly ambiguity state (monthly family)")]
     pub fn ambiguity(&self) -> &MetricRollupMonthProjectionVerification {
         &self.ambiguity
     }
 
     #[graphql(
-        description = "True only when every projection family has zero missing, extra and mismatched rows and no monthly row is watermarked above the frontier"
+        description = "Verification of the derived yearly per-country projection (yearly family): calendar-year regrouping of the resolved monthly country rows, compared against the yearly state independently derived from the work-day projection"
+    )]
+    pub fn country_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country_year
+    }
+
+    #[graphql(
+        description = "Verification of the derived yearly per-institution projection (yearly family): calendar-year regrouping of the resolved monthly institution rows, compared against the yearly state independently derived from the work-day projection"
+    )]
+    pub fn institution_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution_year
+    }
+
+    #[graphql(
+        description = "True only when all six projection families have zero missing, extra and mismatched rows and no derived monthly or yearly row is watermarked above the frontier"
     )]
     pub fn matches(&self) -> bool {
         self.matches
@@ -4026,18 +4048,18 @@ impl MetricRollupMonthVerification {
 
 #[juniper::graphql_object(
     Context = Context,
-    description = "The receipt of one monthly rebuild request."
+    description = "The receipt of one derived-projection rebuild request: the six-family verification the transaction committed with, and whether the four monthly and two yearly projection tables were replaced to reach it."
 )]
 impl MetricRollupMonthRebuildResult {
     #[graphql(
-        description = "False when the monthly state was already exact at the pinned frontier and nothing was truncated or written; true when the four monthly datasets were replaced and verified exact in the same committed transaction"
+        description = "False when all six derived projection families were already exact at the pinned frontier and no projection replacement occurred; true when the four monthly and two yearly derived projection tables were replaced and the six-family verification was exact before commit"
     )]
     pub fn rebuilt(&self) -> bool {
         self.rebuilt
     }
 
     #[graphql(
-        description = "The exact independently derived verification the transaction committed with"
+        description = "The exact six-family verification, independently derived from the work-day projection, that the transaction committed with"
     )]
     pub fn verification(&self) -> &MetricRollupMonthVerification {
         &self.verification
