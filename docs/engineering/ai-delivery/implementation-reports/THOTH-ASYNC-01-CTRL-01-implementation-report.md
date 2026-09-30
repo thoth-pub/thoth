@@ -117,7 +117,8 @@ Files deleted, moved or renamed: NONE.
 ### 4.1 Write-budget compliance
 
 PASS - the cumulative task candidate remains limited to the six authorized
-paths.
+paths. Evidence: the unrestricted `git diff --name-only HEAD` command and result
+against the authorized base, recorded in section 8.1.
 
 ### 4.2 Authorized actions actually used
 
@@ -232,22 +233,39 @@ Durable documentation validation for this task requires:
   programme opt-in;
 - the changelog records the approved control decision under
   `## [Unreleased]` / `### Added`;
-- `git diff --check` passes for the report correction;
-- the bounded report-remediation path set contains exactly this implementation
-  report.
+- `git diff --check` passes for the complete cumulative six-path candidate
+  against the authorized base;
+- the final report correction, compared with the preceding source head, changes
+  exactly this implementation report;
+- internal Markdown links and repository-relative paths resolve, repository
+  names and terminology are correct, and no stale duplicate doctrine
+  contradicts the decision.
 
 ### 8.1 Exact local validation results
 
-Validation environment: an isolated temporary Git repository with this report
-path committed as an empty baseline file, then replaced by the exact final
-proposed report bytes. This workspace is used only to validate those final bytes
-for Git whitespace errors and the one-path correction boundary; it does not
-claim to reproduce the real repository history.
+Validation workspace: a Git worktree of this repository, detached at the
+authorized base commit `923545d5c9028bc04c40e38efeb7de674efed3fd`, whose working
+tree and index were replaced by the complete final six-path candidate:
 
-Command:
+- the five other task files at their exact candidate bytes, checked out from the
+  preceding source head `bf6b65bd66a351918c0dc6f0ee12f2a88080f880`;
+- the exact final bytes of this implementation report.
+
+All six candidate paths were staged, so comparisons with `HEAD` include the two
+new files. Before the workspace was relied on, the complete Git trees of the
+authorized base (`dd040332bf199e6440da9731fbfc4431af3bdcec`) and of the
+preceding source head (`1922c62200f2c453d75aa69e1dd61a757a51757a`) were
+confirmed identical to the trees GitHub reports for those two commits. The
+source commit containing this report records exactly the validated candidate
+tree.
+
+No command below uses a restricting pathspec.
+
+Whole-candidate whitespace and conflict-marker check against the authorized
+base:
 
 ```text
-git diff --check HEAD -- docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+git diff --check HEAD
 ```
 
 Result:
@@ -258,10 +276,30 @@ stdout: <empty>
 stderr: <empty>
 ```
 
-Command:
+Whole-candidate path set against the authorized base:
 
 ```text
-git diff --name-only HEAD -- docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+git diff --name-only HEAD
+```
+
+Result:
+
+```text
+exit: 0
+stdout:
+CHANGELOG.md
+docs/engineering/ai-delivery/branching-and-release-workflow.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+docs/engineering/ai-delivery/operating-model.md
+docs/engineering/decisions/ADR-0013-programme-integration-decision-reliance.md
+docs/engineering/decisions/decision-register.md
+stderr: <empty>
+```
+
+Report-correction boundary against the preceding source head:
+
+```text
+git diff --name-only bf6b65bd66a351918c0dc6f0ee12f2a88080f880
 ```
 
 Result:
@@ -273,9 +311,39 @@ docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-imple
 stderr: <empty>
 ```
 
-Cumulative six-path repository scope and final pushed head identity are verified
-from GitHub after push because those facts depend on the resulting repository
-commit.
+Documentation checks on the lines the complete candidate adds relative to the
+authorized base:
+
+- Internal links and paths: both relative Markdown links (in `CHANGELOG.md` and
+  the decision register, each to ADR-0013) resolve from their containing files;
+  the only other links are the GitHub issue links for #957 and #961; all six
+  backticked repository-relative paths resolve in the candidate tree.
+  Unresolved: none.
+- Repository names and terminology: the repository names used are
+  `thoth-pub/thoth`, `thoth-pub/thoth-dissemination`, `thoth-pub/thoth-app`
+  and `thoth-pub/infrastructure`; the first three have repository-map entries
+  and `thoth-pub/infrastructure` matches its existing usage in the repository
+  documentation. The ADR identifiers used resolve to decision records in the
+  candidate, except ADR-0012, which is referenced by identifier only and is not
+  a path in the authorized base or the candidate.
+- Stale duplicate doctrine: the general decision-reliance rule is stated in the
+  decision register (default rule plus the ADR-0013 exception), in
+  `branching-and-release-workflow.md` section 3.1 and in `operating-model.md`
+  section 3.3; all three condition the exception on ADR-0013 being `APPROVED`,
+  independently reviewed and repository-authoritative and on explicit programme
+  opt-in. The reliance clauses in ADR-0006 to ADR-0011 each restrict reliance on
+  their own decision only, and the status vocabulary in
+  `docs/engineering/decisions/README.md` is unchanged. No conflicting duplicate
+  was found.
+- Changelog: `CHANGELOG.md` gains exactly one `THOTH-ASYNC-01-CTRL-01` entry,
+  under the existing `## [Unreleased]` / `### Added` heading, and the
+  Unreleased section contains no duplicate headings.
+
+Path-set, whitespace and documentation validation depend only on the authorized
+base and the candidate bytes, so they are recorded here. Only the resulting
+source-head SHA and the final-head CI results inherently become available after
+the report-containing commit is created and pushed; both are GitHub-owned
+lifecycle evidence (section 8.2).
 
 ### 8.2 Test applicability and CI
 
