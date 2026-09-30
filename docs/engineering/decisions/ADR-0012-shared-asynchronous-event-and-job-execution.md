@@ -1819,10 +1819,10 @@ GitHub and is not duplicated into this ADR as transient lifecycle metadata.
 
 The partial supersession of ADR-0008 and ADR-0010 is limited exactly to the
 clauses identified in this ADR's header. All unaffected architecture in those
-records remains binding. After this decision becomes repository-authoritative,
-material architectural changes require a new ADR or other approved superseding
-decision under the normal repository controls; factual clarifications remain
-subject to normal review.
+records remains binding. After approval, material architectural changes require a new ADR that
+supersedes this one. Factual clarifications may update this ADR only when they
+do not alter the decision. Every update follows normal review and changelog
+requirements.
 
 BE-04/DIS-02 deployment/activation and Hosting implementation that depends on
 the async architecture remain separately controlled and are not authorized by
