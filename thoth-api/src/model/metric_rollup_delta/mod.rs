@@ -1,6 +1,6 @@
-//! Durable Metrics rollup deltas, the MOM-1 work-day projection and the
-//! derived monthly and yearly serving projections (`MET-WP1-07`,
-//! `MET-WP4-01`, `MET-WP4-03A`, `MET-WP4-03C`).
+//! Durable Metrics rollup deltas, the MOM-1 work-day projection, the
+//! derived monthly serving projections and the derived yearly projection
+//! foundation (`MET-WP1-07`, `MET-WP4-01`, `MET-WP4-03A`, `MET-WP4-03C-A`).
 //!
 //! This module owns the persisted `metric_rollup_delta` model: the durable
 //! accounting bridge between one canonical metric-record revision and the
@@ -33,27 +33,39 @@
 //! [`crud`]). Neither reads or writes canonical state, rollup deltas, the
 //! work-day projection or the durable frontier.
 //!
-//! `MET-WP4-03C` adds the derived yearly serving layer beneath the same
-//! completion transaction: two resolved yearly section projections
-//! (`metric_rollup_work_country_year`, `metric_rollup_work_institution_year`)
-//! that regroup, by calendar year, exactly the resolved daily contributions
-//! the monthly section rows already hold. They are maintained from the
-//! monthly rows by four more fixed statements inside every completion,
-//! verified by the same independent work-day derivation as the monthly
-//! families, and replaced together with the monthly datasets by the same
-//! all-or-nothing rebuild. The dashboard serves complete calendar years of a
-//! `MONTH` request from them and clipped years from the monthly rows.
+//! `MET-WP4-03C-A` (Unit A of `MET-WP4-03C`, #952, Specification
+//! Amendments 4, 4A and 4B) adds the yearly producer, verification and
+//! rebuild foundation beneath the same completion transaction: two resolved
+//! yearly section projections (`metric_rollup_work_country_year`,
+//! `metric_rollup_work_institution_year`) that regroup, by calendar year,
+//! exactly the resolved daily contributions the monthly section rows already
+//! hold. They are maintained from the monthly rows by four more fixed
+//! statements inside every completion, verified by the same independent
+//! work-day derivation as the monthly families, and replaced together with
+//! the monthly datasets by the same all-or-nothing rebuild. The two yearly
+//! families are already part of the approved six-family maintenance API:
+//! `verifyMetricRollupMonths`, and the `verification` returned by
+//! `rebuildMetricRollupMonths`, report them as the additive bounded-count
+//! fields `countryYear` and `institutionYear`.
 //!
-//! What is still deliberately absent: any reader of the monthly or yearly
-//! projections other than the separately specified `MET-WP4-03B` dashboard,
-//! any retry/backoff or poison-skipping behaviour, any scheduled or automatic
-//! rebuild, and any progress stream for a non-`DAY` grain. A poison frontier
-//! blocks and waits for separately authorized repair rather than being
-//! stepped over. A verification mismatch never invokes a rebuild by itself.
-//! The monthly and yearly tables are created empty by their migrations and
-//! may not be served from until a separately authorized rebuild has populated
-//! them and an independent verification is exact at a recorded work-day
-//! frontier.
+//! Unit A adds no reader of the yearly tables. No `metricDashboard` source
+//! reads them, and nothing serves complete calendar years from them. A
+//! `metricDashboard` reader of the yearly layer is Unit B of `MET-WP4-03C`,
+//! which is separately gated and on HOLD; anything said in this module about
+//! such a reader is prospective and does not describe existing behaviour.
+//!
+//! What is still deliberately absent: any reader of the yearly projections,
+//! any reader of the monthly projections other than the separately specified
+//! `MET-WP4-03B` dashboard, any retry/backoff or poison-skipping behaviour,
+//! any scheduled or automatic rebuild, and any progress stream for a
+//! non-`DAY` grain. A poison frontier blocks and waits for separately
+//! authorized repair rather than being stepped over. A verification mismatch
+//! never invokes a rebuild by itself. The monthly and yearly tables are
+//! created empty by their migrations and may not be served from until a
+//! separately authorized rebuild has populated them and an independent
+//! verification is exact at a recorded work-day frontier; any serving from
+//! the yearly tables additionally requires the separately authorized Unit B
+//! activation.
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -210,7 +222,11 @@ pub struct MetricRollupWorkInstitutionMonth {
     pub watermark: i64,
 }
 
-/// One row of the resolved yearly per-country projection (`MET-WP4-03C`).
+/// One row of the resolved yearly per-country projection (`MET-WP4-03C-A`).
+///
+/// Unit A producer state: maintained, verified and rebuilt here, and read by
+/// no `metricDashboard` source (the yearly reader, Unit B, is separately
+/// gated and on HOLD).
 ///
 /// Derived, rebuildable state fed only by the reviewed monthly per-country
 /// projection: the regrouping, by calendar year, of exactly the resolved
@@ -241,8 +257,9 @@ pub struct MetricRollupWorkCountryYear {
 }
 
 /// One row of the resolved yearly per-institution projection
-/// (`MET-WP4-03C`): the mirror of [`MetricRollupWorkCountryYear`] over the
-/// monthly per-institution projection, with country as the dependency.
+/// (`MET-WP4-03C-A`): the mirror of [`MetricRollupWorkCountryYear`] over the
+/// monthly per-institution projection, with country as the dependency. Like
+/// it, Unit A producer state that no `metricDashboard` source reads.
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetricRollupWorkInstitutionYear {
@@ -409,7 +426,7 @@ pub const METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS: u64 = 5;
 pub const METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS: u64 = 30;
 
 /// Bounded verification counts for one derived projection family
-/// (`MET-WP4-03A-OPS-02`, extended to the yearly families by `MET-WP4-03C`).
+/// (`MET-WP4-03A-OPS-02`, extended to the yearly families by `MET-WP4-03C-A`).
 ///
 /// Only counts leave Thoth: no row identity, value or mismatch detail is
 /// carried. `missing_rows` counts expected logical identities absent from the
@@ -427,7 +444,7 @@ pub struct MetricRollupMonthProjectionVerification {
 
 /// One coherent verification of the four monthly and the two yearly derived
 /// projections against the state independently derived from
-/// `metric_rollup_work_day` (`MET-WP4-03A-OPS-02`, `MET-WP4-03C`).
+/// `metric_rollup_work_day` (`MET-WP4-03A-OPS-02`, `MET-WP4-03C-A`).
 ///
 /// `applied_through_sequence` is the frontier `W` the verification was taken
 /// at, and `next_sequence - 1 > W` is ordinary pending rollup lag, never
@@ -438,12 +455,14 @@ pub struct MetricRollupMonthProjectionVerification {
 /// zero missing, extra and mismatched rows and no monthly or yearly row is
 /// watermarked above `W`.
 ///
-/// `country_year` and `institution_year` are the `MET-WP4-03C` yearly
+/// `country_year` and `institution_year` are the `MET-WP4-03C-A` yearly
 /// families. They are part of `matches` and of every rebuild decision, and
-/// they are deliberately not yet exposed through the GraphQL
-/// `verifyMetricRollupMonths` result, whose bounded-count shape remains the
-/// reviewed `MET-WP4-03A-OPS-02` contract: an additive exposure of the two
-/// yearly families is a separately reviewed operation-contract amendment.
+/// they are already part of the approved six-family maintenance API
+/// (Specification Amendments 4 and 4A): the GraphQL
+/// `verifyMetricRollupMonths` result, and the `verification` of
+/// `rebuildMetricRollupMonths`, expose them as the two additive fields
+/// `countryYear` and `institutionYear`, each with the unchanged five-count
+/// per-family shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetricRollupMonthVerification {
     pub applied_through_sequence: i64,

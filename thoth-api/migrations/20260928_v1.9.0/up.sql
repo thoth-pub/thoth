@@ -1,14 +1,21 @@
--- MET-WP4-03C: derived yearly dashboard section projections (issue #952).
+-- MET-WP4-03C-A: yearly derived-state producer foundation (issue #952).
 --
--- Additive and initially inactive. Creates exactly the two derived,
--- rebuildable yearly serving tables the approved serving-envelope
--- architecture (#952 Specification Amendment 2, K-3) requires: one resolved
+-- Authority: Specification Amendments 4, 4A and 4B of #952, the Unit A
+-- producer contract of MET-WP4-03C. Additive. Creates exactly the two
+-- derived, rebuildable yearly section tables of that contract: one resolved
 -- yearly per-country projection and one resolved yearly per-institution
 -- projection. Nothing else is created or altered: no canonical table, no
 -- monthly table, no work-day projection column, no trigger, no enum, no
 -- secondary index and no seed row. There is no yearly total table (the TOTAL
 -- timeline is monthly by definition) and no yearly ambiguity table (the
 -- sparse monthly ambiguity summary already covers every month of a year).
+--
+-- Unit A maintains these tables inside every rollup completion, verifies
+-- them through verifyMetricRollupMonths and rebuilds them through
+-- rebuildMetricRollupMonths. Nothing reads them for serving: the
+-- metricDashboard reader of the yearly layer (Unit B of MET-WP4-03C) is
+-- separately gated and on HOLD, and no current dashboard source serves
+-- complete calendar years from these tables.
 --
 -- Canonical boundary (reviewed): canonical Metrics authority remains
 -- `metric_record`, `metric_record_revision`, the durable rollup deltas and
@@ -19,13 +26,15 @@
 -- them from the freshly rebuilt monthly rows inside the same transaction.
 -- No canonical row is read, modified or repaired here.
 --
--- Empty at migration (reviewed): this migration populates nothing. The
--- dashboard read serves complete calendar years from these tables, so no
--- MONTH-grain dashboard request spanning a complete calendar year may be
--- served until a separately authorized rebuild (`rebuildMetricRollupMonths`)
--- has populated them and an independent verification is exact at a recorded
--- `metric_rollup_work_day_state` frontier. That activation gate is
--- operational and outside this migration.
+-- Empty at migration (reviewed): this migration populates nothing, so after
+-- it and before a separately authorized historical rebuild
+-- (`rebuildMetricRollupMonths`) the yearly state is incomplete by
+-- construction and verification reports the yearly families as missing.
+-- Unit B must remain inactive against the yearly layer until that rebuild
+-- has populated these tables, an independent six-family verification is
+-- exact at a recorded `metric_rollup_work_day_state` frontier, and the
+-- separately authorized Unit B activation gate has been passed. Those gates
+-- are operational and outside this migration.
 --
 -- Semantics fixed by the approved specification and implemented by the
 -- completion transaction, recorded here so the schema reads correctly:
@@ -55,12 +64,13 @@
 -- let unlimited duplicate "no publication" rows silently split a yearly
 -- total.
 --
--- Index decision (reviewed, K-3 spike): the complete intended index set per
--- table is exactly its primary-key index and the index PostgreSQL creates to
--- enforce its logical identity. No secondary performance index is created;
--- the spike measured no candidate that made a clipped-year window
--- interactive, and any later index needs exact-head query-plan evidence and
--- an explicit amendment.
+-- Index decision (reviewed): the complete intended index set per table is
+-- exactly its primary-key index and the index PostgreSQL creates to enforce
+-- its logical identity. No secondary performance index is created. The
+-- earlier K-3 yearly-projection spike is historical technical evidence only,
+-- not implementation authority; it measured no candidate index that made a
+-- clipped-year window interactive. Any later index needs exact-head
+-- query-plan evidence and an explicit amendment.
 --
 -- Foreign keys are non-cascading, matching every other Metrics key: deleting
 -- a work, publication, platform, measure or institution that still has a
