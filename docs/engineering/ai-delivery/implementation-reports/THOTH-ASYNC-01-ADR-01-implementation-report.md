@@ -1,9 +1,11 @@
 # THOTH-ASYNC-01-ADR-01 implementation report
 
-This report records the bounded ADR-0012 architecture-authoring task and its
-independent-review correction rounds. GitHub issues #957/#958 remain the live
-authority for lifecycle state; this committed report records durable authoring
-and correction evidence without asserting the current live gate.
+This report records the bounded ADR-0012 architecture-authoring task, its
+independent-review correction rounds, approval-state reconciliation and the
+later programme-integration compatibility reconciliation. GitHub issues
+#957/#958 remain the live authority for lifecycle state; this committed report
+records durable authoring and correction evidence without asserting the current
+live review or merge gate.
 
 ## Identity
 
@@ -14,23 +16,28 @@ Parent programme: thoth-pub/thoth#957
 Repository: thoth-pub/thoth
 Task: THOTH-ASYNC-01-ADR-01
 Risk: CRITICAL
-Workflow: STANDARD
-Authorized base: develop @ 923545d5c9028bc04c40e38efeb7de674efed3fd
+Original workflow: STANDARD; delivery topology later amended to PROGRAMME_INTEGRATION
+Original authorized base: develop @ 923545d5c9028bc04c40e38efeb7de674efed3fd
+Programme integration base: feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462
 Task branch: feature/async/adr-0012
-PR target: develop
+Current PR target: feature/worker
 ```
 
 ## Authorized write footprint
 
-Exactly four repository paths are used:
+The original architecture-authoring task used four paths. Approval-state
+reconciliation expanded the cumulative durable ADR task footprint to exactly
+six repository paths:
 
-1. `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`;
-2. `docs/engineering/decisions/decision-register.md`;
-3. `CHANGELOG.md`;
-4. this implementation report.
+1. `CHANGELOG.md`;
+2. `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`;
+3. `docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md`;
+4. `docs/engineering/decisions/ADR-0010-staff-operations-console.md`;
+5. `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`;
+6. `docs/engineering/decisions/decision-register.md`.
 
 No runtime source, migration, GraphQL implementation, workflow or
-infrastructure path is changed.
+infrastructure path is changed by this ADR task.
 
 ## Initial candidate and review round 1
 
@@ -454,6 +461,54 @@ was created, rotated or changed.
 ADR-0008 domain-specific application authorization remains binding. Worker-pool
 IAM authority and ZITADEL/application authorization remain separate concepts.
 
+## Programme-integration compatibility reconciliation
+
+After ADR-0013 became repository-authoritative and THOTH-ASYNC-01 explicitly
+opted into programme-integration reliance, the programme created
+`feature/worker` from current `develop` and retargeted PR #960 to that
+programme integration branch.
+
+The compatibility reconciliation is bound to:
+
+```text
+reviewed ADR-0012 source before reconciliation:
+bd5223deee44b465dd860ff96b75d81ad41cbf2d
+
+programme integration base:
+feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462
+
+historical common base:
+923545d5c9028bc04c40e38efeb7de674efed3fd
+```
+
+The histories had diverged. The only content changed on both sides since the
+historical common base was `CHANGELOG.md` and
+`docs/engineering/decisions/decision-register.md`.
+
+The reconciliation preserves the reviewed ADR-0012, ADR-0008 and ADR-0010
+decision blobs byte-for-byte. It carries the repository-authoritative ADR-0013,
+branching workflow and operating-model doctrine from `feature/worker`
+unchanged. Manual text reconciliation is limited to:
+
+- `CHANGELOG.md`: retain the ADR-0013 control entry and both ADR-0012
+  proposal/approval entries;
+- `docs/engineering/decisions/decision-register.md`: retain ADR-0013 and its
+  programme-integration reliance rule while restoring the approved ADR-0012
+  row;
+- this implementation report: reconcile durable task topology and approval
+  state without copying transient live review or merge status into source.
+
+ADR-0012 remains not repository-authoritative until its own authority condition
+is satisfied on `develop`. Under ADR-0013, programme-local reliance is also
+not effective merely because this reconciliation exists: the exact reconciled
+ADR-0012 version must first merge into `feature/worker`, and the programme
+ledger must record the merge/reachability evidence required by ADR-0013
+eligibility conditions 7 and 8.
+
+Any source head created by this reconciliation requires fresh independent
+CRITICAL exact-head review against the exact `feature/worker` base before
+merge authorization.
+
 ## External/runtime effects
 
 ```text
@@ -468,18 +523,20 @@ production activation: 0
 
 ## Validation performed for this documentation task
 
-- exact authorized base was preserved;
-- all candidate commits remain on `feature/async/adr-0012`;
-- cumulative diff is verified against the authorized base after each correction
-  round;
-- ADR remains `PROPOSED`;
-- decision-register row remains inside the Markdown table;
-- no PR has been created;
-- no runtime test result is claimed by this documentation-only task.
+- the original authorized base remains recorded as historical authoring evidence;
+- ADR-0012 is `APPROVED`, with Javi as approver and approval date 2026-09-30;
+- PR #960 exists and its programme target is `feature/worker`;
+- the programme integration base for this reconciliation is
+  `345a7a04131e7c0539f7518c6ea457fa5cb6a462`;
+- ADR-0012, ADR-0008 and ADR-0010 decision bytes are preserved from the
+  previously reviewed ADR source head;
+- the final candidate against `feature/worker` is required to remain exactly
+  the cumulative six-path ADR task footprint;
+- no runtime test result is claimed by this documentation/control-only task;
+- live candidate head, CI, review and merge evidence belongs in GitHub #957/#958
+  rather than in a self-invalidating committed status line.
 
 Independent review is valid only against the exact candidate head it names.
-Live candidate/gate evidence belongs in GitHub #957/#958 rather than in a
-self-invalidating committed status line.
 
 ## Deviation history
 
@@ -492,16 +549,20 @@ No source-scope deviation remains.
 
 ## Remaining lifecycle gates
 
-1. fresh independent CRITICAL exact-head review of the corrected candidate;
-2. exact-content CTO architecture approval only if that review returns
-   `APPROVED`;
-3. separate approval-state decision-record reconciliation, including ADR-0008
-   and ADR-0010 metadata, under its own authorized write budget;
-4. PR creation only under separate authorization;
-5. required CI/document checks and independent exact-head review;
-6. explicit CTO merge authorization;
-7. merge to `develop`;
-8. separately specified and authorized implementation, migration, downstream
-   consumer, infrastructure, deployment and activation tasks.
+1. fresh independent CRITICAL exact-head review of the reconciled PR #960
+   candidate against exact programme base `feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462`;
+2. explicit CTO merge authorization only if that review returns `APPROVED`;
+3. merge PR #960 into `feature/worker`;
+4. record the exact ADR-0012 merge/reachability evidence required by ADR-0013
+   eligibility conditions 7 and 8;
+5. only after programme-local reliance is effective, separately specify,
+   authorize, implement and independently review each repository-local async
+   slice and any pinned cross-repository preview dependency;
+6. retain separate migration execution, provider/IAM/runtime, deployment,
+   release and production-activation gates.
+
+Merging ADR-0012 into `feature/worker` does not make ADR-0012
+repository-authoritative on `develop`, does not itself authorize
+implementation and does not authorize any external effect.
 
 This report authorizes none of those later actions.
