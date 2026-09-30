@@ -10,7 +10,7 @@ Authoring task: [THOTH-ASYNC-01-ADR-01 #958](https://github.com/thoth-pub/thoth/
 Superseded by: None
 Supersedes in part:
 - ADR-0008 only where it denies a reusable cross-programme job framework/API: the final shared-framework prohibition in section 3.3, section 3.4's programme-local-only ownership rule, section 5.1 item 6, section 5.2 item 6 and rejected alternative D. ADR-0008 section 3.5 is **satisfied by this ADR, not superseded**. Section 3.3's approved convention list, its `approved primitive != mandatory mechanism` rule, and all machine-role, least-privilege and `SUPERUSER` separation rules remain binding.
-- ADR-0010 only where invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source. ADR-0010's Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding as specified in section 1.3 below.
+- ADR-0010 only where invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source, and where section 4.4's final sentence says ADR-0008 remains *fully* binding without the later shared-framework exception introduced here. Section 4.4's substantive rule that `ServiceOperation` is not itself a queue/framework/executor API remains binding. ADR-0010's Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding as specified in section 1.3 below.
 
 Decision: Thoth establishes one shared PostgreSQL-backed asynchronous event and
 job engine for cross-programme durable work. Events record durable facts and may
@@ -111,7 +111,10 @@ primitives because the cross-programme workload now justifies them; it does not
 turn every ADR-0008 primitive into a mandatory mechanism for unrelated work.
 
 ADR-0010 remains the authority for the Staff Operations Console and the
-cross-domain operational/audit seam. The relationship is binding:
+cross-domain operational/audit seam. Its section 4.4 statement that ADR-0008
+remains fully binding is qualified only by the exact ADR-0008 partial
+supersession recorded by this later ADR; the `ServiceOperation` seam itself does
+not become the generic queue or executor API. The relationship is binding:
 
 ```text
 async_job / async_job_attempt
@@ -321,8 +324,10 @@ Exact enum spelling is implementation detail.
 
 Transitioning to `WAITING` atomically persists the durable checkpoint and
 releases the current claim and lease. A later resume is a new claim and a new
-attempt that reads the checkpoint. Waiting/polling attempts are not silently
-treated as fresh external submissions.
+attempt that reads the checkpoint. Waiting/polling attempts do **not** consume
+the pre-write retry budget; they are bounded by the kind's waiting deadline,
+poll/backoff policy and any separately defined reconciliation budget. They are
+not silently treated as fresh external submissions.
 
 Every job carries first-class scheduling attributes including `priority`,
 `available_at`, the owning kind and counters/deadlines appropriate to its
@@ -550,10 +555,20 @@ worker pool with a minimal dedicated task role. It may use the same canonical
 async database/protocol, but its AWS/provider capabilities are limited to those
 needed for the untrusted-content job family.
 
+The untrusted-content pool must also avoid inheriting the primary application
+database credential merely because it uses the same canonical async engine. Its
+implementation must use either:
+
+- the protected kind-scoped executor API; or
+- a separately reviewed database principal whose permissions are limited to the
+  exact async/file-processing operations required by that pool.
+
+It must not receive broad canonical-domain mutation authority by default.
+
 A handler may cross that boundary only through explicit CTO risk acceptance
-that identifies the concrete parser/runtime, standing authorities and blast
-radius. This is a trust-boundary exception to the single routine role, not a
-return to one IAM role per ordinary handler.
+that identifies the concrete parser/runtime, AWS/provider authority, database
+authority and blast radius. This is a trust-boundary exception to the single
+routine role, not a return to one IAM role per ordinary handler.
 
 Graceful shutdown stops new claims first. A pre-write attempt may report a
 retryable pre-write outcome or release/yield according to the shared transition
