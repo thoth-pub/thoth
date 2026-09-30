@@ -239,6 +239,14 @@ Every event consumer has a durable route registration with:
 - the supported event kind/version contract;
 - enough durable state to decide whether an event is eligible for that route.
 
+Route activation boundaries must themselves be safe under concurrent
+transactions. The implementation must use a durable routing generation/epoch
+(or an equivalently strong serialized database mechanism) that an event captures
+inside its creating transaction and a route records when it becomes active.
+Eligibility is evaluated from those durable values. A route boundary must
+therefore partition events deterministically even if transactions commit out of
+sequence; sequence allocation or commit observation order alone is insufficient.
+
 For every committed event, the engine must eventually establish a durable
 routing/materialization record for every route whose durable activation boundary
 the event meets. Those route records are unique on `(event_id, route_key)`
