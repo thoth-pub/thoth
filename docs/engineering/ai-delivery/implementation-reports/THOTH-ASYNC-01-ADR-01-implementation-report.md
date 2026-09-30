@@ -198,6 +198,120 @@ The ADR now requires tests for:
 - rolling deploy/rollback safety;
 - contraction abort on any legacy row.
 
+## Independent review round 3
+
+The independent CRITICAL review of
+`2d5eb1ae1e25bc222c4ca94a4f6dc5e81ecceba8` returned
+`CHANGES REQUIRED`; durable receipt: #958 comment `5911717880`.
+
+Four blockers were accepted:
+
+- R3-01 HIGH - route activation had no durable deactivation/retirement boundary
+  and was not gated on every serving/rollback binary emitting the consumed event
+  kind;
+- R3-02 MEDIUM - Publisher Services still accessed `distribution_job*` outside
+  the named GraphQL surfaces, making later DROP unsafe during rolling deploy and
+  rollback;
+- R3-03 MEDIUM - untrusted-content isolation still allowed served-object writes
+  or trusted-handler steering through untrusted destination data;
+- R3-04 MEDIUM - job kinds did not declare current-state versus revision-bound
+  semantics, permitting an older retried revision to overwrite newer applied
+  state.
+
+## Round-4 corrections
+
+### Route activation, retirement and emission floor
+
+Routes now have durable activation and optional deactivation boundaries under the
+same routing-generation mechanism.
+
+Activation/deactivation is separately authorized and audited rather than a side
+effect of deploying handler code. Events eligible before deactivation remain
+owed after route retirement; route registrations are never deleted to erase
+outstanding obligations. An eligible route that cannot be materialized requires
+an explicit authorized/audited terminal route disposition.
+
+A route for event kind/version K may activate only after every serving binary
+and supported rollback binary capable of the relevant business mutation emits K
+atomically. Rollback below that emission floor requires prior deactivation or an
+explicitly authorized current-state reconciliation/backfill covering the exact
+gap.
+
+### Revision semantics
+
+Every job kind now declares either:
+
+```text
+CURRENT_STATE
+REVISION_BOUND
+```
+
+CURRENT_STATE jobs read current canonical state when they execute and may safely
+coalesce/no-op under their declared rule.
+
+REVISION_BOUND jobs bind to a retained revision/fingerprint and must not apply an
+older revision after a newer revision of the same effect target has already been
+applied unless the operation is an explicitly authorized historical
+replay/rollback.
+
+### Full BE-04 runtime retirement before contraction
+
+The Phase-C retirement release now covers every runtime access to
+`distribution_job*`, not only named legacy GraphQL fields.
+
+The ADR explicitly includes the current
+`replacePublisherServiceConfiguration` runtime dependencies:
+
+- automatic back-catalogue creation;
+- the fail-closed AUTOMATIC_PUSH activation guard;
+- assignment-disable legacy-job cancellation.
+
+Those paths must be redirected to the generic lifecycle or remain conservatively
+fail-closed before the legacy tables can be dropped.
+
+A repository-wide source/runtime audit must prove the deployed and supported
+rollback Phase-C binaries have zero runtime legacy-table access.
+
+Phase D then performs only the storage DROP plus removal of remaining inert
+schema/model declarations. Its migration takes locks preventing a concurrent
+legacy write, performs the final zero-row assertion and DROP in the same
+fail-closed migration transaction, and retains `distribution_platform`.
+
+### Untrusted-content quarantine and trusted promotion
+
+UNTRUSTED_CONTENT remains part of the same canonical async engine but executes
+in a separate minimal-authority pool.
+
+It may read authorized input and write only quarantine/staging output. It cannot
+write served publisher/Hosting locations or choose final domain/bucket/key/
+Hosting targets.
+
+Untrusted completion results are explicitly untrusted data. A trusted promotion
+job validates the artifact and resolves all authority-bearing destination values
+from canonical Thoth state before publishing.
+
+The untrusted worker may report only its declared completion/evidence facts and
+cannot create arbitrary downstream work.
+
+If direct database access is chosen instead of the protected kind-scoped
+executor API, ordinary table grants are insufficient: the separately reviewed
+database boundary must enforce row/kind scope through RLS, security-definer
+functions/procedures or an equivalent mechanism.
+
+### Additional safety clarifications
+
+Round 4 also records that:
+
+- `EFFECT_CONFIRMED` is anti-replay execution evidence and is not by itself
+  ADR-0010 observed publication/acceptance/current-state truth;
+- attempt diagnostics/provider evidence are covered by data
+  minimization/retention/erasure rules;
+- jobs blocked behind WAITING/RECONCILIATION_REQUIRED concurrency keys must be
+  operationally visible;
+- high-volume job families require retention/coalescing/admission/backpressure
+  policy before activation;
+- graceful-shutdown rules apply to every worker pool.
+
 ## Migration/data effect
 
 No migration was created, modified or executed.
@@ -240,7 +354,7 @@ production activation: 0
 - no PR has been created;
 - no runtime test result is claimed by this documentation-only task.
 
-The final round-3 head is recorded in #958 after this report commit. Any further
+The final round-4 head is recorded in #958 after this report commit. Any further
 independent review is valid only against that exact SHA.
 
 ## Deviation history
@@ -254,7 +368,7 @@ No source-scope deviation remains.
 
 ## Remaining lifecycle gates
 
-1. fresh independent CRITICAL exact-head review of the round-3 candidate;
+1. fresh independent CRITICAL exact-head review of the round-4 candidate;
 2. exact-content CTO architecture approval only if that review returns
    `APPROVED`;
 3. separate approval-state decision-record reconciliation, including ADR-0008
