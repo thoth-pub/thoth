@@ -4,7 +4,7 @@ Status: PROPOSED
 Date: 2026-09-29
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
-Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (domain executor/consumer); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
+Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
 Parent programme: [THOTH-ASYNC-01 #957](https://github.com/thoth-pub/thoth/issues/957)
 Authoring task: [THOTH-ASYNC-01-ADR-01 #958](https://github.com/thoth-pub/thoth/issues/958)
 Superseded by: None
@@ -18,9 +18,12 @@ fan out idempotently into jobs; jobs record executable asynchronous work and may
 also be created directly for scheduled, reconciliation or operator-requested
 work. The engine provides one shared lifecycle, claim/lease/idempotency model and
 attempt history. A headless `thoth-worker` ECS/Fargate service is the default
-always-on executor for handlers owned by `thoth`. Domain-specific executors in
-other repositories may consume the same shared job protocol without moving their
-business logic into `thoth`.
+always-on executor for trusted handlers owned by `thoth`. The shared engine may
+use additional worker pools only where a materially different trust/authority
+boundary requires process/task isolation; this ADR specifically requires such an
+isolation boundary for publisher-controlled untrusted-content parsing. Domain-
+specific executors in other repositories may consume the same shared job
+protocol without moving their business logic into `thoth`.
 
 This ADR is architecture only. It authorizes no schema migration, source
 implementation, worker deployment, IAM change, provider write, credential
@@ -220,29 +223,43 @@ Where an event is caused by a PostgreSQL business mutation, the business change
 and event record are written in the same transaction. Either both commit or
 neither commits.
 
-Every event has a unique durable `event_id` and a monotonically ordered durable
-event sequence suitable for route activation boundaries. Event payload and
-causation metadata are immutable after commit.
+Every event has a unique durable `event_id`. Route eligibility and routing
+completion are determined from durable database state, not from worker-local
+handler registration and not from a bare PostgreSQL sequence high-water mark.
+A sequence may be used as an identifier/order aid, but the implementation must
+not assume sequence allocation order equals commit order.
 
-Every event consumer has a stable `route_key`. Routing/materialization records
-are unique on `(event_id, route_key)` regardless of whether the resulting job
-is pending, running or terminal. A routing crash after some consumers have been
-materialized therefore resumes from durable route records and cannot create a
-second job for an already-materialized route merely because the first job later
-completed.
+Every event consumer has a durable route registration with:
 
-A route has a durable activation boundary. A route introduced by a later
-software release receives only events at or after that boundary. Historical
-events are processed by that new route only through an explicitly authorized
-backfill/replay job; adding code must never silently subscribe the new route to
-all historical events.
+- a stable `route_key`;
+- an explicit activation boundary recorded in PostgreSQL;
+- the supported event kind/version contract;
+- enough durable state to decide whether an event is eligible for that route.
 
-The implementation may represent route completion per consumer or by an
-equivalent snapshotted eligible-route set, but it must make partial fan-out
-restartable and database-enforced. Event routing correctness must not depend on
-in-memory knowledge of which handlers happened to run before a crash.
+For every committed event, the engine must eventually establish a durable
+routing/materialization record for every route whose durable activation boundary
+the event meets. Those route records are unique on `(event_id, route_key)`
+regardless of whether the resulting job is pending, running, waiting or terminal.
 
-### 3.3 Versioned contracts
+A crash after some consumers are materialized therefore resumes from durable
+route records. A worker must never mark an event fully routed merely because it
+processed all routes known to its own binary. During a mixed-version deployment,
+if a worker encounters an active durable route whose kind/version it cannot
+materialize, it leaves that route incomplete for a compatible worker rather than
+silently completing the event.
+
+A route introduced by a later release receives only events at or after its
+durable activation boundary. Historical events are processed by that route only
+through an explicitly authorized backfill/replay. Backfill uses the same
+`(event_id, route_key)` materialization identity, so it cannot bypass routing
+deduplication.
+
+The implementation may optimize discovery/scanning, but routing completeness
+must be proven from durable event/route/materialization records. Any cursor or
+high-water optimization must prove that no lower/in-flight event can commit
+later and be skipped; absent such proof, it is not authoritative.
+
+### 3.3 Versioned contracts and payload minimization
 
 Every event and job kind has:
 
@@ -256,6 +273,27 @@ Workers must reject or HOLD unsupported payload versions rather than guessing.
 Changes that require old in-flight jobs to remain executable must preserve the
 required compatibility window or provide an explicit migration/reconciliation
 plan.
+
+Event/job payloads default to **canonical references**, not copied domain
+snapshots. A payload should normally contain only:
+
+- canonical entity/resource identifiers;
+- the source revision/version/fingerprint needed to bind the requested effect;
+- minimal routing/command parameters;
+- correlation/causation identifiers.
+
+Credentials, tokens and secrets are forbidden in event/job payloads.
+
+Personal data or immutable domain snapshots may be embedded only when a
+kind-specific approved specification proves that references are insufficient,
+bounds the data, and defines retention/erasure behaviour. The generic engine's
+immutability/retention rules must not make a data-erasure obligation impossible.
+
+A current-state job reads canonical state when it executes and records which
+revision/fingerprint it acted on. Historical replay is permitted only when the
+referenced historical revision is actually retained and authorized for replay;
+a stale embedded snapshot must never silently substitute for canonical
+current-state execution.
 
 ### 3.4 Job lifecycle, scheduling and claims
 
@@ -272,31 +310,45 @@ CANCELLED
 RECONCILIATION_REQUIRED
 ```
 
-Exact enum spelling is implementation detail, but `WAITING` and
-`RETRY_SCHEDULED` are semantically distinct: waiting means the job has
-checkpointed and is waiting on an external/domain condition; retry-scheduled
-means a failed attempt is eligible for another execution after `available_at`.
+Exact enum spelling is implementation detail.
+
+`WAITING` and `RETRY_SCHEDULED` are semantically distinct:
+
+- `WAITING` means an effectful or asynchronous operation has durably
+  checkpointed and is waiting on an external/domain condition;
+- `RETRY_SCHEDULED` means a failed **pre-write** attempt is eligible for
+  another execution after `available_at`.
+
+Transitioning to `WAITING` atomically persists the durable checkpoint and
+releases the current claim and lease. A later resume is a new claim and a new
+attempt that reads the checkpoint. Waiting/polling attempts are not silently
+treated as fresh external submissions.
 
 Every job carries first-class scheduling attributes including `priority`,
-`available_at`, attempt count/max attempts and the owning kind. Ready work is
-ordered by priority and availability within the scheduler's fairness/concurrency
-rules; priority must not permit one job kind to starve all other enabled kinds.
+`available_at`, the owning kind and counters/deadlines appropriate to its
+lifecycle. Ready work is ordered by priority and availability within the
+scheduler's fairness/concurrency rules; priority must not permit one job kind to
+starve all other enabled kinds.
 
-Each job kind declares a bounded maximum attempt count. Exhaustion is terminal
-`FAILED` and creates an attention condition where ADR-0010 applies. The full
-legal transition table, including which transitions require a current claim
-token, must be fixed by the shared-engine implementation specification and
-tested as a database/domain invariant.
+Every job kind declares separately:
+
+- a bounded **pre-write retry budget**;
+- for asynchronous/post-write work, a bounded waiting/reconciliation deadline
+  or equivalent domain-specific completion horizon;
+- expected effect window/runner deadline;
+- maximum claim/attempt runtime.
+
+Exhausting the pre-write retry budget is terminal `FAILED`. Exhausting a
+waiting/post-write deadline after `EFFECT_STARTED` is never `FAILED` merely
+because time elapsed; it becomes `RECONCILIATION_REQUIRED` unless durable
+provider/domain evidence proves a stronger terminal outcome.
 
 Claims use database-enforced concurrency with leases, unforgeable claim tokens
-and `FOR UPDATE SKIP LOCKED`. The shared workload explicitly requires multiple
-consumers to claim independent ready jobs without blocking each other.
-
-Leases are renewable by heartbeat using the **current** claim token. Renewal has
-a bounded maximum lease/attempt runtime, may extend only an unexpired current
-claim, and can never revive or extend a superseded claim. A stale worker cannot
-complete, fail, checkpoint, cancel or renew a job after its claim has been
-superseded.
+and `FOR UPDATE SKIP LOCKED`. Leases are renewable by heartbeat using the
+**current** claim token only. Renewal may extend only an unexpired current claim,
+has a bounded maximum runtime, and can never revive or extend a superseded
+claim. A stale worker cannot complete, fail, checkpoint, cancel, renew or
+reconcile a job after its claim is superseded.
 
 Every job kind declares whether execution is **read-only/non-effectful** or
 **externally effectful**. Every attempt durably records an execution phase at
@@ -308,38 +360,82 @@ EFFECT_STARTED
 EFFECT_CONFIRMED
 ```
 
-A lease expiry while an attempt is provably `PRE_WRITE` may return the job to
-normal retry when its attempt budget permits. A lease expiry for an effectful
-attempt at or after `EFFECT_STARTED` transitions to
+An effectful attempt must not cross `EFFECT_STARTED` unless the remaining
+lease/runtime budget covers the kind's declared effect window. Long operations
+must checkpoint/yield before their maximum claim runtime rather than rely on an
+expired lease.
+
+A lease expiry while an attempt is provably `PRE_WRITE` may schedule another
+pre-write attempt when its retry budget permits. Lease expiry/crash/shutdown for
+an effectful attempt at or after `EFFECT_STARTED` transitions to
 `RECONCILIATION_REQUIRED`, never directly to `PENDING` or
 `RETRY_SCHEDULED`, unless a domain-specific durable checkpoint proves that
 resumption cannot repeat the external effect.
 
-Cancellation invalidates the current claim. Cancelling a pending/pre-write job
-may produce terminal `CANCELLED`. Cancelling a running effectful job at or
-after `EFFECT_STARTED` cannot assert that no external effect happened and
-therefore produces `RECONCILIATION_REQUIRED` unless the provider/domain can
-prove a stronger safe terminal outcome.
+`WAITING` and `RECONCILIATION_REQUIRED` retain exclusive ownership of their
+concurrency key by default. A kind may release it only under an explicit,
+reviewed rule proving that overlapping work cannot create conflicting external
+effects.
+
+Cancellation invalidates the current claim. Cancelling pending/pre-write work
+may produce terminal `CANCELLED`. Cancelling an effectful job at or after
+`EFFECT_STARTED` cannot assert that no external effect happened and therefore
+produces `RECONCILIATION_REQUIRED` unless provider/domain evidence proves a
+stronger safe terminal outcome.
+
+Resolving `RECONCILIATION_REQUIRED` is itself a claimed, claim-token-fenced,
+kind-authorized action recorded as a durable attempt. A domain reconciler or
+protected staff command may establish `SUCCEEDED`, `FAILED`, `CANCELLED`,
+a safe `WAITING` checkpoint, or a new explicitly authorized effectful attempt
+only from evidence permitted by that kind's reconciliation contract.
+
+The full legal transition table, including claim-token requirements and attempt
+budget/deadline effects, is fixed by the shared-engine implementation
+specification and tested as a database/domain invariant.
 
 The engine must support horizontal scaling from one worker task to multiple
 tasks without changing these semantics.
 
-### 3.5 Idempotency and concurrency
+### 3.5 Idempotency, coalescing and concurrency
 
 Every logical job has a deterministic idempotency key. Database uniqueness of
-that key is **absolute across job states**, not merely "while live": a completed
-job does not free its logical effect identity for accidental re-materialization.
+that key is absolute across job states, but the key identifies a **specific
+intended effect**, not merely a resource.
 
-Retries create new attempts on the same job. An intentional replay/current-state
-run creates a new logical job with a new idempotency key and an explicit
-parent/replay/correlation relationship, following ADR-0010's distinction between
-retry, replay and current-state redistribution.
+A kind's key therefore incorporates the dimension that makes a later effect
+meaningfully new, for example:
 
-Event-derived jobs additionally carry the unique `(event_id, route_key)`
-materialization identity from section 3.2. Handler idempotency and route
-idempotency solve different problems and neither substitutes for the other.
+- `(event_id, route_key)` or an event-derived source revision;
+- a source revision/fingerprint;
+- a schedule slot;
+- an explicit command/request id;
+- an approved coalescing/debounce window.
 
-Handlers may define a concurrency key, for example:
+A completed Crossref sync, search-index update, invalidation or reconciliation
+must not suppress a later effect for a newer revision merely because both target
+the same DOI/work/hosting target.
+
+Retries create new attempts on the same logical job. Intentional replay,
+current-state execution and backfill create new logical jobs with new effect
+identity and explicit parent/replay/correlation metadata, following ADR-0010's
+distinction between retry, replay and current-state redistribution.
+
+Event routing identity and job idempotency are related but distinct. Every
+`(event_id, route_key)` route record points to exactly one materialized job,
+while several route records may point to one **not-yet-started** job only when
+the kind defines an explicit durable coalescing rule. Coalescing therefore forms
+a many-route-to-one-job relationship; it never erases the per-event route
+records needed for audit/completeness.
+
+An idempotency conflict never silently means "route satisfied". It either:
+
+1. attaches the route to an existing not-yet-started job when the kind's
+   coalescing rule explicitly permits it; or
+2. produces a deterministic routing/materialization error surfaced for
+   attention/recovery.
+
+Handlers additionally define a concurrency key where overlapping effects must
+serialize, for example:
 
 ```text
 work:<uuid>:algolia
@@ -372,17 +468,24 @@ A handler result distinguishes at least:
 Before an effectful handler crosses the boundary at which an external write may
 have begun, it durably records `EFFECT_STARTED` under its current claim token.
 Where the provider returns a submission/correlation identifier, the handler
-persists that identifier before yielding `WAITING`.
+persists that identifier before atomically yielding `WAITING` and releasing
+its claim/lease.
 
-A resumed asynchronous-provider job with a durable provider identifier polls or
-reconciles the existing provider operation. It does not submit a fresh write
-unless the domain contract has established that no previous effect can exist.
+A later WAITING resume is a new claimed attempt. With a durable provider
+identifier it polls or reconciles the existing provider operation; it does not
+submit a fresh write unless the domain contract has established that no previous
+effect can exist.
+
+If durable `EFFECT_CONFIRMED` evidence exists before a crash, a later claimed
+recovery may complete `SUCCEEDED` without repeating the effect, where the
+kind's contract defines that evidence as sufficient.
 
 An indeterminate provider write is never blindly replayed merely because the
-worker did not receive an acknowledgement. Lease expiry, process crash or
-shutdown after `EFFECT_STARTED` therefore fences the job into
-`RECONCILIATION_REQUIRED` unless a durable domain checkpoint proves safe
-resumption without duplicate effect.
+worker did not receive an acknowledgement. Lease expiry, process crash,
+shutdown, waiting-deadline exhaustion or cancellation after
+`EFFECT_STARTED` therefore fences the job into
+`RECONCILIATION_REQUIRED` unless a durable domain checkpoint proves a safe
+non-duplicating continuation.
 
 The owning handler/reconciler must establish provider state or require protected
 operator attention before another effectful attempt.
@@ -404,7 +507,7 @@ sanitized information to reconstruct:
 Secrets, credentials and unbounded provider responses must not be written to
 attempt records or ordinary logs.
 
-### 3.8 Default `thoth-worker` runtime
+### 3.8 Worker runtime and trust-separated pools
 
 The default always-on executor is a headless ECS/Fargate service using the
 ordinary Thoth release image with a dedicated command, conceptually:
@@ -413,7 +516,8 @@ ordinary Thoth release image with a dedicated command, conceptually:
 thoth start worker
 ```
 
-Initial runtime shape:
+The default **trusted** worker pool handles Thoth-owned jobs whose inputs do not
+cross a materially different trust boundary. Initial runtime shape:
 
 ```text
 same ECS cluster
@@ -422,7 +526,7 @@ no ALB
 no public hostname
 DesiredCount = 1 initially
 separate task definition/service
-dedicated worker task role
+dedicated trusted-worker task role
 ```
 
 The existing generic infrastructure `service.yml` is web-service/ALB-oriented
@@ -435,6 +539,22 @@ The worker polls/claims durable PostgreSQL jobs. PostgreSQL
 never depend on receiving a notification; periodic durable polling remains the
 fallback.
 
+### Untrusted-content pool
+
+A handler that parses or executes against publisher-controlled/untrusted file
+content is a separate **UNTRUSTED_CONTENT** risk class. It must not run in a task
+that also holds Hosting DNS, ACM or CloudFront tenant-management authority.
+
+Such handlers execute in a separate task/service or equivalent process-isolated
+worker pool with a minimal dedicated task role. It may use the same canonical
+async database/protocol, but its AWS/provider capabilities are limited to those
+needed for the untrusted-content job family.
+
+A handler may cross that boundary only through explicit CTO risk acceptance
+that identifies the concrete parser/runtime, standing authorities and blast
+radius. This is a trust-boundary exception to the single routine role, not a
+return to one IAM role per ordinary handler.
+
 Graceful shutdown stops new claims first. A pre-write attempt may report a
 retryable pre-write outcome or release/yield according to the shared transition
 contract. An effectful attempt after `EFFECT_STARTED` must persist a safe
@@ -444,55 +564,68 @@ must never intentionally abandon it to ordinary lease-expiry retry.
 The runtime must prove clean recovery after abrupt termination as well as
 graceful shutdown.
 
-### 3.9 Handler registry and capabilities
+### 3.9 Handler registry, capabilities and risk class
 
-The worker has a typed registry of supported job kinds. Each handler declares:
+Each worker pool has a typed registry of supported job kinds. Each handler
+declares:
 
 - job kind and supported payload version(s);
 - owning domain;
 - required runtime capability/configuration;
-- timeout/lease requirements;
+- trust/risk class, including whether it handles untrusted content;
+- effect classification and expected effect window;
+- timeout/lease/waiting-deadline requirements;
 - retry/reconciliation policy;
-- idempotency/concurrency rules.
+- idempotency/coalescing/concurrency rules.
 
-A worker only claims job kinds whose required capabilities are configured.
-Capability declarations are runtime/configuration boundaries and future
-scheduling primitives; they do not imply one IAM role per handler.
+A worker only claims job kinds whose required capabilities and risk class are
+configured for that pool. Capability declarations are runtime/configuration
+boundaries and scheduling primitives; they do not imply one IAM role per
+ordinary handler.
 
-### 3.10 AWS credentials and task role
+External/domain executors use the same kind scoping: their authorization permits
+only the job kinds assigned to that domain executor. A dissemination executor
+cannot claim/checkpoint/complete/reconcile a Hosting, Metrics, file-processing
+or indexing job merely because those jobs share the same database.
 
-The initial `thoth-worker` uses one dedicated least-privilege ECS task role
-containing the union of its **approved routine AWS capabilities**.
+### 3.10 AWS credentials and task roles
 
-AWS authority for the worker comes **exclusively** from that task role. The
-worker must not receive static `AWS_ACCESS_KEY_ID`,
+The default trusted `thoth-worker` pool uses one dedicated least-privilege ECS
+task role containing the union of its **approved routine trusted capabilities**.
+
+AWS authority for each worker pool comes **exclusively** from that pool's ECS
+task role. Worker tasks must not receive static `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, session-token credentials or equivalent long-lived
 AWS credentials through environment variables, committed configuration or any
 other deployment mechanism.
 
 Do not introduce one assumable IAM role per ordinary handler merely to mirror
-code boundaries when the same process could assume all of them anyway.
+code boundaries when the same trusted process could assume all of them anyway.
 
-The task role may eventually include bounded capabilities such as:
+The trusted-worker role may eventually include bounded capabilities such as:
 
 - approved Hosting tenant lifecycle;
 - ACM operations needed by Hosting;
 - writes to Thoth-controlled Hosting DNS;
 - approved CDN invalidation;
-- bounded S3 object access required by file-processing handlers.
+- bounded S3 object access required by trusted handlers.
 
-The exact permission matrix remains an implementation/IAM task and must retain
-negative tests and resource scoping.
+Handlers in the `UNTRUSTED_CONTENT` risk class use a **separate** worker
+pool/task role that excludes Hosting DNS, ACM and CloudFront tenant-management
+authority unless explicitly risk-accepted by the CTO. This separation exists
+because compromise of an untrusted parser is a materially different blast-radius
+case, not because handler boundaries should mechanically map to IAM roles.
 
-Standing permissions that materially increase blast radius and are not required
-for routine operation remain excluded.
+The exact permission matrices remain implementation/IAM tasks and must retain
+negative tests and resource scoping. Standing permissions that materially
+increase blast radius and are not required for that worker pool remain excluded.
 
 The infrastructure implementation therefore intentionally departs from the
 current shared `ECSTaskRole`/static-key pattern for existing Thoth web
-services: it must create a dedicated worker task role and ensure no static AWS
-keys are injected into the worker. Remediation/rotation of any pre-existing
-static AWS credentials used by other services is separate security work and is
-not authorized or performed by this ADR.
+services: it must create dedicated worker-pool task roles and ensure no static
+AWS keys are injected into worker tasks. Remediation/rotation of any
+pre-existing static AWS credentials used by other services is separate security
+work and is not authorized or performed by this ADR.
 
 ### 3.11 No automated legacy-CDN migration
 
@@ -640,103 +773,164 @@ requests were represented by the surviving job.
 
 ---
 
-## 4. BE-04 supersession and compatibility
+## 4. BE-04 supersession and expand-migrate-contract transition
 
 Once ADR-0012 is approved and repository-authoritative, the shared async engine
 supersedes the ADR-0008/ADR-0010 assumptions identified in the header and
 section 1.3. It does **not** supersede ADR-0008's machine-role/least-privilege
 rules or ADR-0010's staff operational/audit architecture.
 
-BE-04 is already part of released Thoth code. The replacement therefore
-distinguishes the **storage/execution model** from the **released API
-compatibility surface**.
+BE-04 is already part of released Thoth code and is consumed by more than the
+dissemination worker. The transition therefore uses **expand -> migrate
+consumers -> retire legacy API -> contract storage**. It does not translate the
+new lifecycle through the old five-state GraphQL enum.
 
-### 4.1 Storage and domain replacement
+### 4.1 Release N - expand without contracting legacy BE-04
 
-The next separately authorized shared-engine implementation must:
+A separately authorized Release N introduces:
 
-- introduce the generic async schema through a new forward migration;
-- remove the unused `distribution_job`, `distribution_job_target` and
-  `distribution_job_attempt` tables and their dedicated indexes;
-- remove the four BE-04-only enum types
-  `distribution_job_kind`, `distribution_job_status`,
-  `distribution_job_attempt_result` and
-  `distribution_job_cancellation_reason`;
-- atomically reconcile `thoth-api/src/schema.rs`, persistence/domain models,
-  CRUD/query code and tests as required by ADR-0003 and repository doctrine;
-- **retain** `distribution_platform`, which remains shared Publisher Services
-  domain state and is not a queue-only type.
+- the generic async schema/domain/API;
+- event/route/job/attempt primitives;
+- the new kind-scoped claim/checkpoint/complete/reconcile contract;
+- generic job creation for newly specified consumers.
 
-The already-applied `20260814_v1.7.0` migration remains immutable.
+Release N **retains unchanged legacy BE-04 storage and released GraphQL
+contract**. It does not drop:
 
-### 4.2 Released BE-04 GraphQL compatibility window
+- `distribution_job`;
+- `distribution_job_target`;
+- `distribution_job_attempt`;
+- the four BE-04-only queue enum types;
+- BE-04 lifecycle/query GraphQL fields/types.
 
-The released BE-04 GraphQL lifecycle contract is not removed at the same moment
-as the legacy tables.
+The existing BE-04 automatic job-creation path/toggle remains OFF/inactive while
+legacy consumers are migrated. No state-translating compatibility facade is
+introduced.
 
-During a bounded compatibility window, the existing released
-claim/complete/fail/cancel job operations and their GraphQL types remain
-available as a **deprecated compatibility facade** backed by the generic async
-engine. Any existing BE-04 automatic job-creation path that remains exposed must
-either create the equivalent generic job under the same default-OFF activation
-semantics or be explicitly disabled through its separately approved deprecation
-path; it must never continue writing removed legacy tables.
+Historical `20260814_v1.7.0` remains immutable.
 
-`thoth-dissemination` then migrates to the new protected generic,
-kind-scoped claim/report contract under its own repository-local task.
+### 4.2 Known released consumers that must migrate
 
-Only after all downstream consumers are verified on the generic contract may a
-later separately approved API-deprecation task remove the legacy BE-04 GraphQL
-fields/types/toggle and update generated SDL/client surfaces. That removal must
-follow the repository's approved deprecation-path rule; downstream repositories
-must not be forced to guess a contract that has not merged.
+At ADR authoring time, the known released consumers include at least:
 
-### 4.3 Fresh preflight before removing legacy storage
+1. **`thoth-pub/thoth-dissemination`**
+   - BE-04 claim/complete/fail lifecycle operations;
+   - current DIS-02 semantics and worker authorization.
 
-The future migration/deployment task must verify immediately before production
-storage removal:
+2. **`thoth-pub/thoth-app`**
+   - `PublisherServiceConfigurationSummary.latestBackCatalogueJob`;
+   - service-configuration list/count filters including `jobStatuses`;
+   - `withoutBackCatalogueJob`;
+   - generated `DistributionJobStatus` and related GraphQL client contract.
 
-1. all three legacy tables exist as expected;
-2. all three contain zero rows and no operational history;
-3. the deployed API's BE-04 creation toggle is OFF or absent;
-4. the DIS-02 worker activation variable is not ON and no executor is actively
-   claiming the legacy contract;
-5. there is no current `DISSEMINATION_WORKER` legacy-job activity;
-6. the compatibility facade has been changed to the generic storage before any
-   request can reach dropped relations.
+The implementation programme must inspect all repository-authoritative contract
+consumers again immediately before retirement; this list is not permission to
+assume no additional consumer exists.
 
-If any of those checks fail, the DROP is HOLD and data/consumer migration must
-be designed explicitly.
+`thoth-app` and `thoth-dissemination` each receive their own repository-local
+bounded migration task/branch/PR and must consume an exact merged generic
+contract. No downstream repository guesses the new schema.
 
-### 4.4 Preserve proven BE-04 safety work
+### 4.3 Consumer migration
+
+After Release N is the deployed/rollback-safe Thoth version:
+
+- `thoth-dissemination` migrates to the generic kind-scoped
+  claim/checkpoint/complete/reconcile contract;
+- `thoth-app` migrates its back-catalogue job reads/filters/status presentation
+  to the new operational contract selected by its approved task;
+- generated SDL/client surfaces are refreshed from the merged Thoth contract;
+- each downstream deployment is independently verified.
+
+Until both known consumers (and any newly discovered consumers) are verified on
+the generic contract, legacy BE-04 API/storage remains present and unchanged.
+
+### 4.4 Legacy GraphQL contract retirement
+
+Only after all consumers are verified migrated may a later separately approved
+Thoth release remove the legacy BE-04 GraphQL lifecycle/read/filter
+fields/types/toggle.
+
+That removal follows the repository's approved deprecation-path rule and must
+include generated SDL/client impact. It must not collapse
+`WAITING`/`RECONCILIATION_REQUIRED` into the legacy five-value
+`DistributionJobStatus`; consumers migrate to the new lifecycle before the
+legacy enum disappears.
+
+The legacy creation path must be removed/disabled before any subsequent storage
+DROP can make it invalid.
+
+### 4.5 Later storage contraction
+
+Legacy storage is removed only in a **later destructive migration** after:
+
+1. the generic schema/API release is the sole running production version;
+2. the legacy GraphQL contract has been retired from deployed Thoth;
+3. all known downstream consumers are on the generic contract;
+4. the previous deployment rollback target no longer requires the legacy
+   relations;
+5. no executor is claiming/writing the legacy contract;
+6. the destructive migration itself verifies all three legacy tables exist as
+   expected and contain zero rows.
+
+The emptiness check is part of the same migration/transactional gate that
+performs the DROP. If any legacy row exists, the migration aborts and production
+deployment is HOLD; an earlier read-only preflight is useful evidence but is not
+sufficient by itself.
+
+The contraction removes:
+
+- `distribution_job`;
+- `distribution_job_target`;
+- `distribution_job_attempt`;
+- their dedicated indexes;
+- `distribution_job_kind`;
+- `distribution_job_status`;
+- `distribution_job_attempt_result`;
+- `distribution_job_cancellation_reason`.
+
+It **retains** `distribution_platform`, which remains Publisher Services domain
+state.
+
+The same bounded source/migration task atomically reconciles
+`thoth-api/src/schema.rs`, persistence/domain models, CRUD/query code and tests
+as required by ADR-0003 and repository doctrine.
+
+### 4.6 Preserve proven BE-04 safety work
 
 Superseding BE-04 storage does not discard its safety evidence. The generic
-engine and dissemination adapter must preserve or improve the already-proven
-principles:
+engine and dissemination adapter must preserve or improve:
 
 - database claim fencing and stale-token refusal;
-- absolute logical deduplication;
-- bounded attempts;
+- effect-scoped deterministic deduplication;
+- bounded pre-write retries;
+- runner/effect-window checks before starting an external write;
 - conservative classification of post-write ambiguity;
 - no automatic replay of an abandoned predecessor when a provider write may
   already have happened;
 - bounded/sanitized durable diagnostics.
 
 Existing BE-04/DIS-02 source remains historical implementation evidence and may
-be reused only where the new bounded specifications explicitly adopt and retest
-it against the generic contract.
+be reused only where new bounded specifications explicitly adopt and retest it
+against the generic contract.
 
-### 4.5 Development and fresh-database migration path
+### 4.7 Development and fresh-database migration path
 
-Because repository migrations execute in order, an environment currently before
-v1.7.0, including dev as recorded at this decision, will apply v1.7.0 and then
-the later replacement migration when brought fully current. A fresh database
-does the same.
+Repository migrations still execute in order. An environment currently before
+v1.7.0, including dev as recorded at this decision, first applies v1.7.0, then
+Release N's additive generic schema migration, and only later the separately
+authorized contraction migration after the consumer/API retirement gates are
+satisfied.
 
-The replacement migration and test plan must therefore prove both the
-production-like upgrade path from a schema where v1.7.0 is already present and
-the full empty-database migration chain. It must not rely on dev and production
-having identical starting versions by accident.
+A fresh database follows the same ordered history. Tests must therefore cover:
+
+- production-like upgrade from v1.7.0 with legacy relations present;
+- pre-v1.7 upgrade through v1.7.0 and the additive generic migration;
+- full empty-database migration chain;
+- the later contraction migration with zero legacy rows;
+- fail-closed contraction when any legacy row exists.
+
+No environment is allowed to skip or rewrite the historical v1.7.0 migration.
 
 ## 5. Initial job families
 
@@ -788,10 +982,14 @@ new decision.
 
 ### D. One IAM role per handler
 
-Rejected as the default because one process able to assume every handler role
-does not materially isolate a compromise of that process and adds substantial
-operational complexity. High-risk standing permissions may still justify
-separate execution boundaries where evidence shows real blast-radius reduction.
+Rejected as the default because one trusted process able to assume every
+ordinary handler role does not materially isolate compromise of that process and
+adds substantial operational complexity.
+
+This rejection does **not** apply across materially different trust boundaries.
+Publisher-controlled untrusted-content parsing is explicitly separated into a
+different worker pool/task role because a parser exploit gaining Hosting
+DNS/ACM/tenant authority is a concrete blast-radius increase.
 
 ### E. One generic catch-all application machine role
 
@@ -810,95 +1008,131 @@ execution until a separate approved architecture decision says otherwise.
 
 1. PostgreSQL remains canonical for event/job lifecycle.
 2. Business mutation plus caused event is atomic where both are PostgreSQL-owned.
-3. Every event has durable identity and ordering; every `(event_id, route_key)`
-   materialization is database-unique irrespective of job terminal state.
+3. Route registrations/activation boundaries are durable database state; routing
+   completeness is proven per eligible `(event_id, route_key)`, not by
+   worker-local route knowledge or an unsafe sequence high-water mark.
 4. A newly registered route does not consume historical events without an
-   explicit backfill/replay.
-5. Job idempotency identity is absolute across states; retries are attempts on
-   the same logical job.
-6. No stale/superseded claim can finalize, checkpoint, cancel or renew a job.
-7. Effectful attempts durably fence `EFFECT_STARTED` before crossing the
-   external-write boundary.
-8. Lease expiry/shutdown after an ambiguous effect cannot return the job to
-   ordinary retry; it requires reconciliation unless a durable checkpoint proves
-   safe resume.
-9. No job handler may claim exactly-once external effects.
-10. Indeterminate writes require reconciliation before unsafe replay.
-11. Priority, delayed availability, bounded attempts, per-kind concurrency and
-    fairness are first-class shared-engine concerns.
-12. Cancellation never asserts that an already-started external effect did not
-    happen.
-13. `async_job`/`async_job_attempt` are canonical execution truth;
+   explicit backfill/replay through the same route materialization records.
+5. Job idempotency identifies a specific intended effect; a resource-only key
+   must not suppress later revisions/schedule slots/commands.
+6. Every event-route record maps to exactly one job; many route records may map
+   to one job only under an explicit not-yet-started coalescing rule.
+7. No stale/superseded claim can finalize, checkpoint, cancel, renew or
+   reconcile a job.
+8. WAITING atomically checkpoints and releases claim/lease; resume is a new
+   claimed attempt.
+9. Effectful attempts durably fence `EFFECT_STARTED` before crossing the
+   external-write boundary and start only when the remaining effect window fits
+   within the current lease/runtime.
+10. Lease expiry/shutdown/cancellation/deadline exhaustion after an ambiguous
+    effect cannot return the job to ordinary retry or terminal FAILED; it
+    requires reconciliation unless durable evidence proves a stronger outcome.
+11. WAITING and RECONCILIATION_REQUIRED retain concurrency-key exclusion by
+    default.
+12. Reconciliation is itself kind-authorized, claim-token-fenced and recorded as
+    an attempt.
+13. No job handler may claim exactly-once external effects.
+14. Priority, delayed availability, bounded pre-write attempts,
+    post-write/waiting deadlines, per-kind concurrency and fairness are
+    first-class shared-engine concerns.
+15. `async_job`/`async_job_attempt` are canonical execution truth;
     `ServiceOperation` is the ADR-0010 staff operational/audit seam where
     applicable, not a second attempt ledger.
-14. Domain ownership is explicit and preserved.
-15. Generic execution does not create generic application authorization.
-16. Historical migrations are never rewritten after deployment.
-17. Worker AWS authority comes exclusively from its dedicated ECS task role; no
-    static AWS access keys are injected into the worker.
-18. Non-AWS credential values are not committed or emitted in logs/durable
+16. Event/job payloads default to canonical references plus revision/fingerprint
+    and minimal parameters; credentials are forbidden and personal/snapshot data
+    requires explicit retention/erasure justification.
+17. Domain ownership is explicit and preserved.
+18. Generic execution does not create generic application authorization.
+19. Historical migrations are never rewritten after deployment.
+20. Trusted-worker AWS authority comes exclusively from its dedicated ECS task
+    role; untrusted-content parsing runs in a separate minimal-authority worker
+    pool unless explicitly risk-accepted by the CTO.
+21. No worker receives static AWS access keys.
+22. Non-AWS credential values are not committed or emitted in logs/durable
     diagnostics.
-19. A worker may execute only supported payload versions and configured
-    capabilities.
-20. Protected operator retry/reconcile controls are audited and may not bypass
+23. A worker/executor may claim only supported job versions/kinds and configured
+    capabilities/risk classes.
+24. Protected operator retry/reconcile controls are audited and may not bypass
     reconciliation safety.
-21. Merge, migration, deployment, handler activation, provider access and
+25. BE-04 retirement follows expand -> migrate consumers -> retire API ->
+    contract storage; legacy storage is never dropped while old code remains a
+    production rollback target.
+26. Merge, migration, deployment, handler activation, provider access and
     production activation remain separate gates.
 
 ## 8. Implementation impact and decomposition
 
 Approval of this ADR should lead to separate bounded tasks, at minimum:
 
-1. **Shared schema/engine and BE-04 compatibility facade in `thoth`**
-   - forward replacement migration;
-   - event/route/job/attempt domain types;
-   - claim/renewal/lease/retry/reconciliation primitives;
-   - event routing/materialization;
-   - execution-phase checkpoints;
-   - deprecated BE-04 GraphQL facade backed by generic jobs;
-   - atomic Diesel/model/query/generated-contract reconciliation;
-   - tests including real PostgreSQL concurrency.
+1. **Release N shared schema/engine/API in `thoth`**
+   - additive generic async migration;
+   - durable event-route registration/materialization model;
+   - job/attempt/checkpoint lifecycle;
+   - claim/renewal/wait/reconciliation primitives;
+   - effect-scoped idempotency and explicit coalescing;
+   - new kind-scoped executor API;
+   - legacy BE-04 schema/API left intact and inactive;
+   - real PostgreSQL concurrency/mixed-version/out-of-order-commit tests.
 
-2. **Default `thoth-worker` runtime in `thoth`**
+2. **Trusted default `thoth-worker` runtime in `thoth`**
    - worker command;
    - handler registry;
    - graceful shutdown/checkpointing;
    - metrics/health/operational reporting;
-   - capability/configuration filtering.
+   - capability/kind filtering.
 
-3. **Infrastructure**
-   - headless Fargate worker service not bound to the ALB;
-   - dedicated worker task role;
-   - explicit prohibition of static AWS credentials for the worker;
-   - non-committed deploy-time injection of external env-var credential values;
-   - environment/network configuration;
-   - no deployment/activation until separately authorized.
+3. **Infrastructure - trusted worker**
+   - headless Fargate service not bound to the ALB;
+   - dedicated trusted-worker task role;
+   - no static AWS credentials;
+   - non-committed deploy-time injection of non-AWS env-var credential values;
+   - environment/network configuration.
 
-4. **Publisher Services / `thoth-dissemination`**
-   - migrate from the deprecated BE-04 facade to generic kind-scoped job
-     consumption;
-   - preserve dissemination domain logic;
-   - independently review external-write/idempotency/reconciliation semantics.
+4. **Infrastructure/runtime - untrusted-content pool**
+   - separate process/task/service boundary for publisher-controlled parsers;
+   - minimal task role with no Hosting DNS/ACM/CloudFront tenant authority;
+   - explicit job-kind/risk-class filtering;
+   - deployment only when an approved untrusted-content handler is ready.
 
-5. **BE-04 public-contract retirement**
-   - after downstream migration, remove deprecated legacy GraphQL lifecycle
-     fields/types/toggle under a separately approved deprecation task;
-   - regenerate/update affected client SDL/types and verify all downstream
-     consumers.
+5. **`thoth-dissemination` consumer migration**
+   - move from legacy BE-04 operations to generic kind-scoped
+     claim/checkpoint/complete/reconcile;
+   - preserve dissemination domain logic and external-write safety;
+   - independently review retry/reconciliation behaviour.
 
-6. **Hosting**
+6. **`thoth-app` consumer migration**
+   - migrate `latestBackCatalogueJob`, `jobStatuses`,
+     `withoutBackCatalogueJob` and related presentation/filter semantics to
+     the merged generic operational contract;
+   - regenerate/update GraphQL client surfaces;
+   - independently verify staff UX semantics.
+
+7. **Legacy BE-04 GraphQL retirement in `thoth`**
+   - only after all consumers are deployed on generic contracts;
+   - remove legacy lifecycle/read/filter fields/types/toggle under approved
+     deprecation controls;
+   - update generated SDL/client compatibility evidence.
+
+8. **Later BE-04 storage contraction in `thoth`**
+   - only after legacy API retirement and rollback-window closure;
+   - migration-local zero-row assertion;
+   - remove the three legacy tables/indexes/four queue-only enums;
+   - retain `distribution_platform`;
+   - atomically reconcile Diesel/model/query code.
+
+9. **Hosting**
    - adopt generic jobs for greenfield provisioning/reconciliation;
    - no automated legacy CDN migration.
 
-7. **Existing AWS static-credential security debt**
-   - inspect and remediate any existing service static AWS credential pattern
-     under a separate security task and explicit provider/write authorization;
+10. **Existing AWS static-credential security debt**
+   - inspect/remediate any existing service static AWS credential pattern under a
+     separate security task and explicit provider/write authorization;
    - this is not silently folded into worker deployment.
 
-Before ADR-0012 becomes repository-authoritative, its approval-state
-reconciliation must also update ADR-0008 and ADR-0010 decision metadata/register
-entries to record the exact partial supersessions selected here. That is
-documentation/control reconciliation, not implementation authorization.
+11. **Approval-state ADR reconciliation**
+   - update ADR-0008/ADR-0010 metadata/register under a separate authorized write
+     budget after exact-content CTO approval;
+   - this documentation/control step is not implementation authorization.
 
 Each repository receives its own branch/PR and independent review. No downstream
 repository guesses an unmerged upstream contract.
@@ -907,43 +1141,81 @@ repository guesses an unmerged upstream contract.
 
 Architecture approval does not authorize migration execution.
 
-The future database rollout must remain safe across both the production upgrade
-path and the full migration chain. Before any production DROP of
-`distribution_job*`, section 4.3's fresh preflight is mandatory.
+The production transition is deliberately non-atomic across releases/repos:
 
-The production replacement change must ensure no deployed code path can access
-legacy relations after they are dropped. The deprecated GraphQL compatibility
-facade must already target generic storage in the same bounded source/migration
-release, and generated/client compatibility must be proven.
+### Phase A - expand
+
+Release N adds the generic async schema/API and can deploy the inert trusted
+worker runtime. Legacy BE-04 schema/API remains present and unchanged, with
+legacy automatic job creation/activation OFF.
+
+Release N must be fully deployed and become a valid rollback target before any
+downstream consumer migration starts.
+
+### Phase B - migrate consumers
+
+`thoth-dissemination` and `thoth-app` migrate independently to the exact
+merged generic contracts. Any newly discovered consumer is added to the same
+gate.
+
+No legacy GraphQL field/type is removed until every consumer is verified
+deployed on the generic contract.
+
+### Phase C - retire legacy API
+
+A later Thoth release removes the legacy BE-04 GraphQL
+lifecycle/read/filter/toggle contract under approved deprecation controls. That
+release is deployed and observed until the previous rollback target no longer
+needs legacy API/storage.
+
+### Phase D - contract legacy storage
+
+Only a still-later destructive migration removes `distribution_job*` storage
+and queue-only enum types. The migration itself checks legacy table emptiness and
+aborts if any row exists. The legacy tables are not dropped while any old Thoth
+image that references them remains a supported production rollback target.
+
+Because the current production GraphQL image runs the default `thoth init`
+path, which performs migrations before serving, this separation is mandatory:
+the first task in a rolling deploy must never drop relations still needed by old
+tasks or by automatic rollback.
 
 The development environment's currently unapplied v1.7.0 state is handled by
-ordinary ordered migrations: v1.7.0 applies first, followed by the replacement.
-The test matrix must include:
+ordered migrations: v1.7.0 applies first, followed by additive generic schema,
+and only later the separately authorized contraction migration after the same
+consumer/API retirement gates.
+
+The migration test matrix must include:
 
 - production-like schema with v1.7.0 already applied;
-- pre-v1.7 upgrade applying v1.7.0 plus replacement;
+- pre-v1.7 upgrade applying v1.7.0 plus additive generic schema;
 - full empty-database migration chain;
-- forward repair/rollback strategy once generic async data exists.
+- rolling deploy with mixed old/new application versions during Phase A;
+- later API-retirement rollback window;
+- contraction with zero legacy rows;
+- contraction abort with any legacy row present.
 
 Initial worker deployment is inert until job creation/activation is separately
-authorized. Desired count starts at one unless deployment evidence justifies
-otherwise.
+authorized. Effectful handler activation is prohibited until its
+`RECONCILIATION_REQUIRED` exit path (reconciler and/or protected staff
+operation) is itself available and approved.
 
 Rollout should prove in order:
 
 1. schema/event-route/job concurrency without external writes;
-2. crash/lease renewal/expiry recovery;
-3. idempotent partial fan-out recovery;
-4. priority/fairness/per-kind concurrency and bounded retry behaviour;
-5. one or more non-destructive representative handlers;
-6. one effectful handler with durable `EFFECT_STARTED`, provider checkpoint and
+2. mixed-version route completeness and out-of-order transaction commits;
+3. crash/lease renewal/WAITING/reconciliation recovery;
+4. effect-scoped idempotency and coalescing;
+5. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
+6. one or more non-destructive representative handlers;
+7. protected operator controls and reconciliation exit path;
+8. one effectful handler with durable `EFFECT_STARTED`, provider checkpoint and
    reconciliation evidence;
-7. protected operator controls and operational signals;
-8. only then broader handler activation.
+9. only then broader handler activation.
 
 Handler activation is independent: enabling Hosting must not automatically
 enable Crossref, Algolia, file processing or another family merely because they
-share the worker.
+share the engine.
 
 ## 10. Rollback
 
@@ -953,54 +1225,88 @@ Once implemented, rollback must distinguish:
 
 - stopping new event/job creation;
 - stopping worker claiming;
-- preserving durable event/job/attempt records;
+- preserving durable event/route/job/attempt/checkpoint records;
 - rolling back individual handler activation;
+- rolling back application binaries while preserving schema compatibility;
 - schema rollback, which may be impossible after live async data exists and
-  therefore requires its own migration plan.
+  therefore requires its own forward-repair/migration plan.
 
-Do not treat disabling the worker as equivalent to deleting durable jobs.
+During the expand/migrate phases, a rollback to the previous Thoth image is
+permitted only while all schema/API that image needs remains present. The legacy
+BE-04 storage contraction cannot occur until that old image is no longer a
+supported rollback target.
 
----
+After generic async data exists, rolling the runtime back does not authorize
+dropping/rewriting that data. A rollback plan must either run a binary that
+understands the generic schema or stop job production/claiming and preserve the
+durable queue for forward recovery.
+
+Do not treat disabling a worker as equivalent to deleting durable jobs.
 
 ## 11. Validation requirements
 
 Before shared implementation can be approved, evidence must include:
 
 - real PostgreSQL concurrent claim tests with multiple workers;
+- durable route-registration/activation tests;
+- mixed worker-version routing where an older worker cannot silently complete an
+  unknown active route;
+- out-of-order transaction commit tests proving no event can be skipped by a
+  sequence/cursor optimization;
+- crash during partial fan-out with exact resume and no duplicate route record;
+- explicit historical backfill through the same `(event_id, route_key)`
+  materialization identity;
+- effect-scoped idempotency tests across newer source revisions/schedule slots;
+- allowed many-route-to-one-job coalescing tests and deterministic conflict
+  attention when coalescing is not permitted;
 - current-token lease renewal and refusal to renew superseded/expired claims;
-- stale-token refusal for completion, failure, cancellation and checkpointing;
-- crash immediately after claim;
-- crash during event fan-out/materialization with exact resume and no duplicate
-  `(event_id, route_key)` job;
-- proof that newly registered routes do not consume historical events absent an
-  explicit backfill;
+- stale-token refusal for completion, failure, cancellation, checkpointing and
+  reconciliation;
+- WAITING transition atomically persisting checkpoint and releasing claim/lease;
+- resume from WAITING as a new claim/attempt that polls/reconciles rather than
+  resubmits;
+- pre-write retry-budget exhaustion producing FAILED;
+- post-write waiting/deadline exhaustion producing
+  RECONCILIATION_REQUIRED rather than FAILED;
+- concurrency-key retention across WAITING/RECONCILIATION_REQUIRED unless an
+  explicit safe-release rule exists;
+- effect-window test proving an effectful runner is not started without enough
+  remaining lease/runtime;
 - crash before and after `EFFECT_STARTED`;
-- lease expiry after `EFFECT_STARTED` producing reconciliation rather than
-  ordinary retry;
-- provider-correlation checkpoint followed by WAITING/resume that polls rather
-  than resubmits;
-- deterministic absolute job idempotency tests;
-- concurrency-key serialization tests;
-- priority, `available_at`, bounded attempt and scheduler fairness tests;
-- retry/backoff and poison-job exhaustion tests;
+- durable `EFFECT_CONFIRMED` recovery where supported by the kind;
 - cancellation before write and cancellation after effect-start tests;
 - `INDETERMINATE` external-write reconciliation tests;
+- claimed/token-fenced/kind-authorized reconciliation race tests;
+- priority, `available_at`, bounded attempt and scheduler fairness tests;
+- retry/backoff and poison-job exhaustion tests;
 - unsupported payload-version refusal;
+- payload tests proving credentials are rejected and personal/snapshot data is
+  absent unless explicitly allowed by the kind contract;
+- current-state execution reading canonical state/revision rather than stale
+  embedded snapshots;
 - graceful shutdown and abrupt restart recovery;
-- worker capability filtering;
-- authorization negative tests for every external/domain executor;
+- worker capability/kind/risk-class filtering;
+- authorization negative tests proving domain executors cannot mutate another
+  domain's jobs;
 - protected/audited operator cancel/retry/reconcile tests;
 - queryable queue-depth, oldest-ready-age, expired-lease,
   `RECONCILIATION_REQUIRED`, failure and worker-liveness signals;
 - proof that logs and durable diagnostics do not contain configured credentials;
-- proof that the worker receives no static AWS access-key credentials;
-- migration tests from a schema containing the production v1.7.0
-  `distribution_job*` relations;
+- proof that trusted/untrusted worker tasks receive no static AWS access keys;
+- proof that untrusted-content worker roles exclude Hosting DNS/ACM/CloudFront
+  tenant authority;
+- Phase-A migration tests retaining legacy BE-04 storage/API;
+- `thoth-dissemination` generic-contract compatibility tests;
+- `thoth-app` migration tests for latest job/status/filter semantics;
+- generated SDL/client contract checks;
+- rolling deployment/rollback tests proving old tasks remain valid during Phase
+  A/B;
+- later legacy-API retirement tests;
+- contraction migration tests from production v1.7.0 state;
+- contraction abort when any legacy row exists;
 - full empty-database migration-chain tests;
-- compatibility tests showing released BE-04 GraphQL operations no longer
-  depend on legacy tables during the compatibility window;
-- deployment tests with more than one worker task even if production initially
-  runs one.
+- deployment tests with more than one compatible worker task even if production
+  initially runs one.
 
 Provider-specific handlers owe their own acceptance evidence in addition to the
 shared-engine tests.
