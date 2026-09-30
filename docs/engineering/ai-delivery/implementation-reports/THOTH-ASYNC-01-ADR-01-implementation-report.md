@@ -1,9 +1,8 @@
 # THOTH-ASYNC-01-ADR-01 implementation report
 
-This report records the bounded ADR-0012 authoring task and its first
-independent-review correction round. Review/approval state itself remains in
-GitHub under issues #957 and #958 rather than being copied as transient
-repository status.
+This report records the bounded ADR-0012 architecture-authoring task and its
+independent-review correction rounds. Fast-changing review/approval state remains
+in GitHub issues #957/#958 rather than being duplicated as repository status.
 
 ## Identity
 
@@ -29,194 +28,182 @@ Exactly four repository paths are used:
 3. `CHANGELOG.md`;
 4. this implementation report.
 
-No other source, migration, GraphQL, workflow or infrastructure path is changed.
+No runtime source, migration, GraphQL implementation, workflow or
+infrastructure path is changed.
 
-## Initial candidate
+## Initial candidate and review round 1
 
-The first complete proposal was handed to independent review at:
+Initial candidate:
 
 ```text
 a69921682cd02e060110304f8f9868d0c39da65e
 ```
 
-It was based directly on:
+The independent CRITICAL review returned `CHANGES REQUIRED`; durable receipt:
+#958 comment `5896883454`.
+
+F-01 through F-09 were accepted. Round-2 candidate:
 
 ```text
-develop @ 923545d5c9028bc04c40e38efeb7de674efed3fd
+9d329e063b2731b691c62a412555b470f2a9fe39
 ```
 
-and contained exactly the four authorized paths.
+The round-1 corrections established precise ADR-0008/ADR-0010 boundaries,
+crash-safe route identity, effect-phase checkpoints, bounded scheduling,
+released-contract handling, worker task-role-only AWS authority, operability and
+documentation hygiene.
 
-## Independent review and correction round
+## Independent review round 2
 
 The independent CRITICAL review of
-`a69921682cd02e060110304f8f9868d0c39da65e` returned
-`CHANGES REQUIRED`. Durable control receipt is issue #958 comment
-`5896883454`.
+`9d329e063b2731b691c62a412555b470f2a9fe39` again returned
+`CHANGES REQUIRED`; durable receipt: #958 comment `5909933000`.
 
-All nine blocking findings were accepted and corrected within the existing
-four-path documentation budget:
+Seven blockers were accepted:
 
-### F-01 - ADR-0008 supersession
+- R2-01 - incomplete WAITING/resume/attempt/concurrency/reconciliation lifecycle;
+- R2-02 - resource-ambiguous idempotency keys and coalescing contradiction;
+- R2-03 - event-routing completeness vulnerable to commit-order and mixed-version
+  worker assumptions;
+- R2-04 - incomplete BE-04 consumer/API coverage, including `thoth-app`;
+- R2-05 - unsafe same-release BE-04 table DROP under the actual rolling
+  migrate-on-start deployment model;
+- R2-06 - untrusted publisher-file parsing sharing high Hosting authority;
+- R2-07 - unbounded immutable payload snapshots/personal-data duplication.
 
-The ADR now identifies the exact ADR-0008 statements/items displaced by the new
-shared framework, states that ADR-0008 section 3.5 is satisfied rather than
-superseded, and preserves the approved durable-work convention list,
-`approved != mandatory` rule and machine-role/least-privilege boundaries.
+## Round-3 corrections
 
-Approval-state reconciliation of ADR-0008 metadata/register is explicitly a
-later decision-record action, not runtime implementation.
+### Job lifecycle
 
-### F-02 - ADR-0010 relationship
+The ADR now requires:
 
-The ADR now explicitly partially supersedes only ADR-0010's assumption that
-`distribution_job*` remains the long-term execution source.
+- WAITING to atomically persist checkpoint state and release claim/lease;
+- resume from WAITING as a new claim/attempt;
+- separate bounded pre-write retry budget and post-write waiting/deadline;
+- post-write deadline exhaustion to become `RECONCILIATION_REQUIRED`, not
+  `FAILED`;
+- WAITING and RECONCILIATION_REQUIRED to retain their concurrency key by
+  default;
+- effectful work to start only when its remaining lease/runtime can cover the
+  declared effect window;
+- reconciliation itself to be a claimed, claim-token-fenced, kind-authorized
+  attempt;
+- durable `EFFECT_CONFIRMED` evidence to permit non-duplicating recovery where
+  a kind defines it.
 
-It defines:
+### Effect-scoped idempotency and coalescing
 
-```text
-async_job / async_job_attempt
-    canonical execution truth
+Idempotency now identifies a specific intended effect, not merely a resource.
 
-ServiceOperation
-    staff operational/audit seam where ADR-0010 applies
+Keys are derived from the event/route, source revision/fingerprint, schedule
+slot, command/request id or explicit coalescing window as appropriate.
 
-observed state
-    separate domain truth
+Each `(event_id, route_key)` has its own durable route record. Several route
+records may target one not-yet-started job only under an explicit coalescing
+rule. Idempotency conflicts never silently mark a route complete.
 
-attention / reconciliation
-    separate operational projection
-```
+### Routing completeness
 
-`ServiceOperation` is not a second mutable attempt ledger. ADR-0010 staff
-command, reconciliation and activation gates remain binding.
+Route registrations and activation boundaries are durable PostgreSQL state.
 
-### F-03 - event route identity
+Routing completeness is determined per eligible route, not from worker-local
+handler knowledge or an unproved sequence high-water mark. Mixed worker
+versions cannot silently complete an unknown active route, and backfill uses the
+same route materialization records.
 
-The corrected proposal gives every event durable identity/order and every
-consumer a stable `route_key`.
+### Payload minimization
 
-Materialization is database-unique on `(event_id, route_key)` regardless of
-job terminal state. Route activation has a durable boundary so later code does
-not silently subscribe to historical events; historical processing requires an
-explicit backfill/replay.
+Event/job payloads default to canonical IDs, source revision/fingerprint and
+minimal command/routing parameters.
 
-### F-04 - effectful lease expiry
+Credentials are prohibited. Personal data or immutable domain snapshots require
+kind-specific justification and retention/erasure handling. Current-state work
+reads canonical state at execution time.
 
-The proposal now distinguishes effectful jobs and requires durable attempt phases
-equivalent to `PRE_WRITE`, `EFFECT_STARTED` and `EFFECT_CONFIRMED`.
+### BE-04 expand-migrate-contract transition
 
-Leases are renewable using the current claim token only; renewal cannot revive a
-superseded claim.
+The previous state-translating compatibility-facade design has been removed.
 
-Lease expiry, crash, cancellation or shutdown at/after `EFFECT_STARTED` enters
-`RECONCILIATION_REQUIRED` unless a durable domain checkpoint proves safe
-resume. Provider identifiers must be persisted before yielding asynchronous
-work, and resumed work polls/reconciles rather than blindly resubmitting.
+The architecture now requires:
 
-### F-05 - scheduling, bounded attempts and cancellation
+1. **Expand** - Release N adds the generic schema/API while retaining legacy
+   BE-04 schema/API and keeping legacy automatic job creation inactive.
+2. **Migrate consumers** - independently migrate both known released consumers:
+   `thoth-dissemination` and `thoth-app`.
+3. **Retire legacy API** - later remove legacy lifecycle/read/filter/toggle
+   GraphQL contract after all consumers are verified migrated.
+4. **Contract storage** - only in a still-later migration, after old code is no
+   longer a supported rollback target; the migration itself asserts all three
+   legacy tables contain zero rows and aborts otherwise.
 
-Priority, `available_at`, bounded attempts, distinct WAITING versus
-RETRY_SCHEDULED semantics, per-kind concurrency/fairness and cancellation
-semantics are now first-class architecture.
+Known `thoth-app` dependencies are explicitly recorded:
+`latestBackCatalogueJob`, `jobStatuses`,
+`withoutBackCatalogueJob` and generated `DistributionJobStatus` contract.
 
-Cancellation after a possible external effect does not assert that the effect
-did not happen.
+Historical `20260814_v1.7.0` remains immutable.
+`distribution_platform` remains.
 
-### F-06 - released BE-04 contract
+### Deployment and rollback
 
-The proposal now separates BE-04 storage replacement from released API
-compatibility.
+The ADR now incorporates the authoritative current deployment property that the
+GraphQL image defaults to `thoth init`, which runs migrations before serving,
+while production uses multiple rolling ECS tasks.
 
-The future forward migration removes the three unused `distribution_job*`
-tables, dedicated indexes and four queue-only enum types while retaining
-`distribution_platform` and reconciling Diesel/domain code.
+Therefore destructive contraction cannot occur in the same release that moves
+the API. The previous binary/schema remains rollback-compatible throughout
+expand/migrate/API-retirement phases; after generic data exists, runtime rollback
+must preserve that data and use forward recovery rather than deleting/reverting
+it.
 
-The released BE-04 GraphQL lifecycle API receives a bounded deprecated
-compatibility facade backed by generic jobs. `thoth-dissemination` migrates to
-the generic contract first; later API removal is a separate approved deprecation
-task.
+### Trust-separated worker pools
 
-Fresh production preflight must prove zero rows, disabled legacy creation,
-inactive legacy executor and no live legacy contract activity before storage
-DROP.
+The default trusted worker still uses one routine task role containing the union
+of approved routine trusted capabilities.
 
-### F-07 - worker AWS credential model
+Handlers that parse publisher-controlled/untrusted content are a distinct
+`UNTRUSTED_CONTENT` risk class and run in a separate task/service/process
+boundary with minimal authority and no Hosting DNS/ACM/CloudFront
+tenant-management permissions unless explicit CTO risk acceptance records the
+blast radius.
 
-The worker's AWS authority is exclusively its dedicated ECS task role.
+This is a real trust-boundary exception, not one IAM role per ordinary handler.
 
-Static AWS access keys are prohibited for the worker regardless of deployment
-mechanism. The infrastructure task must create a headless service with a
-dedicated task role rather than silently inheriting the existing shared-role,
-web/ALB-oriented service pattern.
+### Validation additions
 
-Non-AWS credential values remain deployment environment variables but must be
-injected from non-committed deployment configuration.
+The ADR now requires tests for:
 
-Existing service static-AWS-credential remediation is identified as separate
-security work and is not performed by this task.
-
-### F-08 - operability
-
-The ADR now requires queryable queue/worker signals, per-kind bounded
-attempts/concurrency/backoff, starvation protection, poison-job attention,
-protected audited operator controls, immutable retained attempt history and
-separately governed retention.
-
-Generic retry cannot move `RECONCILIATION_REQUIRED` back to an effectful
-attempt without domain proof of safety.
-
-### F-09 - durable documentation hygiene
-
-The ADR-0012 decision-register row is inside the Markdown decision table.
-
-This report no longer carries a transient `Status: ... awaiting review` line.
-
-## Architecture currently recorded
-
-The corrected proposal includes:
-
-- one PostgreSQL-backed cross-programme event/route/job engine;
-- transactional event creation where coupled to PostgreSQL business writes;
-- durable crash-safe route materialization;
-- typed/versioned event and job contracts;
-- absolute job idempotency plus separate route idempotency;
-- priority, delayed availability, bounded attempts and concurrency/fairness;
-- claim-token-fenced renewable leases;
-- durable effect checkpoints and reconciliation-required handling;
-- append-only sanitized attempt evidence;
-- one default headless `thoth-worker` Fargate runtime for Thoth-owned handlers;
-- domain-owned external executors such as `thoth-dissemination`;
-- one dedicated routine worker AWS task role, with no static AWS worker keys;
-- non-AWS credentials supplied as environment variables from non-committed
-  deployment configuration;
-- no automated legacy-CDN migration;
-- explicit ADR-0008 and ADR-0010 partial-supersession boundaries;
-- a BE-04 GraphQL compatibility window over generic storage;
-- ADR-level observability and protected operator-control requirements.
+- mixed worker versions;
+- out-of-order commits;
+- route completeness/backfill;
+- effect-scoped idempotency and coalescing;
+- WAITING claim release/resume;
+- pre-write versus post-write exhaustion;
+- concurrency-key retention;
+- claimed reconciliation races;
+- payload minimization;
+- untrusted-worker IAM isolation;
+- both downstream consumer migrations;
+- rolling deploy/rollback safety;
+- contraction abort on any legacy row.
 
 ## Migration/data effect
 
 No migration was created, modified or executed.
 
-The proposal records the CTO-provided environment fact that v1.7.0 has been
-applied to production and its `distribution_job*` tables have not been
-operationally used, while dev has not applied that migration.
-
-Historical `20260814_v1.7.0` remains immutable.
-
-Any future storage removal requires a separately authorized forward migration
-and fresh zero-use production preflight.
+Production's v1.7.0 legacy schema fact remains an architecture input. The ADR no
+longer proposes immediate replacement/drop: generic schema expansion precedes
+consumer migration/API retirement, and legacy storage contraction is a later
+separately authorized migration.
 
 ## Authorization/security effect
 
 No authorization implementation changed.
 
-ADR-0008's domain-specific machine-role, least-privilege and `SUPERUSER`
-separation rules remain in force.
-
-No IAM role, policy, credential, provider configuration or environment variable
+No IAM role/policy, credential, provider configuration or environment variable
 was created, rotated or changed.
+
+ADR-0008 domain-specific application authorization remains binding. Worker-pool
+IAM authority and ZITADEL/application authorization remain separate concepts.
 
 ## External/runtime effects
 
@@ -230,50 +217,41 @@ release/publication: 0
 production activation: 0
 ```
 
-Repository/GitHub mutations remain bounded to the task ledger, existing task
-branch and authorized documentation footprint.
+## Validation performed for this documentation task
 
-## Validation and evidence
+- exact authorized base was preserved;
+- all candidate commits remain on `feature/async/adr-0012`;
+- cumulative diff is verified against the authorized base after each correction
+  round;
+- ADR remains `PROPOSED`;
+- decision-register row remains inside the Markdown table;
+- no PR has been created;
+- no runtime test result is claimed by this documentation-only task.
 
-Initial branch preflight established:
-
-- `develop` exactly matched authorized base
-  `923545d5c9028bc04c40e38efeb7de674efed3fd`;
-- no conflicting `feature/async*` ref existed;
-- ADR-0012 did not already exist;
-- ADR-0011 was already allocated.
-
-The first independent review independently verified the original candidate's
-exact four-path footprint and exact head before returning `CHANGES REQUIRED`.
-
-The corrected final branch head is recorded in issue #958 after this report
-commit and is the SHA to which the next independent review must bind.
-
-No runtime tests are claimed by this documentation-only task.
+The final round-3 head is recorded in #958 after this report commit. Any further
+independent review is valid only against that exact SHA.
 
 ## Deviation history
 
-During initial issue creation, the GitHub connector omitted issue numbers from
-the normalized create response, causing #958 initially to contain
-`#undefined` as its parent reference. The returned issue URLs established
-#957/#958 and the ledger was corrected before branch/source mutation.
+During initial issue creation, the GitHub connector omitted the issue number in
+its normalized create response, briefly producing a `#undefined` parent
+reference in #958. The returned URLs established #957/#958 and the issue was
+corrected before branch/source mutation.
 
 No source-scope deviation remains.
 
 ## Remaining lifecycle gates
 
-The repository files themselves do not assert completion of these gates.
-
-The task still requires, in order:
-
-1. fresh independent CRITICAL exact-head review of the corrected final head;
-2. exact-content CTO architecture approval if that review returns APPROVED;
-3. approval-state decision-record reconciliation, including ADR-0008/ADR-0010
-   supersession metadata;
+1. fresh independent CRITICAL exact-head review of the round-3 candidate;
+2. exact-content CTO architecture approval only if that review returns
+   `APPROVED`;
+3. separate approval-state decision-record reconciliation, including ADR-0008
+   and ADR-0010 metadata, under its own authorized write budget;
 4. PR creation only under separate authorization;
-5. required CI and independent exact-head source/document review;
-6. explicit CTO merge authorization for the CRITICAL task;
-7. merge into `develop`;
-8. separately specified and authorized implementation/migration/deployment tasks.
+5. required CI/document checks and independent exact-head review;
+6. explicit CTO merge authorization;
+7. merge to `develop`;
+8. separately specified and authorized implementation, migration, downstream
+   consumer, infrastructure, deployment and activation tasks.
 
 This report authorizes none of those later actions.
