@@ -1801,7 +1801,7 @@ shared-engine tests.
 
 This ADR is **APPROVED**.
 
-Approved by: Javi, CTO  
+Approved by: Javi, CTO
 Approval date: 2026-09-30
 
 The approval adopts the architecture decision and invariants recorded in this
