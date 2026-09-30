@@ -266,7 +266,24 @@ only events at or after the deactivation boundary. Events already eligible
 before that boundary remain owed after retirement. If an eligible route can no
 longer be materialized safely, each affected event requires an explicit,
 authorized, audited terminal route disposition describing why it was not
-materialized and what reconciliation/backfill, if any, covers it.
+materialized and what reconciliation/backfill, if any, covers it. Each such
+disposition remains one durable `(event_id, route_key)` record even when an
+operator authorizes a bulk action, and records the actor/authority and reason.
+
+A terminal disposition with no covering reconciliation/backfill is not normal
+successful routing. It records an explicit accepted divergence for the affected
+domain/effect target and raises durable operator attention; an operator cannot
+make required work disappear merely by supplying a reason.
+
+The engine exposes route-level backlog independently of job-level queue metrics.
+For every route key it must make queryable at least the count of eligible events
+without a disposition, the age of the oldest such event, and whether a compatible
+materializer for the route kind/version is deployed and eligible to perform the
+materialization. A route may not activate until deployment evidence establishes
+both the event-emission floor below and at least one compatible materializer in
+the intended environment. If compatible materialization later becomes
+unavailable, outstanding obligations remain owed and the unavailable-materializer
+and route-backlog signals raise attention.
 
 A crash after some consumers are materialized therefore resumes from durable
 route records. A worker must never mark an event fully routed merely because it
@@ -296,6 +313,14 @@ the route is deactivated before the older binary can perform relevant writes, or
 the rollback is accompanied by an explicitly authorized current-state
 reconciliation/backfill that covers the precise emission gap. Silent loss of
 business changes is not an acceptable rollback behaviour.
+
+The binary emission floor does not exempt canonical writes performed outside
+those binaries. An authorized data migration, administrative repair or exceptional
+operator write that changes state consumed by an active route must either emit the
+same required event transactionally through an approved database/application
+mechanism or be followed by an explicitly authorized current-state
+reconciliation/backfill covering the exact affected write set. Direct production
+SQL is not an event-emission mechanism by implication.
 
 The implementation may optimize discovery/scanning, but routing completeness
 must be proven from durable event/route/disposition records. Any cursor or
@@ -353,10 +378,31 @@ applied. If so, the older job must not overwrite/regress that newer state: it
 records a deterministic superseded/no-effect disposition unless it is an
 explicitly authorized historical replay/rollback operation.
 
-Each REVISION_BOUND kind therefore defines the revision ordering/evidence by
-which "newer already applied" is established. Merely serializing execution by a
+Every effectful job kind also declares how it resolves one or more **canonical
+external effect target identities** owned by the relevant domain. The identity is
+defined at the granularity at which two mutations can conflict, is independent of
+job kind, and is the common ordering boundary for every kind that can mutate that
+same target.
+
+All job kinds that can mutate one canonical effect target use the same
+target-scoped concurrency namespace and consult the same durable target-scoped
+applied-revision/fingerprint evidence in Thoth. Kind-local history is not
+sufficient evidence that a newer effect has or has not been applied. Where the
+provider exposes no revision identifier, the owning domain still records durable
+local applied-revision/fingerprint and provider-correlation/reconciliation
+evidence sufficient to prevent an older effect from regressing a newer one; an
+ambiguous provider state requires reconciliation rather than an ordering guess.
+
+Each REVISION_BOUND kind defines its source revision ordering and how that revision
+maps to the canonical effect target, but "newer already applied" is established
+from the shared target-scoped evidence. Merely serializing execution by a
 concurrency key is not sufficient because an older retry may run after a newer
 job has completed.
+
+A batch or multi-target job normally decomposes effectful work to target-scoped
+jobs/effects. If a reviewed kind keeps one job across several effect targets, it
+must acquire all required target serialization in a deterministic order and
+record/check applied-revision evidence independently for each target.
 
 Historical replay is permitted only when the referenced historical revision is
 actually retained and the replay/rollback is explicitly authorized. A stale
@@ -504,8 +550,9 @@ An idempotency conflict never silently means "route satisfied". It either:
 2. produces a deterministic routing/materialization error surfaced for
    attention/recovery.
 
-Handlers additionally define a concurrency key where overlapping effects must
-serialize, for example:
+The owning domain defines the canonical effect-target identity and its
+target-scoped concurrency namespace. Handlers resolve their intended effects to
+that identity, for example:
 
 ```text
 work:<uuid>:algolia
@@ -513,9 +560,11 @@ hosting:<target-id>
 crossref:<doi>
 ```
 
-Jobs with unrelated concurrency keys may execute in parallel. Jobs that would
-mutate the same protected external/domain resource serialize where the owning
-specification requires it.
+Jobs with unrelated target identities may execute in parallel. Every job across
+every job kind that can mutate the same canonical effect target must serialize on
+the same target-scoped key; a kind-specific key prefix must not partition two
+writers that can conflict. Multi-target jobs either decompose by target or acquire
+their complete target-key set in a deterministic order as defined above.
 
 The shared scheduler supports per-kind concurrency limits. Provider-specific
 rate limits remain owned by handlers, but a single failing or rate-limited job
@@ -630,11 +679,20 @@ separate task/service or equivalent process-isolated worker pool with a minimal
 dedicated task role. This is a trust-separated executor pool, not a second queue
 architecture.
 
+An untrusted job executes in an isolation context that is not reused across jobs
+belonging to different publishers. Disposable single-job execution is the default
+model; an alternative may be approved only when its own review proves equivalent
+cross-tenant process/state isolation. No writable local process/filesystem state
+from one publisher's job may be carried into another publisher's execution.
+
 The untrusted-content pool:
 
 - may read only the input objects required by its authorized jobs;
-- writes transformed/generated output only to an isolated quarantine/staging
-  location, never directly to publisher-served or Hosting production paths;
+- writes transformed/generated output only to a job-scoped isolated
+  quarantine/staging location whose authority is issued/resolved by the trusted
+  side; it cannot read or overwrite another publisher/job's staging output unless
+  an explicit owning-domain relation requires and authorizes that access;
+- never writes directly to publisher-served or Hosting production paths;
 - cannot choose or write the final publisher domain, served bucket, served key
   or Hosting target;
 - cannot create arbitrary downstream events/jobs; it may report only the
@@ -642,8 +700,12 @@ The untrusted-content pool:
 - receives no broad canonical-domain mutation authority.
 
 Untrusted completion payloads/results are themselves **untrusted data**.
-A trusted promotion/deployment job validates the staged artifact, verifies its
-hash/size/type/evidence, and resolves publisher identity, destination domain,
+A trusted promotion/deployment job resolves the expected staging object/location
+from canonical job/domain state or a capability previously issued by the trusted
+side, reads the staged artifact through trusted authority, and independently
+validates its hash/size/type/evidence before promotion. An untrusted-reported
+object path, hash, size or media type is a claim to verify, not trusted integrity
+evidence. The trusted job also resolves publisher identity, destination domain,
 bucket, key and Hosting/CDN target from canonical Thoth state. Trusted handlers
 must never take authority-bearing destination values from an untrusted result.
 
@@ -658,6 +720,16 @@ Table-level grants on shared async tables are not sufficient kind isolation.
 Direct database access therefore requires row/kind enforcement such as RLS,
 security-definer functions/procedures or an equivalently reviewed database
 boundary.
+
+Network reachability is part of the untrusted security boundary, not an
+assumption inherited from placement in a private subnet. The untrusted pool uses
+a dedicated security-group/network-policy boundary with deny-by-default access to
+private services. It may reach only the selected executor control path (or the
+separately reviewed scoped database endpoint when direct DB access is selected),
+the job-scoped object-storage path and explicitly approved external dependencies.
+It must have no network path to shared Redis, EFS, unrelated RDS/database
+endpoints or other internal services merely because those services accept traffic
+from the application's private CIDRs.
 
 Its AWS/provider role likewise excludes Hosting DNS, ACM and CloudFront
 tenant-management authority and direct write access to publisher-served
@@ -692,10 +764,14 @@ declares:
 - required runtime capability/configuration;
 - trust/risk class, including whether it handles untrusted content;
 - revision semantics: `CURRENT_STATE` or `REVISION_BOUND`;
+- canonical external effect-target resolution and the shared target-scoped
+  concurrency/applied-revision evidence namespace for effectful kinds;
 - effect classification and expected effect window;
 - timeout/lease/waiting-deadline requirements;
 - retry/reconciliation policy;
 - idempotency/coalescing/concurrency rules;
+- kind-retirement compatibility for outstanding jobs, including WAITING and
+  RECONCILIATION_REQUIRED work;
 - for high-volume families, retention/coalescing/admission/backpressure rules
   required before activation.
 
@@ -703,6 +779,14 @@ A worker only claims job kinds whose required capabilities, revision mode and
 risk class are configured for that pool. Capability declarations are
 runtime/configuration boundaries and scheduling primitives; they do not imply
 one IAM role per ordinary handler.
+
+A job kind/version cannot be removed from every compatible executor while
+non-terminal durable jobs of that kind/version remain. Retirement first stops new
+admission, then drains, migrates, reconciles or explicitly dispositions existing
+PENDING/RUNNING/WAITING/RETRY_SCHEDULED/RECONCILIATION_REQUIRED work under its
+approved domain rules. A compatible executor remains available until that
+obligation is closed; retirement must not orphan a retained concurrency key or
+make a durable job uninterpretable.
 
 External/domain executors use the same kind scoping: their authorization permits
 only the job kinds assigned to that domain executor. A dissemination executor
@@ -860,6 +944,14 @@ job kind:
 - terminal failure count/rate;
 - execution latency/attempt distribution;
 - worker liveness and last successful claim/heartbeat activity.
+
+It also exposes route-materialization health at least by route key:
+
+- count of eligible events with no durable route disposition;
+- age of the oldest eligible event with no route disposition;
+- active routes with no compatible deployed/eligible materializer;
+- terminal route dispositions that represent accepted divergence rather than
+  covered reconciliation/backfill.
 
 Each job kind defines bounded attempts, backoff and concurrency limits. Backoff
 must prevent tight retry loops; exact algorithms and jitter are implementation
@@ -1185,7 +1277,10 @@ execution until a separate approved architecture decision says otherwise.
    to one job only under an explicit not-yet-started coalescing rule.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A REVISION_BOUND effect must not regress a newer already-applied revision
-   except through explicit historical replay/rollback authorization.
+   except through explicit historical replay/rollback authorization. All job
+   kinds capable of mutating the same canonical external effect target share the
+   domain-owned target identity, concurrency namespace and durable
+   applied-revision/fingerprint evidence.
 10. No stale/superseded claim can finalize, checkpoint, cancel, renew or
     reconcile a job.
 11. WAITING atomically checkpoints and releases claim/lease; resume is a new
@@ -1219,8 +1314,10 @@ execution until a separate approved architecture decision says otherwise.
 24. Trusted-worker AWS authority comes exclusively from its dedicated ECS task
     role.
 25. UNTRUSTED_CONTENT jobs use the same canonical engine but a separate
-    minimal-authority execution boundary; they write only quarantine/staging
-    output and cannot choose or write served/Hosting destinations.
+    minimal-authority, cross-tenant-isolated execution and network boundary;
+    they write only their job-scoped quarantine/staging output, cannot carry
+    writable execution state across publishers, cannot reach unrelated private
+    services, and cannot choose or write served/Hosting destinations.
 26. Trusted promotion resolves authority-bearing destinations from canonical
     state and treats untrusted results as untrusted data.
 27. No worker receives static AWS access keys.
@@ -1249,9 +1346,13 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
    - effect-scoped idempotency and explicit coalescing;
-   - revision-semantics contract;
+   - revision semantics plus domain-owned canonical effect-target identity and
+     target-scoped ordering/evidence contract;
    - new kind-scoped executor API;
    - generic operational/read contract required by downstream consumers;
+   - upstream-owned Publisher Services generic creation/cancellation/
+     activation-guard contract in `thoth`, preserving atomic fail-closed desired
+     state before any BE-04 retirement;
    - legacy BE-04 schema/API left intact and inactive;
    - real PostgreSQL concurrency/mixed-version/out-of-order-commit tests.
 
@@ -1270,12 +1371,17 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
    - environment/network configuration.
 
 4. **Infrastructure/runtime - untrusted-content pool**
-   - separate process/task/service boundary for publisher-controlled parsers;
+   - separate process/task/service boundary for publisher-controlled parsers and
+     cross-publisher execution/state isolation;
    - minimal task role with no Hosting DNS/ACM/CloudFront tenant authority;
-   - quarantine/staging-only output permissions;
+   - per-job quarantine/staging-only output permissions;
    - protected executor API or row/kind-enforced minimal database principal;
+   - deny-by-default network boundary excluding Redis, EFS and unrelated private
+     database/internal-service reachability;
    - explicit job-kind/risk-class filtering;
-   - trusted promotion path from staged artifact to served content;
+   - trusted promotion path that independently resolves/verifies staged artifacts
+     before served-content publication;
+   - dedicated negative IAM, staging-scope, cross-job and network tests;
    - deployment only when an approved untrusted-content handler is ready.
 
 5. **`thoth-dissemination` consumer migration**
@@ -1361,7 +1467,15 @@ deployed on the generic contract.
 A later Thoth release removes the legacy BE-04
 lifecycle/read/filter/toggle contract **and every other runtime dependency on
 `distribution_job*`**, including Publisher Services creation/cancellation and
-activation-guard paths.
+activation-guard paths. The zero-runtime-access inventory explicitly includes
+`thoth-api/src/model/publisher_service_configuration/migration_backfill.rs`
+preflight/runtime reads and every command/startup toggle or administrative path
+that can still query those tables.
+
+Released queue-specific GraphQL error semantics are part of the compatibility
+surface too. They require an explicit generic mapping/deprecation/removal
+decision, including `DISTRIBUTION_JOB_CREATION_DISABLED`; deleting the legacy
+tables or toggle must not silently change a released error contract.
 
 Publisher-service activation either atomically creates its required generic
 event/job intent under the separately activated generic rule or remains
@@ -1385,6 +1499,14 @@ Because the current production GraphQL image runs the default `thoth init`
 path, which performs migrations before serving, this separation is mandatory:
 the first task in a rolling deploy must never drop relations still needed by old
 tasks or by automatic rollback.
+
+The contraction migration is a one-way operational boundary, not an automatic
+return to BE-04 execution. Its separately reviewed revert strategy must fail
+closed or explicitly document any schema-only recreation as insufficient to
+restore legacy lifecycle state. Recreating empty legacy tables must never be
+presented as a safe application rollback. Restoring operational BE-04 storage or
+data after contraction requires a separately authorized forward-repair/data
+recovery migration and compatible binary.
 
 The development environment's currently unapplied v1.7.0 state is handled by
 ordered migrations: v1.7.0 applies first, followed by additive generic schema,
@@ -1458,7 +1580,9 @@ pre-deactivation eligible route obligations remain durable; deactivation does
 not delete them.
 
 Legacy BE-04 storage contraction cannot occur until every supported rollback
-binary has zero runtime legacy-table access.
+binary has zero runtime legacy-table access. After that contraction, an older
+binary requiring the deleted relations is no longer a supported rollback target;
+schema-only recreation of empty legacy tables does not make it one.
 
 After generic async data exists, rolling the runtime back does not authorize
 dropping/rewriting that data. A rollback plan must either run a binary that
@@ -1478,12 +1602,19 @@ Before shared implementation can be approved, evidence must include:
   routing generation/epoch mechanism;
 - proof that pre-deactivation eligible events remain owed after route retirement;
 - explicit authorized terminal route-disposition tests when an eligible route
-  can no longer be materialized;
+  can no longer be materialized, including per-event actor/authority/reason;
+- accepted-divergence attention when a terminal disposition has no covering
+  reconciliation/backfill;
+- queryable per-route undisposed-event count/oldest-age and unavailable
+  compatible-materializer signals;
+- activation refusal until at least one compatible materializer is deployed;
 - event-emission-floor tests proving a route cannot activate while any serving
   or supported rollback binary can perform the mutation without emitting its
   event kind/version;
 - rollback-below-emission-floor tests requiring prior deactivation or explicit
   current-state reconciliation/backfill;
+- migration/administrative-write tests proving non-emitting canonical writes are
+  paired with transactional emission or exact-scope reconciliation/backfill;
 - mixed worker-version routing where an older worker cannot silently complete an
   unknown eligible route;
 - out-of-order transaction commit tests proving no event can be skipped by a
@@ -1496,6 +1627,12 @@ Before shared implementation can be approved, evidence must include:
   when already applied;
 - REVISION_BOUND tests proving an older retried revision cannot overwrite a newer
   already-applied revision without explicit historical replay authorization;
+- cross-kind tests proving every writer of one canonical external effect target
+  shares the same target-scoped serialization and applied-revision evidence;
+- provider-without-revision-id tests proving local target evidence prevents stale
+  regression or forces reconciliation when state is ambiguous;
+- multi-target tests proving decomposition or deterministic complete target-lock
+  acquisition plus per-target revision evidence;
 - allowed many-route-to-one-job coalescing tests and deterministic conflict
   attention when coalescing is not permitted;
 - current-token lease renewal and refusal to renew superseded/expired claims;
@@ -1528,6 +1665,8 @@ Before shared implementation can be approved, evidence must include:
   embedded snapshots;
 - graceful shutdown and abrupt restart recovery for every worker pool;
 - worker capability/kind/risk-class/revision-mode filtering;
+- job-kind/version retirement tests proving non-terminal WAITING/retry/
+  reconciliation work remains interpretable and retains a compatible executor;
 - authorization negative tests proving domain executors cannot mutate another
   domain's jobs;
 - protected/audited operator cancel/retry/reconcile tests;
@@ -1538,10 +1677,16 @@ Before shared implementation can be approved, evidence must include:
 - proof that trusted/untrusted worker tasks receive no static AWS access keys;
 - proof that untrusted-content worker roles exclude Hosting DNS/ACM/CloudFront
   tenant authority and served-content write paths;
-- quarantine/staging tests proving untrusted output cannot directly become
+- cross-publisher execution-isolation tests proving writable process/filesystem
+  state from one untrusted job cannot affect another publisher's job;
+- job-scoped quarantine/staging tests proving an untrusted job cannot read or
+  overwrite another publisher/job's staging output and cannot directly create
   publisher-served content;
-- trusted-promotion tests proving publisher/domain/bucket/key/target are resolved
-  from canonical state rather than untrusted result fields;
+- network-denial tests proving the untrusted pool cannot reach Redis, EFS,
+  unrelated RDS/database endpoints or other unapproved private services;
+- trusted-promotion tests proving staging identity and integrity are independently
+  resolved/verified by the trusted side and publisher/domain/bucket/key/target are
+  resolved from canonical state rather than untrusted result fields;
 - negative tests proving an untrusted worker cannot create arbitrary follow-on
   jobs/events;
 - if direct DB access is used by an untrusted pool, proof of row/kind enforcement
@@ -1552,7 +1697,9 @@ Before shared implementation can be approved, evidence must include:
 - generated SDL/client contract checks;
 - Phase-C repository-wide source/runtime tests proving zero
   `distribution_job*` runtime access, including service-configuration
-  activation/disable paths;
+  activation/disable paths and the migration-backfill preflight/runtime path;
+- released queue-specific GraphQL error-contract compatibility tests, including
+  `DISTRIBUTION_JOB_CREATION_DISABLED` disposition;
 - proof AUTOMATIC_PUSH remains fail closed unless generic job/event creation is
   atomically available;
 - rolling deployment/rollback tests proving old tasks remain valid during Phase
@@ -1561,6 +1708,9 @@ Before shared implementation can be approved, evidence must include:
 - contraction lock + zero-row assertion in the same fail-closed migration
   transaction;
 - contraction abort when any legacy row exists;
+- contraction-revert tests proving schema-only recreation cannot be mistaken for
+  operational BE-04 rollback and any data/state restoration is separately
+  authorized forward repair;
 - full empty-database migration-chain tests;
 - per-kind retention/coalescing/admission tests before high-volume family
   activation;

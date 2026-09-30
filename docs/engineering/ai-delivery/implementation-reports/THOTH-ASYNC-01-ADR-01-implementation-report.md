@@ -1,8 +1,9 @@
 # THOTH-ASYNC-01-ADR-01 implementation report
 
 This report records the bounded ADR-0012 architecture-authoring task and its
-independent-review correction rounds. Fast-changing review/approval state remains
-in GitHub issues #957/#958 rather than being duplicated as repository status.
+independent-review correction rounds. GitHub issues #957/#958 remain the live
+authority for lifecycle state; this committed report records durable authoring
+and correction evidence without asserting the current live gate.
 
 ## Identity
 
@@ -312,6 +313,72 @@ Round 4 also records that:
   policy before activation;
 - graceful-shutdown rules apply to every worker pool.
 
+## Independent review round 4
+
+The independent CRITICAL review of
+`ced4cb19224d7acc1824863a85d83b2387617449` returned `CHANGES REQUIRED`.
+
+Three MEDIUM blockers were accepted:
+
+- R4-01 - durable route obligations lacked route-level backlog/materializer
+  visibility and could be terminally dispositioned without explicit divergence
+  attention;
+- R4-02 - UNTRUSTED_CONTENT IAM/database separation did not prevent cross-tenant
+  persistence or network access to shared private services;
+- R4-03 - stale-write protection and concurrency were still kind-scoped rather
+  than shared by every job kind mutating the same external effect target.
+
+The accepted non-blocking clarifications also covered the BE-04 migration-backfill
+runtime path, queue-specific error-contract retirement, canonical writes outside
+normal event-emitting binaries, safe job-kind retirement, explicit upstream
+Publisher Services generic creation ownership and contraction-revert semantics.
+
+## Round-5 corrections
+
+### Route obligations and materializer health
+
+The ADR now requires per-route count/oldest-age signals for eligible events with
+no disposition, explicit visibility when no compatible materializer is deployed,
+and route activation only after both the event-emission floor and a compatible
+materializer exist. A terminal route disposition without covering
+reconciliation/backfill is an accepted divergence requiring durable attention;
+bulk actions still create one audited disposition per event/route.
+
+### Canonical external effect targets
+
+Effectful kinds now resolve domain-owned canonical external effect-target
+identities independent of job kind. Every writer of one target shares the same
+target-scoped concurrency namespace and durable applied-revision/fingerprint
+evidence. Batch jobs decompose by target by default; retained multi-target jobs
+must acquire complete target serialization deterministically and maintain
+per-target evidence.
+
+### Stronger untrusted-content isolation
+
+UNTRUSTED_CONTENT execution now requires cross-publisher process/state isolation,
+job-scoped staging authority, independently verified trusted promotion and a
+deny-by-default network boundary. The pool cannot inherit private-subnet access to
+Redis, EFS, unrelated RDS/database endpoints or other internal services merely
+because IAM/database credentials are restricted.
+
+### Retirement and rollback clarifications
+
+The ADR now names the current migration-backfill runtime path and released
+`DISTRIBUTION_JOB_CREATION_DISABLED` compatibility surface in Phase C, requires
+non-emitting migration/repair writes to emit transactionally or receive exact-scope
+reconciliation/backfill, prevents job-kind retirement from orphaning non-terminal
+work, assigns the Publisher Services generic creation/cancellation/activation
+contract upstream to `thoth`, and makes Phase-D contraction a forward-repair
+boundary rather than an automatic restoration of BE-04.
+
+### Validation additions
+
+Round 5 adds explicit validation for route backlog/materializer health, accepted
+divergence, cross-kind target serialization/evidence, provider-without-revision
+ordering, cross-publisher untrusted isolation, per-job staging, private-network
+denial, trusted staging provenance, job-kind retirement, non-binary domain writes,
+migration-backfill/error-contract retirement and contraction-revert behaviour.
+
 ## Migration/data effect
 
 No migration was created, modified or executed.
@@ -354,8 +421,9 @@ production activation: 0
 - no PR has been created;
 - no runtime test result is claimed by this documentation-only task.
 
-The final round-4 head is recorded in #958 after this report commit. Any further
-independent review is valid only against that exact SHA.
+Independent review is valid only against the exact candidate head it names.
+Live candidate/gate evidence belongs in GitHub #957/#958 rather than in a
+self-invalidating committed status line.
 
 ## Deviation history
 
@@ -368,7 +436,7 @@ No source-scope deviation remains.
 
 ## Remaining lifecycle gates
 
-1. fresh independent CRITICAL exact-head review of the round-4 candidate;
+1. fresh independent CRITICAL exact-head review of the corrected candidate;
 2. exact-content CTO architecture approval only if that review returns
    `APPROVED`;
 3. separate approval-state decision-record reconciliation, including ADR-0008
