@@ -73,11 +73,18 @@ Seven blockers were accepted:
 
 ## Round-3 corrections
 
+The final tightening also explicitly qualifies ADR-0010 section 4.4's statement
+that ADR-0008 remains fully binding: `ServiceOperation` remains non-queue audit
+infrastructure, while ADR-0012 supplies the later explicit shared-framework
+exception ADR-0008 anticipated.
+
 ### Job lifecycle
 
 The ADR now requires:
 
 - WAITING to atomically persist checkpoint state and release claim/lease;
+- WAITING/poll attempts not to consume the pre-write retry budget, instead being
+  bounded by the waiting deadline/poll policy;
 - resume from WAITING as a new claim/attempt;
 - separate bounded pre-write retry budget and post-write waiting/deadline;
 - post-write deadline exhaustion to become `RECONCILIATION_REQUIRED`, not
@@ -105,6 +112,9 @@ rule. Idempotency conflicts never silently mark a route complete.
 ### Routing completeness
 
 Route registrations and activation boundaries are durable PostgreSQL state.
+Activation uses a durable routing generation/epoch or equivalently strong
+serialized database mechanism captured transactionally by events/routes, so
+out-of-order commits cannot create an ambiguous boundary.
 
 Routing completeness is determined per eligible route, not from worker-local
 handler knowledge or an unproved sequence high-water mark. Mixed worker
@@ -164,7 +174,9 @@ Handlers that parse publisher-controlled/untrusted content are a distinct
 `UNTRUSTED_CONTENT` risk class and run in a separate task/service/process
 boundary with minimal authority and no Hosting DNS/ACM/CloudFront
 tenant-management permissions unless explicit CTO risk acceptance records the
-blast radius.
+blast radius. That pool also does not inherit the primary application database
+credential: it must use the kind-scoped executor API or a separately reviewed
+minimal database principal.
 
 This is a real trust-boundary exception, not one IAM role per ordinary handler.
 
