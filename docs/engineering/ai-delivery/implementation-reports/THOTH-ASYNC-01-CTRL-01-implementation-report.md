@@ -13,14 +13,28 @@ Actual base commit: `923545d5c9028bc04c40e38efeb7de674efed3fd`
 PR target: `develop`
 Programme integration branch: not created by this task
 Task branch: `feature/engineering-control/adr-0013-programme-integration-authority`
-Head commit: the exact report-containing candidate SHA is GitHub lifecycle
-evidence recorded on #961 at implementation handoff; this report deliberately
-does not attempt to embed its own containing Git commit SHA.
-Pull request: NOT CREATED - explicitly outside the authorized action set
+Head commit: live exact-head evidence is GitHub-owned and is intentionally not
+embedded in this committed report.
+Pull request: live PR identity, review, authorization, CI and merge state is
+GitHub-owned and is intentionally not duplicated here.
 Expected branch deletion after merge: YES
 Final programme PR required: NO for this control task; adopting programmes retain
 their own final integration PR
 Implementing model: ChatGPT / GPT-5.6 Sol
+
+Durable decision state produced by this task:
+
+```text
+ADR-0013 status: APPROVED
+Approved by: Javi, CTO
+Approval date: 2026-09-30
+```
+
+`APPROVED` does not by itself make ADR-0013 repository-authoritative.
+Repository authority remains governed by ADR-0013's authority condition,
+including independent exact-head review of the approval-state content and
+reachability from `develop`. Live satisfaction of that condition is GitHub-owned
+lifecycle evidence rather than committed status prose.
 
 ## 2. Scope confirmation
 
@@ -28,24 +42,28 @@ Approved specification: #961, authorized by the CTO on 2026-09-30.
 
 Implemented objective:
 
-- propose ADR-0013 establishing a tightly fenced programme-integration reliance
+- author ADR-0013 establishing a tightly fenced programme-integration reliance
   mechanism;
 - preserve repository authority on `develop`;
 - update shared branching and operating doctrine conditionally on ADR-0013
   becoming repository-authoritative;
 - update the decision register and changelog;
+- reconcile the ADR's durable CTO-owned decision state to `APPROVED`;
 - do not modify ADR-0012.
 
 Out-of-scope changes made: NONE.
 
-## 3. Candidate commit
+## 3. Candidate history
 
-The candidate is intentionally produced as one bounded six-path commit from the
-authorized base.
+The initial authoring candidate was produced within the bounded six-path task
+footprint from the authorized base. Subsequent durable decision-state
+reconciliation and implementation-report remediation remain within that same
+cumulative six-path footprint.
 
-The exact candidate SHA is recorded in the #961 implementation-completion /
-review-handoff comment because a Git commit cannot contain its own SHA without a
-self-referential commit cycle.
+Exact commit SHAs, live PR state, independent-review decisions, merge
+authorization and merge evidence are GitHub lifecycle records. They are not
+copied into this report so that the committed report remains truthful before
+and after review or merge.
 
 ## 4. Files changed
 
@@ -64,30 +82,33 @@ Authorized new-file paths:
 Actual material changes:
 
 - `docs/engineering/decisions/ADR-0013-programme-integration-decision-reliance.md`
-  - reason: records the proposed shared control decision;
-  - effect: governance only, unavailable until separately approved/reviewed and
-    repository-authoritative;
+  - reason: records the shared control decision and its durable CTO-owned
+    approval state;
+  - effect: governance only; programme-integration reliance remains subject to
+    ADR-0013's repository-authority and explicit programme-opt-in conditions;
   - within authorized write budget: YES.
 - `docs/engineering/decisions/decision-register.md`
-  - reason: registers ADR-0013 as PROPOSED and records the conditional exception;
-  - effect: default develop-based reliance rule remains active while ADR-0013 is
-    proposed;
+  - reason: registers ADR-0013 and the controlled programme-integration reliance
+    exception;
+  - effect: the default `develop`-based reliance rule remains in force unless
+    ADR-0013's eligibility conditions are fully satisfied;
   - within authorized write budget: YES.
 - `docs/engineering/ai-delivery/branching-and-release-workflow.md`
   - reason: defines branch-side containment of programme-integration reliance;
-  - effect: conditional doctrine only; no branch created;
+  - effect: conditional doctrine only; no programme branch is created by this
+    task;
   - within authorized write budget: YES.
 - `docs/engineering/ai-delivery/operating-model.md`
-  - reason: defines Gate 1 evidence required for tasks relying on non-repository-
-    authoritative decisions under ADR-0013;
+  - reason: defines Gate 1 evidence required for tasks relying on a
+    non-repository-authoritative decision under ADR-0013;
   - effect: fail-closed control only;
   - within authorized write budget: YES.
 - `CHANGELOG.md`
-  - reason: records the proposed control decision under Unreleased;
+  - reason: records the approved shared control decision under Unreleased;
   - effect: documentation only;
   - within authorized write budget: YES.
 - this implementation report
-  - reason: review handoff and write/action evidence;
+  - reason: durable implementation, scope and effects evidence;
   - effect: documentation only;
   - within authorized write budget: YES.
 
@@ -95,9 +116,13 @@ Files deleted, moved or renamed: NONE.
 
 ### 4.1 Write-budget compliance
 
-PASS - candidate contains exactly six authorized paths.
+PASS - the cumulative task candidate remains limited to the six authorized
+paths.
 
 ### 4.2 Authorized actions actually used
+
+This section records durable action categories used by the task. Exact timing,
+PR state and authorization identifiers are GitHub-owned lifecycle evidence.
 
 - repository inspection: YES
 - source edit: YES
@@ -106,15 +131,15 @@ PASS - candidate contains exactly six authorized paths.
 - branch creation: YES
 - commit: YES
 - push: YES
-- PR creation/update: NO
-- issue/comment mutation: YES - #961 creation, one #957 programme comment and
-  the authorized #961 completion/review handoff
+- PR creation/update: YES - PR lifecycle only; no source authority is inferred
+  from PR state
+- issue/comment mutation: YES - task/programme ledger evidence
 - manual CI dispatch/rerun: NO
 - provider/runtime read: NO
 - provider/runtime write: NO
 - migration execution: NO
 - release/tag/publication: NO
-- merge: NO
+- merge: live GitHub lifecycle evidence; not duplicated here
 - deployment: NO
 - production activation: NO
 
@@ -122,13 +147,16 @@ Unauthorized actions performed: NONE.
 
 ### 4.3 Automatic and manual external effects
 
-Automatic CI/provider effects observed: no PR was opened, so no PR-triggered CI
-was intentionally started by this task.
+Normal PR-triggered CI is an expected GitHub lifecycle side effect. Exact
+workflow runs and results are GitHub-owned evidence and are not duplicated here.
+
+The task authorizes no migration execution, container publication,
+provider/IAM/runtime mutation, deployment, release or production activation.
 
 Manually initiated external actions: NONE.
 
-External writes/publication: NONE beyond the authorized Git branch push and
-GitHub issue/comment ledger mutations.
+External writes/publication beyond the authorized Git/GitHub control-plane
+actions: NONE.
 
 ## 5. Implementation decisions
 
@@ -139,8 +167,10 @@ GitHub issue/comment ledger mutations.
    condition.
 3. Programme-integration reliance is explicitly narrower, opt-in,
    exact-version-bound and non-retroactive.
-4. The exception is unavailable while ADR-0013 is PROPOSED.
-5. An ADR being APPROVED or merely present on a programme branch is
+4. Programme-integration reliance is unavailable until ADR-0013 itself is
+   `APPROVED`, independently reviewed and repository-authoritative, and the
+   programme has separately opted in.
+5. An ADR being `APPROVED` or merely present on a programme branch is
    insufficient; the exact approved/reviewed version must be merged into the
    designated integration branch and the programme must explicitly opt in.
 6. Existing programmes remain on their current authority model unless they
@@ -160,10 +190,10 @@ Known consumers:
 
 - `thoth-pub/thoth`: first intended future adopter through THOTH-ASYNC-01;
 - `thoth-pub/thoth-dissemination`, `thoth-pub/thoth-app`,
-  `thoth-pub/infrastructure`: no change required by this task; future
-  programme dependencies require repository-local tasks and pinned dependency
-  evidence;
-- other repositories adopting shared engineering controls: remain compatible
+  `thoth-pub/infrastructure`: no source or runtime change is required by this
+  task; any future programme dependency requires a repository-local task and
+  pinned dependency evidence;
+- other repositories adopting shared engineering controls remain compatible
   because the mechanism is explicit opt-in and non-retroactive.
 
 No runtime, database, GraphQL/API, generated-client, event-payload,
@@ -177,8 +207,9 @@ Data effect: NONE.
 
 Application authorization effect: NONE.
 
-GitHub/provider/IAM/runtime effect: branch creation and commit/push only; no
-settings, ruleset, CI, provider or IAM mutation.
+GitHub/provider/IAM/runtime effect: task branch, Git commit/push, GitHub
+issue/comment ledger and PR lifecycle only; no repository settings, ruleset,
+manual CI, provider or IAM mutation.
 
 Deployment/release effect: NONE.
 
@@ -186,58 +217,71 @@ Production activation effect: NONE.
 
 ## 8. Validation
 
-Required documentation validation:
+Durable documentation validation for this task requires:
 
-- candidate path set equals the six authorized paths;
-- no ADR-0012 path changed;
+- cumulative candidate path set equals the six authorized paths;
+- no ADR-0012 path changes;
 - no trailing whitespace or conflict markers;
 - every candidate text file ends with a newline;
-- ADR-0013 status is PROPOSED;
-- decision register states the exception is unavailable while ADR-0013 is
-  PROPOSED;
-- branching and operating doctrine both preserve repository authority;
-- changelog entry is under `## [Unreleased]` / `### Added`;
-- `git diff --check` against the authorized base must pass after push.
+- ADR-0013 records durable `APPROVED` decision state with approver and approval
+  date;
+- the decision register preserves the default `develop` authority boundary and
+  conditions the exception on ADR-0013 being approved, independently reviewed
+  and repository-authoritative;
+- branching and operating doctrine preserve repository authority and explicit
+  programme opt-in;
+- the changelog records the approved control decision under
+  `## [Unreleased]` / `### Added`;
+- `git diff --check` passes for source changes.
 
-Exact validation commands/results are recorded in the #961 completion/review
-handoff together with the final candidate SHA.
+Exact command results, live review state and exact-head evidence belong in the
+GitHub task/PR record.
 
 ## 9. Rollout
 
-No control becomes active merely because the candidate exists.
+The durable control sequence is:
 
-Required next gates:
+1. ADR-0013 carries CTO-owned `APPROVED` decision state.
+2. The exact approval-state content receives independent exact-head review.
+3. The exact approved/reviewed content becomes reachable from `develop` before
+   ADR-0013 is repository-authoritative.
+4. A programme that wants programme-integration reliance separately opts in
+   through its programme control record.
+5. The exact approved/reviewed relied-upon ADR version is merged into the
+   designated programme integration branch.
+6. Each dependent task is separately specified, authorized and reviewed.
+7. Final programme integration into `develop` retains its own integrated review
+   and merge gates.
 
-1. independent CRITICAL exact-head review;
-2. explicit CTO decision approval;
-3. controlled approval-state reconciliation as required;
-4. fresh exact-head review of any reconciliation commit;
-5. separately authorized PR/CI/merge lifecycle;
-6. only after ADR-0013 becomes repository-authoritative may any programme opt in.
+The live position within this sequence is GitHub-owned lifecycle evidence and
+is intentionally not duplicated here.
 
 ## 10. Rollback
 
-Before merge: abandon or replace the task branch under explicit control.
+Before repository authority is established through `develop`, the task branch
+or PR may be abandoned or replaced under explicit control.
 
-After repository-authoritative adoption: material rollback requires a
-superseding ADR. A programme may separately stop using programme-integration
+After repository-authoritative adoption, material rollback of ADR-0013 requires
+a superseding ADR. A programme may separately stop using programme-integration
 reliance by placing its programme state on HOLD and reconciling dependent work.
 
 No branch history, task evidence or review history is rewritten as rollback.
 
 ## 11. Known limitations and deferred work
 
-- ADR-0013 is only PROPOSED in this candidate.
-- THOTH-ASYNC-01 is not opted in by this task.
-- `feature/worker` is not created.
-- PR #960 is not retargeted.
-- ADR-0012 remains unchanged and non-repository-authoritative.
-- Shared async implementation remains HOLD.
-- No downstream repository adopts the mechanism.
+- This task does not itself opt THOTH-ASYNC-01 into ADR-0013.
+- This task does not create `feature/worker`.
+- This task does not retarget PR #960.
+- This task does not change ADR-0012's decision content or authority condition.
+- This task does not authorize shared async implementation.
+- This task does not cause any downstream repository to adopt the mechanism.
+- Migration execution, provider/IAM/runtime action, deployment, release and
+  production activation remain separate gates.
 
 ## 12. Self-assessment
 
-Candidate is ready for independent CRITICAL exact-head review if the final
-six-path diff and `git diff --check` verification pass.
+Any source head containing this report requires the independent review mandated
+by the governing controls before merge. Live review and merge-readiness state is
+GitHub-owned and is intentionally not duplicated here.
 
-The implementing agent does not approve its own work.
+The implementing agent does not approve or merge its own work.
