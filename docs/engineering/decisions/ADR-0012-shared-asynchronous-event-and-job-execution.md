@@ -269,6 +269,9 @@ authorized, audited terminal route disposition describing why it was not
 materialized and what reconciliation/backfill, if any, covers it. Each such
 disposition remains one durable `(event_id, route_key)` record even when an
 operator authorizes a bulk action, and records the actor/authority and reason.
+Where a staff/operator action creates that disposition, it uses ADR-0010's
+protected, audited staff-command seam; direct production SQL is not the normal
+route-disposition interface.
 
 A terminal disposition with no covering reconciliation/backfill is not normal
 successful routing. It records an explicit accepted divergence for the affected
@@ -367,9 +370,13 @@ REVISION_BOUND
 
 A `CURRENT_STATE` job means "make the external/derived target reflect the
 latest canonical state when this job executes". It reads canonical state at
-execution time, records the revision/fingerprint actually acted on, may coalesce
-older triggers under its explicit kind rule, and may complete as a deterministic
-no-op when the required current revision is already applied.
+execution time and records the revision/fingerprint actually acted on. That
+fingerprint covers every canonical input that determines the intended external
+effect -- including artifact/content identity and relevant configuration where
+those affect the result -- rather than only the primary entity's metadata
+revision. The kind may coalesce older triggers under its explicit rule and may
+complete as a deterministic no-op only when target-scoped evidence proves that
+the same complete effect fingerprint is already applied.
 
 A `REVISION_BOUND` job means "process exactly this retained source
 revision/fingerprint". Before any external write, the handler must determine
@@ -382,7 +389,10 @@ Every effectful job kind also declares how it resolves one or more **canonical
 external effect target identities** owned by the relevant domain. The identity is
 defined at the granularity at which two mutations can conflict, is independent of
 job kind, and is the common ordering boundary for every kind that can mutate that
-same target.
+same target. Exactly one owning domain defines that target-identity and ordering
+contract even when job kinds owned by several domains can mutate the same provider
+object; other domains consume that contract and must not invent a parallel target
+identity for the same effect.
 
 All job kinds that can mutate one canonical effect target use the same
 target-scoped concurrency namespace and consult the same durable target-scoped
@@ -393,16 +403,34 @@ local applied-revision/fingerprint and provider-correlation/reconciliation
 evidence sufficient to prevent an older effect from regressing a newer one; an
 ambiguous provider state requires reconciliation rather than an ordering guess.
 
+Applied-revision/fingerprint evidence for a target may be advanced only while the
+worker/reconciler holds that target's serialization boundary under the current
+valid claim token. The local evidence update is claim-token-fenced and committed
+atomically with the corresponding durable job/effect outcome. It is monotonic and
+must not move backwards except through an explicitly authorized historical
+replay/rollback operation. Reconciliation acquires the same target boundary and
+uses the same fencing before it can change target-scoped evidence.
+
 Each REVISION_BOUND kind defines its source revision ordering and how that revision
 maps to the canonical effect target, but "newer already applied" is established
 from the shared target-scoped evidence. Merely serializing execution by a
 concurrency key is not sufficient because an older retry may run after a newer
 job has completed.
 
+If canonical state changes the external target identity itself, the owning kind
+specification defines the transition explicitly. Pending work bound to the old
+identity must not silently retarget to the new one; the specification decides
+whether old-target work is superseded, cancelled, reconciled or requires an
+explicit withdrawal/cleanup effect. Creation/update/deletion/withdrawal operations
+that can conflict on the same external object share its target identity or an
+equivalently strong conflict-linked serialization contract.
+
 A batch or multi-target job normally decomposes effectful work to target-scoped
 jobs/effects. If a reviewed kind keeps one job across several effect targets, it
-must acquire all required target serialization in a deterministic order and
-record/check applied-revision evidence independently for each target.
+must acquire the complete target set using a deterministic, deadlock-free
+all-or-nothing protocol: it may not wait while holding only a strict subset of
+required target keys. It records/checks applied-revision evidence independently
+for each target.
 
 Historical replay is permitted only when the referenced historical revision is
 actually retained and the replay/rollback is explicitly authorized. A stale
@@ -679,19 +707,24 @@ separate task/service or equivalent process-isolated worker pool with a minimal
 dedicated task role. This is a trust-separated executor pool, not a second queue
 architecture.
 
-An untrusted job executes in an isolation context that is not reused across jobs
-belonging to different publishers. Disposable single-job execution is the default
+An untrusted job executes in an isolation context that is not reused across
+untrusted jobs by default, including two jobs for the same publisher or different
+uploaders within one publisher. Disposable single-job execution is the default
 model; an alternative may be approved only when its own review proves equivalent
-cross-tenant process/state isolation. No writable local process/filesystem state
-from one publisher's job may be carried into another publisher's execution.
+job-to-job process/state isolation and reset semantics. No writable local
+process/filesystem/container/cache/sidecar state from one untrusted job may be
+carried into another untrusted job's execution.
 
 The untrusted-content pool:
 
 - may read only the input objects required by its authorized jobs;
 - writes transformed/generated output only to a job-scoped isolated
   quarantine/staging location whose authority is issued/resolved by the trusted
-  side; it cannot read or overwrite another publisher/job's staging output unless
-  an explicit owning-domain relation requires and authorizes that access;
+  side; any object-store write capability is minted for the current job/claim,
+  bound to the current claim token, bounded in lifetime, and never serialized into
+  the durable event/job payload or attempt diagnostics. It cannot read or overwrite
+  another publisher/job's staging output unless an explicit owning-domain relation
+  requires and authorizes that access;
 - never writes directly to publisher-served or Hosting production paths;
 - cannot choose or write the final publisher domain, served bucket, served key
   or Hosting target;
@@ -700,12 +733,26 @@ The untrusted-content pool:
 - receives no broad canonical-domain mutation authority.
 
 Untrusted completion payloads/results are themselves **untrusted data**.
-A trusted promotion/deployment job resolves the expected staging object/location
-from canonical job/domain state or a capability previously issued by the trusted
-side, reads the staged artifact through trusted authority, and independently
-validates its hash/size/type/evidence before promotion. An untrusted-reported
-object path, hash, size or media type is a claim to verify, not trusted integrity
-evidence. The trusted job also resolves publisher identity, destination domain,
+Before trusted validation starts, the untrusted job's write authority over the
+artifact selected for promotion must have ended. Claim completion/supersession
+revokes that capability where revocation exists; where a capability cannot be
+revoked, trusted validation waits until it has expired or uses an immutable
+provider/version boundary that the former writer cannot change.
+
+The untrusted stage hands off a **sealed artifact identity** in canonical trusted
+state. A trusted promotion/deployment job resolves that identity from canonical
+job/domain state, reads the staged artifact through trusted authority, and
+independently validates its bytes, cryptographic digest, size, media/type and other
+required evidence. An untrusted-reported object path, hash, size or media type is a
+claim to verify, not trusted integrity evidence.
+
+Promotion must publish the **exact bytes/version that passed trusted validation**.
+A mutable object key is not sufficient identity across validation and publication.
+The implementation may use an immutable provider version plus digest, a
+content-addressed immutable object, or have the trusted promoter publish the bytes
+it validated directly. If the source bytes/version change after validation,
+promotion refuses them and must revalidate the new immutable identity before any
+publication. The trusted job also resolves publisher identity, destination domain,
 bucket, key and Hosting/CDN target from canonical Thoth state. Trusted handlers
 must never take authority-bearing destination values from an untrusted result.
 
@@ -723,13 +770,17 @@ boundary.
 
 Network reachability is part of the untrusted security boundary, not an
 assumption inherited from placement in a private subnet. The untrusted pool uses
-a dedicated security-group/network-policy boundary with deny-by-default access to
-private services. It may reach only the selected executor control path (or the
-separately reviewed scoped database endpoint when direct DB access is selected),
-the job-scoped object-storage path and explicitly approved external dependencies.
-It must have no network path to shared Redis, EFS, unrelated RDS/database
-endpoints or other internal services merely because those services accept traffic
-from the application's private CIDRs.
+a dedicated security-group/network-policy boundary that enforces deny-by-default
+**egress as well as ingress**. It may reach only the selected executor control
+path (or the separately reviewed scoped database endpoint when direct DB access is
+selected), the job-scoped object-storage path and explicitly approved external
+dependencies. Object-storage access is constrained by VPC endpoint/resource policy
+or an equivalently strong control to the approved Thoth input/staging
+buckets/prefixes rather than arbitrary provider storage. Other external egress is
+explicitly allowlisted; DNS resolution alone never authorizes reachability to a
+private service. The pool must have no network path to shared Redis, EFS, unrelated
+RDS/database endpoints or other internal services merely because those services
+accept traffic from the application's private CIDRs.
 
 Its AWS/provider role likewise excludes Hosting DNS, ACM and CloudFront
 tenant-management authority and direct write access to publisher-served
@@ -764,8 +815,9 @@ declares:
 - required runtime capability/configuration;
 - trust/risk class, including whether it handles untrusted content;
 - revision semantics: `CURRENT_STATE` or `REVISION_BOUND`;
-- canonical external effect-target resolution and the shared target-scoped
-  concurrency/applied-revision evidence namespace for effectful kinds;
+- canonical external effect-target resolution, its owning domain, target-identity
+  transition rules and the shared target-scoped concurrency/applied-revision
+  evidence namespace for effectful kinds;
 - effect classification and expected effect window;
 - timeout/lease/waiting-deadline requirements;
 - retry/reconciliation policy;
@@ -1276,11 +1328,12 @@ execution until a separate approved architecture decision says otherwise.
 8. Every event-route record maps to exactly one job; many route records may map
    to one job only under an explicit not-yet-started coalescing rule.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
+   A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
    except through explicit historical replay/rollback authorization. All job
-   kinds capable of mutating the same canonical external effect target share the
-   domain-owned target identity, concurrency namespace and durable
-   applied-revision/fingerprint evidence.
+   kinds capable of mutating the same canonical external effect target share one
+   owning-domain target identity, concurrency namespace and durable
+   claim-token-fenced, monotonic applied-revision/fingerprint evidence.
 10. No stale/superseded claim can finalize, checkpoint, cancel, renew or
     reconcile a job.
 11. WAITING atomically checkpoints and releases claim/lease; resume is a new
@@ -1314,12 +1367,16 @@ execution until a separate approved architecture decision says otherwise.
 24. Trusted-worker AWS authority comes exclusively from its dedicated ECS task
     role.
 25. UNTRUSTED_CONTENT jobs use the same canonical engine but a separate
-    minimal-authority, cross-tenant-isolated execution and network boundary;
-    they write only their job-scoped quarantine/staging output, cannot carry
-    writable execution state across publishers, cannot reach unrelated private
-    services, and cannot choose or write served/Hosting destinations.
-26. Trusted promotion resolves authority-bearing destinations from canonical
-    state and treats untrusted results as untrusted data.
+    minimal-authority, job-to-job-isolated execution and deny-by-default egress/
+    ingress boundary; they write only through current-claim-scoped authority to
+    their job-scoped quarantine/staging output, cannot carry writable execution
+    state across jobs, cannot reach unrelated private/provider services, and
+    cannot choose or write served/Hosting destinations.
+26. Trusted promotion starts only after untrusted write authority over the sealed
+    artifact identity has ended, independently validates that immutable identity,
+    publishes only the exact validated bytes/version, resolves authority-bearing
+    destinations from canonical state and treats untrusted results as untrusted
+    data.
 27. No worker receives static AWS access keys.
 28. Non-AWS credential values are not committed or emitted in logs/durable
     diagnostics.
@@ -1372,16 +1429,17 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
 
 4. **Infrastructure/runtime - untrusted-content pool**
    - separate process/task/service boundary for publisher-controlled parsers and
-     cross-publisher execution/state isolation;
+     job-to-job execution/state isolation, including jobs of the same publisher;
    - minimal task role with no Hosting DNS/ACM/CloudFront tenant authority;
-   - per-job quarantine/staging-only output permissions;
+   - current-claim-scoped, bounded-lifetime per-job quarantine/staging writes;
    - protected executor API or row/kind-enforced minimal database principal;
-   - deny-by-default network boundary excluding Redis, EFS and unrelated private
-     database/internal-service reachability;
+   - deny-by-default ingress/egress boundary excluding Redis, EFS and unrelated
+     private database/internal-service reachability, with object-storage access
+     constrained to approved Thoth input/staging buckets/prefixes;
    - explicit job-kind/risk-class filtering;
-   - trusted promotion path that independently resolves/verifies staged artifacts
-     before served-content publication;
-   - dedicated negative IAM, staging-scope, cross-job and network tests;
+   - trusted promotion path that starts only after staging-write authority closes
+     and independently pins, validates and publishes the same immutable bytes;
+   - dedicated negative IAM, staging-scope, cross-job, TOCTOU and network tests;
    - deployment only when an approved untrusted-content handler is ready.
 
 5. **`thoth-dissemination` consumer migration**
@@ -1602,7 +1660,8 @@ Before shared implementation can be approved, evidence must include:
   routing generation/epoch mechanism;
 - proof that pre-deactivation eligible events remain owed after route retirement;
 - explicit authorized terminal route-disposition tests when an eligible route
-  can no longer be materialized, including per-event actor/authority/reason;
+  can no longer be materialized, including per-event actor/authority/reason and
+  ADR-0010 protected staff-command authorization/audit where staff acts;
 - accepted-divergence attention when a terminal disposition has no covering
   reconciliation/backfill;
 - queryable per-route undisposed-event count/oldest-age and unavailable
@@ -1623,16 +1682,24 @@ Before shared implementation can be approved, evidence must include:
 - explicit historical backfill through the same `(event_id, route_key)`
   materialization identity;
 - effect-scoped idempotency tests across newer source revisions/schedule slots;
-- CURRENT_STATE tests that read canonical latest state and safely no-op/coalesce
-  when already applied;
+- CURRENT_STATE tests that read canonical latest state and prove the effect
+  fingerprint covers every canonical input affecting the external result before
+  any no-op/coalescing decision;
 - REVISION_BOUND tests proving an older retried revision cannot overwrite a newer
   already-applied revision without explicit historical replay authorization;
 - cross-kind tests proving every writer of one canonical external effect target
-  shares the same target-scoped serialization and applied-revision evidence;
+  shares the same owning-domain identity, target-scoped serialization and
+  applied-revision evidence;
+- stale-claim and normal-vs-reconciler races proving target evidence advances only
+  under the current claim while holding the target boundary and never moves
+  backwards without authorized historical replay;
 - provider-without-revision-id tests proving local target evidence prevents stale
   regression or forces reconciliation when state is ambiguous;
-- multi-target tests proving decomposition or deterministic complete target-lock
-  acquisition plus per-target revision evidence;
+- target-identity-change tests proving pending old-identity work is explicitly
+  superseded/cancelled/reconciled/cleaned up rather than silently retargeted;
+- multi-target tests proving decomposition or deterministic all-or-nothing complete
+  target-lock acquisition with no wait while holding a strict subset, plus
+  per-target revision evidence;
 - allowed many-route-to-one-job coalescing tests and deterministic conflict
   attention when coalescing is not permitted;
 - current-token lease renewal and refusal to renew superseded/expired claims;
@@ -1677,16 +1744,24 @@ Before shared implementation can be approved, evidence must include:
 - proof that trusted/untrusted worker tasks receive no static AWS access keys;
 - proof that untrusted-content worker roles exclude Hosting DNS/ACM/CloudFront
   tenant authority and served-content write paths;
-- cross-publisher execution-isolation tests proving writable process/filesystem
-  state from one untrusted job cannot affect another publisher's job;
+- job-to-job execution-isolation tests proving writable process/filesystem/
+  container/cache/sidecar state from one untrusted job cannot affect any later
+  untrusted job, including another job for the same publisher;
 - job-scoped quarantine/staging tests proving an untrusted job cannot read or
   overwrite another publisher/job's staging output and cannot directly create
   publisher-served content;
-- network-denial tests proving the untrusted pool cannot reach Redis, EFS,
-  unrelated RDS/database endpoints or other unapproved private services;
+- staging-capability tests proving write authority is current-claim-scoped, bounded
+  in lifetime, absent from durable payload/attempt records and ended before trusted
+  validation of the artifact selected for promotion;
+- network-denial tests proving outbound as well as inbound controls prevent access
+  to Redis, EFS, unrelated RDS/database endpoints, arbitrary provider object
+  storage or other unapproved private/external services;
 - trusted-promotion tests proving staging identity and integrity are independently
   resolved/verified by the trusted side and publisher/domain/bucket/key/target are
   resolved from canonical state rather than untrusted result fields;
+- adversarial TOCTOU tests that replace/mutate the staged key after validation and
+  prove promotion refuses it, plus positive proof that only the exact immutable
+  bytes/version that passed trusted validation can be published;
 - negative tests proving an untrusted worker cannot create arbitrary follow-on
   jobs/events;
 - if direct DB access is used by an untrusted pool, proof of row/kind enforcement

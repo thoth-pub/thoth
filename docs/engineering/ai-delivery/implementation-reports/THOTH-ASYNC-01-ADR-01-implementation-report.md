@@ -379,6 +379,62 @@ ordering, cross-publisher untrusted isolation, per-job staging, private-network
 denial, trusted staging provenance, job-kind retirement, non-binary domain writes,
 migration-backfill/error-contract retirement and contraction-revert behaviour.
 
+## Independent review round 5
+
+The independent CRITICAL review of
+`d25bb1ecd1665cc4e635b16dbd5fd09582a5889b` returned `CHANGES REQUIRED`.
+R4-01 through R4-03 were verified closed with no regression identified in the
+earlier F/R2/R3 findings.
+
+One MEDIUM blocker was accepted:
+
+- R5-01 - trusted promotion validated a staged object but did not bind
+  publication to the exact immutable bytes/version validated or require the
+  untrusted writer's authority to end first, leaving a validate-then-swap TOCTOU
+  path.
+
+The missing round-4/round-5 lifecycle chain was reconciled in GitHub under #958
+comment `5912886635`; the programme gate was reconciled under #957 comment
+`5912887392`.
+
+## Round-6 corrections
+
+### Trusted promotion integrity
+
+Untrusted staging-write authority is now current-claim-scoped and bounded in
+lifetime. Trusted validation cannot begin until write authority over the selected
+artifact has ended (or an unrevocable capability has expired / an immutable
+provider-version boundary is established). The trusted side seals and resolves
+the artifact identity, independently validates it, and may publish only the exact
+immutable bytes/version that passed validation. A mutable key cannot bridge the
+validation/publication boundary; any replacement requires fresh validation.
+
+### Effect-target fencing and identity
+
+Target evidence is now current-claim-fenced, updated only while holding the
+target serialization boundary and committed atomically with the durable local
+effect/job outcome. It is monotonic except under authorized historical replay.
+CURRENT_STATE fingerprints cover every canonical input determining the effect.
+Exactly one domain owns a shared effect-target identity; identity changes have
+explicit old/new-target disposition rules; multi-target locking is all-or-nothing
+rather than waiting while holding a subset.
+
+### Untrusted execution and egress
+
+The isolation rule is job-to-job, including jobs for the same publisher. Staging
+capabilities are claim-bound and excluded from durable payload/attempt records.
+The deny-by-default network boundary explicitly covers outbound traffic, limits
+object storage to approved Thoth input/staging locations and requires explicit
+allowlisting of other dependencies.
+
+### Operator and validation tightening
+
+Staff-created terminal route dispositions use ADR-0010's protected audited command
+seam. Validation now covers complete CURRENT_STATE fingerprints, target-evidence
+claim fencing and monotonicity, target-identity transitions, all-or-nothing
+multi-target locking, same-publisher job isolation, staging-capability expiry,
+egress restrictions and staged-object replacement after validation.
+
 ## Migration/data effect
 
 No migration was created, modified or executed.
