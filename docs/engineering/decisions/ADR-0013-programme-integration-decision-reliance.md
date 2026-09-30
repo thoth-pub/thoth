@@ -1,8 +1,10 @@
 # ADR-0013 - Programme-integration reliance on approved decisions
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-09-30
 Decision owner: CTO
+Approved by: Javi, CTO
+Approval date: 2026-09-30
 Programmes affected: Shared Engineering Control; THOTH-ASYNC-01 as the first intended opt-in consumer; any future programme that explicitly adopts this mechanism
 Repositories affected: `thoth-pub/thoth` for the shared control model; any other repository only through a separately authorized repository-local adoption task
 Parent programme: [THOTH-ASYNC-01 #957](https://github.com/thoth-pub/thoth/issues/957)
@@ -481,14 +483,21 @@ Independent review must verify at minimum:
 ## 12. Approval
 
 Decision owner: CTO
+Approved by: Javi, CTO
+Approval date: 2026-09-30
 
-Current decision state: **PROPOSED**.
+This decision is **APPROVED**.
 
-Approval of this decision requires explicit CTO decision approval after
-independent CRITICAL exact-head review. Approval is not implementation
-authorization for any adopting programme, is not authorization to create a
-programme integration branch, and is not merge, deployment or production
-activation authorization.
+Approval adopts the decision and invariants recorded in this ADR. It remains
+decision approval only: it does not itself opt any programme into
+programme-integration reliance, authorize creation of a programme integration
+branch, authorize implementation, or authorize migration execution,
+provider/IAM/runtime action, deployment, release or production activation.
+
+`APPROVED` status alone does not make this record repository-authoritative.
+Repository authority follows the authority condition recorded above: the exact
+approval-state content must receive independent exact-head review and be
+reachable from `develop` before the ADR-0013 mechanism can be used.
 
 Live review, authorization, CI and merge evidence belongs in GitHub and is not
 duplicated into this ADR as transient lifecycle metadata.
