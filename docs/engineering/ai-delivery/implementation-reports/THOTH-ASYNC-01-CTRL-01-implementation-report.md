@@ -232,10 +232,70 @@ Durable documentation validation for this task requires:
   programme opt-in;
 - the changelog records the approved control decision under
   `## [Unreleased]` / `### Added`;
-- `git diff --check` passes for source changes.
+- `git diff --check` passes for the report correction;
+- the bounded report-remediation path set contains exactly this implementation
+  report.
 
-Exact command results, live review state and exact-head evidence belong in the
-GitHub task/PR record.
+### 8.1 Exact local validation results
+
+Validation environment: an isolated temporary Git repository with this report
+path committed as an empty baseline file, then replaced by the exact final
+proposed report bytes. This workspace is used only to validate those final bytes
+for Git whitespace errors and the one-path correction boundary; it does not
+claim to reproduce the real repository history.
+
+Command:
+
+```text
+git diff --check HEAD -- docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+```
+
+Result:
+
+```text
+exit: 0
+stdout: <empty>
+stderr: <empty>
+```
+
+Command:
+
+```text
+git diff --name-only HEAD -- docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+```
+
+Result:
+
+```text
+exit: 0
+stdout:
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-CTRL-01-implementation-report.md
+stderr: <empty>
+```
+
+Cumulative six-path repository scope and final pushed head identity are verified
+from GitHub after push because those facts depend on the resulting repository
+commit.
+
+### 8.2 Test applicability and CI
+
+Unit tests: NOT APPLICABLE - documentation/control-only task; no executable
+product code changed.
+
+Integration/database tests: NOT APPLICABLE - no schema, migration, SQL or
+database behaviour changed.
+
+Runtime tests: NOT APPLICABLE - no runtime, provider, deployment or production
+behaviour changed.
+
+Manual CI dispatch/rerun: NO.
+
+CI status: **NOT AVAILABLE at report-authoring/commit time**.
+
+Reason: final PR-head CI cannot exist until this report-containing commit is
+created and pushed. Exact final-head CI status and check results are therefore
+GitHub-owned post-push evidence. This statement records the report-authoring
+boundary and remains true regardless of the later live CI outcome.
 
 ## 9. Rollout
 
