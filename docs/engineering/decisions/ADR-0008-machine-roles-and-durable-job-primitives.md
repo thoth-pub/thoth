@@ -8,7 +8,8 @@ Decision owner: CTO
 Programmes affected: Shared Engineering Control / Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Metrics; future `thoth-api` programmes requiring machine/service identities or durable-job primitives
 Repositories affected: `thoth-pub/thoth`
 Supersedes: None
-Superseded by: None
+Superseded by: None in full
+Superseded in part by: [ADR-0012](ADR-0012-shared-asynchronous-event-and-job-execution.md) under ADR-0012's authority condition, only where ADR-0008 denies a reusable cross-programme job framework/API: the final shared-framework prohibition in section 3.3, section 3.4's programme-local-only ownership rule, section 5.1 item 6, section 5.2 item 6 and rejected alternative D. Section 3.5 is satisfied by ADR-0012, not superseded. Section 3.3's approved convention list, its `approved primitive != mandatory mechanism` rule, and all machine-role, least-privilege and `SUPERUSER` separation rules remain binding.
 
 Decision: machine and service authorization in `thoth` uses dedicated,
 least-privilege, **domain-specific** project roles, and no generic catch-all

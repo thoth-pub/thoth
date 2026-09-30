@@ -1,7 +1,9 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-09-29
+Approved by: Javi, CTO
+Approval date: 2026-09-30
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -1797,21 +1799,31 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-This ADR is currently **PROPOSED**.
+This ADR is **APPROVED**.
 
-The CTO has selected the architecture direction recorded in programme issue
-#957, but that does not make this exact written ADR content approved.
+Approved by: Javi, CTO  
+Approval date: 2026-09-30
 
-Before any implementation may rely on ADR-0012:
+The approval adopts the architecture decision and invariants recorded in this
+ADR. It remains architecture approval only: it does not authorize implementation,
+schema or data migration, worker deployment, IAM/provider changes, credentials,
+external writes, BE-04/DIS-02 activation, Hosting implementation, release or
+production activation.
 
-1. this exact proposed content receives independent review;
-2. required corrections, if any, are incorporated;
-3. the CTO explicitly approves the exact decision content;
-4. status/approval metadata are reconciled under the repository decision process;
-5. the exact approved content receives required independent exact-head review;
-6. it is merged into `develop`.
+Authority condition: this approved record becomes repository-authoritative only
+when this exact approval-state content has received independent exact-head review
+and is reachable from the repository's authoritative integration branch
+(`develop`). A branch carrying `APPROVED` is not repository-authoritative
+before merge. Live review, CI, merge-authorization and merge evidence belongs in
+GitHub and is not duplicated into this ADR as transient lifecycle metadata.
 
-No implementation task may treat the unmerged proposal as authoritative.
+The partial supersession of ADR-0008 and ADR-0010 is limited exactly to the
+clauses identified in this ADR's header. All unaffected architecture in those
+records remains binding. After this decision becomes repository-authoritative,
+material architectural changes require a new ADR or other approved superseding
+decision under the normal repository controls; factual clarifications remain
+subject to normal review.
 
 BE-04/DIS-02 deployment/activation and Hosting implementation that depends on
-the async architecture remain HOLD throughout this gate.
+the async architecture remain separately controlled and are not authorized by
+this approval.
