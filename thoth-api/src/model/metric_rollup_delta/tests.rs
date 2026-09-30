@@ -66,11 +66,13 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::crud::{
-    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
-    rebuild_metric_rollup_months_within, rebuild_month_projections, recompute_month_projections,
-    MonthKey, MONTH_MAINTENANCE_STATEMENTS, MONTH_MAINTENANCE_STATEMENT_COUNT,
-    REBUILD_ELAPSED_CEILING, REBUILD_LOCK_TIMEOUT_SQL, REBUILD_MONTH_KEYS_SQL,
-    REBUILD_STATEMENT_TIMEOUT_SQL, REBUILD_TRUNCATE_SQL,
+    affected_year_keys, claim_metric_rollup_deltas, complete_metric_rollup_deltas,
+    rebuild_metric_rollup_months, rebuild_metric_rollup_months_within, rebuild_month_projections,
+    recompute_month_projections, recompute_year_projections, MonthKey, YearKey,
+    MONTH_MAINTENANCE_STATEMENTS, MONTH_MAINTENANCE_STATEMENT_COUNT, REBUILD_ELAPSED_CEILING,
+    REBUILD_LOCK_TIMEOUT_SQL, REBUILD_MONTH_KEYS_SQL, REBUILD_STATEMENT_TIMEOUT_SQL,
+    REBUILD_TRUNCATE_SQL, REBUILD_YEAR_STATEMENTS, YEAR_MAINTENANCE_STATEMENTS,
+    YEAR_MAINTENANCE_STATEMENT_COUNT,
 };
 use super::verification::{
     verify_metric_rollup_months, FRONTIER_SQL, TRANSACTION_MODE_SQL, VERIFICATION_LOCK_SQL,
@@ -78,9 +80,10 @@ use super::verification::{
 };
 use super::{
     MetricRollupDelta, MetricRollupMonthProjectionVerification, MetricRollupMonthRebuildResult,
-    MetricRollupMonthVerification, MetricRollupWorkCountryMonth, MetricRollupWorkDay,
-    MetricRollupWorkDayState, MetricRollupWorkInstitutionMonth, MetricRollupWorkMonth,
-    MetricRollupWorkMonthAmbiguity, METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_LEASE_SECONDS,
+    MetricRollupMonthVerification, MetricRollupWorkCountryMonth, MetricRollupWorkCountryYear,
+    MetricRollupWorkDay, MetricRollupWorkDayState, MetricRollupWorkInstitutionMonth,
+    MetricRollupWorkInstitutionYear, MetricRollupWorkMonth, MetricRollupWorkMonthAmbiguity,
+    METRIC_ROLLUP_CLAIM_MAX_BATCH, METRIC_ROLLUP_LEASE_SECONDS,
     METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS, METRIC_ROLLUP_REBUILD_CHUNK_KEYS,
     METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS, METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS,
     METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS,
@@ -97,8 +100,9 @@ use crate::model::metric_record_revision::tests::{
 use crate::model::tests::db::test_db_url;
 use crate::model::Timestamp;
 use crate::schema::{
-    metric_rollup_delta, metric_rollup_work_country_month, metric_rollup_work_day,
-    metric_rollup_work_day_state, metric_rollup_work_institution_month, metric_rollup_work_month,
+    metric_rollup_delta, metric_rollup_work_country_month, metric_rollup_work_country_year,
+    metric_rollup_work_day, metric_rollup_work_day_state, metric_rollup_work_institution_month,
+    metric_rollup_work_institution_year, metric_rollup_work_month,
     metric_rollup_work_month_ambiguity,
 };
 
@@ -110,6 +114,24 @@ const MET_WP1_07_MIGRATION_VERSION: &str = "20260903";
 const MONTH_TABLES: [&str; 4] = [
     "metric_rollup_work_country_month",
     "metric_rollup_work_institution_month",
+    "metric_rollup_work_month",
+    "metric_rollup_work_month_ambiguity",
+];
+
+/// The two derived yearly section tables `MET-WP4-03C` delivers beneath the
+/// monthly ones, in name order.
+const YEAR_TABLES: [&str; 2] = [
+    "metric_rollup_work_country_year",
+    "metric_rollup_work_institution_year",
+];
+
+/// Every derived serving table: the four monthly and the two yearly, in
+/// name order.
+const DERIVED_TABLES: [&str; 6] = [
+    "metric_rollup_work_country_month",
+    "metric_rollup_work_country_year",
+    "metric_rollup_work_institution_month",
+    "metric_rollup_work_institution_year",
     "metric_rollup_work_month",
     "metric_rollup_work_month_ambiguity",
 ];
@@ -803,6 +825,20 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
             "MET-WP4-03A must create the derived monthly table {table}"
         );
     }
+    for table in YEAR_TABLES {
+        assert_eq!(
+            scalar_i64(
+                &pool,
+                &format!(
+                    "(SELECT COUNT(*) FROM pg_class \
+                      WHERE relnamespace = 'public'::regnamespace \
+                        AND relkind = 'r' AND relname = '{table}')"
+                ),
+            ),
+            1,
+            "MET-WP4-03C must create the derived yearly table {table}"
+        );
+    }
     for object in REJECTED_SERVING_OBJECTS {
         assert_eq!(
             scalar_i64(
@@ -869,6 +905,8 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
         "metric_rollup_work_country_month",
         "metric_rollup_work_institution_month",
         "metric_rollup_work_month_ambiguity",
+        "metric_rollup_work_country_year",
+        "metric_rollup_work_institution_year",
     ] {
         assert_eq!(
             trigger_names(&pool, table),
@@ -4192,12 +4230,14 @@ fn a_day_row_watermarked_above_the_frontier_fails_the_completion_closed() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn the_monthly_maintenance_issues_the_same_nine_statements_for_1_10_and_50_keys() {
+fn the_maintenance_issues_the_same_nine_monthly_and_four_yearly_statements_for_1_10_and_50_keys() {
     let (_guard, pool) = setup_registry_db();
     let (fixture, _record_id) = fixture_record(&pool, "identity-base");
     let (logged, log) = logging_pool();
     assert_eq!(MONTH_MAINTENANCE_STATEMENT_COUNT, 9);
     assert_eq!(MONTH_MAINTENANCE_STATEMENTS.len(), 9);
+    assert_eq!(YEAR_MAINTENANCE_STATEMENT_COUNT, 4);
+    assert_eq!(YEAR_MAINTENANCE_STATEMENTS.len(), 4);
 
     let mut next_month = 0;
     for keys in [1_u32, 10, 50] {
@@ -4225,10 +4265,36 @@ fn the_monthly_maintenance_issues_the_same_nine_statements_for_1_10_and_50_keys(
             (0..MONTH_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>(),
             "{keys} affected keys must issue exactly the nine monthly statements"
         );
+        // And the four fixed yearly statements, once each, in order, after
+        // the monthly ones, whatever the number of distinct years touched.
+        assert_eq!(
+            captured_year_statements(&log),
+            (0..YEAR_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>(),
+            "{keys} affected keys must issue exactly the four yearly statements"
+        );
+        let statements = captured(&log);
+        let last_month = statements
+            .iter()
+            .rposition(|text| {
+                MONTH_MAINTENANCE_STATEMENTS
+                    .iter()
+                    .any(|statement| text.starts_with(statement))
+            })
+            .expect("a monthly statement");
+        let first_year = statements
+            .iter()
+            .position(|text| {
+                YEAR_MAINTENANCE_STATEMENTS
+                    .iter()
+                    .any(|statement| text.starts_with(statement))
+            })
+            .expect("a yearly statement");
+        assert!(last_month < first_year, "{keys} keys: yearly after monthly");
         assert_eq!(captured_day_statements(&log), 2 * keys as usize);
     }
     assert_eq!(month_rows(&pool).len(), 61);
     assert_eq!(state(&pool).applied_through_sequence, 61);
+    assert_eq!(year_state(&pool), oracle_year_state(&projection(&pool)));
 }
 
 #[test]
@@ -4254,6 +4320,10 @@ fn fifty_deltas_into_one_month_key_recompute_it_once() {
         captured_month_statements(&log),
         (0..MONTH_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>()
     );
+    assert_eq!(
+        captured_year_statements(&log),
+        (0..YEAR_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>()
+    );
     // Every day holds an aggregate and a country row, so the aggregate is
     // authoritative on each: the month is the sum of the odd positions'
     // values, 1 + 3 + ... + 49 = 625, and the country rows sum the rest.
@@ -4265,6 +4335,12 @@ fn fifty_deltas_into_one_month_key_recompute_it_once() {
         countries(&pool),
         vec![(month(2026, 3), None, country("GB"), 650, false, 50)]
     );
+    // The one year key regroups the one monthly country row.
+    assert_eq!(
+        country_years(&pool),
+        vec![(month(2026, 1), None, country("GB"), 650, false, 50)]
+    );
+    assert_eq!(institution_years(&pool), Vec::new());
     assert_eq!(state(&pool).applied_through_sequence, 50);
 }
 
@@ -4285,17 +4361,18 @@ fn a_monthly_recomputation_failure_rolls_back_day_month_delta_and_frontier_state
     let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
     let token = claims[0].claim_token;
 
-    for table in MONTH_TABLES {
+    for table in DERIVED_TABLES {
         {
             let _injected = FailingTrigger::install(&pool, "BEFORE INSERT", table, None);
             complete_metric_rollup_deltas(&pool, CLAIMANT, token)
-                .expect_err("a failing monthly write must fail the completion");
+                .expect_err("a failing monthly or yearly write must fail the completion");
         }
         assert!(
             projection(&pool).is_empty(),
-            "{table}: the day updates must roll back with the monthly failure"
+            "{table}: the day updates must roll back with the derived-state failure"
         );
         assert_eq!(month_state(&pool), MonthState::default(), "{table}");
+        assert_eq!(year_state(&pool), YearState::default(), "{table}");
         assert_eq!(state(&pool).applied_through_sequence, 0, "{table}");
         assert!(
             deltas(&pool)
@@ -4313,23 +4390,34 @@ fn a_monthly_recomputation_failure_rolls_back_day_month_delta_and_frontier_state
     assert_eq!(settled.countries.len(), 1);
     assert_eq!(settled.institutions.len(), 1);
     assert_eq!(settled.ambiguity.len(), 1);
+    let settled_years = year_state(&pool);
+    assert_eq!(settled_years, oracle_year_state(&projection(&pool)));
+    assert_eq!(settled_years.countries.len(), 1);
+    assert_eq!(settled_years.institutions.len(), 1);
     assert_eq!(state(&pool).applied_through_sequence, 4);
 
-    // A later batch failing in the keyed delete leaves the earlier monthly
-    // state, the day rows and the frontier exactly as they were.
+    // A later batch failing in a keyed monthly or yearly delete leaves the
+    // earlier monthly and yearly state, the day rows and the frontier
+    // exactly as they were.
     let day_rows = projection(&pool);
     day_delta(&pool, &fixture, DAY_ONE, AGG, 20);
     let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
-    {
-        let _injected =
-            FailingTrigger::install(&pool, "BEFORE DELETE", "metric_rollup_work_month", None);
-        complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
-            .expect_err("a failing monthly delete must fail the completion");
+    for table in [
+        "metric_rollup_work_month",
+        "metric_rollup_work_country_year",
+        "metric_rollup_work_institution_year",
+    ] {
+        {
+            let _injected = FailingTrigger::install(&pool, "BEFORE DELETE", table, None);
+            complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+                .expect_err("a failing derived-state delete must fail the completion");
+        }
+        assert_eq!(projection(&pool), day_rows, "{table}");
+        assert_eq!(month_state(&pool), settled, "{table}");
+        assert_eq!(year_state(&pool), settled_years, "{table}");
+        assert_eq!(state(&pool).applied_through_sequence, 4, "{table}");
+        assert_eq!(deltas(&pool)[4].status, "CLAIMED", "{table}");
     }
-    assert_eq!(projection(&pool), day_rows);
-    assert_eq!(month_state(&pool), settled);
-    assert_eq!(state(&pool).applied_through_sequence, 4);
-    assert_eq!(deltas(&pool)[4].status, "CLAIMED");
 }
 
 #[test]
@@ -4351,8 +4439,11 @@ fn a_timeout_after_commit_replay_rewrites_no_monthly_row() {
     let countries_before = country_rows(&pool);
     let institutions_before = institution_rows(&pool);
     let ambiguity_before = ambiguity_rows(&pool);
+    let country_years_before = country_year_rows(&pool);
+    let institution_years_before = institution_year_rows(&pool);
     assert_eq!(months.len(), 1);
     assert_eq!(ambiguity_before.len(), 1);
+    assert!(!country_years_before.is_empty() && !institution_years_before.is_empty());
 
     for _ in 0..2 {
         let replay = complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect("replay");
@@ -4363,6 +4454,8 @@ fn a_timeout_after_commit_replay_rewrites_no_monthly_row() {
     assert_eq!(country_rows(&pool), countries_before);
     assert_eq!(institution_rows(&pool), institutions_before);
     assert_eq!(ambiguity_rows(&pool), ambiguity_before);
+    assert_eq!(country_year_rows(&pool), country_years_before);
+    assert_eq!(institution_year_rows(&pool), institution_years_before);
     assert_eq!(state(&pool).applied_through_sequence, 4);
 }
 
@@ -4501,6 +4594,31 @@ fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
         !incremental.ambiguity.is_empty() && !incremental.countries.is_empty(),
         "{cardinality}: the fixture must exercise ambiguity and country rows"
     );
+    // The yearly state maintained by the same completions equals the
+    // per-day oracle regrouped by calendar year, with publication-bearing
+    // rows, true dependency flags and distinct watermarks all exercised.
+    let expected_years = oracle_year_state(&days);
+    let incremental_years = year_state(&pool);
+    assert_eq!(
+        incremental_years, expected_years,
+        "{cardinality}: incremental yearly state vs oracle"
+    );
+    assert_year_watermarks_within(&incremental_years, frontier);
+    assert!(
+        expected_years
+            .countries
+            .keys()
+            .any(|identity| identity.1.is_some())
+            && expected_years.countries.values().any(|value| value.1)
+            && expected_years
+                .countries
+                .values()
+                .map(|value| value.2)
+                .collect::<BTreeSet<_>>()
+                .len()
+                > 1,
+        "{cardinality}: the fixture must exercise publication identity, flags and watermarks"
+    );
 
     // A fresh rebuild from the work-day projection alone reproduces the
     // incrementally maintained state exactly, watermarks included, and
@@ -4513,6 +4631,11 @@ fn a_fixed_seed_differential_matches_the_per_day_oracle_and_a_fresh_rebuild() {
         "{cardinality}: rebuild vs incremental"
     );
     assert_eq!(rebuilt, expected, "{cardinality}: rebuild vs oracle");
+    assert_eq!(
+        year_state(&pool),
+        incremental_years,
+        "{cardinality}: yearly rebuild vs incremental"
+    );
     assert_eq!(
         projection(&pool),
         days,
@@ -4529,6 +4652,8 @@ fn a_rebuild_refuses_a_day_row_watermarked_above_the_durable_frontier() {
     apply_everything(&pool);
     let before = month_state(&pool);
 
+    let years_before = year_state(&pool);
+
     exec(&pool, "UPDATE metric_rollup_work_day SET watermark = 5");
     let error = rebuild_month_projections(&pool).expect_err("the rebuild must refuse");
     assert!(
@@ -4537,6 +4662,7 @@ fn a_rebuild_refuses_a_day_row_watermarked_above_the_durable_frontier() {
         "unexpected failure: {error:?}"
     );
     assert_eq!(month_state(&pool), before, "a refused rebuild is a no-op");
+    assert_eq!(year_state(&pool), years_before);
 }
 
 // ---------------------------------------------------------------------------
@@ -5345,6 +5471,30 @@ fn evidence_month_maintenance_cost_plans_and_locks() {
             "monthly maintenance, {count} affected keys: p50 {p50} us, p95 {p95} us, max {max} us over {} samples",
             samples.len()
         );
+        // The yearly portion alone, over the years those keys belong to.
+        let year_keys: BTreeSet<YearKey> = affected_year_keys(&keys);
+        let mut samples = Vec::with_capacity(40);
+        for sample in 0..45 {
+            let started = Instant::now();
+            connection
+                .transaction::<_, ThothError, _>(|connection| {
+                    sql_query(
+                        "SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE",
+                    )
+                    .execute(connection)?;
+                    recompute_year_projections(connection, &year_keys)
+                })
+                .expect("recompute years");
+            if sample >= 5 {
+                samples.push(started.elapsed());
+            }
+        }
+        let (p50, p95, max) = percentiles(&mut samples);
+        println!(
+            "yearly maintenance, {count} affected month keys ({} year keys): p50 {p50} us, p95 {p95} us, max {max} us over {} samples",
+            year_keys.len(),
+            samples.len()
+        );
     }
 
     // Query plans of the nine statements with fifty keys.
@@ -5371,6 +5521,34 @@ fn evidence_month_maintenance_cost_plans_and_locks() {
                         .bind::<diesel::sql_types::Array<diesel::sql_types::Date>, _>(&month_starts)
                         .load(connection)?;
                 println!("--- plan of monthly statement {} (50 keys):", index + 1);
+                for line in plan {
+                    println!("{}", line.line);
+                }
+            }
+            let year_keys = affected_year_keys(&keys);
+            let year_work_ids: Vec<Uuid> = year_keys.iter().map(|key| key.0).collect();
+            let year_platform_ids: Vec<Uuid> = year_keys.iter().map(|key| key.1).collect();
+            let year_measure_ids: Vec<Uuid> = year_keys.iter().map(|key| key.2).collect();
+            let year_starts: Vec<NaiveDate> = year_keys.iter().map(|key| key.3).collect();
+            for (index, statement) in YEAR_MAINTENANCE_STATEMENTS.iter().enumerate() {
+                let plan: Vec<PlanLine> =
+                    sql_query(format!("EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) {statement}"))
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(
+                            &year_work_ids,
+                        )
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(
+                            &year_platform_ids,
+                        )
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Uuid>, _>(
+                            &year_measure_ids,
+                        )
+                        .bind::<diesel::sql_types::Array<diesel::sql_types::Date>, _>(&year_starts)
+                        .load(connection)?;
+                println!(
+                    "--- plan of yearly statement {} ({} year keys):",
+                    index + 1,
+                    year_keys.len()
+                );
                 for line in plan {
                     println!("{}", line.line);
                 }
@@ -5442,14 +5620,16 @@ fn evidence_month_maintenance_cost_plans_and_locks() {
 // MET-WP4-03A-OPS-02: protected monthly verification and rebuild
 // ===========================================================================
 
-/// The six rollup tables a verification may read and must never write.
-const ROLLUP_TABLES: [&str; 6] = [
+/// The eight rollup tables a verification may read and must never write.
+const ROLLUP_TABLES: [&str; 8] = [
     "metric_rollup_work_day",
     "metric_rollup_work_day_state",
     "metric_rollup_work_month",
     "metric_rollup_work_country_month",
     "metric_rollup_work_institution_month",
     "metric_rollup_work_month_ambiguity",
+    "metric_rollup_work_country_year",
+    "metric_rollup_work_institution_year",
 ];
 
 /// The generic WP9 reconciliation ledgers this contract must never touch.
@@ -5495,8 +5675,9 @@ fn table_digest(pool: &PgPool, table: &str) -> Option<String> {
     .and_then(|row| row.digest)
 }
 
-/// The surrogate ids of every row of the four monthly tables, sorted, so a
-/// delete-and-reinsert of the same logical rows is visible.
+/// The surrogate ids of every row of the four monthly and the two yearly
+/// tables, sorted, so a delete-and-reinsert of the same logical rows is
+/// visible.
 fn month_surrogates(pool: &PgPool) -> Vec<Uuid> {
     let mut ids: Vec<Uuid> = month_rows(pool)
         .into_iter()
@@ -5515,6 +5696,16 @@ fn month_surrogates(pool: &PgPool) -> Vec<Uuid> {
             ambiguity_rows(pool)
                 .into_iter()
                 .map(|row| row.rollup_work_month_ambiguity_id),
+        )
+        .chain(
+            country_year_rows(pool)
+                .into_iter()
+                .map(|row| row.rollup_work_country_year_id),
+        )
+        .chain(
+            institution_year_rows(pool)
+                .into_iter()
+                .map(|row| row.rollup_work_institution_year_id),
         )
         .collect();
     ids.sort();
@@ -5609,6 +5800,17 @@ fn assert_exact_verification(pool: &PgPool, verification: &MetricRollupMonthVeri
         verification.ambiguity,
         exact_family(oracle.ambiguity.len() as i64),
         "ambiguity"
+    );
+    let years = oracle_year_state(&days);
+    assert_eq!(
+        verification.country_year,
+        exact_family(years.countries.len() as i64),
+        "yearly countries"
+    );
+    assert_eq!(
+        verification.institution_year,
+        exact_family(years.institutions.len() as i64),
+        "yearly institutions"
     );
     assert_eq!(
         verification.applied_through_sequence,
@@ -5783,10 +5985,29 @@ fn the_verification_and_rebuild_envelope_is_the_approved_one() {
         "SET LOCAL statement_timeout = '30s'"
     );
     assert!(REBUILD_TRUNCATE_SQL.starts_with("TRUNCATE TABLE"));
-    for table in MONTH_TABLES {
+    for table in DERIVED_TABLES {
         assert!(REBUILD_TRUNCATE_SQL.contains(&format!("public.{table}")));
     }
     assert!(REBUILD_MONTH_KEYS_SQL.ends_with("ORDER BY 1, 2, 3, 4"));
+    // The yearly derivation of a rebuild reads only the monthly section
+    // tables and writes only the yearly ones, one statement per family.
+    for (statement, source, target) in [
+        (
+            REBUILD_YEAR_STATEMENTS[0],
+            "metric_rollup_work_country_month",
+            "metric_rollup_work_country_year",
+        ),
+        (
+            REBUILD_YEAR_STATEMENTS[1],
+            "metric_rollup_work_institution_month",
+            "metric_rollup_work_institution_year",
+        ),
+    ] {
+        assert!(statement.starts_with(&format!("INSERT INTO public.{target}")));
+        assert!(statement.contains(&format!("FROM public.{source} ")));
+        assert!(!statement.contains("metric_rollup_work_day"));
+        assert!(statement.contains("date_trunc('year'"));
+    }
 }
 
 #[test]
@@ -5818,16 +6039,37 @@ fn the_verifier_shares_no_sql_with_the_monthly_writer_and_only_reads() {
                 "verification SQL must not contain `{forbidden}`: {statement}"
             );
         }
-        for writer in MONTH_MAINTENANCE_STATEMENTS {
+        for writer in MONTH_MAINTENANCE_STATEMENTS
+            .iter()
+            .chain(YEAR_MAINTENANCE_STATEMENTS.iter())
+            .chain(REBUILD_YEAR_STATEMENTS.iter())
+        {
             assert!(
                 !statement.contains(writer),
                 "verification SQL must not embed a writer statement"
             );
         }
     }
+    // The expected yearly families are derived from the work-day rows in
+    // the same statement, never from the monthly tables the yearly writer
+    // reads: no monthly table is named except as an actual side of its own
+    // comparison, and the yearly expected sets group `resolved` by year.
+    assert!(VERIFICATION_SQL.contains("expected_country_year AS"));
+    assert!(VERIFICATION_SQL.contains("expected_institution_year AS"));
+    assert!(VERIFICATION_SQL.contains("date_trunc('year', r.day)::date AS year_start"));
+    for monthly in [
+        "metric_rollup_work_country_month",
+        "metric_rollup_work_institution_month",
+    ] {
+        assert_eq!(
+            VERIFICATION_SQL.matches(monthly).count(),
+            1,
+            "{monthly} is read exactly once, as the actual side of its comparison"
+        );
+    }
     // The one non-query statement is a table-level ACCESS SHARE lock on
-    // exactly the four monthly projection tables: no row lock, no stronger
-    // mode, no other table.
+    // exactly the four monthly and the two yearly projection tables: no row
+    // lock, no stronger mode, no other table.
     let lock: String = VERIFICATION_LOCK_SQL
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -5841,14 +6083,14 @@ fn the_verifier_shares_no_sql_with_the_monthly_writer_and_only_reads() {
         .map(str::trim)
         .collect();
     locked.sort_unstable();
-    let mut expected: Vec<String> = MONTH_TABLES
+    let mut expected: Vec<String> = DERIVED_TABLES
         .iter()
         .map(|table| format!("public.{table}"))
         .collect();
     expected.sort();
     assert_eq!(
         locked, expected,
-        "the lock names exactly the four monthly tables"
+        "the lock names exactly the four monthly and the two yearly tables"
     );
     for forbidden in [
         "FOR UPDATE",
@@ -5901,9 +6143,11 @@ fn the_verifier_shares_no_sql_with_the_monthly_writer_and_only_reads() {
         .join("\n");
     for forbidden in [
         "recompute_month_projections",
+        "recompute_year_projections",
         "MONTH_",
+        "YEAR_",
         "rebuild_month_projections",
-        "replace_month_projections",
+        "replace_projections",
         "TRUNCATE",
     ] {
         assert!(
@@ -5957,6 +6201,8 @@ fn an_empty_work_day_projection_verifies_exact_and_empty() {
         &verified.country,
         &verified.institution,
         &verified.ambiguity,
+        &verified.country_year,
+        &verified.institution_year,
     ] {
         assert_eq!(*family, exact_family(0));
     }
@@ -5969,6 +6215,8 @@ fn initially_empty_monthly_tables_are_detected_as_entirely_missing() {
     let oracle = oracle_month_state(&projection(&pool));
     exec(&pool, REBUILD_TRUNCATE_SQL);
 
+    let years = oracle_year_state(&projection(&pool));
+
     let verified = verification(&pool);
     assert!(!verified.matches);
     let expected = |rows: usize| family(rows as i64, 0, rows as i64, 0, 0);
@@ -5976,6 +6224,11 @@ fn initially_empty_monthly_tables_are_detected_as_entirely_missing() {
     assert_eq!(verified.country, expected(oracle.countries.len()));
     assert_eq!(verified.institution, expected(oracle.institutions.len()));
     assert_eq!(verified.ambiguity, expected(oracle.ambiguity.len()));
+    assert_eq!(verified.country_year, expected(years.countries.len()));
+    assert_eq!(
+        verified.institution_year,
+        expected(years.institutions.len())
+    );
 }
 
 #[test]
@@ -5985,9 +6238,9 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
     let healthy = verification(&pool);
 
     /// The mismatch counts of the corrupted family first, then the other
-    /// three.
-    type Mismatches = fn(&MetricRollupMonthVerification) -> [i64; 4];
-    let corruptions: [(&str, &str, Mismatches); 4] = [
+    /// five.
+    type Mismatches = fn(&MetricRollupMonthVerification) -> [i64; 6];
+    let corruptions: [(&str, &str, Mismatches); 6] = [
         (
             "total value",
             "UPDATE metric_rollup_work_month SET value = value + 1 \
@@ -6000,6 +6253,8 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
                     v.country.mismatched_rows,
                     v.institution.mismatched_rows,
                     v.ambiguity.mismatched_rows,
+                    v.country_year.mismatched_rows,
+                    v.institution_year.mismatched_rows,
                 ]
             },
         ),
@@ -6015,6 +6270,8 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
                     v.total.mismatched_rows,
                     v.institution.mismatched_rows,
                     v.ambiguity.mismatched_rows,
+                    v.country_year.mismatched_rows,
+                    v.institution_year.mismatched_rows,
                 ]
             },
         ),
@@ -6031,6 +6288,8 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
                     v.total.mismatched_rows,
                     v.country.mismatched_rows,
                     v.ambiguity.mismatched_rows,
+                    v.country_year.mismatched_rows,
+                    v.institution_year.mismatched_rows,
                 ]
             },
         ),
@@ -6048,16 +6307,58 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
                     v.total.mismatched_rows,
                     v.country.mismatched_rows,
                     v.institution.mismatched_rows,
+                    v.country_year.mismatched_rows,
+                    v.institution_year.mismatched_rows,
+                ]
+            },
+        ),
+        (
+            "yearly country value",
+            "UPDATE metric_rollup_work_country_year SET value = value + 1 \
+             WHERE rollup_work_country_year_id = \
+                 (SELECT rollup_work_country_year_id FROM metric_rollup_work_country_year \
+                  ORDER BY rollup_work_country_year_id LIMIT 1)",
+            |v| {
+                [
+                    v.country_year.mismatched_rows,
+                    v.total.mismatched_rows,
+                    v.country.mismatched_rows,
+                    v.institution.mismatched_rows,
+                    v.ambiguity.mismatched_rows,
+                    v.institution_year.mismatched_rows,
+                ]
+            },
+        ),
+        (
+            "yearly institution value",
+            "UPDATE metric_rollup_work_institution_year SET value = value - 1 \
+             WHERE rollup_work_institution_year_id = \
+                 (SELECT rollup_work_institution_year_id \
+                  FROM metric_rollup_work_institution_year \
+                  ORDER BY rollup_work_institution_year_id LIMIT 1)",
+            |v| {
+                [
+                    v.institution_year.mismatched_rows,
+                    v.total.mismatched_rows,
+                    v.country.mismatched_rows,
+                    v.institution.mismatched_rows,
+                    v.ambiguity.mismatched_rows,
+                    v.country_year.mismatched_rows,
                 ]
             },
         ),
     ];
     for (label, corruption, mismatches) in corruptions {
         let before = month_state(&pool);
+        let years_before = year_state(&pool);
         exec_one(&pool, corruption);
         let verified = verification(&pool);
         assert!(!verified.matches, "{label}");
-        assert_eq!(mismatches(&verified), [1, 0, 0, 0], "{label}: {verified:?}");
+        assert_eq!(
+            mismatches(&verified),
+            [1, 0, 0, 0, 0, 0],
+            "{label}: {verified:?}"
+        );
         // Counts, not row contents: expected and actual cardinalities are
         // unchanged, and nothing is missing or extra.
         for family in [
@@ -6065,6 +6366,8 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
             (&verified.country, &healthy.country),
             (&verified.institution, &healthy.institution),
             (&verified.ambiguity, &healthy.ambiguity),
+            (&verified.country_year, &healthy.country_year),
+            (&verified.institution_year, &healthy.institution_year),
         ] {
             assert_eq!(family.0.expected_rows, family.1.expected_rows, "{label}");
             assert_eq!(family.0.actual_rows, family.1.actual_rows, "{label}");
@@ -6082,6 +6385,7 @@ fn a_one_field_corruption_in_each_projection_family_is_a_single_mismatch() {
             before,
             "{label}: the rebuild restores the state"
         );
+        assert_eq!(year_state(&pool), years_before, "{label}");
     }
 }
 
@@ -6504,13 +6808,15 @@ fn an_expected_monthly_sum_that_overflows_fails_verification_and_rebuild_closed(
     );
     let error = verify_metric_rollup_months(&pool).expect_err("must fail closed");
     assert!(
-        rejection(&error).starts_with("Deriving the expected monthly projections would overflow"),
+        rejection(&error)
+            .starts_with("Deriving the expected monthly or yearly projections would overflow"),
         "unexpected failure: {error:?}"
     );
     let surrogates = month_surrogates(&pool);
     let error = rebuild(&pool, frontier).expect_err("must fail closed");
     assert!(
-        rejection(&error).starts_with("Deriving the expected monthly projections would overflow"),
+        rejection(&error)
+            .starts_with("Deriving the expected monthly or yearly projections would overflow"),
         "unexpected failure: {error:?}"
     );
     assert_eq!(month_surrogates(&pool), surrogates, "nothing was rebuilt");
@@ -6688,15 +6994,11 @@ fn a_healthy_rebuild_call_is_a_read_only_no_op_with_rebuilt_false() {
     let (_fixture, frontier) = settled_differential_fixture(&pool);
     let (logged, log) = logging_pool();
     let surrogates = month_surrogates(&pool);
-    let rows_before = (
-        month_rows(&pool),
-        country_rows(&pool),
-        institution_rows(&pool),
-        ambiguity_rows(&pool),
-    );
+    let rows_before = derived_tables(&pool);
     let untouched = UntouchedState::capture(&pool);
-    // Any monthly write would raise; the healthy path performs none.
-    let _guards: Vec<InjectedTrigger> = MONTH_TABLES
+    // Any monthly or yearly write would raise; the healthy path performs
+    // none.
+    let _guards: Vec<InjectedTrigger> = DERIVED_TABLES
         .iter()
         .flat_map(|table| {
             [
@@ -6737,15 +7039,7 @@ fn a_healthy_rebuild_call_is_a_read_only_no_op_with_rebuilt_false() {
         assert_eq!(after_begin.len(), 6, "{after_begin:?}");
     }
     assert_eq!(month_surrogates(&pool), surrogates);
-    assert_eq!(
-        (
-            month_rows(&pool),
-            country_rows(&pool),
-            institution_rows(&pool),
-            ambiguity_rows(&pool),
-        ),
-        rows_before
-    );
+    assert_eq!(derived_tables(&pool), rows_before);
     assert_eq!(UntouchedState::capture(&pool), untouched);
 }
 
@@ -6754,10 +7048,12 @@ fn an_empty_monthly_state_is_rebuilt_to_the_independent_expected_state_and_nothi
     let (_guard, pool) = setup_registry_db();
     let (_fixture, frontier) = settled_differential_fixture(&pool);
     let incremental = month_state(&pool);
+    let incremental_years = year_state(&pool);
     let oracle = oracle_month_state(&projection(&pool));
     let untouched = UntouchedState::capture(&pool);
     exec(&pool, REBUILD_TRUNCATE_SQL);
     assert_eq!(month_state(&pool), MonthState::default());
+    assert_eq!(year_state(&pool), YearState::default());
     let (logged, log) = logging_pool();
 
     let result = rebuild(&logged, frontier).expect("rebuild");
@@ -6766,12 +7062,19 @@ fn an_empty_monthly_state_is_rebuilt_to_the_independent_expected_state_and_nothi
     assert_eq!(month_state(&pool), incremental, "rebuild vs incremental");
     assert_eq!(month_state(&pool), oracle, "rebuild vs oracle");
     assert_watermarks_within(&month_state(&pool), frontier);
+    assert_eq!(
+        year_state(&pool),
+        incremental_years,
+        "yearly rebuild vs incremental"
+    );
+    assert_year_watermarks_within(&year_state(&pool), frontier);
 
     // The receipt is the same verification a fresh read-only snapshot gives.
     assert_eq!(verification(&pool), result.verification);
 
-    // Truncate, then the keyed recomputation in chunks, then one more
-    // verification before commit.
+    // Truncate, then the keyed recomputation in chunks, then the two
+    // whole-table yearly derivations, then one more verification before
+    // commit.
     let statements = captured(&log);
     let truncate = statements
         .iter()
@@ -6785,6 +7088,35 @@ fn an_empty_monthly_state_is_rebuilt_to_the_independent_expected_state_and_nothi
         .collect();
     assert_eq!(verifications.len(), 2);
     assert!(verifications[0] < truncate && truncate < verifications[1]);
+    let last_month_statement = statements
+        .iter()
+        .rposition(|s| {
+            MONTH_MAINTENANCE_STATEMENTS
+                .iter()
+                .any(|statement| s.starts_with(statement))
+        })
+        .expect("a monthly statement");
+    let yearly: Vec<usize> = REBUILD_YEAR_STATEMENTS
+        .iter()
+        .map(|statement| {
+            let positions: Vec<usize> = statements
+                .iter()
+                .enumerate()
+                .filter(|(_, s)| *s == statement)
+                .map(|(index, _)| index)
+                .collect();
+            assert_eq!(positions.len(), 1, "each yearly derivation runs once");
+            positions[0]
+        })
+        .collect();
+    assert!(last_month_statement < yearly[0] && yearly[0] < yearly[1]);
+    assert!(yearly[1] < verifications[1]);
+    assert!(
+        !statements
+            .iter()
+            .any(|s| YEAR_MAINTENANCE_STATEMENTS.iter().any(|w| s.starts_with(w))),
+        "a rebuild derives the yearly tables whole, never per key"
+    );
     assert_eq!(
         statements
             .iter()
@@ -6816,11 +7148,12 @@ fn a_corrupted_monthly_state_is_replaced_whole_by_the_rebuild() {
     let (_guard, pool) = setup_registry_db();
     let (fixture, frontier) = settled_differential_fixture(&pool);
     let incremental = month_state(&pool);
+    let incremental_years = year_state(&pool);
     let surrogates = month_surrogates(&pool);
     let untouched = UntouchedState::capture(&pool);
 
     // Corruption in every family at once: a value, an identity, a flag, a
-    // watermark, a missing row and an extra row.
+    // watermark, a missing row, an extra row, and a yearly value and flag.
     exec_one(
         &pool,
         "UPDATE metric_rollup_work_month SET value = value + 10 \
@@ -6864,6 +7197,20 @@ fn a_corrupted_monthly_state_is_replaced_whole_by_the_rebuild() {
             fixture.work_id, fixture.platform_id, fixture.measure_id
         ),
     );
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_country_year SET value = value + 3 \
+         WHERE rollup_work_country_year_id = (SELECT rollup_work_country_year_id \
+             FROM metric_rollup_work_country_year ORDER BY rollup_work_country_year_id LIMIT 1)",
+    );
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_institution_year \
+         SET requires_country_coverage = NOT requires_country_coverage \
+         WHERE rollup_work_institution_year_id = (SELECT rollup_work_institution_year_id \
+             FROM metric_rollup_work_institution_year \
+             ORDER BY rollup_work_institution_year_id LIMIT 1)",
+    );
     let corrupted = verification(&pool);
     assert!(!corrupted.matches);
     assert_eq!(corrupted.total.mismatched_rows, 1);
@@ -6873,16 +7220,19 @@ fn a_corrupted_monthly_state_is_replaced_whole_by_the_rebuild() {
     assert_eq!(corrupted.country.extra_rows, 1);
     assert_eq!(corrupted.institution.mismatched_rows, 1);
     assert_eq!(corrupted.ambiguity.mismatched_rows, 1);
+    assert_eq!(corrupted.country_year.mismatched_rows, 1);
+    assert_eq!(corrupted.institution_year.mismatched_rows, 1);
 
     let result = rebuild(&pool, frontier).expect("rebuild");
     assert!(result.rebuilt);
     assert_exact_verification(&pool, &result.verification);
     assert_eq!(month_state(&pool), incremental);
+    assert_eq!(year_state(&pool), incremental_years);
     let rebuilt = month_surrogates(&pool);
     assert_eq!(rebuilt.len(), surrogates.len());
     assert!(
         rebuilt.iter().all(|id| !surrogates.contains(id)),
-        "a real rebuild replaces every monthly row"
+        "a real rebuild replaces every monthly and yearly row"
     );
     assert_eq!(UntouchedState::capture(&pool), untouched);
 }
@@ -6891,25 +7241,30 @@ fn a_corrupted_monthly_state_is_replaced_whole_by_the_rebuild() {
 // Rebuild: rollback under injected failure, mismatch and the elapsed ceiling
 // ---------------------------------------------------------------------------
 
-/// Everything in the four monthly tables, surrogate ids included.
-fn month_tables(
-    pool: &PgPool,
-) -> (
+/// Everything in the four monthly and the two yearly tables, surrogate ids
+/// included.
+type DerivedTables = (
     Vec<MetricRollupWorkMonth>,
     Vec<MetricRollupWorkCountryMonth>,
     Vec<MetricRollupWorkInstitutionMonth>,
     Vec<MetricRollupWorkMonthAmbiguity>,
-) {
+    Vec<MetricRollupWorkCountryYear>,
+    Vec<MetricRollupWorkInstitutionYear>,
+);
+
+fn derived_tables(pool: &PgPool) -> DerivedTables {
     (
         month_rows(pool),
         country_rows(pool),
         institution_rows(pool),
         ambiguity_rows(pool),
+        country_year_rows(pool),
+        institution_year_rows(pool),
     )
 }
 
 #[test]
-fn an_injected_failure_after_the_truncate_rolls_back_all_four_projections() {
+fn an_injected_failure_after_the_truncate_rolls_back_all_six_projections() {
     let (_guard, pool) = setup_registry_db();
     let (_fixture, frontier) = settled_differential_fixture(&pool);
     // Corrupt one row so the rebuild takes the real path.
@@ -6919,10 +7274,10 @@ fn an_injected_failure_after_the_truncate_rolls_back_all_four_projections() {
          WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
              FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
     );
-    let before = month_tables(&pool);
+    let before = derived_tables(&pool);
     let untouched = UntouchedState::capture(&pool);
 
-    for table in MONTH_TABLES {
+    for table in DERIVED_TABLES {
         let (logged, log) = logging_pool();
         {
             let _injected = InjectedTrigger::failing(&pool, "BEFORE INSERT", table);
@@ -6942,7 +7297,7 @@ fn an_injected_failure_after_the_truncate_rolls_back_all_four_projections() {
             .expect("a statement")
             .starts_with("ROLLBACK"));
         assert_eq!(
-            month_tables(&pool),
+            derived_tables(&pool),
             before,
             "{table}: everything rolled back"
         );
@@ -6977,7 +7332,7 @@ fn an_injected_failure_in_a_later_chunk_rolls_back_the_earlier_chunks_too() {
          WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
              FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
     );
-    let before = month_tables(&pool);
+    let before = derived_tables(&pool);
     let last_month = distinct_month(50);
 
     let (logged, log) = logging_pool();
@@ -7007,7 +7362,7 @@ fn an_injected_failure_in_a_later_chunk_rolls_back_the_earlier_chunks_too() {
         .last()
         .expect("a statement")
         .starts_with("ROLLBACK"));
-    assert_eq!(month_tables(&pool), before);
+    assert_eq!(derived_tables(&pool), before);
 
     let result = rebuild(&pool, frontier).expect("rebuild");
     assert!(result.rebuilt);
@@ -7021,10 +7376,15 @@ fn a_post_rebuild_verification_mismatch_rolls_back_the_whole_rebuild() {
     let (_fixture, frontier) = settled_differential_fixture(&pool);
     let untouched = UntouchedState::capture(&pool);
 
-    // From empty, and from corrupted state: a writer that silently produces
-    // a wrong row is caught by the post-rebuild verification and nothing
-    // commits.
-    for start in ["empty", "corrupted"] {
+    // From empty, and from corrupted state: a monthly writer, or a yearly
+    // writer, that silently produces a wrong row is caught by the
+    // post-rebuild verification and nothing commits.
+    for (start, corrupted_table) in [
+        ("empty", "metric_rollup_work_institution_month"),
+        ("corrupted", "metric_rollup_work_institution_month"),
+        ("empty", "metric_rollup_work_country_year"),
+        ("corrupted", "metric_rollup_work_institution_year"),
+    ] {
         if start == "empty" {
             exec(&pool, REBUILD_TRUNCATE_SQL);
         } else {
@@ -7037,13 +7397,13 @@ fn a_post_rebuild_verification_mismatch_rolls_back_the_whole_rebuild() {
                      ORDER BY rollup_work_country_month_id LIMIT 1)",
             );
         }
-        let before = month_tables(&pool);
+        let before = derived_tables(&pool);
         let (logged, log) = logging_pool();
         {
             let _corrupting = InjectedTrigger::install(
                 &pool,
                 "BEFORE INSERT",
-                "metric_rollup_work_institution_month",
+                corrupted_table,
                 "ROW",
                 None,
                 "NEW.value := NEW.value + 1; RETURN NEW;",
@@ -7052,22 +7412,32 @@ fn a_post_rebuild_verification_mismatch_rolls_back_the_whole_rebuild() {
             assert!(
                 matches!(&error, ThothError::InternalError(message)
                     if message.contains("do not match their independently derived expected state")),
-                "{start}: {error:?}"
+                "{start} / {corrupted_table}: {error:?}"
             );
         }
         let statements = captured(&log);
         assert_eq!(
             statements.iter().filter(|s| *s == VERIFICATION_SQL).count(),
             2,
-            "{start}: both verifications ran"
+            "{start} / {corrupted_table}: both verifications ran"
         );
         assert!(statements
             .last()
             .expect("a statement")
             .starts_with("ROLLBACK"));
-        assert_eq!(month_tables(&pool), before, "{start}: nothing committed");
-        assert_eq!(UntouchedState::capture(&pool), untouched, "{start}");
+        assert_eq!(
+            derived_tables(&pool),
+            before,
+            "{start} / {corrupted_table}: nothing committed"
+        );
+        assert_eq!(
+            UntouchedState::capture(&pool),
+            untouched,
+            "{start} / {corrupted_table}"
+        );
     }
+    assert!(rebuild(&pool, frontier).expect("restore").rebuilt);
+    assert_exact_verification(&pool, &verification(&pool));
 }
 
 #[test]
@@ -7080,7 +7450,7 @@ fn exceeding_the_elapsed_ceiling_fails_and_rolls_back_at_every_checkpoint() {
 
     // Healthy state: the checkpoint immediately after the initial
     // verification fires, before the no-op return.
-    let before = month_tables(&pool);
+    let before = derived_tables(&pool);
     let (logged, log) = logging_pool();
     let error = rebuild_metric_rollup_months_within(&logged, &frontier.to_string(), Duration::ZERO)
         .expect_err("ceiling");
@@ -7089,7 +7459,7 @@ fn exceeding_the_elapsed_ceiling_fails_and_rolls_back_at_every_checkpoint() {
         .last()
         .expect("a statement")
         .starts_with("ROLLBACK"));
-    assert_eq!(month_tables(&pool), before);
+    assert_eq!(derived_tables(&pool), before);
 
     // Empty state: the same checkpoint fires before the truncate.
     exec(&pool, REBUILD_TRUNCATE_SQL);
@@ -7099,6 +7469,7 @@ fn exceeding_the_elapsed_ceiling_fails_and_rolls_back_at_every_checkpoint() {
     assert_eq!(rejection(&error), message);
     assert!(!captured(&log).iter().any(|s| s == REBUILD_TRUNCATE_SQL));
     assert_eq!(month_state(&pool), MonthState::default());
+    assert_eq!(year_state(&pool), YearState::default());
 
     // A ceiling that admits the initial verification but not the first
     // chunk: the truncate and the first chunk ran and were rolled back.
@@ -7134,7 +7505,38 @@ fn exceeding_the_elapsed_ceiling_fails_and_rolls_back_at_every_checkpoint() {
         MonthState::default(),
         "nothing committed"
     );
+    assert_eq!(year_state(&pool), YearState::default());
     assert_eq!(UntouchedState::capture(&pool), untouched);
+    drop(_pause);
+
+    // A ceiling that admits the whole monthly replay but not the yearly
+    // derivation: the truncate, every chunk and the first yearly statement
+    // ran and were rolled back.
+    let (logged, log) = logging_pool();
+    let _pause = InjectedTrigger::install(
+        &pool,
+        "BEFORE INSERT",
+        "metric_rollup_work_country_year",
+        "STATEMENT",
+        None,
+        "PERFORM pg_sleep(1.5); RETURN NULL;",
+    );
+    let started = Instant::now();
+    let error = rebuild_metric_rollup_months_within(
+        &logged,
+        &frontier.to_string(),
+        started.elapsed() + initial_cost + Duration::from_millis(1200),
+    )
+    .expect_err("ceiling after the yearly derivation");
+    assert_eq!(rejection(&error), message);
+    let statements = captured(&log);
+    assert!(statements.iter().any(|s| s == REBUILD_YEAR_STATEMENTS[0]));
+    assert!(statements
+        .last()
+        .expect("a statement")
+        .starts_with("ROLLBACK"));
+    assert_eq!(month_state(&pool), MonthState::default());
+    assert_eq!(year_state(&pool), YearState::default());
     drop(_pause);
 
     // The production ceiling admits the whole rebuild.
@@ -7285,6 +7687,7 @@ fn normal_completion_and_allocation_wait_behind_a_rebuild_and_then_resume_correc
     );
     assert_eq!(state(&pool).applied_through_sequence, frontier + 2);
     assert_eq!(month_state(&pool), oracle_month_state(&projection(&pool)));
+    assert_eq!(year_state(&pool), oracle_year_state(&projection(&pool)));
     let verified = verification(&pool);
     assert_exact_verification(&pool, &verified);
     assert_eq!(verified.applied_through_sequence, frontier + 2);
@@ -7456,10 +7859,10 @@ fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
     }
 }
 
-/// The pids holding a granted lock of `mode` on all four monthly tables.
-fn holders_on_all_month_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
+/// The pids holding a granted lock of `mode` on all six derived tables.
+fn holders_on_all_derived_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
     let mut holders: Option<BTreeSet<i32>> = None;
-    for table in MONTH_TABLES {
+    for table in DERIVED_TABLES {
         let pids: BTreeSet<i32> = relation_locks(pool, table, mode)
             .into_iter()
             .filter(|(_, granted)| *granted)
@@ -7478,9 +7881,10 @@ fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits()
     let (_guard, pool) = setup_registry_db();
     let (_fixture, frontier) = settled_differential_fixture(&pool);
     let oracle = oracle_month_state(&projection(&pool));
-    // Empty monthly state, so the rebuild must take the real TRUNCATE path
-    // and the verifier's snapshot has an unmistakable identity: every
-    // expected row missing, nothing actual.
+    let years = oracle_year_state(&projection(&pool));
+    // Empty monthly and yearly state, so the rebuild must take the real
+    // TRUNCATE path and the verifier's snapshot has an unmistakable
+    // identity: every expected row missing, nothing actual.
     exec(&pool, REBUILD_TRUNCATE_SQL);
 
     // The production verifier, paused just before its comparison: its lock
@@ -7488,11 +7892,11 @@ fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits()
     let (paused, pause, verifier_log) = pausing_pool(VERIFICATION_SQL);
     let verifying = thread::spawn(move || verify_metric_rollup_months(&paused));
     pause.wait_reached();
-    let holders = holders_on_all_month_tables(&pool, "AccessShareLock");
+    let holders = holders_on_all_derived_tables(&pool, "AccessShareLock");
     assert_eq!(
         holders.len(),
         1,
-        "the verifier holds ACCESS SHARE on all four: {holders:?}"
+        "the verifier holds ACCESS SHARE on all six: {holders:?}"
     );
     let verifier_pid = holders[0];
 
@@ -7513,7 +7917,7 @@ fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits()
     let (wait_event_type, query) = backend(&pool, rebuild_pid);
     assert_eq!(wait_event_type.as_deref(), Some("Lock"), "{query}");
     assert!(query.starts_with("TRUNCATE TABLE"), "{query}");
-    for table in MONTH_TABLES {
+    for table in DERIVED_TABLES {
         assert!(
             relation_locks(&pool, table, "AccessExclusiveLock")
                 .iter()
@@ -7540,6 +7944,8 @@ fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits()
     assert_eq!(verified.country, missing(oracle.countries.len()));
     assert_eq!(verified.institution, missing(oracle.institutions.len()));
     assert_eq!(verified.ambiguity, missing(oracle.ambiguity.len()));
+    assert_eq!(verified.country_year, missing(years.countries.len()));
+    assert_eq!(verified.institution_year, missing(years.institutions.len()));
     assert_eq!(verified.applied_through_sequence, frontier);
     let statements = captured(&verifier_log);
     let lock = statements
@@ -7556,6 +7962,7 @@ fn a_verifier_holding_its_monthly_locks_blocks_a_real_rebuild_until_it_commits()
     assert!(rebuilt.rebuilt);
     assert!(rebuilt.verification.matches);
     assert_eq!(month_state(&pool), oracle);
+    assert_eq!(year_state(&pool), years);
     let after = verification(&pool);
     assert_exact_verification(&pool, &after);
     assert_eq!(after, rebuilt.verification);
@@ -7569,16 +7976,16 @@ fn a_verifier_waits_before_its_snapshot_while_a_real_rebuild_holds_the_monthly_t
     exec(&pool, REBUILD_TRUNCATE_SQL);
 
     // The production rebuild, paused just after its TRUNCATE executed: it
-    // holds ACCESS EXCLUSIVE on all four monthly tables and has not
+    // holds ACCESS EXCLUSIVE on all six derived tables and has not
     // repopulated them yet.
     let (paused, pause, rebuild_log) = pausing_pool(REBUILD_MONTH_KEYS_SQL);
     let rebuilding = thread::spawn(move || rebuild(&paused, frontier));
     pause.wait_reached();
-    let holders = holders_on_all_month_tables(&pool, "AccessExclusiveLock");
+    let holders = holders_on_all_derived_tables(&pool, "AccessExclusiveLock");
     assert_eq!(
         holders.len(),
         1,
-        "the rebuild holds ACCESS EXCLUSIVE on all four: {holders:?}"
+        "the rebuild holds ACCESS EXCLUSIVE on all six: {holders:?}"
     );
     let rebuild_pid = holders[0];
     assert!(captured(&rebuild_log)
@@ -7633,6 +8040,7 @@ fn a_verifier_waits_before_its_snapshot_while_a_real_rebuild_holds_the_monthly_t
     assert_eq!(verified, rebuilt.verification);
     assert_exact_verification(&pool, &verified);
     assert_eq!(month_state(&pool), oracle);
+    assert_eq!(year_state(&pool), oracle_year_state(&projection(&pool)));
 }
 
 // ---------------------------------------------------------------------------
@@ -7702,7 +8110,8 @@ fn evidence_month_verification_and_rebuild_envelope() {
         assert!(result.rebuilt, "run {run} must take the real rebuild path");
         assert!(result.verification.matches);
         println!(
-            "real rebuild {run} ({}): {:.3}s; totals {} country {} institution {} ambiguity {}",
+            "real rebuild {run} ({}): {:.3}s; totals {} country {} institution {} ambiguity {} \
+             country_year {} institution_year {}",
             if run % 2 == 1 {
                 "from empty"
             } else {
@@ -7713,6 +8122,8 @@ fn evidence_month_verification_and_rebuild_envelope() {
             result.verification.country.actual_rows,
             result.verification.institution.actual_rows,
             result.verification.ambiguity.actual_rows,
+            result.verification.country_year.actual_rows,
+            result.verification.institution_year.actual_rows,
         );
         rebuilds.push(elapsed);
     }
@@ -7761,4 +8172,1494 @@ fn evidence_month_verification_and_rebuild_envelope() {
     assert!(verification_p95 < 30_000_000, "verification p95 >= 30s");
     assert!(rebuild_max < 120_000_000, "real rebuild max >= 120s");
     assert!(noop_p95 < 30_000_000, "healthy no-op p95 >= 30s");
+}
+
+// ===========================================================================
+// MET-WP4-03C: derived yearly section projections
+// ===========================================================================
+
+/// The Diesel migration version of `thoth-api/migrations/20260928_v1.9.0`.
+const MET_WP4_03C_MIGRATION_VERSION: &str = "20260928";
+
+// ---------------------------------------------------------------------------
+// Yearly row readers, logical yearly state and the independent oracle
+// ---------------------------------------------------------------------------
+
+pub(crate) fn country_year_rows(pool: &PgPool) -> Vec<MetricRollupWorkCountryYear> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkCountryYear> = metric_rollup_work_country_year::table
+        .load(&mut connection)
+        .expect("Failed to load the yearly country projection");
+    rows.sort_by_key(|row| {
+        (
+            row.year_start,
+            row.work_id,
+            row.publication_id,
+            row.country_code.clone(),
+            row.value,
+        )
+    });
+    rows
+}
+
+fn institution_year_rows(pool: &PgPool) -> Vec<MetricRollupWorkInstitutionYear> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<MetricRollupWorkInstitutionYear> = metric_rollup_work_institution_year::table
+        .load(&mut connection)
+        .expect("Failed to load the yearly institution projection");
+    rows.sort_by_key(|row| {
+        (
+            row.year_start,
+            row.work_id,
+            row.publication_id,
+            row.institution_id,
+            row.value,
+        )
+    });
+    rows
+}
+
+/// `(year_start, publication_id, country_code, value, requires_institution, watermark)`.
+type CountryYearFact = (NaiveDate, Option<Uuid>, String, i64, bool, i64);
+/// `(year_start, publication_id, institution_id, value, requires_country, watermark)`.
+type InstitutionYearFact = (NaiveDate, Option<Uuid>, Uuid, i64, bool, i64);
+
+fn country_years(pool: &PgPool) -> Vec<CountryYearFact> {
+    country_year_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.year_start,
+                row.publication_id,
+                row.country_code,
+                row.value,
+                row.requires_institution_coverage,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+fn institution_years(pool: &PgPool) -> Vec<InstitutionYearFact> {
+    institution_year_rows(pool)
+        .into_iter()
+        .map(|row| {
+            (
+                row.year_start,
+                row.publication_id,
+                row.institution_id,
+                row.value,
+                row.requires_country_coverage,
+                row.watermark,
+            )
+        })
+        .collect()
+}
+
+/// The country identity with `year_start` in place of `month_start`.
+type CountryYearIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate, String);
+/// The institution identity with `year_start` in place of `month_start`.
+type InstitutionYearIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate, Uuid);
+
+/// The two yearly datasets by logical identity, without surrogate ids.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct YearState {
+    countries: BTreeMap<CountryYearIdentity, DimensionValue>,
+    institutions: BTreeMap<InstitutionYearIdentity, DimensionValue>,
+}
+
+/// The persisted yearly state.
+fn year_state(pool: &PgPool) -> YearState {
+    YearState {
+        countries: country_year_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.publication_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.year_start,
+                        row.country_code,
+                    ),
+                    (row.value, row.requires_institution_coverage, row.watermark),
+                )
+            })
+            .collect(),
+        institutions: institution_year_rows(pool)
+            .into_iter()
+            .map(|row| {
+                (
+                    (
+                        row.work_id,
+                        row.publication_id,
+                        row.platform_id,
+                        row.measure_id,
+                        row.year_start,
+                        row.institution_id,
+                    ),
+                    (row.value, row.requires_country_coverage, row.watermark),
+                )
+            })
+            .collect(),
+    }
+}
+
+fn year_of(month_start: NaiveDate) -> NaiveDate {
+    NaiveDate::from_ymd_opt(month_start.year(), 1, 1).expect("a calendar year")
+}
+
+/// The yearly state the approved semantics imply: the per-day generic-rule
+/// oracle of the monthly section, regrouped by calendar year with checked
+/// sums, OR-ed flags and the greatest watermark. It never reads a monthly or
+/// yearly table and shares nothing with the SQL writers.
+fn oracle_year_state(days: &[MetricRollupWorkDay]) -> YearState {
+    let months = oracle_month_state(days);
+    let mut state = YearState::default();
+    for ((work, publication, platform, measure, month_start, code), (value, flag, watermark)) in
+        months.countries
+    {
+        let entry = state
+            .countries
+            .entry((
+                work,
+                publication,
+                platform,
+                measure,
+                year_of(month_start),
+                code,
+            ))
+            .or_insert((0, false, 0));
+        entry.0 = entry.0.checked_add(value).expect("oracle overflow");
+        entry.1 |= flag;
+        entry.2 = entry.2.max(watermark);
+    }
+    for (
+        (work, publication, platform, measure, month_start, institution),
+        (value, flag, watermark),
+    ) in months.institutions
+    {
+        let entry = state
+            .institutions
+            .entry((
+                work,
+                publication,
+                platform,
+                measure,
+                year_of(month_start),
+                institution,
+            ))
+            .or_insert((0, false, 0));
+        entry.0 = entry.0.checked_add(value).expect("oracle overflow");
+        entry.1 |= flag;
+        entry.2 = entry.2.max(watermark);
+    }
+    state
+}
+
+/// Every yearly watermark must sit at or below the durable frontier.
+fn assert_year_watermarks_within(state: &YearState, frontier: i64) {
+    for watermark in state
+        .countries
+        .values()
+        .chain(state.institutions.values())
+        .map(|value| value.2)
+    {
+        assert!(
+            watermark > 0 && watermark <= frontier,
+            "a yearly watermark {watermark} must be positive and at most the frontier {frontier}"
+        );
+    }
+}
+
+/// The positions, within the fixed yearly statement list, of the yearly
+/// statements captured so far, in execution order.
+fn captured_year_statements(log: &Mutex<Vec<String>>) -> Vec<usize> {
+    log.lock()
+        .expect("statement log")
+        .iter()
+        .filter_map(|text| {
+            YEAR_MAINTENANCE_STATEMENTS
+                .iter()
+                .position(|statement| text.starts_with(statement))
+        })
+        .collect()
+}
+
+/// Assert the persisted yearly state equals the oracle, and that the
+/// independent verifier reports both yearly families exact with the oracle's
+/// cardinalities.
+fn assert_year_exact(pool: &PgPool, label: &str) -> MetricRollupMonthVerification {
+    let days = projection(pool);
+    let oracle = oracle_year_state(&days);
+    assert_eq!(year_state(pool), oracle, "{label}: yearly state vs oracle");
+    assert_year_watermarks_within(&oracle, state(pool).applied_through_sequence);
+    let verified = verification(pool);
+    assert!(verified.matches, "{label}: {verified:?}");
+    assert_eq!(
+        verified.country_year,
+        exact_family(oracle.countries.len() as i64),
+        "{label}"
+    );
+    assert_eq!(
+        verified.institution_year,
+        exact_family(oracle.institutions.len() as i64),
+        "{label}"
+    );
+    verified
+}
+
+/// Digests of everything a failed completion or rebuild must leave intact:
+/// the six derived tables, the work-day projection, the deltas and the state
+/// row.
+fn derived_digests(pool: &PgPool) -> Vec<(String, Option<String>)> {
+    let mut digests: Vec<(String, Option<String>)> = DERIVED_TABLES
+        .iter()
+        .chain(
+            [
+                "metric_rollup_work_day",
+                "metric_rollup_delta",
+                "metric_rollup_work_day_state",
+            ]
+            .iter(),
+        )
+        .map(|table| (table.to_string(), table_digest(pool, table)))
+        .collect();
+    digests.push(("state".to_string(), Some(format!("{:?}", state(pool)))));
+    digests
+}
+
+fn cell(
+    publication_id: Option<Uuid>,
+    country_code: Option<&'static str>,
+    institution_id: Option<Uuid>,
+) -> CellDimensions {
+    CellDimensions {
+        publication_id,
+        country_code,
+        institution_id,
+    }
+}
+
+fn ymd_(year: i32, month: u32, day: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(year, month, day).expect("a valid fixture date")
+}
+
+// ---------------------------------------------------------------------------
+// Yearly key derivation and statement shape
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_yearly_maintenance_is_keyed_by_calendar_year_and_reads_only_the_monthly_sections() {
+    let work = Uuid::new_v4();
+    let platform = Uuid::new_v4();
+    let measure = Uuid::new_v4();
+    // Three months of one year name one year key; December and January
+    // name two; two works name two.
+    let keys: BTreeSet<MonthKey> = [
+        (work, platform, measure, month(2026, 3)),
+        (work, platform, measure, month(2026, 7)),
+        (work, platform, measure, month(2026, 12)),
+        (work, platform, measure, month(2027, 1)),
+        (Uuid::nil(), platform, measure, month(2026, 1)),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        affected_year_keys(&keys),
+        [
+            (Uuid::nil(), platform, measure, month(2026, 1)),
+            (work, platform, measure, month(2026, 1)),
+            (work, platform, measure, month(2027, 1)),
+        ]
+        .into_iter()
+        .collect::<BTreeSet<YearKey>>()
+    );
+
+    // The four statements read only the two monthly section tables, write
+    // only the two yearly tables, take the keys as four parallel arrays and
+    // regroup by the yearly identity.
+    for statement in YEAR_MAINTENANCE_STATEMENTS {
+        assert!(!statement.contains("metric_rollup_work_day"));
+        assert!(!statement.contains("metric_rollup_work_month "));
+        assert!(!statement.contains("metric_rollup_work_month_ambiguity"));
+        assert!(statement.contains("unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[])"));
+    }
+    // The specification's order: country delete, country insert,
+    // institution delete, institution insert.
+    assert!(YEAR_MAINTENANCE_STATEMENTS[0]
+        .starts_with("DELETE FROM public.metric_rollup_work_country_year"));
+    assert!(YEAR_MAINTENANCE_STATEMENTS[1]
+        .contains("INSERT INTO public.metric_rollup_work_country_year"));
+    assert!(YEAR_MAINTENANCE_STATEMENTS[1]
+        .contains("FROM affected a JOIN public.metric_rollup_work_country_month c"));
+    assert!(YEAR_MAINTENANCE_STATEMENTS[2]
+        .starts_with("DELETE FROM public.metric_rollup_work_institution_year"));
+    assert!(YEAR_MAINTENANCE_STATEMENTS[3]
+        .contains("INSERT INTO public.metric_rollup_work_institution_year"));
+    assert!(YEAR_MAINTENANCE_STATEMENTS[3]
+        .contains("FROM affected a JOIN public.metric_rollup_work_institution_month i"));
+    for statement in [
+        YEAR_MAINTENANCE_STATEMENTS[1],
+        YEAR_MAINTENANCE_STATEMENTS[3],
+    ] {
+        assert!(statement.contains("SUM("));
+        assert!(statement.contains("bool_or("));
+        assert!(statement.contains("MAX("));
+        assert!(statement.contains("month_start < (a.year_start + interval '1 year')::date"));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Incremental maintenance
+// ---------------------------------------------------------------------------
+
+#[test]
+fn yearly_state_follows_every_completion_shape_exactly() {
+    let (_guard, _registry) = setup_registry_db();
+    let (pool, log) = logging_pool();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let other_work = insert_extra_work(&pool, &fixture);
+    let other_publication = insert_extra_publication(&pool, fixture.work_id, "Paperback");
+    let other_institution = insert_extra_institution(&pool);
+    let work = fixture.work_id;
+    let publication = Some(fixture.publication_id);
+    let institution = Some(fixture.institution_id);
+
+    type Case = (&'static str, Vec<(Uuid, NaiveDate, CellDimensions, i64)>);
+    let cases: Vec<Case> = vec![
+        (
+            "single-row aggregate delta",
+            vec![(work, ymd_(2026, 3, 5), cell(None, None, None), 7)],
+        ),
+        (
+            "multi-key batch over two works, four months and two years",
+            vec![
+                (work, ymd_(2026, 1, 3), cell(None, Some("GB"), None), 5),
+                (work, ymd_(2026, 2, 3), cell(None, Some("US"), None), 6),
+                (
+                    other_work,
+                    ymd_(2025, 11, 9),
+                    cell(None, Some("GB"), None),
+                    8,
+                ),
+                (
+                    other_work,
+                    ymd_(2026, 4, 9),
+                    cell(None, None, institution),
+                    9,
+                ),
+            ],
+        ),
+        (
+            "multi-month same-year batch",
+            vec![
+                (work, ymd_(2026, 5, 1), cell(None, Some("DE"), None), 1),
+                (work, ymd_(2026, 6, 1), cell(None, Some("DE"), None), 2),
+                (work, ymd_(2026, 7, 1), cell(None, Some("DE"), None), 3),
+            ],
+        ),
+        (
+            "cross-year batch",
+            vec![
+                (work, ymd_(2025, 12, 31), cell(None, Some("FR"), None), 4),
+                (work, ymd_(2026, 1, 1), cell(None, Some("FR"), None), 5),
+            ],
+        ),
+        (
+            "country-, institution- and publication-bearing rows",
+            vec![
+                (
+                    work,
+                    ymd_(2026, 8, 2),
+                    cell(None, Some("GB"), institution),
+                    11,
+                ),
+                (work, ymd_(2026, 8, 2), cell(None, Some("GB"), None), 12),
+                (work, ymd_(2026, 8, 2), cell(None, None, institution), 13),
+                (
+                    work,
+                    ymd_(2026, 8, 3),
+                    cell(publication, Some("US"), None),
+                    14,
+                ),
+                (
+                    work,
+                    ymd_(2026, 8, 3),
+                    cell(publication, None, Some(other_institution)),
+                    15,
+                ),
+                (
+                    work,
+                    ymd_(2026, 8, 4),
+                    cell(Some(other_publication), None, institution),
+                    16,
+                ),
+                (
+                    other_work,
+                    ymd_(2026, 8, 4),
+                    cell(None, Some("US"), Some(other_institution)),
+                    17,
+                ),
+            ],
+        ),
+    ];
+    let mut first_record: Option<(Uuid, i64)> = None;
+    for (label, deltas) in cases {
+        let batch = deltas.len();
+        for (work_id, on, dimensions, value) in deltas {
+            let record_id = commit_cell_delta(&pool, &fixture, work_id, on, dimensions, value);
+            first_record.get_or_insert((record_id, value));
+        }
+        let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+        assert_eq!(claims.len(), batch, "{label}");
+        log.lock().expect("statement log").clear();
+        complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token).expect("completion");
+        assert_eq!(
+            captured_year_statements(&log),
+            (0..YEAR_MAINTENANCE_STATEMENT_COUNT).collect::<Vec<_>>(),
+            "{label}: exactly the four yearly statements"
+        );
+        assert_year_exact(&pool, label);
+    }
+    // The yearly rows of the two years regroup the monthly rows exactly:
+    // three DE months of 2026 are one DE row, and the cross-year FR batch is
+    // one row per year.
+    let years = year_state(&pool);
+    let de: Vec<_> = years
+        .countries
+        .iter()
+        .filter(|(identity, _)| identity.5 == "DE")
+        .collect();
+    assert_eq!(de.len(), 1);
+    assert_eq!(de[0].1 .0, 6);
+    let fr: Vec<NaiveDate> = years
+        .countries
+        .keys()
+        .filter(|identity| identity.5 == "FR")
+        .map(|identity| identity.4)
+        .collect();
+    assert_eq!(fr, vec![month(2025, 1), month(2026, 1)]);
+    assert!(years.countries.keys().any(|identity| identity.1.is_some()));
+    assert!(years
+        .institutions
+        .keys()
+        .any(|identity| identity.1.is_some()));
+    assert!(years.countries.values().any(|value| value.1));
+
+    // A negative correction and then a correction to zero flow through to
+    // the year: the resolved day row still contributes its representation.
+    let (record_id, value) = first_record.expect("a record");
+    commit_revision_delta(&pool, &fixture, record_id, 2, 3, value);
+    apply_everything(&pool);
+    assert_year_exact(&pool, "negative correction");
+    commit_revision_delta(&pool, &fixture, record_id, 3, 0, 3);
+    apply_everything(&pool);
+    assert_year_exact(&pool, "correction to zero");
+
+    // A fresh rebuild reproduces the incrementally maintained yearly state
+    // exactly, surrogate ids apart.
+    let incremental = year_state(&pool);
+    rebuild_month_projections(&pool).expect("rebuild");
+    assert_eq!(year_state(&pool), incremental);
+}
+
+#[test]
+fn a_yearly_recomputation_failure_rolls_back_the_whole_completion() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+    assert_year_exact(&pool, "settled fixture");
+    // A batch touching country and institution rows of the fixture year.
+    day_delta(&pool, &fixture, (2026, 2, 5), GB, 9);
+    day_delta(&pool, &fixture, (2026, 2, 6), INST, 9);
+    day_delta(&pool, &fixture, (2026, 3, 6), GB_INST, 9);
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 50).expect("claim");
+    let token = claims[0].claim_token;
+
+    let injections: [(&str, &str, &str, &str, Option<&str>); 4] = [
+        (
+            "after the monthly maintenance, before the yearly (statement trigger on the first yearly delete)",
+            "BEFORE DELETE",
+            "metric_rollup_work_country_year",
+            "STATEMENT",
+            None,
+        ),
+        (
+            "during the yearly institution delete",
+            "BEFORE DELETE",
+            "metric_rollup_work_institution_year",
+            "ROW",
+            None,
+        ),
+        (
+            "during the yearly country insert",
+            "BEFORE INSERT",
+            "metric_rollup_work_country_year",
+            "ROW",
+            Some("NEW.value > 0"),
+        ),
+        (
+            "during the yearly institution insert",
+            "BEFORE INSERT",
+            "metric_rollup_work_institution_year",
+            "ROW",
+            None,
+        ),
+    ];
+    for (label, timing, table, level, when) in injections {
+        let before = derived_digests(&pool);
+        let error = {
+            let _trigger = InjectedTrigger::install(
+                &pool,
+                timing,
+                table,
+                level,
+                when,
+                "RAISE EXCEPTION 'thoth test failure injection'; RETURN NULL;",
+            );
+            complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect_err("must fail")
+        };
+        assert!(
+            database_failure(&error).contains("thoth test failure injection"),
+            "{label}: {error:?}"
+        );
+        assert_eq!(
+            derived_digests(&pool),
+            before,
+            "{label}: work-day, monthly, yearly, delta and frontier state rolled back"
+        );
+        assert_eq!(state(&pool).applied_through_sequence, frontier, "{label}");
+        assert!(
+            deltas(&pool)
+                .iter()
+                .filter(|delta| delta.claim_token == Some(token))
+                .all(|delta| delta.status == "CLAIMED" && delta.applied_at.is_none()),
+            "{label}: the batch stays claimed and retryable"
+        );
+    }
+
+    // With the triggers gone the same token completes and everything is
+    // exact.
+    let watermark = complete_metric_rollup_deltas(&pool, CLAIMANT, token).expect("completion");
+    assert_eq!(watermark.applied_through_sequence, frontier + 3);
+    assert_year_exact(&pool, "after the injected failures");
+    assert_eq!(month_state(&pool), oracle_month_state(&projection(&pool)));
+}
+
+#[test]
+fn a_yearly_sum_that_overflows_while_its_months_fit_fails_closed_and_changes_nothing() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // Two months of one year that each fit a bigint but whose year does not.
+    day_delta(
+        &pool,
+        &fixture,
+        (2026, 1, 10),
+        GB,
+        6_000_000_000_000_000_000,
+    );
+    apply_everything(&pool);
+    assert_year_exact(&pool, "one month");
+    day_delta(
+        &pool,
+        &fixture,
+        (2026, 2, 10),
+        GB,
+        6_000_000_000_000_000_000,
+    );
+    let claims = claim_metric_rollup_deltas(&pool, CLAIMANT, 1).expect("claim");
+    let before = derived_digests(&pool);
+    let error = complete_metric_rollup_deltas(&pool, CLAIMANT, claims[0].claim_token)
+        .expect_err("an overflowing yearly sum must fail closed");
+    assert!(
+        rejection(&error)
+            .starts_with("Recomputing the yearly projections for this batch would overflow"),
+        "unexpected rejection: {error:?}"
+    );
+    assert_eq!(
+        derived_digests(&pool),
+        before,
+        "the day row, the monthly rows, the yearly rows and the frontier are unchanged"
+    );
+    assert_eq!(state(&pool).applied_through_sequence, 1);
+    assert_eq!(deltas(&pool)[1].status, "CLAIMED");
+    assert_eq!(
+        country_years(&pool),
+        vec![(
+            month(2026, 1),
+            None,
+            country("GB"),
+            6_000_000_000_000_000_000,
+            false,
+            1
+        )]
+    );
+}
+
+#[test]
+fn yearly_watermarks_are_the_greatest_contributing_monthly_watermark_within_the_frontier() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+    assert_year_exact(&pool, "settled");
+    // Frozen rule: yearly watermark = MAX of the watermarks of its
+    // contributing monthly rows, positive and at most the frontier.
+    let violations = scalar_i64(
+        &pool,
+        "(SELECT COUNT(*) FROM ( \
+             SELECT y.watermark, \
+                    (SELECT MAX(m.watermark) FROM metric_rollup_work_country_month m \
+                      WHERE m.work_id = y.work_id \
+                        AND m.publication_id IS NOT DISTINCT FROM y.publication_id \
+                        AND m.platform_id = y.platform_id AND m.measure_id = y.measure_id \
+                        AND m.country_code = y.country_code \
+                        AND m.month_start >= y.year_start \
+                        AND m.month_start < y.year_start + interval '1 year') AS expected, \
+                    (SELECT applied_through_sequence FROM metric_rollup_work_day_state) \
+                        AS frontier \
+             FROM metric_rollup_work_country_year y \
+             UNION ALL \
+             SELECT y.watermark, \
+                    (SELECT MAX(m.watermark) FROM metric_rollup_work_institution_month m \
+                      WHERE m.work_id = y.work_id \
+                        AND m.publication_id IS NOT DISTINCT FROM y.publication_id \
+                        AND m.platform_id = y.platform_id AND m.measure_id = y.measure_id \
+                        AND m.institution_id = y.institution_id \
+                        AND m.month_start >= y.year_start \
+                        AND m.month_start < y.year_start + interval '1 year'), \
+                    (SELECT applied_through_sequence FROM metric_rollup_work_day_state) \
+             FROM metric_rollup_work_institution_year y) t \
+          WHERE watermark <> expected OR watermark > frontier OR watermark <= 0)",
+    );
+    assert_eq!(violations, 0);
+    let years = year_state(&pool);
+    assert!(
+        years
+            .countries
+            .values()
+            .map(|value| value.2)
+            .collect::<BTreeSet<_>>()
+            .len()
+            > 1,
+        "the fixture exercises distinct yearly watermarks"
+    );
+
+    // Pending lag: an allocated, unapplied delta is reported as lag, never
+    // as yearly corruption.
+    day_delta(&pool, &fixture, (2026, 3, 9), GB, 2);
+    let verified = verification(&pool);
+    assert!(verified.matches);
+    assert!(verified.next_sequence - 1 > verified.applied_through_sequence);
+    assert_eq!(verified.applied_through_sequence, frontier);
+
+    // Repair never advances the frontier: after a yearly watermark
+    // corruption the rebuild repairs at the pinned frontier, the state row
+    // is byte-identical, and the pending delta is still pending.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_country_year SET watermark = 1 \
+         WHERE rollup_work_country_year_id = (SELECT rollup_work_country_year_id \
+             FROM metric_rollup_work_country_year WHERE watermark > 1 \
+             ORDER BY rollup_work_country_year_id LIMIT 1)",
+    );
+    let before = state(&pool);
+    let deltas_before = deltas(&pool);
+    assert!(!verification(&pool).matches);
+    let result = rebuild(&pool, frontier).expect("rebuild");
+    assert!(result.rebuilt && result.verification.matches);
+    assert_eq!(
+        state(&pool),
+        before,
+        "the rebuild leaves the state row untouched"
+    );
+    assert_eq!(deltas(&pool), deltas_before);
+    assert_year_exact(&pool, "after the repair");
+    apply_everything(&pool);
+    assert_year_exact(&pool, "after applying the lagging delta");
+}
+
+// ---------------------------------------------------------------------------
+// Independent verification of the yearly families
+// ---------------------------------------------------------------------------
+
+/// `(label, corruption, country (missing, extra, mismatched), institution
+/// (missing, extra, mismatched))`.
+type YearCorruption = (&'static str, String, (i64, i64, i64), (i64, i64, i64));
+
+#[test]
+fn every_yearly_corruption_is_detected_by_the_verifier_and_repaired_by_the_rebuild() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, frontier) = settled_differential_fixture(&pool);
+    let baseline = assert_year_exact(&pool, "settled");
+    let other_publication = insert_extra_publication(&pool, fixture.work_id, "Hardback");
+    let other_institution = insert_extra_institution(&pool);
+    let first_country = "(SELECT rollup_work_country_year_id FROM metric_rollup_work_country_year \
+         WHERE publication_id IS NULL ORDER BY work_id, year_start, country_code LIMIT 1)";
+    let first_institution = "(SELECT rollup_work_institution_year_id \
+         FROM metric_rollup_work_institution_year \
+         WHERE publication_id IS NULL ORDER BY work_id, year_start LIMIT 1)";
+
+    let corruptions: Vec<YearCorruption> = vec![
+        (
+            "missing yearly country row",
+            format!(
+                "DELETE FROM metric_rollup_work_country_year \
+                 WHERE rollup_work_country_year_id = {first_country}"
+            ),
+            (1, 0, 0),
+            (0, 0, 0),
+        ),
+        (
+            "extra yearly institution row in a year with no data",
+            "INSERT INTO metric_rollup_work_institution_year (work_id, publication_id, \
+                 platform_id, measure_id, year_start, institution_id, value, \
+                 requires_country_coverage, watermark) \
+             SELECT work_id, publication_id, platform_id, measure_id, DATE '2030-01-01', \
+                    institution_id, 1, false, 1 \
+             FROM metric_rollup_work_institution_year \
+             ORDER BY rollup_work_institution_year_id LIMIT 1"
+                .to_string(),
+            (0, 0, 0),
+            (0, 1, 0),
+        ),
+        (
+            "wrong yearly country value",
+            format!(
+                "UPDATE metric_rollup_work_country_year SET value = value + 1 \
+                 WHERE rollup_work_country_year_id = {first_country}"
+            ),
+            (0, 0, 1),
+            (0, 0, 0),
+        ),
+        (
+            "wrong publication identity",
+            format!(
+                "UPDATE metric_rollup_work_country_year SET publication_id = '{other_publication}' \
+                 WHERE rollup_work_country_year_id = {first_country}"
+            ),
+            (1, 1, 0),
+            (0, 0, 0),
+        ),
+        (
+            "wrong country",
+            format!(
+                "UPDATE metric_rollup_work_country_year SET country_code = 'ZZ' \
+                 WHERE rollup_work_country_year_id = {first_country}"
+            ),
+            (1, 1, 0),
+            (0, 0, 0),
+        ),
+        (
+            "wrong institution",
+            format!(
+                "UPDATE metric_rollup_work_institution_year \
+                 SET institution_id = '{other_institution}' \
+                 WHERE rollup_work_institution_year_id = {first_institution}"
+            ),
+            (0, 0, 0),
+            (1, 1, 0),
+        ),
+        (
+            "wrong dependency flag",
+            format!(
+                "UPDATE metric_rollup_work_institution_year \
+                 SET requires_country_coverage = NOT requires_country_coverage \
+                 WHERE rollup_work_institution_year_id = {first_institution}"
+            ),
+            (0, 0, 0),
+            (0, 0, 1),
+        ),
+        (
+            "wrong watermark within the frontier",
+            "UPDATE metric_rollup_work_country_year SET watermark = 1 \
+                 WHERE rollup_work_country_year_id = \
+                     (SELECT rollup_work_country_year_id FROM metric_rollup_work_country_year \
+                      WHERE watermark > 1 ORDER BY rollup_work_country_year_id LIMIT 1)"
+                .to_string(),
+            (0, 0, 1),
+            (0, 0, 0),
+        ),
+        (
+            "yearly row watermarked above the frontier",
+            format!(
+                "UPDATE metric_rollup_work_institution_year SET watermark = {} \
+                 WHERE rollup_work_institution_year_id = {first_institution}",
+                frontier + 1
+            ),
+            (0, 0, 0),
+            (0, 0, 1),
+        ),
+    ];
+    for (label, statement, country, institution) in corruptions {
+        exec_one(&pool, &statement);
+        let verified = verification(&pool);
+        assert!(!verified.matches, "{label}: {verified:?}");
+        // The monthly families are untouched by a yearly corruption.
+        for (family, healthy) in [
+            (&verified.total, &baseline.total),
+            (&verified.country, &baseline.country),
+            (&verified.institution, &baseline.institution),
+            (&verified.ambiguity, &baseline.ambiguity),
+        ] {
+            assert_eq!(family, healthy, "{label}: a monthly family moved");
+        }
+        assert_eq!(
+            (
+                verified.country_year.missing_rows,
+                verified.country_year.extra_rows,
+                verified.country_year.mismatched_rows
+            ),
+            country,
+            "{label}: {verified:?}"
+        );
+        assert_eq!(
+            (
+                verified.institution_year.missing_rows,
+                verified.institution_year.extra_rows,
+                verified.institution_year.mismatched_rows
+            ),
+            institution,
+            "{label}: {verified:?}"
+        );
+        assert_eq!(
+            verified.country_year.expected_rows,
+            baseline.country_year.expected_rows
+        );
+        assert_eq!(
+            verified.institution_year.expected_rows,
+            baseline.institution_year.expected_rows
+        );
+        // The rebuild repairs: a yearly-only corruption is enough to make
+        // it replace the six datasets.
+        let result = rebuild(&pool, frontier).expect("repair rebuild");
+        assert!(result.rebuilt, "{label}: the rebuild must repair");
+        assert_year_exact(&pool, label);
+    }
+
+    // Monthly corruption with exact yearly state: the yearly families stay
+    // exact (the verifier derives them from the work-day rows, not from the
+    // corrupted monthly rows), and the rebuild still fires.
+    exec_one(
+        &pool,
+        "UPDATE metric_rollup_work_month SET value = value + 1 \
+         WHERE rollup_work_month_id = (SELECT rollup_work_month_id \
+             FROM metric_rollup_work_month ORDER BY rollup_work_month_id LIMIT 1)",
+    );
+    let verified = verification(&pool);
+    assert!(!verified.matches);
+    assert_eq!(verified.total.mismatched_rows, 1);
+    assert_eq!(verified.country_year, baseline.country_year);
+    assert_eq!(verified.institution_year, baseline.institution_year);
+    assert!(rebuild(&pool, frontier).expect("rebuild").rebuilt);
+    assert_year_exact(&pool, "after the monthly repair");
+}
+
+#[test]
+fn an_expected_yearly_sum_that_overflows_fails_verification_and_rebuild_closed() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    // Two GB-only day rows of one work in two months of one year, written
+    // out of band at values whose monthly sums fit a bigint and whose
+    // yearly sum does not: every monthly expected total is derivable, the
+    // yearly one overflows, and both operations fail closed on it.
+    for (day, watermark) in [("2026-01-10", 1), ("2026-02-10", 2)] {
+        exec(
+            &pool,
+            &format!(
+                "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                     measure_id, day, country_code, institution_id, value, watermark) \
+                 VALUES ('{}', NULL, '{}', '{}', DATE '{day}', 'GB', NULL, \
+                         6000000000000000000, {watermark})",
+                fixture.work_id, fixture.platform_id, fixture.measure_id
+            ),
+        );
+    }
+    exec(
+        &pool,
+        "UPDATE metric_rollup_work_day_state SET next_sequence = 3, applied_through_sequence = 2",
+    );
+    let error = verify_metric_rollup_months(&pool).expect_err("must fail closed");
+    assert!(
+        rejection(&error)
+            .starts_with("Deriving the expected monthly or yearly projections would overflow"),
+        "unexpected failure: {error:?}"
+    );
+    let surrogates = month_surrogates(&pool);
+    let error = rebuild(&pool, 2).expect_err("must fail closed");
+    assert!(
+        rejection(&error)
+            .starts_with("Deriving the expected monthly or yearly projections would overflow"),
+        "unexpected failure: {error:?}"
+    );
+    assert_eq!(month_surrogates(&pool), surrogates, "nothing was rebuilt");
+    assert_eq!(year_state(&pool), YearState::default());
+}
+
+// ---------------------------------------------------------------------------
+// Migration: schema, constraints, populated forward, revert and reapply
+// ---------------------------------------------------------------------------
+
+/// Revert migrations until the `MET-WP4-03C` yearly migration itself has
+/// been reverted.
+fn revert_through_year_migration(connection: &mut PgConnection) -> Result<(), String> {
+    loop {
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .map_err(|error| error.to_string())?;
+        if reverted.to_string() == MET_WP4_03C_MIGRATION_VERSION {
+            return Ok(());
+        }
+    }
+}
+
+/// Revert the yearly migration, run `work` against the pre-03C schema (the
+/// four monthly tables present, the two yearly ones absent), then reapply it
+/// and return the reapplication result.
+fn with_pre_03c_schema<F>(pool: &PgPool, work: F) -> Result<(), String>
+where
+    F: FnOnce(&PgPool),
+{
+    let mut connection =
+        PgConnection::establish(&test_db_url()).expect("Failed to connect to the test database");
+    revert_through_year_migration(&mut connection)
+        .expect("the yearly migration must revert on derived-only state");
+    for table in YEAR_TABLES {
+        assert!(
+            !table_exists(pool, table),
+            "{table} must be dropped by the revert"
+        );
+    }
+    for table in MONTH_TABLES {
+        assert!(
+            table_exists(pool, table),
+            "{table} must survive the yearly revert"
+        );
+    }
+    work(pool);
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[test]
+fn the_year_migration_creates_exactly_the_two_empty_tables_with_the_approved_columns() {
+    let (_guard, pool) = setup_registry_db();
+    for table in YEAR_TABLES {
+        assert!(table_exists(&pool, table));
+        assert_eq!(
+            scalar_i64(&pool, &format!("(SELECT COUNT(*) FROM {table})")),
+            0,
+            "the migration must populate nothing in {table}"
+        );
+    }
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_country_year"),
+        owned(&[
+            ("rollup_work_country_year_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("publication_id", "uuid", "YES"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("year_start", "date", "NO"),
+            ("country_code", "character", "NO"),
+            ("value", "bigint", "NO"),
+            ("requires_institution_coverage", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+    assert_eq!(
+        columns(&pool, "metric_rollup_work_institution_year"),
+        owned(&[
+            ("rollup_work_institution_year_id", "uuid", "NO"),
+            ("work_id", "uuid", "NO"),
+            ("publication_id", "uuid", "YES"),
+            ("platform_id", "uuid", "NO"),
+            ("measure_id", "uuid", "NO"),
+            ("year_start", "date", "NO"),
+            ("institution_id", "uuid", "NO"),
+            ("value", "bigint", "NO"),
+            ("requires_country_coverage", "boolean", "NO"),
+            ("watermark", "bigint", "NO"),
+        ])
+    );
+    // No yearly total table and no yearly ambiguity table.
+    for absent in [
+        "metric_rollup_work_year",
+        "metric_rollup_work_year_ambiguity",
+        "metric_rollup_work_year_state",
+    ] {
+        assert!(!table_exists(&pool, absent), "{absent} must not exist");
+    }
+    for table in YEAR_TABLES {
+        assert_eq!(trigger_names(&pool, table), Vec::<String>::new());
+    }
+}
+
+#[test]
+fn the_year_tables_carry_exactly_the_approved_constraints_and_no_secondary_index() {
+    let (_guard, pool) = setup_registry_db();
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_country_year"),
+        vec![
+            "metric_rollup_work_country_year_country_code_check".to_string(),
+            "metric_rollup_work_country_year_watermark_check".to_string(),
+            "metric_rollup_work_country_year_year_start_check".to_string(),
+        ]
+    );
+    assert_eq!(
+        check_constraint_names(&pool, "metric_rollup_work_institution_year"),
+        vec![
+            "metric_rollup_work_institution_year_watermark_check".to_string(),
+            "metric_rollup_work_institution_year_year_start_check".to_string(),
+        ]
+    );
+    for (table, parents) in [
+        (
+            "metric_rollup_work_country_year",
+            vec!["metric_measure", "metric_platform", "publication", "work"],
+        ),
+        (
+            "metric_rollup_work_institution_year",
+            vec![
+                "institution",
+                "metric_measure",
+                "metric_platform",
+                "publication",
+                "work",
+            ],
+        ),
+    ] {
+        let keys = foreign_keys(&pool, table);
+        let mut referenced: Vec<String> = keys
+            .iter()
+            .map(|(_, definition)| {
+                definition
+                    .split("REFERENCES ")
+                    .nth(1)
+                    .and_then(|rest| rest.split('(').next())
+                    .expect("a referenced table")
+                    .to_string()
+            })
+            .collect();
+        referenced.sort();
+        assert_eq!(referenced, parents, "{table} foreign keys: {keys:?}");
+        for (name, definition) in &keys {
+            assert!(
+                !definition.contains("ON DELETE"),
+                "{name} must stay non-cascading: {definition}"
+            );
+        }
+    }
+    for (table, identity) in [
+        (
+            "metric_rollup_work_country_year",
+            "metric_rollup_work_country_year_identity_key",
+        ),
+        (
+            "metric_rollup_work_institution_year",
+            "metric_rollup_work_institution_year_identity_key",
+        ),
+    ] {
+        assert_eq!(
+            index_names(&pool, table),
+            vec![identity.to_string(), format!("{table}_pkey")],
+            "{table} must carry exactly its primary-key and identity indexes"
+        );
+        let definition = index_definition(&pool, table, identity);
+        assert!(definition.contains("UNIQUE"), "{identity}: {definition}");
+        assert!(
+            definition.contains("NULLS NOT DISTINCT"),
+            "{identity} must treat an absent publication as a value: {definition}"
+        );
+        assert!(definition.contains("year_start"), "{definition}");
+    }
+}
+
+#[test]
+fn the_year_identities_and_constraints_reject_malformed_and_duplicate_rows() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    let (work, platform, measure, institution) = (
+        fixture.work_id,
+        fixture.platform_id,
+        fixture.measure_id,
+        fixture.institution_id,
+    );
+    let attempt = |statement: String| -> Result<usize, DieselError> {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(statement).execute(&mut connection)
+    };
+    let country_row = |year_start: &str, code: &str, value: i64, watermark: i64| {
+        format!(
+            "INSERT INTO metric_rollup_work_country_year (work_id, publication_id, \
+                 platform_id, measure_id, year_start, country_code, value, \
+                 requires_institution_coverage, watermark) \
+             VALUES ('{work}', NULL, '{platform}', '{measure}', '{year_start}', '{code}', \
+                     {value}, false, {watermark})"
+        )
+    };
+    let institution_row = |year_start: &str, watermark: i64| {
+        format!(
+            "INSERT INTO metric_rollup_work_institution_year (work_id, publication_id, \
+                 platform_id, measure_id, year_start, institution_id, value, \
+                 requires_country_coverage, watermark) \
+             VALUES ('{work}', NULL, '{platform}', '{measure}', '{year_start}', \
+                     '{institution}', 1, false, {watermark})"
+        )
+    };
+    attempt(country_row("2026-01-01", "GB", 1, 1)).expect("a well-formed country row");
+    attempt(institution_row("2026-01-01", 1)).expect("a well-formed institution row");
+
+    for (label, statement) in [
+        (
+            "a duplicate NULL-publication country row",
+            country_row("2026-01-01", "GB", 2, 2),
+        ),
+        (
+            "a duplicate NULL-publication institution row",
+            institution_row("2026-01-01", 2),
+        ),
+    ] {
+        let result = attempt(statement);
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::UniqueViolation,
+                    _
+                ))
+            ),
+            "{label} must be rejected, got {result:?}"
+        );
+    }
+    for (label, statement) in [
+        (
+            "a year_start that is not 1 January (a month start)",
+            country_row("2026-02-01", "US", 1, 1),
+        ),
+        (
+            "a year_start that is not the first of a month",
+            institution_row("2026-01-02", 1),
+        ),
+        ("a zero watermark", country_row("2027-01-01", "US", 1, 0)),
+        ("a negative watermark", institution_row("2027-01-01", -1)),
+        (
+            "a lowercase country code",
+            country_row("2028-01-01", "gb", 1, 1),
+        ),
+        (
+            "a one-letter country code",
+            country_row("2028-01-01", "G", 1, 1),
+        ),
+    ] {
+        let result = attempt(statement);
+        assert!(
+            matches!(
+                result,
+                Err(DieselError::DatabaseError(
+                    DatabaseErrorKind::CheckViolation,
+                    _
+                ))
+            ),
+            "{label} must be rejected, got {result:?}"
+        );
+    }
+    let result = attempt(country_row("2029-01-01", "GBR", 1, 1));
+    assert!(
+        matches!(&result, Err(DieselError::DatabaseError(_, info))
+            if info.message().contains("too long for type character(2)")),
+        "a three-letter country code must be rejected, got {result:?}"
+    );
+    // A signed value is accepted; a NULL publication and a specific one are
+    // distinct identities.
+    attempt(country_row("2030-01-01", "GB", -5, 3)).expect("a negative yearly value");
+    attempt(format!(
+        "INSERT INTO metric_rollup_work_country_year (work_id, publication_id, platform_id, \
+             measure_id, year_start, country_code, value, requires_institution_coverage, \
+             watermark) \
+         VALUES ('{work}', '{}', '{platform}', '{measure}', '2026-01-01', 'GB', 1, false, 1)",
+        fixture.publication_id
+    ))
+    .expect("a publication-specific row beside the NULL-publication row");
+    // Foreign keys: unknown parents are rejected, and a parent still
+    // referenced cannot be deleted.
+    let result = attempt(format!(
+        "INSERT INTO metric_rollup_work_institution_year (work_id, publication_id, \
+             platform_id, measure_id, year_start, institution_id, value, \
+             requires_country_coverage, watermark) \
+         VALUES ('{work}', NULL, '{platform}', '{measure}', '2031-01-01', '{}', 1, false, 1)",
+        Uuid::new_v4()
+    ));
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "an unknown institution must be rejected, got {result:?}"
+    );
+    let result = delete_row(&pool, "institution", "institution_id", institution);
+    assert!(
+        matches!(
+            result,
+            Err(DieselError::DatabaseError(
+                DatabaseErrorKind::ForeignKeyViolation,
+                _
+            ))
+        ),
+        "deleting a referenced institution must be restricted, got {result:?}"
+    );
+}
+
+#[test]
+fn the_year_migration_applies_over_populated_pre_03c_state_and_a_rebuild_populates_it() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+
+    // Applied work-day and monthly history as it would exist before
+    // MET-WP4-03C: day rows, an advanced frontier, and monthly rows derived
+    // by the monthly maintenance alone.
+    let seeded = |pool: &PgPool| {
+        let (work, publication, platform, measure, institution) = (
+            fixture.work_id,
+            fixture.publication_id,
+            fixture.platform_id,
+            fixture.measure_id,
+            fixture.institution_id,
+        );
+        for (day, publication_id, country_code, institution_id, value, watermark) in [
+            (
+                "2025-11-01",
+                "NULL".to_string(),
+                "'GB'".to_string(),
+                "NULL".to_string(),
+                6,
+                1,
+            ),
+            (
+                "2026-01-02",
+                format!("'{publication}'"),
+                "'US'".to_string(),
+                "NULL".to_string(),
+                4,
+                2,
+            ),
+            (
+                "2026-03-03",
+                "NULL".to_string(),
+                "'GB'".to_string(),
+                format!("'{institution}'"),
+                2,
+                3,
+            ),
+            (
+                "2026-03-04",
+                "NULL".to_string(),
+                "'GB'".to_string(),
+                "NULL".to_string(),
+                1,
+                4,
+            ),
+        ] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                         measure_id, day, country_code, institution_id, value, watermark) \
+                     VALUES ('{work}', {publication_id}, '{platform}', '{measure}', \
+                             '{day}', {country_code}, {institution_id}, {value}, {watermark})"
+                ),
+            );
+        }
+        exec(
+            pool,
+            "UPDATE metric_rollup_work_day_state \
+             SET next_sequence = 5, applied_through_sequence = 4",
+        );
+        let keys: BTreeSet<MonthKey> = [month(2025, 11), month(2026, 1), month(2026, 3)]
+            .into_iter()
+            .map(|month_start| (work, platform, measure, month_start))
+            .collect();
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        connection
+            .transaction::<_, ThothError, _>(|connection| {
+                sql_query(
+                    "SELECT 1 FROM metric_rollup_work_day_state WHERE state_id = 1 FOR UPDATE",
+                )
+                .execute(connection)?;
+                recompute_month_projections(connection, &keys, 4)
+            })
+            .expect("the monthly maintenance alone");
+    };
+    with_pre_03c_schema(&pool, seeded).expect("the migration must apply over populated state");
+
+    // The forward migration touched no day row, no monthly row, no state,
+    // and created empty yearly tables; the independent verification names
+    // exactly the missing yearly rows and nothing else.
+    let days = projection(&pool);
+    assert_eq!(days.len(), 4);
+    assert_eq!(state(&pool).applied_through_sequence, 4);
+    let months = month_state(&pool);
+    assert_eq!(months, oracle_month_state(&days));
+    assert_eq!(year_state(&pool), YearState::default());
+    let expected_years = oracle_year_state(&days);
+    let verified = verification(&pool);
+    assert!(!verified.matches);
+    assert!(verified.total.missing_rows == 0 && verified.country.missing_rows == 0);
+    assert_eq!(
+        verified.country_year,
+        family(
+            expected_years.countries.len() as i64,
+            0,
+            expected_years.countries.len() as i64,
+            0,
+            0
+        )
+    );
+    assert_eq!(
+        verified.institution_year,
+        family(
+            expected_years.institutions.len() as i64,
+            0,
+            expected_years.institutions.len() as i64,
+            0,
+            0
+        )
+    );
+
+    // The separately authorized rebuild populates them, to exactly the
+    // oracle's state, leaving the monthly state logically unchanged.
+    let result = rebuild(&pool, 4).expect("rebuild");
+    assert!(result.rebuilt);
+    assert_exact_verification(&pool, &result.verification);
+    assert_eq!(month_state(&pool), months);
+    assert_eq!(year_state(&pool), expected_years);
+    // 2025: the GB day. 2026: day one's {P,C} row keeps its publication;
+    // day three's {C,I} row (its least country mask, depending on
+    // institution coverage) and day four's {C} row are one GB row.
+    assert_eq!(
+        country_years(&pool),
+        vec![
+            (month(2025, 1), None, country("GB"), 6, false, 1),
+            (month(2026, 1), None, country("GB"), 3, true, 4),
+            (
+                month(2026, 1),
+                Some(fixture.publication_id),
+                country("US"),
+                4,
+                false,
+                2
+            ),
+        ]
+    );
+    assert_eq!(
+        institution_years(&pool),
+        vec![(month(2026, 1), None, fixture.institution_id, 2, true, 3)]
+    );
+    assert_eq!(projection(&pool), days);
+}
+
+#[test]
+fn the_year_migration_reverts_only_the_yearly_tables_and_reapplies_empty() {
+    let (_guard, pool) = setup_registry_db();
+    let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+    day_delta(&pool, &fixture, DAY_ONE, AGG, 10);
+    day_delta(&pool, &fixture, DAY_TWO, GB, 6);
+    day_delta(&pool, &fixture, DAY_TWO, INST, 4);
+    apply_everything(&pool);
+    let days = projection(&pool);
+    let rollup_deltas = deltas(&pool);
+    let frontier = state(&pool);
+    let months = month_state(&pool);
+    let incremental_years = year_state(&pool);
+    assert!(!incremental_years.countries.is_empty() && !incremental_years.institutions.is_empty());
+
+    // apply -> revert -> apply, then once more, with derived yearly rows
+    // present: the downgrade drops only the two yearly tables, leaves the
+    // monthly tables, the work-day projection, the deltas and the frontier
+    // untouched, and the reapplication recreates the yearly tables empty.
+    for _ in 0..2 {
+        with_pre_03c_schema(&pool, |pool| {
+            assert_eq!(projection(pool), days);
+            assert_eq!(deltas(pool), rollup_deltas);
+            assert_eq!(state(pool), frontier);
+            assert_eq!(month_state(pool), months);
+        })
+        .expect("the yearly migration must reapply");
+        for table in YEAR_TABLES {
+            assert!(table_exists(&pool, table));
+        }
+        assert_eq!(year_state(&pool), YearState::default());
+        assert_eq!(month_state(&pool), months);
+        assert_eq!(projection(&pool), days);
+        assert_eq!(state(&pool), frontier);
+    }
+
+    // And a rebuild restores exactly the yearly state incremental
+    // maintenance had produced before the round trip.
+    assert!(
+        rebuild(&pool, frontier.applied_through_sequence)
+            .expect("rebuild")
+            .rebuilt
+    );
+    assert_eq!(year_state(&pool), incremental_years);
+    assert_eq!(month_state(&pool), months);
+}
+
+/// The verifier's `ACCESS SHARE` lock and the rebuild's `TRUNCATE` name the
+/// six derived tables in the same, fixed order (`DERIVED_TABLES`): the two
+/// operations therefore acquire their table locks in one deterministic
+/// order, and the completion's row-exclusive writes follow the same table
+/// order, so no lock-order cycle exists between them (Amendment 4 §14).
+#[test]
+fn the_verifier_lock_and_the_rebuild_truncate_name_the_six_tables_in_one_fixed_order() {
+    let tables = |statement: &str, prefix: &str, suffix: &str| -> Vec<String> {
+        let text = statement.split_whitespace().collect::<Vec<_>>().join(" ");
+        text.strip_prefix(prefix)
+            .expect(prefix)
+            .strip_suffix(suffix)
+            .expect(suffix)
+            .split(',')
+            .map(|table| table.trim().trim_start_matches("public.").to_string())
+            .collect()
+    };
+    let locked = tables(
+        VERIFICATION_LOCK_SQL,
+        "LOCK TABLE ",
+        " IN ACCESS SHARE MODE",
+    );
+    let truncated = tables(REBUILD_TRUNCATE_SQL, "TRUNCATE TABLE ", "");
+    assert_eq!(
+        locked, truncated,
+        "the verifier locks and the rebuild truncates the six tables in one fixed order"
+    );
+    assert_eq!(
+        locked,
+        [
+            "metric_rollup_work_month",
+            "metric_rollup_work_country_month",
+            "metric_rollup_work_institution_month",
+            "metric_rollup_work_month_ambiguity",
+            "metric_rollup_work_country_year",
+            "metric_rollup_work_institution_year",
+        ],
+        "the pinned order: the four monthly tables, then the two yearly ones"
+    );
+    let mut as_set = locked.clone();
+    as_set.sort();
+    let mut derived: Vec<String> = DERIVED_TABLES
+        .iter()
+        .map(|table| table.to_string())
+        .collect();
+    derived.sort();
+    assert_eq!(as_set, derived, "exactly the six derived tables, no other");
+    // The yearly layer is never locked or truncated ahead of its monthly
+    // source, and the completion writes the tables in the same order.
+    assert!(locked[..4]
+        .iter()
+        .all(|table| table.ends_with("_month") || table.ends_with("_ambiguity")));
+    assert!(locked[4..].iter().all(|table| table.ends_with("_year")));
 }

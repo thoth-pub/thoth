@@ -1,6 +1,6 @@
-//! Durable Metrics rollup deltas, the MOM-1 work-day projection and the
-//! derived monthly serving projections (`MET-WP1-07`, `MET-WP4-01`,
-//! `MET-WP4-03A`).
+//! Durable Metrics rollup deltas, the MOM-1 work-day projection, the
+//! derived monthly serving projections and the derived yearly projection
+//! foundation (`MET-WP1-07`, `MET-WP4-01`, `MET-WP4-03A`, `MET-WP4-03C-A`).
 //!
 //! This module owns the persisted `metric_rollup_delta` model: the durable
 //! accounting bridge between one canonical metric-record revision and the
@@ -33,15 +33,39 @@
 //! [`crud`]). Neither reads or writes canonical state, rollup deltas, the
 //! work-day projection or the durable frontier.
 //!
-//! What is still deliberately absent: any reader of the monthly projections
-//! other than the separately specified `MET-WP4-03B` dashboard, any
-//! retry/backoff or poison-skipping behaviour, any scheduled or automatic
-//! rebuild, and any progress stream for a non-`DAY` grain. A poison frontier
-//! blocks and waits for separately authorized repair rather than being
-//! stepped over. A verification mismatch never invokes a rebuild by itself.
-//! The monthly tables are created empty by their migration and may not be
-//! served from until a separately authorized rebuild has populated them and
-//! an independent verification is exact at a recorded work-day frontier.
+//! `MET-WP4-03C-A` (Unit A of `MET-WP4-03C`, #952, Specification
+//! Amendments 4, 4A and 4B) adds the yearly producer, verification and
+//! rebuild foundation beneath the same completion transaction: two resolved
+//! yearly section projections (`metric_rollup_work_country_year`,
+//! `metric_rollup_work_institution_year`) that regroup, by calendar year,
+//! exactly the resolved daily contributions the monthly section rows already
+//! hold. They are maintained from the monthly rows by four more fixed
+//! statements inside every completion, verified by the same independent
+//! work-day derivation as the monthly families, and replaced together with
+//! the monthly datasets by the same all-or-nothing rebuild. The two yearly
+//! families are already part of the approved six-family maintenance API:
+//! `verifyMetricRollupMonths`, and the `verification` returned by
+//! `rebuildMetricRollupMonths`, report them as the additive bounded-count
+//! fields `countryYear` and `institutionYear`.
+//!
+//! Unit A adds no reader of the yearly tables. No `metricDashboard` source
+//! reads them, and nothing serves complete calendar years from them. A
+//! `metricDashboard` reader of the yearly layer is Unit B of `MET-WP4-03C`,
+//! which is separately gated and on HOLD; anything said in this module about
+//! such a reader is prospective and does not describe existing behaviour.
+//!
+//! What is still deliberately absent: any reader of the yearly projections,
+//! any reader of the monthly projections other than the separately specified
+//! `MET-WP4-03B` dashboard, any retry/backoff or poison-skipping behaviour,
+//! any scheduled or automatic rebuild, and any progress stream for a
+//! non-`DAY` grain. A poison frontier blocks and waits for separately
+//! authorized repair rather than being stepped over. A verification mismatch
+//! never invokes a rebuild by itself. The monthly and yearly tables are
+//! created empty by their migrations and may not be served from until a
+//! separately authorized rebuild has populated them and an independent
+//! verification is exact at a recorded work-day frontier; any serving from
+//! the yearly tables additionally requires the separately authorized Unit B
+//! activation.
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -198,6 +222,59 @@ pub struct MetricRollupWorkInstitutionMonth {
     pub watermark: i64,
 }
 
+/// One row of the resolved yearly per-country projection (`MET-WP4-03C-A`).
+///
+/// Unit A producer state: maintained, verified and rebuilt here, and read by
+/// no `metricDashboard` source (the yearly reader, Unit B, is separately
+/// gated and on HOLD).
+///
+/// Derived, rebuildable state fed only by the reviewed monthly per-country
+/// projection: the regrouping, by calendar year, of exactly the resolved
+/// daily contributions the monthly rows of that year already hold. `value`
+/// is the sum of the monthly values, `requires_institution_coverage` the OR
+/// of the monthly flags and `watermark` the greatest monthly watermark; a
+/// monthly row is itself `SUM` / OR / `MAX` over resolved daily contributions,
+/// so dropping the month key regroups the same contributions and no daily
+/// base cell is ever re-resolved at the year. `publication_id` is retained
+/// exactly as the monthly rows hold it, so a year may hold both a `NULL` row
+/// and publication-specific rows; they are additive and never re-ranked.
+/// `year_start` is the 1 January of the year. Ambiguity is not aggregated:
+/// it stays sparse and monthly. `watermark` follows the same rule as
+/// [`MetricRollupWorkMonth::watermark`].
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkCountryYear {
+    pub rollup_work_country_year_id: Uuid,
+    pub work_id: Uuid,
+    pub publication_id: Option<Uuid>,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub year_start: NaiveDate,
+    pub country_code: String,
+    pub value: i64,
+    pub requires_institution_coverage: bool,
+    pub watermark: i64,
+}
+
+/// One row of the resolved yearly per-institution projection
+/// (`MET-WP4-03C-A`): the mirror of [`MetricRollupWorkCountryYear`] over the
+/// monthly per-institution projection, with country as the dependency. Like
+/// it, Unit A producer state that no `metricDashboard` source reads.
+#[cfg_attr(feature = "backend", derive(diesel::Queryable))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupWorkInstitutionYear {
+    pub rollup_work_institution_year_id: Uuid,
+    pub work_id: Uuid,
+    pub publication_id: Option<Uuid>,
+    pub platform_id: Uuid,
+    pub measure_id: Uuid,
+    pub year_start: NaiveDate,
+    pub institution_id: Uuid,
+    pub value: i64,
+    pub requires_country_coverage: bool,
+    pub watermark: i64,
+}
+
 /// One sparse row of monthly ambiguity state (`MET-WP4-03A`).
 ///
 /// Exists only while at least one flag is true, and may exist for a month
@@ -317,11 +394,11 @@ pub struct CompleteMetricRollupDeltasInput {
     pub claim_token: Uuid,
 }
 
-/// The largest number of represented month keys one full monthly rebuild
-/// supports (`MET-WP4-03A-OPS-02`).
+/// The largest number of represented month keys one full rebuild of the
+/// derived monthly and yearly projections supports (`MET-WP4-03A-OPS-02`).
 ///
 /// A work-day projection representing more keys than this is rejected before
-/// any monthly row is touched. It is a safety envelope for the one
+/// any monthly or yearly row is touched. It is a safety envelope for the one
 /// all-or-nothing rebuild transaction, not a production SLO, and it is not
 /// raised silently: a larger corpus needs a separately approved envelope.
 pub const METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS: i64 = 100_000;
@@ -332,11 +409,13 @@ pub const METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS: i64 = 100_000;
 pub const METRIC_ROLLUP_REBUILD_CHUNK_KEYS: usize = METRIC_ROLLUP_CLAIM_MAX_BATCH as usize;
 
 /// The server-side elapsed ceiling of one whole rebuild operation, in
-/// seconds, covering its initial verification, every rebuild chunk, its
-/// post-rebuild verification and the moment before commit.
+/// seconds, covering its initial verification, every rebuild chunk, the
+/// yearly derivation, its post-rebuild verification and the moment before
+/// commit.
 ///
 /// Exceeding it at any checkpoint fails the operation and rolls the whole
-/// transaction back, so no partially rebuilt monthly state can commit.
+/// transaction back, so no partially rebuilt monthly or yearly state can
+/// commit.
 pub const METRIC_ROLLUP_REBUILD_ELAPSED_CEILING_SECONDS: u64 = 120;
 
 /// The `lock_timeout` a rebuild transaction sets locally, in seconds.
@@ -346,8 +425,8 @@ pub const METRIC_ROLLUP_REBUILD_LOCK_TIMEOUT_SECONDS: u64 = 5;
 /// locally, in seconds.
 pub const METRIC_ROLLUP_MAINTENANCE_STATEMENT_TIMEOUT_SECONDS: u64 = 30;
 
-/// Bounded verification counts for one monthly projection family
-/// (`MET-WP4-03A-OPS-02`).
+/// Bounded verification counts for one derived projection family
+/// (`MET-WP4-03A-OPS-02`, extended to the yearly families by `MET-WP4-03C-A`).
 ///
 /// Only counts leave Thoth: no row identity, value or mismatch detail is
 /// carried. `missing_rows` counts expected logical identities absent from the
@@ -363,17 +442,27 @@ pub struct MetricRollupMonthProjectionVerification {
     pub mismatched_rows: i64,
 }
 
-/// One coherent verification of the four monthly projections against the
-/// state independently derived from `metric_rollup_work_day`
-/// (`MET-WP4-03A-OPS-02`).
+/// One coherent verification of the four monthly and the two yearly derived
+/// projections against the state independently derived from
+/// `metric_rollup_work_day` (`MET-WP4-03A-OPS-02`, `MET-WP4-03C-A`).
 ///
 /// `applied_through_sequence` is the frontier `W` the verification was taken
 /// at, and `next_sequence - 1 > W` is ordinary pending rollup lag, never
-/// monthly corruption. `max_work_day_watermark` is `None` when the work-day
-/// projection is empty; it is never above `W` in a returned value, because a
-/// work-day row above the frontier fails the operation closed instead.
-/// `matches` is true only when every family has zero missing, extra and
-/// mismatched rows and no monthly row is watermarked above `W`.
+/// derived-state corruption. `max_work_day_watermark` is `None` when the
+/// work-day projection is empty; it is never above `W` in a returned value,
+/// because a work-day row above the frontier fails the operation closed
+/// instead. `matches` is true only when every one of the six families has
+/// zero missing, extra and mismatched rows and no monthly or yearly row is
+/// watermarked above `W`.
+///
+/// `country_year` and `institution_year` are the `MET-WP4-03C-A` yearly
+/// families. They are part of `matches` and of every rebuild decision, and
+/// they are already part of the approved six-family maintenance API
+/// (Specification Amendments 4 and 4A): the GraphQL
+/// `verifyMetricRollupMonths` result, and the `verification` of
+/// `rebuildMetricRollupMonths`, expose them as the two additive fields
+/// `countryYear` and `institutionYear`, each with the unchanged five-count
+/// per-family shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetricRollupMonthVerification {
     pub applied_through_sequence: i64,
@@ -386,16 +475,19 @@ pub struct MetricRollupMonthVerification {
     pub country: MetricRollupMonthProjectionVerification,
     pub institution: MetricRollupMonthProjectionVerification,
     pub ambiguity: MetricRollupMonthProjectionVerification,
+    pub country_year: MetricRollupMonthProjectionVerification,
+    pub institution_year: MetricRollupMonthProjectionVerification,
     pub matches: bool,
 }
 
 /// The receipt of one rebuild request (`MET-WP4-03A-OPS-02`).
 ///
-/// `rebuilt = false` means the monthly state was already exact at the pinned
-/// frontier and nothing was truncated or written; `rebuilt = true` means the
-/// four monthly datasets were replaced and independently verified exact
-/// inside the same committed transaction. In both cases `verification` is
-/// the exact state the transaction committed with.
+/// `rebuilt = false` means the monthly and yearly state was already exact at
+/// the pinned frontier and nothing was truncated or written; `rebuilt = true`
+/// means the four monthly and the two yearly datasets were replaced and
+/// independently verified exact inside the same committed transaction. In
+/// both cases `verification` is the exact state the transaction committed
+/// with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetricRollupMonthRebuildResult {
     pub rebuilt: bool,
@@ -408,9 +500,10 @@ pub struct MetricRollupMonthRebuildResult {
 /// **nothing else**: no work, month, platform or measure identity, value,
 /// dimension, dependency or ambiguity flag, watermark, SQL or repair
 /// instruction is accepted. Thoth derives every monthly row from the durable
-/// work-day projection alone, so a caller can only say which frontier it
-/// believes the monthly state should be rebuilt at, and a stale frontier is
-/// rejected before any monthly row is touched.
+/// work-day projection alone and every yearly row from those monthly rows,
+/// so a caller can only say which frontier it believes the derived state
+/// should be rebuilt at, and a stale frontier is rejected before any monthly
+/// or yearly row is touched.
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLInputObject),

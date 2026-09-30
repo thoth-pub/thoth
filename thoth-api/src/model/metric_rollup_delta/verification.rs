@@ -1,45 +1,53 @@
-//! Independent consistency verification of the four derived monthly
-//! projections against `metric_rollup_work_day` (`MET-WP4-03A-OPS-02`).
+//! Independent consistency verification of the four derived monthly and the
+//! two derived yearly projections against `metric_rollup_work_day`
+//! (`MET-WP4-03A-OPS-02`, extended by `MET-WP4-03C`).
 //!
 //! This module is the production counterpart of the reviewed per-day test
 //! oracle in `tests.rs`, and it is deliberately **structurally independent of
-//! the monthly writer** in `crud.rs`. It shares no SQL constant, macro or
-//! statement with the writer, never calls `recompute_month_projections`,
-//! never executes a writer-side `MONTH_*` maintenance statement, and never
-//! proves correctness by rebuilding and then reading the rebuild. Where the
-//! writer resolves each daily base cell through a fixed case table over a
-//! bitmap of represented masks, the verifier computes the generic rule the
-//! oracle computes: the distinct set of represented masks per cell, the
-//! Amendment 6 total rule over that set, and for country and institution the
-//! unique least represented mask containing the target dimension under set
-//! inclusion, found by an anti-join that removes every candidate with a
-//! strict subset also represented. Two disagreeing implementations of the
-//! same approved semantics are what make an exact match evidence.
+//! the monthly and yearly writers** in `crud.rs`. It shares no SQL constant,
+//! macro or statement with the writers, never calls
+//! `recompute_month_projections` or `recompute_year_projections`, never
+//! executes a writer-side maintenance statement, never reads a monthly row
+//! to derive an expected yearly row, and never proves correctness by
+//! rebuilding and then reading the rebuild. Where the writer resolves each
+//! daily base cell through a fixed case table over a bitmap of represented
+//! masks, the verifier computes the generic rule the oracle computes: the
+//! distinct set of represented masks per cell, the Amendment 6 total rule
+//! over that set, and for country and institution the unique least
+//! represented mask containing the target dimension under set inclusion,
+//! found by an anti-join that removes every candidate with a strict subset
+//! also represented. The expected yearly families regroup those same
+//! resolved daily contributions by calendar year directly from the work-day
+//! projection, so the yearly writer's monthly-to-yearly regrouping is checked
+//! against a derivation that never saw a monthly row. Two disagreeing
+//! implementations of the same approved semantics are what make an exact
+//! match evidence.
 //!
 //! Everything is set-based PostgreSQL over the whole work-day projection: the
 //! expected state is derived, the actual tables are read, and the two sides
-//! are compared by logical identity inside one statement that returns only
-//! bounded counts. No monthly row, and no work-day row, is ever loaded into
-//! Rust memory, and no row identity, value or mismatch detail leaves the
-//! database except as a count.
+//! are compared by logical identity inside one statement — one work-day
+//! scan, one resolution, six comparisons — that returns only bounded counts.
+//! No monthly, yearly or work-day row is ever loaded into Rust memory, and
+//! no row identity, value or mismatch detail leaves the database except as a
+//! count.
 //!
 //! The callable operation, [`verify_metric_rollup_months`], runs on one
 //! pooled connection in one `READ ONLY`, `REPEATABLE READ` transaction with
 //! no row lock, so it sees one coherent snapshot of the frontier, the
-//! work-day projection and all four monthly tables, and cannot write. Before
+//! work-day projection and all six derived tables, and cannot write. Before
 //! that snapshot is frozen it takes one table-level `ACCESS SHARE` lock on
-//! exactly the four monthly tables, for one reason only: PostgreSQL's
-//! `TRUNCATE` is not MVCC-safe, so a snapshot taken before a concurrent
-//! rebuild's truncate would otherwise see the tables it had not yet touched
-//! as empty. `ACCESS SHARE` conflicts only with `ACCESS EXCLUSIVE`, which is
-//! what the rebuild's `TRUNCATE` takes, and not with the `ROW EXCLUSIVE`
-//! locks of normal incremental completion, so routine monthly maintenance
-//! stays concurrent with verification while an exceptional truncate cannot
-//! cross a verifier's snapshot in either direction. The same comparison,
-//! [`verify_month_projections`], is also run twice inside the rebuild
-//! transaction in `crud.rs`: before deciding whether anything must be
-//! rebuilt, and after rebuilding, where an inexact result rolls the whole
-//! rebuild back.
+//! exactly the four monthly and the two yearly tables, for one reason only:
+//! PostgreSQL's `TRUNCATE` is not MVCC-safe, so a snapshot taken before a
+//! concurrent rebuild's truncate would otherwise see the tables it had not
+//! yet touched as empty. `ACCESS SHARE` conflicts only with
+//! `ACCESS EXCLUSIVE`, which is what the rebuild's `TRUNCATE` takes, and not
+//! with the `ROW EXCLUSIVE` locks of normal incremental completion, so
+//! routine maintenance stays concurrent with verification while an
+//! exceptional truncate cannot cross a verifier's snapshot in either
+//! direction. The same comparison, [`verify_projections`], is also run twice
+//! inside the rebuild transaction in `crud.rs`: before deciding whether
+//! anything must be rebuilt, and after rebuilding, where an inexact result
+//! rolls the whole rebuild back.
 
 use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
@@ -162,19 +170,23 @@ pub(crate) fn require_work_day_within_frontier(
 ///    minimal country and institution masks or the ambiguity flag where two
 ///    or more minimal masks are incomparable, and the bitmap of minimal
 ///    masks whose rows establish an ambiguity watermark.
-/// 4. `day_rows`: every work-day row with its month, its own mask and its
-///    cell's represented set, gathered by one window aggregate over the
-///    base cell.
+/// 4. `day_rows`: every work-day row with its month and its calendar year,
+///    its own mask and its cell's represented set, gathered by one window
+///    aggregate over the base cell.
 /// 5. `resolved`: every day row joined to its set's resolution: a 256-row
 ///    lookup, so the plan is one scan of the work-day projection, one sort
 ///    by base cell and one small hash join, whatever the row count.
-/// 6. `expected_*`: the four expected datasets, summing only the rows whose
-///    own mask is the selected one, with `publication_id` retained exactly
-///    as the row holds it, dependency flags as "any contributing row was
-///    broken down by that dimension", and the greatest contributing
-///    watermark. The ambiguity watermark ranges over the rows that establish
-///    a true flag: every row of a total-ambiguous cell and the minimal rows
-///    of a country- or institution-ambiguous cell.
+/// 6. `expected_*`: the four expected monthly datasets, summing only the
+///    rows whose own mask is the selected one, with `publication_id`
+///    retained exactly as the row holds it, dependency flags as "any
+///    contributing row was broken down by that dimension", and the greatest
+///    contributing watermark. The ambiguity watermark ranges over the rows
+///    that establish a true flag: every row of a total-ambiguous cell and the
+///    minimal rows of a country- or institution-ambiguous cell. The two
+///    expected yearly datasets (`expected_country_year`,
+///    `expected_institution_year`) sum the same selected daily rows grouped
+///    by calendar year instead of month, straight from the resolved work-day
+///    rows: the writer's monthly rows take no part in them.
 /// 7. `*_compare`: expected and actual rows of one family are tagged and
 ///    unioned, grouped by logical identity — `GROUP BY` treats `NULL`
 ///    publication ids as one identity, which is exactly the tables'
@@ -182,11 +194,12 @@ pub(crate) fn require_work_day_within_frontier(
 ///    only), extra (actual only) or mismatched (both, with any semantic field
 ///    differing, detected as `MIN <> MAX` or `bool_and <> bool_or` within the
 ///    identity group). The greatest actual watermark per family is returned
-///    too, so a monthly row above the frontier is caught explicitly.
+///    too, so a monthly or yearly row above the frontier is caught
+///    explicitly.
 ///
 /// `SUM(bigint)` is exact `numeric`; the cast back to `bigint` is what fails
-/// closed, from PostgreSQL itself, when an expected monthly total would
-/// overflow.
+/// closed, from PostgreSQL itself, when an expected monthly or yearly total
+/// would overflow.
 pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
          SELECT s.s, m.m \
          FROM generate_series(0, 255) AS s(s) \
@@ -247,6 +260,7 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
      day_rows AS ( \
          SELECT r.work_id, r.publication_id, r.platform_id, r.measure_id, r.day, \
                 date_trunc('month', r.day)::date AS month_start, \
+                date_trunc('year', r.day)::date AS year_start, \
                 r.country_code, r.institution_id, r.value, r.watermark, \
                 x.mask, \
                 bit_or(1 << x.mask) OVER (PARTITION BY r.work_id, r.platform_id, \
@@ -260,7 +274,7 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
      ), \
      resolved AS ( \
          SELECT d.work_id, d.publication_id, d.platform_id, d.measure_id, d.month_start, \
-                d.country_code, d.institution_id, d.value, d.watermark, d.mask, \
+                d.year_start, d.country_code, d.institution_id, d.value, d.watermark, d.mask, \
                 x.total_mask, x.total_ambiguous, \
                 x.country_mask, x.country_ambiguous, \
                 (x.country_minimal_bits & (1 << d.mask)) <> 0 AS country_minimal, \
@@ -308,6 +322,24 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
          FROM resolved \
          GROUP BY work_id, platform_id, measure_id, month_start \
          HAVING bool_or(total_ambiguous OR country_ambiguous OR institution_ambiguous) \
+     ), \
+     expected_country_year AS ( \
+         SELECT work_id, publication_id, platform_id, measure_id, year_start, country_code, \
+                SUM(value)::bigint AS value, \
+                bool_or(institution_id IS NOT NULL) AS requires_institution_coverage, \
+                MAX(watermark) AS watermark \
+         FROM resolved \
+         WHERE mask = country_mask \
+         GROUP BY work_id, publication_id, platform_id, measure_id, year_start, country_code \
+     ), \
+     expected_institution_year AS ( \
+         SELECT work_id, publication_id, platform_id, measure_id, year_start, institution_id, \
+                SUM(value)::bigint AS value, \
+                bool_or(country_code IS NOT NULL) AS requires_country_coverage, \
+                MAX(watermark) AS watermark \
+         FROM resolved \
+         WHERE mask = institution_mask \
+         GROUP BY work_id, publication_id, platform_id, measure_id, year_start, institution_id \
      ), \
      total_compare AS ( \
          SELECT count(*) FILTER (WHERE e = 1) AS expected_rows, \
@@ -419,6 +451,62 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
              ) u \
              GROUP BY work_id, platform_id, measure_id, month_start \
          ) g \
+     ), \
+     country_year_compare AS ( \
+         SELECT count(*) FILTER (WHERE e = 1) AS expected_rows, \
+                count(*) FILTER (WHERE a = 1) AS actual_rows, \
+                count(*) FILTER (WHERE e = 1 AND a = 0) AS missing_rows, \
+                count(*) FILTER (WHERE e = 0 AND a = 1) AS extra_rows, \
+                count(*) FILTER (WHERE e = 1 AND a = 1 AND differs) AS mismatched_rows, \
+                MAX(actual_watermark) AS actual_max_watermark \
+         FROM ( \
+             SELECT SUM(e) AS e, SUM(a) AS a, \
+                    (MIN(value) <> MAX(value) \
+                     OR bool_and(requires_institution_coverage) \
+                        <> bool_or(requires_institution_coverage) \
+                     OR MIN(watermark) <> MAX(watermark)) AS differs, \
+                    MAX(watermark) FILTER (WHERE a = 1) AS actual_watermark \
+             FROM ( \
+                 SELECT work_id, publication_id, platform_id, measure_id, year_start, \
+                        country_code, value, requires_institution_coverage, watermark, \
+                        1 AS e, 0 AS a \
+                 FROM expected_country_year \
+                 UNION ALL \
+                 SELECT work_id, publication_id, platform_id, measure_id, year_start, \
+                        country_code, value, requires_institution_coverage, watermark, \
+                        0, 1 \
+                 FROM public.metric_rollup_work_country_year \
+             ) u \
+             GROUP BY work_id, publication_id, platform_id, measure_id, year_start, country_code \
+         ) g \
+     ), \
+     institution_year_compare AS ( \
+         SELECT count(*) FILTER (WHERE e = 1) AS expected_rows, \
+                count(*) FILTER (WHERE a = 1) AS actual_rows, \
+                count(*) FILTER (WHERE e = 1 AND a = 0) AS missing_rows, \
+                count(*) FILTER (WHERE e = 0 AND a = 1) AS extra_rows, \
+                count(*) FILTER (WHERE e = 1 AND a = 1 AND differs) AS mismatched_rows, \
+                MAX(actual_watermark) AS actual_max_watermark \
+         FROM ( \
+             SELECT SUM(e) AS e, SUM(a) AS a, \
+                    (MIN(value) <> MAX(value) \
+                     OR bool_and(requires_country_coverage) <> bool_or(requires_country_coverage) \
+                     OR MIN(watermark) <> MAX(watermark)) AS differs, \
+                    MAX(watermark) FILTER (WHERE a = 1) AS actual_watermark \
+             FROM ( \
+                 SELECT work_id, publication_id, platform_id, measure_id, year_start, \
+                        institution_id, value, requires_country_coverage, watermark, \
+                        1 AS e, 0 AS a \
+                 FROM expected_institution_year \
+                 UNION ALL \
+                 SELECT work_id, publication_id, platform_id, measure_id, year_start, \
+                        institution_id, value, requires_country_coverage, watermark, \
+                        0, 1 \
+                 FROM public.metric_rollup_work_institution_year \
+             ) u \
+             GROUP BY work_id, publication_id, platform_id, measure_id, year_start, \
+                      institution_id \
+         ) g \
      ) \
      SELECT t.expected_rows AS total_expected_rows, t.actual_rows AS total_actual_rows, \
             t.missing_rows AS total_missing_rows, t.extra_rows AS total_extra_rows, \
@@ -437,11 +525,25 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
             m.expected_rows AS ambiguity_expected_rows, m.actual_rows AS ambiguity_actual_rows, \
             m.missing_rows AS ambiguity_missing_rows, m.extra_rows AS ambiguity_extra_rows, \
             m.mismatched_rows AS ambiguity_mismatched_rows, \
-            m.actual_max_watermark AS ambiguity_actual_max_watermark \
+            m.actual_max_watermark AS ambiguity_actual_max_watermark, \
+            cy.expected_rows AS country_year_expected_rows, \
+            cy.actual_rows AS country_year_actual_rows, \
+            cy.missing_rows AS country_year_missing_rows, \
+            cy.extra_rows AS country_year_extra_rows, \
+            cy.mismatched_rows AS country_year_mismatched_rows, \
+            cy.actual_max_watermark AS country_year_actual_max_watermark, \
+            iy.expected_rows AS institution_year_expected_rows, \
+            iy.actual_rows AS institution_year_actual_rows, \
+            iy.missing_rows AS institution_year_missing_rows, \
+            iy.extra_rows AS institution_year_extra_rows, \
+            iy.mismatched_rows AS institution_year_mismatched_rows, \
+            iy.actual_max_watermark AS institution_year_actual_max_watermark \
      FROM total_compare t \
      CROSS JOIN country_compare c \
      CROSS JOIN institution_compare i \
-     CROSS JOIN ambiguity_compare m";
+     CROSS JOIN ambiguity_compare m \
+     CROSS JOIN country_year_compare cy \
+     CROSS JOIN institution_year_compare iy";
 
 /// The single row the comparison statement returns.
 #[derive(diesel::QueryableByName)]
@@ -494,22 +596,49 @@ struct ComparisonRow {
     ambiguity_mismatched_rows: i64,
     #[diesel(sql_type = Nullable<BigInt>)]
     ambiguity_actual_max_watermark: Option<i64>,
+    #[diesel(sql_type = BigInt)]
+    country_year_expected_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    country_year_actual_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    country_year_missing_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    country_year_extra_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    country_year_mismatched_rows: i64,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    country_year_actual_max_watermark: Option<i64>,
+    #[diesel(sql_type = BigInt)]
+    institution_year_expected_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    institution_year_actual_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    institution_year_missing_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    institution_year_extra_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    institution_year_mismatched_rows: i64,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    institution_year_actual_max_watermark: Option<i64>,
 }
 
 /// PostgreSQL's fixed message for a `numeric` value that does not fit a
-/// `bigint` (SQLSTATE `22003`), raised by the cast of an expected monthly
-/// sum. Diesel exposes no SQLSTATE, so the message is the discriminator.
+/// `bigint` (SQLSTATE `22003`), raised by the cast of an expected monthly or
+/// yearly sum. Diesel exposes no SQLSTATE, so the message is the
+/// discriminator.
 const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
 
 /// Render an overflow of the expected-state derivation as the bounded
-/// rollup rejection; every other database failure propagates unchanged.
+/// rollup rejection; every other database failure propagates unchanged. A
+/// yearly sum can overflow while every monthly sum of the year fits, so the
+/// message names both layers.
 fn verification_arithmetic(error: DieselError) -> thoth_errors::ThothError {
     if let DieselError::DatabaseError(_, info) = &error {
         if info.message() == BIGINT_OUT_OF_RANGE {
             return rejected(
-                "Deriving the expected monthly projections would overflow a \
-                 projected total. The monthly derived state cannot be verified \
-                 or rebuilt until the work-day projection is repaired.",
+                "Deriving the expected monthly or yearly projections would overflow \
+                 a projected total. The derived state cannot be verified or \
+                 rebuilt until the work-day projection is repaired.",
             );
         }
     }
@@ -536,15 +665,17 @@ fn exact(family: &MetricRollupMonthProjectionVerification) -> bool {
     family.missing_rows == 0 && family.extra_rows == 0 && family.mismatched_rows == 0
 }
 
-/// Compare all four monthly projections against their independently derived
-/// expected state, in the caller's transaction and snapshot.
+/// Compare all four monthly and both yearly projections against their
+/// independently derived expected state, in the caller's transaction and
+/// snapshot, with one statement.
 ///
 /// `frontier` and `stats` must have been read in the same transaction. The
 /// work-day watermark bound is re-checked here so that no caller can obtain
 /// a verification describing a projection whose source is above the
-/// frontier. `matches` is true only when every family is exact and no
-/// actual monthly row is watermarked above the frontier.
-pub(crate) fn verify_month_projections(
+/// frontier. `matches` is true only when every one of the six families is
+/// exact and no actual monthly or yearly row is watermarked above the
+/// frontier.
+pub(crate) fn verify_projections(
     connection: &mut PgConnection,
     frontier: &FrontierSnapshot,
     stats: &WorkDayStats,
@@ -588,13 +719,29 @@ pub(crate) fn verify_month_projections(
         row.ambiguity_extra_rows,
         row.ambiguity_mismatched_rows,
     );
+    let country_year = family(
+        row.country_year_expected_rows,
+        row.country_year_actual_rows,
+        row.country_year_missing_rows,
+        row.country_year_extra_rows,
+        row.country_year_mismatched_rows,
+    );
+    let institution_year = family(
+        row.institution_year_expected_rows,
+        row.institution_year_actual_rows,
+        row.institution_year_missing_rows,
+        row.institution_year_extra_rows,
+        row.institution_year_mismatched_rows,
+    );
 
     let frontier_w = frontier.applied_through_sequence;
-    let monthly_within_frontier = [
+    let derived_within_frontier = [
         row.total_actual_max_watermark,
         row.country_actual_max_watermark,
         row.institution_actual_max_watermark,
         row.ambiguity_actual_max_watermark,
+        row.country_year_actual_max_watermark,
+        row.institution_year_actual_max_watermark,
     ]
     .into_iter()
     .all(|watermark| watermark.is_none_or(|watermark| watermark <= frontier_w));
@@ -603,7 +750,9 @@ pub(crate) fn verify_month_projections(
         && exact(&country)
         && exact(&institution)
         && exact(&ambiguity)
-        && monthly_within_frontier;
+        && exact(&country_year)
+        && exact(&institution_year)
+        && derived_within_frontier;
 
     Ok(MetricRollupMonthVerification {
         applied_through_sequence: frontier.applied_through_sequence,
@@ -616,6 +765,8 @@ pub(crate) fn verify_month_projections(
         country,
         institution,
         ambiguity,
+        country_year,
+        institution_year,
         matches,
     })
 }
@@ -631,22 +782,25 @@ pub(crate) const VERIFICATION_STATEMENT_TIMEOUT_SQL: &str = "SET LOCAL statement
 /// The one table-level lock the verification takes, before its first query
 /// and therefore before its `REPEATABLE READ` snapshot is frozen.
 ///
-/// Exactly the four monthly projection tables, in `ACCESS SHARE` mode: the
-/// weakest table lock, granted to every ordinary reader, conflicting only
-/// with `ACCESS EXCLUSIVE`. It exists solely to close PostgreSQL's
-/// non-MVCC-safe `TRUNCATE` anomaly: with the lock held from before the
-/// snapshot until commit, the rebuild's `TRUNCATE` (which needs
-/// `ACCESS EXCLUSIVE`) either finished and committed before the lock was
-/// granted — and the snapshot then sees the rebuilt state — or waits until
-/// the verification commits. Normal completion writes the monthly tables
-/// under `ROW EXCLUSIVE`, which does not conflict, so incremental
-/// maintenance is never held up by a verification. It is not a row lock,
-/// takes no `FOR UPDATE`/`FOR SHARE`, and the transaction remains read-only.
+/// Exactly the four monthly and the two yearly projection tables, in
+/// `ACCESS SHARE` mode: the weakest table lock, granted to every ordinary
+/// reader, conflicting only with `ACCESS EXCLUSIVE`. It exists solely to
+/// close PostgreSQL's non-MVCC-safe `TRUNCATE` anomaly: with the lock held
+/// from before the snapshot until commit, the rebuild's six-table `TRUNCATE`
+/// (which needs `ACCESS EXCLUSIVE`) either finished and committed before the
+/// lock was granted — and the snapshot then sees the rebuilt state — or
+/// waits until the verification commits. Normal completion writes the
+/// monthly and yearly tables under `ROW EXCLUSIVE`, which does not conflict,
+/// so incremental maintenance is never held up by a verification. It is not
+/// a row lock, takes no `FOR UPDATE`/`FOR SHARE`, and the transaction
+/// remains read-only.
 pub(crate) const VERIFICATION_LOCK_SQL: &str = "LOCK TABLE \
          public.metric_rollup_work_month, \
          public.metric_rollup_work_country_month, \
          public.metric_rollup_work_institution_month, \
-         public.metric_rollup_work_month_ambiguity \
+         public.metric_rollup_work_month_ambiguity, \
+         public.metric_rollup_work_country_year, \
+         public.metric_rollup_work_institution_year \
      IN ACCESS SHARE MODE";
 
 /// The transaction mode the verification asserts before reading anything.
@@ -663,7 +817,8 @@ pub(crate) const TRANSACTION_MODE_SQL: &str =
     "SELECT current_setting('transaction_read_only') AS read_only, \
             current_setting('transaction_isolation') AS isolation";
 
-/// Verify the four monthly projections in one read-only snapshot.
+/// Verify the four monthly and the two yearly projections in one read-only
+/// snapshot.
 ///
 /// One pooled connection, one transaction opened `READ ONLY` at
 /// `REPEATABLE READ`, no `FOR UPDATE` and no database mutation of any kind:
@@ -680,8 +835,8 @@ pub(crate) const TRANSACTION_MODE_SQL: &str =
 /// lock may wait behind an in-flight rebuild.
 ///
 /// `next_sequence - 1 > applied_through_sequence` is ordinary pending rollup
-/// lag and is returned as such, never reported as monthly corruption. A
-/// work-day row watermarked above the frontier is an invariant failure and
+/// lag and is returned as such, never reported as derived-state corruption.
+/// A work-day row watermarked above the frontier is an invariant failure and
 /// fails the operation closed.
 pub(crate) fn verify_metric_rollup_months(
     db: &PgPool,
@@ -698,7 +853,7 @@ pub(crate) fn verify_metric_rollup_months(
             let frontier = read_frontier(connection)?;
             let stats = work_day_stats(connection)?;
             require_work_day_within_frontier(&frontier, &stats)?;
-            verify_month_projections(connection, &frontier, &stats)
+            verify_projections(connection, &frontier, &stats)
         })
 }
 
@@ -714,7 +869,7 @@ fn require_read_only_repeatable_read(connection: &mut PgConnection) -> ThothResu
         Ok(())
     } else {
         Err(broken_invariant(
-            "the monthly verification transaction is not read-only at repeatable read",
+            "the derived-state verification transaction is not read-only at repeatable read",
         ))
     }
 }

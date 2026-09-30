@@ -1,20 +1,21 @@
 //! The named domain operations of the MOM-1 rollup application path
-//! (`MET-WP4-01`), the derived monthly serving layer maintained beneath the
-//! completion (`MET-WP4-03A`), and the exceptional protected full rebuild of
-//! that layer (`MET-WP4-03A-OPS-02`).
+//! (`MET-WP4-01`), the derived monthly and yearly serving layers maintained
+//! beneath the completion (`MET-WP4-03A`, `MET-WP4-03C`), and the
+//! exceptional protected full rebuild of those layers
+//! (`MET-WP4-03A-OPS-02`).
 //!
 //! `Crud` is deliberately **not** implemented for `metric_rollup_delta`,
 //! `metric_rollup_work_day`, `metric_rollup_work_day_state` or any of the
-//! four monthly tables. There is no generic create/update/delete surface for
-//! rollup state: the functions here are the only supported writes, and each
-//! one implements exactly one transition of the approved protocol. The
-//! monthly projections are written by [`complete_metric_rollup_deltas`],
-//! inside its transaction and beneath its state-row lock, and — only when an
-//! independent verification finds them inexact at a caller-pinned frontier —
-//! replaced whole by [`rebuild_metric_rollup_months`], inside one
-//! self-verifying transaction beneath the same lock. The read-only
-//! verification both of them rely on lives in [`super::verification`] and
-//! shares no SQL with the writer here.
+//! four monthly and two yearly tables. There is no generic
+//! create/update/delete surface for rollup state: the functions here are the
+//! only supported writes, and each one implements exactly one transition of
+//! the approved protocol. The monthly and yearly projections are written by
+//! [`complete_metric_rollup_deltas`], inside its transaction and beneath its
+//! state-row lock, and — only when an independent verification finds them
+//! inexact at a caller-pinned frontier — replaced whole by
+//! [`rebuild_metric_rollup_months`], inside one self-verifying transaction
+//! beneath the same lock. The read-only verification both of them rely on
+//! lives in [`super::verification`] and shares no SQL with the writer here.
 //!
 //! Every mechanism here is programme-local. There is no generic job
 //! framework, no reusable lease abstraction and no cross-programme claim
@@ -48,7 +49,7 @@ use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::verification::{
-    require_work_day_within_frontier, verify_month_projections, work_day_stats, FrontierSnapshot,
+    require_work_day_within_frontier, verify_projections, work_day_stats, FrontierSnapshot,
 };
 use super::{
     MetricRollupDeltaClaim, MetricRollupMonthRebuildResult, MetricRollupWatermark,
@@ -360,18 +361,26 @@ pub(crate) fn claim_metric_rollup_deltas(
 ///    touched and recompute the four derived monthly datasets for exactly
 ///    those keys, set-wise, in a fixed number of statements (nine: one
 ///    source watermark bound, four deletes, four inserts) that does not grow
-///    with the number of keys;
+///    with the number of keys; then derive the distinct
+///    `(work, platform, measure, year)` keys those months belong to and
+///    recompute the two derived yearly datasets for exactly those keys from
+///    the monthly rows as they now stand, in four more fixed statements (two
+///    country delete and insert, then institution delete and insert) that do
+///    not grow with the number of keys either;
 /// 6. terminalize every batch row as `APPLIED`, closing the lease while
 ///    retaining its token, owner and claim time as evidence;
 /// 7. set `applied_through_sequence` to the batch's last sequence and stamp
 ///    the watermark.
 ///
 /// It is **all rows or none**: any validation, arithmetic, constraint or
-/// statement failure — in the day application, in the monthly
+/// statement failure — in the day application, in the monthly or yearly
 /// recomputation, in terminalization or in the frontier advance — rolls the
-/// whole transaction back, leaving the work-day projection, the monthly
-/// projections, every delta's status and the watermark exactly as they were,
-/// with the batch still claimed until its lease expires.
+/// whole transaction back, leaving the work-day projection, the monthly and
+/// yearly projections, every delta's status and the watermark exactly as
+/// they were, with the batch still claimed until its lease expires. Monthly
+/// and yearly state therefore never commit inconsistently: the yearly
+/// statements run inside the same transaction, after the monthly ones and
+/// before terminalization.
 ///
 /// A repeat of an already-applied token is read-only and returns the current
 /// durable watermark, which is what makes a completion that timed out *after*
@@ -488,9 +497,13 @@ pub(crate) fn complete_metric_rollup_deltas(
         // work-day projection as it now stands, for the whole key set at
         // once. A failure here fails the transaction, so the day updates
         // above, the terminalization and the frontier advance below all roll
-        // back together; nothing is partially completed.
+        // back together; nothing is partially completed. Then the derived
+        // yearly serving layer (MET-WP4-03C): every calendar year those
+        // months belong to is re-derived from the monthly rows as they now
+        // stand, under the same all-or-nothing rule.
         let affected = affected_month_keys(&batch)?;
         recompute_month_projections(connection, &affected, last)?;
+        recompute_year_projections(connection, &affected_year_keys(&affected))?;
 
         // Step 6. Terminalize. `status = 'CLAIMED'` in the predicate is
         // redundant under the locks already held and is kept as a fail-closed
@@ -1068,6 +1081,186 @@ fn month_arithmetic(error: DieselError) -> ThothError {
 }
 
 // ---------------------------------------------------------------------------
+// MET-WP4-03C: derived yearly section projections
+// ---------------------------------------------------------------------------
+//
+// The two yearly tables are derived exclusively from the two monthly section
+// tables. A monthly section row is already `SUM` / `bool_or` / `MAX` over the
+// resolved daily contributions of one `(work, publication, platform, measure,
+// month, dimension)`; regrouping those rows by calendar year is the same
+// partition with the month key dropped, and each aggregate is associative, so
+// the yearly row holds exactly the sum, the OR-ed dependency flag and the
+// greatest watermark of the same resolved daily contributions. No daily base
+// cell is re-resolved at the year, and the sparse ambiguity state stays
+// monthly. The independent verifier in `verification.rs` derives the expected
+// yearly state from the work-day projection directly, never from these rows.
+//
+// The statements receive the affected year keys as four parallel arrays
+// through `unnest`, so one statement serves one key or fifty, and the count is
+// fixed at four whatever the key count: every yearly row of an affected
+// `(work, platform, measure, year)` is deleted, whatever its publication,
+// country or institution, and the whole year is re-derived from the monthly
+// rows of that year. The full rebuild derives the two tables whole from the
+// rebuilt monthly rows instead, because deriving per chunk would recompute
+// every year key once per month it holds.
+
+/// The distinct affected year keys of one completion, from four parallel
+/// arrays.
+macro_rules! affected_year_keys_sql {
+    () => {
+        "SELECT DISTINCT k.work_id, k.platform_id, k.measure_id, k.year_start \
+         FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+              AS k(work_id, platform_id, measure_id, year_start)"
+    };
+}
+
+/// Yearly statements 1 and 2 of 4: clear every yearly row of the affected
+/// year keys, whatever its publication, country or institution.
+pub(crate) const YEAR_COUNTRY_DELETE_SQL: &str =
+    "DELETE FROM public.metric_rollup_work_country_year y \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, year_start) \
+     WHERE y.work_id = k.work_id \
+       AND y.platform_id = k.platform_id \
+       AND y.measure_id = k.measure_id \
+       AND y.year_start = k.year_start";
+pub(crate) const YEAR_INSTITUTION_DELETE_SQL: &str =
+    "DELETE FROM public.metric_rollup_work_institution_year y \
+     USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+           AS k(work_id, platform_id, measure_id, year_start) \
+     WHERE y.work_id = k.work_id \
+       AND y.platform_id = k.platform_id \
+       AND y.measure_id = k.measure_id \
+       AND y.year_start = k.year_start";
+
+/// Yearly statements 3 and 4 of 4: the affected years re-derived from the
+/// monthly section rows as they stand after the monthly recomputation: the
+/// sum of the monthly values, the OR of the monthly dependency flags and the
+/// greatest monthly watermark, grouped by the yearly identity with
+/// `publication_id` exactly as the monthly rows hold it. `SUM(bigint)` is
+/// exact `numeric`; the cast back to `bigint` is what fails closed on
+/// overflow.
+pub(crate) const YEAR_COUNTRY_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_year_keys_sql!(),
+    ") \
+     INSERT INTO public.metric_rollup_work_country_year \
+         (work_id, publication_id, platform_id, measure_id, year_start, country_code, \
+          value, requires_institution_coverage, watermark) \
+     SELECT c.work_id, c.publication_id, c.platform_id, c.measure_id, a.year_start, \
+            c.country_code, SUM(c.value)::bigint, bool_or(c.requires_institution_coverage), \
+            MAX(c.watermark) \
+     FROM affected a \
+     JOIN public.metric_rollup_work_country_month c \
+       ON c.work_id = a.work_id \
+      AND c.platform_id = a.platform_id \
+      AND c.measure_id = a.measure_id \
+      AND c.month_start >= a.year_start \
+      AND c.month_start < (a.year_start + interval '1 year')::date \
+     GROUP BY c.work_id, c.publication_id, c.platform_id, c.measure_id, a.year_start, \
+              c.country_code"
+);
+pub(crate) const YEAR_INSTITUTION_INSERT_SQL: &str = concat!(
+    "WITH affected AS (",
+    affected_year_keys_sql!(),
+    ") \
+     INSERT INTO public.metric_rollup_work_institution_year \
+         (work_id, publication_id, platform_id, measure_id, year_start, institution_id, \
+          value, requires_country_coverage, watermark) \
+     SELECT i.work_id, i.publication_id, i.platform_id, i.measure_id, a.year_start, \
+            i.institution_id, SUM(i.value)::bigint, bool_or(i.requires_country_coverage), \
+            MAX(i.watermark) \
+     FROM affected a \
+     JOIN public.metric_rollup_work_institution_month i \
+       ON i.work_id = a.work_id \
+      AND i.platform_id = a.platform_id \
+      AND i.measure_id = a.measure_id \
+      AND i.month_start >= a.year_start \
+      AND i.month_start < (a.year_start + interval '1 year')::date \
+     GROUP BY i.work_id, i.publication_id, i.platform_id, i.measure_id, a.year_start, \
+              i.institution_id"
+);
+
+/// Every statement the yearly maintenance executes, in the order the
+/// specification lists them: country-year delete, country-year insert,
+/// institution-year delete, institution-year insert. Like the monthly
+/// count, it is a property of the design, not of the batch.
+pub(crate) const YEAR_MAINTENANCE_STATEMENTS: [&str; 4] = [
+    YEAR_COUNTRY_DELETE_SQL,
+    YEAR_COUNTRY_INSERT_SQL,
+    YEAR_INSTITUTION_DELETE_SQL,
+    YEAR_INSTITUTION_INSERT_SQL,
+];
+
+/// The fixed number of SQL statements the yearly maintenance adds to one
+/// completion: four.
+#[cfg(test)]
+pub(crate) const YEAR_MAINTENANCE_STATEMENT_COUNT: usize = YEAR_MAINTENANCE_STATEMENTS.len();
+
+/// One year key: `(work_id, platform_id, measure_id, year_start)`.
+pub(crate) type YearKey = (Uuid, Uuid, Uuid, NaiveDate);
+
+/// The distinct year keys of a set of month keys: the calendar year of each
+/// month, so a batch spanning December and January names two years.
+pub(crate) fn affected_year_keys(keys: &BTreeSet<MonthKey>) -> BTreeSet<YearKey> {
+    keys.iter()
+        .map(|(work_id, platform_id, measure_id, month_start)| {
+            (
+                *work_id,
+                *platform_id,
+                *measure_id,
+                // A month start always has a 1 January in its year.
+                NaiveDate::from_ymd_opt(month_start.year(), 1, 1).unwrap_or(*month_start),
+            )
+        })
+        .collect()
+}
+
+/// Recompute the two yearly datasets for exactly `keys`, set-wise, from the
+/// monthly rows of those years.
+///
+/// Executes the four [`YEAR_MAINTENANCE_STATEMENTS`] in order, each over the
+/// whole key set at once. It is not a loop over keys. It reads only the two
+/// monthly section tables, which the enclosing transaction has already
+/// recomputed for every month the batch touched, so the yearly rows it
+/// writes are exactly the regrouping of the monthly rows as they will commit.
+pub(crate) fn recompute_year_projections(
+    connection: &mut PgConnection,
+    keys: &BTreeSet<YearKey>,
+) -> ThothResult<()> {
+    let work_ids: Vec<Uuid> = keys.iter().map(|key| key.0).collect();
+    let platform_ids: Vec<Uuid> = keys.iter().map(|key| key.1).collect();
+    let measure_ids: Vec<Uuid> = keys.iter().map(|key| key.2).collect();
+    let year_starts: Vec<NaiveDate> = keys.iter().map(|key| key.3).collect();
+    for statement in YEAR_MAINTENANCE_STATEMENTS {
+        diesel::sql_query(statement)
+            .bind::<Array<SqlUuid>, _>(&work_ids)
+            .bind::<Array<SqlUuid>, _>(&platform_ids)
+            .bind::<Array<SqlUuid>, _>(&measure_ids)
+            .bind::<Array<Date>, _>(&year_starts)
+            .execute(connection)
+            .map_err(year_arithmetic)?;
+    }
+    Ok(())
+}
+
+/// Render a yearly `bigint` overflow as the bounded rollup rejection: two
+/// months of one year may each fit a `bigint` while their year does not, and
+/// that overflow surfaces from PostgreSQL's own cast, aborting the whole
+/// batch exactly as a monthly overflow does.
+fn year_arithmetic(error: DieselError) -> ThothError {
+    if let DieselError::DatabaseError(_, info) = &error {
+        if info.message() == BIGINT_OUT_OF_RANGE {
+            return rejected(
+                "Recomputing the yearly projections for this batch would overflow \
+                 a projected total. The work-day frontier is blocked pending repair.",
+            );
+        }
+    }
+    error.into()
+}
+
+// ---------------------------------------------------------------------------
 // MET-WP4-03A-OPS-02: rebuildMetricRollupMonths
 // ---------------------------------------------------------------------------
 
@@ -1076,13 +1269,46 @@ fn month_arithmetic(error: DieselError) -> ThothError {
 pub(crate) const REBUILD_SOURCE_WATERMARK_SQL: &str =
     "SELECT MAX(r.watermark) AS watermark FROM public.metric_rollup_work_day r";
 
-/// Fresh derived state for the rebuild: one `TRUNCATE`, not keyed deletes,
-/// so a production-shaped rebuild leaves no dead-tuple bloat.
+/// Fresh derived state for the rebuild: one `TRUNCATE` of the four monthly
+/// and the two yearly tables together, not keyed deletes, so a
+/// production-shaped rebuild leaves no dead-tuple bloat and the six datasets
+/// are never partly replaced.
 pub(crate) const REBUILD_TRUNCATE_SQL: &str = "TRUNCATE TABLE \
          public.metric_rollup_work_month, \
          public.metric_rollup_work_country_month, \
          public.metric_rollup_work_institution_month, \
-         public.metric_rollup_work_month_ambiguity";
+         public.metric_rollup_work_month_ambiguity, \
+         public.metric_rollup_work_country_year, \
+         public.metric_rollup_work_institution_year";
+
+/// The rebuild's whole-table yearly derivation from the rebuilt monthly
+/// section rows, one statement per family, run once after every monthly
+/// chunk has been replayed: the same regrouping the keyed maintenance
+/// performs, over every year at once.
+pub(crate) const REBUILD_YEAR_COUNTRY_SQL: &str =
+    "INSERT INTO public.metric_rollup_work_country_year \
+         (work_id, publication_id, platform_id, measure_id, year_start, country_code, \
+          value, requires_institution_coverage, watermark) \
+     SELECT c.work_id, c.publication_id, c.platform_id, c.measure_id, \
+            date_trunc('year', c.month_start)::date, c.country_code, \
+            SUM(c.value)::bigint, bool_or(c.requires_institution_coverage), MAX(c.watermark) \
+     FROM public.metric_rollup_work_country_month c \
+     GROUP BY c.work_id, c.publication_id, c.platform_id, c.measure_id, \
+              date_trunc('year', c.month_start)::date, c.country_code";
+pub(crate) const REBUILD_YEAR_INSTITUTION_SQL: &str =
+    "INSERT INTO public.metric_rollup_work_institution_year \
+         (work_id, publication_id, platform_id, measure_id, year_start, institution_id, \
+          value, requires_country_coverage, watermark) \
+     SELECT i.work_id, i.publication_id, i.platform_id, i.measure_id, \
+            date_trunc('year', i.month_start)::date, i.institution_id, \
+            SUM(i.value)::bigint, bool_or(i.requires_country_coverage), MAX(i.watermark) \
+     FROM public.metric_rollup_work_institution_month i \
+     GROUP BY i.work_id, i.publication_id, i.platform_id, i.measure_id, \
+              date_trunc('year', i.month_start)::date, i.institution_id";
+
+/// The two whole-table yearly derivations, in execution order.
+pub(crate) const REBUILD_YEAR_STATEMENTS: [&str; 2] =
+    [REBUILD_YEAR_COUNTRY_SQL, REBUILD_YEAR_INSTITUTION_SQL];
 
 /// Every month key represented in the work-day projection, in a
 /// deterministic order.
@@ -1149,19 +1375,23 @@ fn require_within_ceiling(clock: &Instant, ceiling: Duration) -> ThothResult<()>
     Ok(())
 }
 
-/// Replace the four monthly datasets from `metric_rollup_work_day` alone,
-/// inside the caller's transaction and beneath the state-row lock the caller
-/// already holds.
+/// Replace the four monthly datasets from `metric_rollup_work_day` alone and
+/// the two yearly datasets from those rebuilt monthly rows, inside the
+/// caller's transaction and beneath the state-row lock the caller already
+/// holds.
 ///
-/// Truncates the four tables, reads every represented month key in a
-/// deterministic order, and replays [`recompute_month_projections`] over
-/// those keys in chunks of at most [`METRIC_ROLLUP_REBUILD_CHUNK_KEYS`]:
-/// exactly the statements, resolution text and index paths a completion
-/// uses, so the rebuilt state is by construction what incremental
-/// maintenance produces. `after_chunk` runs after every chunk and may fail
+/// Truncates the six tables together, reads every represented month key in
+/// a deterministic order, replays [`recompute_month_projections`] over those
+/// keys in chunks of at most [`METRIC_ROLLUP_REBUILD_CHUNK_KEYS`] — exactly
+/// the statements, resolution text and index paths a completion uses, so the
+/// rebuilt monthly state is by construction what incremental maintenance
+/// produces — and then derives the two yearly tables whole from the rebuilt
+/// monthly rows with the two [`REBUILD_YEAR_STATEMENTS`], the same
+/// regrouping the keyed yearly maintenance performs. `after_chunk` runs
+/// after every monthly chunk and after each yearly statement and may fail
 /// the transaction, which is how the rebuild's elapsed ceiling is enforced
-/// between chunks. Returns the number of keys recomputed.
-fn replace_month_projections(
+/// between steps. Returns the number of month keys recomputed.
+fn replace_projections(
     connection: &mut PgConnection,
     frontier: i64,
     mut after_chunk: impl FnMut() -> ThothResult<()>,
@@ -1183,12 +1413,18 @@ fn replace_month_projections(
         recompute_month_projections(connection, &keys, frontier)?;
         after_chunk()?;
     }
+    for statement in REBUILD_YEAR_STATEMENTS {
+        diesel::sql_query(statement)
+            .execute(connection)
+            .map_err(year_arithmetic)?;
+        after_chunk()?;
+    }
     Ok(keys.len())
 }
 
-/// Rebuild the four monthly datasets at a caller-pinned frontier, only if
-/// they are not already exact, and commit only if the rebuilt state is
-/// independently verified exact.
+/// Rebuild the four monthly and the two yearly datasets at a caller-pinned
+/// frontier, only if they are not already exact, and commit only if the
+/// rebuilt state is independently verified exact.
 ///
 /// One transaction on one connection performs, in order:
 ///
@@ -1200,18 +1436,20 @@ fn replace_month_projections(
 ///    underneath the rebuild, and every such operation waits until it
 ///    commits;
 /// 3. require `applied_through_sequence` to equal the caller's expected
-///    frontier `W`, and reject otherwise before any monthly row is touched;
+///    frontier `W`, and reject otherwise before any monthly or yearly row is
+///    touched;
 /// 4. require no work-day row to be watermarked above `W`;
 /// 5. count the represented month keys and reject more than
-///    [`METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS`] before any monthly row is
-///    touched;
-/// 6. independently verify the current monthly state at `W`
-///    ([`verify_month_projections`]); if it is exact, return
-///    `rebuilt = false` with that verification and **no** `TRUNCATE`,
-///    `DELETE`, `INSERT` or surrogate-id rewrite of any monthly row;
-/// 7. otherwise truncate the four tables and recompute every represented
-///    month key in deterministic chunks of at most fifty
-///    ([`replace_month_projections`]);
+///    [`METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS`] before any monthly or yearly
+///    row is touched;
+/// 6. independently verify the current monthly and yearly state at `W`
+///    ([`verify_projections`], all six families in one statement); if it is
+///    exact, return `rebuilt = false` with that verification and **no**
+///    `TRUNCATE`, `DELETE`, `INSERT` or surrogate-id rewrite of any monthly
+///    or yearly row;
+/// 7. otherwise truncate the six tables, recompute every represented month
+///    key in deterministic chunks of at most fifty and derive the two yearly
+///    tables whole from the rebuilt monthly rows ([`replace_projections`]);
 /// 8. independently verify the rebuilt state again, in this same
 ///    transaction, and fail — rolling the whole rebuild back — unless it is
 ///    exact;
@@ -1219,19 +1457,20 @@ fn replace_month_projections(
 ///
 /// A server-side elapsed clock starts when the transaction body begins,
 /// before the initial verification, and is checked immediately after the
-/// initial verification, after every rebuild chunk, immediately before the
-/// post-rebuild verification, immediately after it, and immediately before
-/// the successful return; at any of those points more than
-/// [`REBUILD_ELAPSED_CEILING`] elapsed fails the transaction.
+/// initial verification, after every rebuild chunk, after each yearly
+/// derivation statement, immediately before the post-rebuild verification,
+/// immediately after it, and immediately before the successful return; at
+/// any of those points more than [`REBUILD_ELAPSED_CEILING`] elapsed fails
+/// the transaction.
 ///
 /// It is **all or nothing**: any rejection, invariant failure, statement
 /// failure, lock or statement timeout, elapsed-ceiling failure or inexact
 /// post-rebuild verification rolls the complete transaction back, so no
-/// partially rebuilt monthly state can commit. The operation writes only the
-/// four monthly tables. It never advances or otherwise mutates the frontier,
-/// `next_sequence` or `watermark_at`, never touches a work-day row, a delta,
-/// a canonical record or revision, and never creates or updates a generic
-/// reconciliation ledger row.
+/// partially rebuilt monthly or yearly state can commit. The operation
+/// writes only the four monthly and the two yearly tables. It never advances
+/// or otherwise mutates the frontier, `next_sequence` or `watermark_at`,
+/// never touches a work-day row, a delta, a canonical record or revision,
+/// and never creates or updates a generic reconciliation ledger row.
 pub(crate) fn rebuild_metric_rollup_months(
     db: &PgPool,
     expected_applied_through_sequence: &str,
@@ -1280,7 +1519,7 @@ pub(crate) fn rebuild_metric_rollup_months_within(
             ));
         }
 
-        let before = verify_month_projections(connection, &frontier, &stats)?;
+        let before = verify_projections(connection, &frontier, &stats)?;
         require_within_ceiling(&clock, ceiling)?;
         if before.matches {
             return Ok(MetricRollupMonthRebuildResult {
@@ -1289,17 +1528,17 @@ pub(crate) fn rebuild_metric_rollup_months_within(
             });
         }
 
-        replace_month_projections(connection, expected, || {
+        replace_projections(connection, expected, || {
             require_within_ceiling(&clock, ceiling)
         })?;
 
         require_within_ceiling(&clock, ceiling)?;
         let stats = work_day_stats(connection)?;
-        let after = verify_month_projections(connection, &frontier, &stats)?;
+        let after = verify_projections(connection, &frontier, &stats)?;
         require_within_ceiling(&clock, ceiling)?;
         if !after.matches {
             return Err(broken_invariant(
-                "the rebuilt monthly projections do not match their independently \
+                "the rebuilt monthly and yearly projections do not match their independently \
                  derived expected state; the rebuild was rolled back",
             ));
         }
@@ -1311,8 +1550,8 @@ pub(crate) fn rebuild_metric_rollup_months_within(
     })
 }
 
-/// Rebuild all four monthly datasets from `metric_rollup_work_day` alone,
-/// unconditionally.
+/// Rebuild all four monthly datasets from `metric_rollup_work_day` alone and
+/// the two yearly datasets from them, unconditionally.
 ///
 /// This is the reviewed deterministic rebuild procedure `MET-WP4-03A`
 /// requires as evidence, compiled only for tests. It is the same replacement
@@ -1322,7 +1561,7 @@ pub(crate) fn rebuild_metric_rollup_months_within(
 /// replacement against incrementally maintained state and against the
 /// verifier. One transaction on one connection locks the singleton state row
 /// `FOR UPDATE`, checks that no day row is watermarked above the durable
-/// frontier, and replaces the four tables. Returns the
+/// frontier, and replaces the six tables. Returns the
 /// `applied_through_sequence` the rebuilt state corresponds to.
 #[cfg(test)]
 pub(crate) fn rebuild_month_projections(db: &PgPool) -> ThothResult<i64> {
@@ -1341,7 +1580,7 @@ pub(crate) fn rebuild_month_projections(db: &PgPool) -> ThothResult<i64> {
                 "a work-day projection row is watermarked above the durable frontier",
             ));
         }
-        replace_month_projections(connection, state.applied_through_sequence, || Ok(()))?;
+        replace_projections(connection, state.applied_through_sequence, || Ok(()))?;
         Ok(state.applied_through_sequence)
     })
 }

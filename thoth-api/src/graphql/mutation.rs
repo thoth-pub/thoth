@@ -430,7 +430,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Verify the four derived monthly projections against the state independently derived from the work-day projection, in one read-only repeatable-read snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. Returns bounded counts per projection family and the frontier the snapshot was taken at; pending rollup lag above the frontier is reported as such and is not monthly corruption. A mismatch never triggers a rebuild by itself."
+        description = "Verify the six derived rollup projection families (monthly total, monthly country, monthly institution, monthly ambiguity, yearly country, yearly institution) against the state independently derived from metric_rollup_work_day, in one read-only REPEATABLE READ snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. Returns bounded counts per family and the frontier facts of the coherent snapshot; pending rollup lag above the frontier is reported as such and is not projection corruption. A mismatch never triggers a rebuild automatically."
     )]
     fn verify_metric_rollup_months(
         context: &Context,
@@ -439,7 +439,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Rebuild the four derived monthly projections from the work-day projection at the caller-pinned durable frontier, in one all-or-nothing transaction beneath the rollup state-row lock. Requires the METRICS_INGEST_SERVICE role. A frontier that no longer matches, a work-day row above the frontier, or more than 100000 represented month keys is rejected before any monthly row is touched. Monthly state that already verifies exact is left untouched and returns rebuilt: false. Otherwise the four tables are truncated, recomputed in chunks of at most 50 month keys, and independently verified again; anything short of an exact match, any failure, and more than 120 seconds of server-side elapsed time roll the whole rebuild back. The frontier, the work-day projection, rollup deltas and canonical records are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
+        description = "Verify and, when required, rebuild all six derived rollup projection families from the work-day projection at the caller-pinned durable frontier, in one all-or-nothing transaction beneath the rollup state-row lock. Requires the METRICS_INGEST_SERVICE role. A frontier that no longer matches, a work-day row above the frontier, or more than 100000 represented month keys is rejected before any projection row is touched. State whose six families already verify exact is left untouched and returns rebuilt: false without projection writes. Otherwise exactly the four monthly and the two yearly tables are truncated, the monthly projections are replayed in chunks of at most 50 month keys, the yearly country and institution tables are then derived set-wise from the rebuilt monthly state, and all six families are independently verified again before commit; anything short of an exact match, any failure, and more than 120 seconds of server-side elapsed time roll the whole rebuild back. The frontier, the work-day projection, rollup deltas and canonical records are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
     )]
     fn rebuild_metric_rollup_months(
         context: &Context,
