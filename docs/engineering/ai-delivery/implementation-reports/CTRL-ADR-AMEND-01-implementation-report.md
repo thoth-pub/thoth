@@ -339,9 +339,11 @@ Remaining lifecycle gates are not implementation issues:
 
 - remediation head automatic CI must settle;
 - fresh independent CRITICAL cross-model exact-head review is required;
-- CTO merge authorization remains separate and is not granted;
-- merge remains HOLD;
-- #958/PR #960 remain HOLD.
+Remaining lifecycle gates are GitHub-owned under ADR-0005:
+
+- merge requires separate CTO merge authorization bound to the exact reviewed head;
+- merge occurs only through the separately authorized GitHub merge gate;
+- #958 / PR #960 may resume only after #965 merges to `develop` and fresh #958 reconciliation and bounded authorization complete.
 
 ## 15. Agent self-assessment
 
