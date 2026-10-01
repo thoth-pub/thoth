@@ -579,33 +579,46 @@ release/publication: 0
 production activation: 0
 ```
 
-## Final proposed candidate validation
+## Validation evidence and provenance
 
-The final documentation candidate was validated before commit in a controlled
-workspace for the exact six-path PR slice, with the relevant base/candidate
-bytes bound to the GitHub blob identities recorded below.
+### Correction at `227057cae8a4c10f7f7795e3afe68271e56681b9`
 
-Cumulative base:
+Before the route-disposition clarification commit, the proposed source bytes
+were frozen, the three modified-file blob identities were computed, and the
+created GitHub blobs matched those expected identities exactly. The cumulative
+six-path footprint, the three-path correction boundary, the unchanged control
+blobs and full-file whitespace/composition checks were also verified.
 
-```text
-feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462
-```
-
-Literal unrestricted whitespace validation:
+The literal commands recorded by the previous version of this report:
 
 ```text
 git diff --check HEAD
-
-exit: 0
-stdout: ""
-stderr: ""
+git diff --name-only HEAD
 ```
 
-Literal cumulative path validation:
+were run in a controlled six-path **projection** workspace. That workspace did
+not contain all six exact GitHub file bytes. Those command results are therefore
+historical projection evidence only and are not represented here as exact-byte
+Git validation of the final candidate. This provenance defect was recorded
+durably in #958 comment `5934574460` and the corresponding programme HOLD in
+#957 comment `5934575236`.
+
+After push, GitHub verification of exact head
+`227057cae8a4c10f7f7795e3afe68271e56681b9` established:
 
 ```text
-git diff --name-only HEAD
+tree:
+1645d0ebdca5df231d3fa72ede229cccab76771e
 
+parent:
+7f7e62824eb40308688b46351ffea182e9e52942
+
+correction paths:
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+
+cumulative PR paths against feature/worker:
 CHANGELOG.md
 docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
 docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md
@@ -614,28 +627,26 @@ docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.
 docs/engineering/decisions/decision-register.md
 ```
 
-The unrestricted correction-boundary comparison against prior PR head
-`7f7e62824eb40308688b46351ffea182e9e52942` contains exactly:
+Exact final blobs at that head were:
 
 ```text
-CHANGELOG.md
-docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
-docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
-```
+CHANGELOG.md:
+66cfbb5b56dfe7a9382614e274a872c68df26dcb
 
-No fourth correction path is present.
+implementation report:
+104df8c02d8aa8077e720a63bb3c16415afe54c3
 
-Exact blob verification for the final proposed candidate/control inputs:
-
-```text
 ADR-0008:
 622060ad90eec41c792f110c373efffbb11a4b56
 
 ADR-0010:
 aca2142a3387785e80db908b3a5c1b0afd82ab51
 
-ADR-0012 final clarified bytes:
+ADR-0012:
 dec6665353804e42f22474954bf878308092b717
+
+decision register:
+fc64dddbf6beddd602d31d694d9dae7c40c417c2
 
 ADR-0013:
 d928f957bdf775d03e99fc73888ec8e2dec5f80b
@@ -647,22 +658,121 @@ operating-model:
 fc8b9c90a7d0ae98a44645d2e316a0573c13ce2a
 ```
 
-Composition and doctrine checks:
+Automatic PR CI for that head completed with four successful jobs and six
+classification-skipped jobs, with no failure or in-progress job and no manual
+dispatch/rerun.
 
-- changelog: one `[Unreleased]` structure; ADR-0013, ADR-0012 proposal,
-  ADR-0012 approval and this factual clarification are all retained;
-- decision register: unchanged candidate blob
-  `fc64dddbf6beddd602d31d694d9dae7c40c417c2`; ADR-0012 remains
-  `APPROVED` and ADR-0013's programme-integration rule remains present;
-- internal links/repository-relative paths: checked for the modified ADR,
-  report and changelog references; referenced repository paths exist;
-- terminology/repository names: changed text uses canonical repository names,
-  including `thoth-sphinx`; no obsolete `thoth-sphynx` spelling is
-  introduced;
-- stale/conflicting doctrine: section 3.2's selected terminal-disposition
-  behaviour is unchanged, while section 3.5 and invariant 8 now use the same
-  materialized-versus-terminal disposition model; ADR-0013, branching workflow
-  and operating-model doctrine are byte-preserved.
+### This report-only provenance correction candidate
+
+The correction authorized by #958 comment `5934661557` changes only this
+implementation report from parent
+`227057cae8a4c10f7f7795e3afe68271e56681b9`.
+
+Before commit, the complete candidate bytes for all six cumulative PR paths were
+read from the exact GitHub parent, with only this report replaced by the
+proposed corrected bytes. Full-file byte-level whitespace checks found no
+trailing whitespace on any candidate file.
+
+The exact cumulative-base blobs are:
+
+```text
+CHANGELOG.md:
+cf662733b61354f08f7d6b26ead3b8079f10d8ba
+
+implementation report:
+ABSENT
+
+ADR-0008:
+19273fe60520b8a907c8b5a28e76d4fe741bb832
+
+ADR-0010:
+0e3b047435dbdcd2fdd15cbfc9ac4c1fc2e601ce
+
+ADR-0012:
+ABSENT
+
+decision register:
+ed03bcc6766f05fb7f026468689727b3c42f4c94
+```
+
+The five unchanged candidate paths retain their exact parent blob identities:
+
+```text
+CHANGELOG.md:
+66cfbb5b56dfe7a9382614e274a872c68df26dcb
+
+ADR-0008:
+622060ad90eec41c792f110c373efffbb11a4b56
+
+ADR-0010:
+aca2142a3387785e80db908b3a5c1b0afd82ab51
+
+ADR-0012:
+dec6665353804e42f22474954bf878308092b717
+
+decision register:
+fc64dddbf6beddd602d31d694d9dae7c40c417c2
+```
+
+The proposed report bytes were Git-blob hashed before commit; the exact proposed
+blob is recorded in the owning #958 completion handoff rather than self-pinned
+inside the bytes whose hash it would change.
+
+GitHub's exact base-to-parent comparison contains exactly the six cumulative PR
+paths listed above. Because this proposed correction changes only the report,
+the cumulative path set remains those same six paths and the direct correction
+delta is exactly:
+
+```text
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+```
+
+The execution shell available for this control step cannot resolve GitHub and
+cannot materialize an exact repository worktree. Consequently this report does
+**not** claim that literal local Git commands were executed against a full
+exact-byte worktree.
+
+The required literal commands were nevertheless re-run without restrictive
+pathspecs in a six-path path/projection workspace after the exact GitHub-byte
+checks:
+
+```text
+git diff --check HEAD
+
+exit: 0
+stdout: ""
+stderr: ""
+
+git diff --name-only HEAD
+
+exit: 0
+stdout:
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md
+docs/engineering/decisions/ADR-0010-staff-operations-console.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+docs/engineering/decisions/decision-register.md
+stderr: ""
+```
+
+Those literal command results are projection evidence only. Exact-byte evidence
+is instead the complete GitHub file reads, Git blob identities, full-file
+whitespace checks and exact GitHub compare path sets above. This limitation
+remains visible for the fresh independent reviewer to adjudicate; it is not
+converted into stronger evidence by assertion.
+
+Composition and doctrine checks remain:
+
+- changelog has one `[Unreleased]` structure and retains ADR-0013, ADR-0012
+  proposal, approval and factual-clarification entries;
+- decision register remains byte-identical and records ADR-0012 as `APPROVED`
+  while retaining ADR-0013's programme-integration rule;
+- section 3.2's terminal-disposition semantics remain unchanged and section 3.5
+  plus invariant 8 use the same materialized-versus-terminal disposition model;
+- ADR-0013, branching workflow and operating-model doctrine remain
+  byte-preserved;
+- repository names use canonical spellings, including `thoth-sphinx`.
 
 Test applicability:
 
@@ -681,7 +791,10 @@ its normalized create response, briefly producing a `#undefined` parent
 reference in #958. The returned URLs established #957/#958 and the issue was
 corrected before branch/source mutation.
 
-No source-scope deviation remains.
+The source write budget remains compliant. The validation-evidence provenance
+deviation at head `227057cae8a4c10f7f7795e3afe68271e56681b9` is recorded in
+#958 comment `5934574460`; this report correction removes the unsupported
+exact-worktree claim rather than retroactively curing it.
 
 ## Durable control conditions
 
