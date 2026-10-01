@@ -461,6 +461,72 @@ was created, rotated or changed.
 ADR-0008 domain-specific application authorization remains binding. Worker-pool
 IAM authority and ZITADEL/application authorization remain separate concepts.
 
+## Approval-state and review history
+
+The architecture content at
+`631e28d1f05495f24ce88369d4557f1033f970b3` received CTO exact-content
+approval before the durable approval-state reconciliation.
+
+That approval-state reconciliation made the following durable control changes
+without altering the selected architecture:
+
+- ADR-0012 records `Status: APPROVED`, `Approved by: Javi, CTO`,
+  `Approval date: 2026-09-30` and the approval/authority rule in section 12;
+- ADR-0008's header records only the explicit partial-supersession boundary
+  selected by ADR-0012, leaving its unaffected machine-role and least-privilege
+  controls binding;
+- ADR-0010's header records only the explicit partial-supersession boundary
+  selected by ADR-0012, leaving its unaffected Staff Operations,
+  `ServiceOperation`, desired/execution/observed-state, attention,
+  reconciliation and staff-command controls binding;
+- the engineering decision register records ADR-0012 as `APPROVED` with its
+  repository-authority condition and preserves the distinction between
+  architecture approval and implementation authorization;
+- the Unreleased changelog contains the durable ADR-0012 approval entry while
+  preserving the earlier proposal entry.
+
+The five-path approval-state source authorization existed before that mutation.
+Its omitted GitHub authorization receipt was reconciled as historical provenance
+in #958 comment `5914033493`; the reconciliation explicitly does not portray
+the later comment as retroactive authorization.
+
+The approval-state candidate reached
+`c43aa750ea4d971fe4f803cf761868876f0783bd` and received
+`CHANGES REQUIRED` for AS-01. The direct-child AS-01 correction
+`bd5223deee44b465dd860ff96b75d81ad41cbf2d` restored the repository ADR
+amendment rule. Fresh independent CRITICAL review then returned `APPROVED`
+for that exact head in #958 comment `5914564111`.
+
+The later programme-integration compatibility reconciliation produced
+`7f7e62824eb40308688b46351ffea182e9e52942` against
+`feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462`. Fresh independent
+CRITICAL review of that exact integration candidate returned `CHANGES REQUIRED`
+in #958 comment `5919509096`. The accepted blockers were missing exact
+validation evidence, transient/incomplete durable report history and the
+contradiction between section 3.2's terminal route dispositions and the
+section 3.5/invariant-8 every-route-record-maps-to-a-job wording. The latter is
+a factual clarification of the already-selected section 3.2 semantics, not a
+new architecture decision.
+
+## Verified BE-04 consumer impact
+
+The independent consumer-impact check for the retiring BE-04 identifiers is
+durably recorded as follows:
+
+- `thoth-pub/thoth-app`: downstream migration required;
+- `thoth-pub/thoth-dissemination`: downstream migration required;
+- `thoth-pub/thoth-pyramid`: unaffected by the retiring BE-04 identifiers;
+- standalone `thoth-pub/thoth-client`: unaffected;
+- internal Rust `thoth-client` / `thoth-export-server`: unaffected;
+- `thoth-pub/metrics-dashboard`: unaffected;
+- `thoth-pub/metrics-widget`: unaffected;
+- `thoth-pub/baboon`: unaffected;
+- `thoth-pub/thoth-sphinx`: not a verified active consumer;
+- `thoth-pub/infrastructure`: runtime/IAM substrate, not a GraphQL consumer.
+
+This record is compatibility evidence for the BE-04 retirement plan. It does
+not authorize either downstream migration or removal of the legacy contract.
+
 ## Programme-integration compatibility reconciliation
 
 After ADR-0013 became repository-authoritative and THOTH-ASYNC-01 explicitly
@@ -485,29 +551,21 @@ The histories had diverged. The only content changed on both sides since the
 historical common base was `CHANGELOG.md` and
 `docs/engineering/decisions/decision-register.md`.
 
-The reconciliation preserves the reviewed ADR-0012, ADR-0008 and ADR-0010
-decision blobs byte-for-byte. It carries the repository-authoritative ADR-0013,
-branching workflow and operating-model doctrine from `feature/worker`
-unchanged. Manual text reconciliation is limited to:
+The compatibility reconciliation preserved the then-reviewed ADR-0012,
+ADR-0008 and ADR-0010 decision blobs byte-for-byte, while carrying the
+repository-authoritative ADR-0013, branching workflow and operating-model
+doctrine from `feature/worker` unchanged. The subsequent factual ADR-0012
+clarification changes the exact ADR-0012 version but does not alter ADR-0013 or
+those shared control documents.
 
-- `CHANGELOG.md`: retain the ADR-0013 control entry and both ADR-0012
-  proposal/approval entries;
-- `docs/engineering/decisions/decision-register.md`: retain ADR-0013 and its
-  programme-integration reliance rule while restoring the approved ADR-0012
-  row;
-- this implementation report: reconcile durable task topology and approval
-  state without copying transient live review or merge status into source.
-
-ADR-0012 remains not repository-authoritative until its own authority condition
-is satisfied on `develop`. Under ADR-0013, programme-local reliance is also
-not effective merely because this reconciliation exists: the exact reconciled
-ADR-0012 version must first merge into `feature/worker`, and the programme
-ledger must record the merge/reachability evidence required by ADR-0013
-eligibility conditions 7 and 8.
-
-Any source head created by this reconciliation requires fresh independent
-CRITICAL exact-head review against the exact `feature/worker` base before
-merge authorization.
+ADR-0012's normal repository-authority condition remains reachability from
+`develop`. ADR-0013's narrower programme-local reliance mechanism applies only
+to an exact approved and independently reviewed ADR version that is merged into
+the designated `feature/worker` line and durably pinned by the programme. A
+change to ADR-0012 makes any earlier exact-version programme pin stale until the
+clarified version has received fresh independent CRITICAL review, explicit CTO
+approval and separate programme-pin reconciliation. This report does not assert
+that programme-local reliance is currently effective.
 
 ## External/runtime effects
 
@@ -521,22 +579,100 @@ release/publication: 0
 production activation: 0
 ```
 
-## Validation performed for this documentation task
+## Final proposed candidate validation
 
-- the original authorized base remains recorded as historical authoring evidence;
-- ADR-0012 is `APPROVED`, with Javi as approver and approval date 2026-09-30;
-- PR #960 exists and its programme target is `feature/worker`;
-- the programme integration base for this reconciliation is
-  `345a7a04131e7c0539f7518c6ea457fa5cb6a462`;
-- ADR-0012, ADR-0008 and ADR-0010 decision bytes are preserved from the
-  previously reviewed ADR source head;
-- the final candidate against `feature/worker` is required to remain exactly
-  the cumulative six-path ADR task footprint;
-- no runtime test result is claimed by this documentation/control-only task;
-- live candidate head, CI, review and merge evidence belongs in GitHub #957/#958
-  rather than in a self-invalidating committed status line.
+The final documentation candidate was validated before commit in a controlled
+workspace for the exact six-path PR slice, with the relevant base/candidate
+bytes bound to the GitHub blob identities recorded below.
 
-Independent review is valid only against the exact candidate head it names.
+Cumulative base:
+
+```text
+feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462
+```
+
+Literal unrestricted whitespace validation:
+
+```text
+git diff --check HEAD
+
+exit: 0
+stdout: ""
+stderr: ""
+```
+
+Literal cumulative path validation:
+
+```text
+git diff --name-only HEAD
+
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md
+docs/engineering/decisions/ADR-0010-staff-operations-console.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+docs/engineering/decisions/decision-register.md
+```
+
+The unrestricted correction-boundary comparison against prior PR head
+`7f7e62824eb40308688b46351ffea182e9e52942` contains exactly:
+
+```text
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+```
+
+No fourth correction path is present.
+
+Exact blob verification for the final proposed candidate/control inputs:
+
+```text
+ADR-0008:
+622060ad90eec41c792f110c373efffbb11a4b56
+
+ADR-0010:
+aca2142a3387785e80db908b3a5c1b0afd82ab51
+
+ADR-0012 final clarified bytes:
+dec6665353804e42f22474954bf878308092b717
+
+ADR-0013:
+d928f957bdf775d03e99fc73888ec8e2dec5f80b
+
+branching-and-release-workflow:
+6edce35dd29307b0554bcd122ed5518038f57df5
+
+operating-model:
+fc8b9c90a7d0ae98a44645d2e316a0573c13ce2a
+```
+
+Composition and doctrine checks:
+
+- changelog: one `[Unreleased]` structure; ADR-0013, ADR-0012 proposal,
+  ADR-0012 approval and this factual clarification are all retained;
+- decision register: unchanged candidate blob
+  `fc64dddbf6beddd602d31d694d9dae7c40c417c2`; ADR-0012 remains
+  `APPROVED` and ADR-0013's programme-integration rule remains present;
+- internal links/repository-relative paths: checked for the modified ADR,
+  report and changelog references; referenced repository paths exist;
+- terminology/repository names: changed text uses canonical repository names,
+  including `thoth-sphinx`; no obsolete `thoth-sphynx` spelling is
+  introduced;
+- stale/conflicting doctrine: section 3.2's selected terminal-disposition
+  behaviour is unchanged, while section 3.5 and invariant 8 now use the same
+  materialized-versus-terminal disposition model; ADR-0013, branching workflow
+  and operating-model doctrine are byte-preserved.
+
+Test applicability:
+
+```text
+runtime/unit tests: NOT APPLICABLE
+database/migration tests: NOT APPLICABLE
+provider/runtime tests: NOT APPLICABLE
+manual CI dispatch/rerun: NO
+final-head automatic CI: GitHub-owned post-push evidence
+```
 
 ## Deviation history
 
@@ -547,22 +683,36 @@ corrected before branch/source mutation.
 
 No source-scope deviation remains.
 
-## Remaining lifecycle gates
+## Durable control conditions
 
-1. fresh independent CRITICAL exact-head review of the reconciled PR #960
-   candidate against exact programme base `feature/worker @ 345a7a04131e7c0539f7518c6ea457fa5cb6a462`;
-2. explicit CTO merge authorization only if that review returns `APPROVED`;
-3. merge PR #960 into `feature/worker`;
-4. record the exact ADR-0012 merge/reachability evidence required by ADR-0013
-   eligibility conditions 7 and 8;
-5. only after programme-local reliance is effective, separately specify,
-   authorize, implement and independently review each repository-local async
-   slice and any pinned cross-repository preview dependency;
-6. retain separate migration execution, provider/IAM/runtime, deployment,
-   release and production-activation gates.
+These conditions remain true regardless of the current live PR/review/merge
+stage:
 
-Merging ADR-0012 into `feature/worker` does not make ADR-0012
-repository-authoritative on `develop`, does not itself authorize
-implementation and does not authorize any external effect.
+1. ADR-0012 is an architecture decision only. Approval or merge does not
+   authorize runtime implementation, schema/data migration, provider/IAM/runtime
+   mutation, external writes, deployment, release or production activation.
+2. Any exact ADR-0012 version used for merge-readiness or programme-local
+   reliance requires the review/approval evidence required by repository
+   doctrine for that exact version; a later source change invalidates
+   exact-head approval for the earlier version.
+3. ADR-0012 becomes repository-authoritative only under its section-12 authority
+   condition, including reachability from `develop`.
+4. ADR-0013 programme-local reliance, when used, is exact-version-bound: the
+   relied-upon ADR version must be approved, independently reviewed, merged into
+   the designated `feature/worker` line and durably pinned. Any later ADR-0012
+   change makes the earlier programme pin stale until separately reconciled.
+5. Every async implementation slice remains separately specified, authorized,
+   independently reviewed and integrated. Downstream repositories may not guess
+   an unmerged upstream contract and must use an explicitly authorized pinned
+   version/preview where applicable.
+6. Merge authorization, merge, migration execution, provider/IAM/runtime
+   mutation, deployment, release, production activation and observation remain
+   separate lifecycle gates.
+7. Historical migration `20260814_v1.7.0` remains immutable; BE-04 retirement
+   continues to require the approved expand -> consumer migration -> runtime/API
+   retirement -> rollback-floor closure -> later storage-contraction sequence.
+8. The terminal route-disposition clarification does not permit silent work
+   loss: terminal non-materialization remains explicit, authorized, audited and
+   subject to the section 3.2 reconciliation/backfill and attention semantics.
 
 This report authorizes none of those later actions.

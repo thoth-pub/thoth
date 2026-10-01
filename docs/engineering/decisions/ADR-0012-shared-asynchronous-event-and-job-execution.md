@@ -566,12 +566,18 @@ current-state execution and backfill create new logical jobs with new effect
 identity and explicit parent/replay/correlation metadata, following ADR-0010's
 distinction between retry, replay and current-state redistribution.
 
-Event routing identity and job idempotency are related but distinct. Every
-`(event_id, route_key)` route record points to exactly one materialized job,
-while several route records may point to one **not-yet-started** job only when
-the kind defines an explicit durable coalescing rule. Coalescing therefore forms
-a many-route-to-one-job relationship; it never erases the per-event route
-records needed for audit/completeness.
+Event routing identity and job idempotency are related but distinct. Exactly one
+durable disposition exists for each `(event_id, route_key)`. A successfully
+materialized disposition points to exactly one materialized job. Several
+materialized route dispositions may point to one **not-yet-started** job only
+when the kind defines an explicit durable coalescing rule. An explicit,
+authorized and audited terminal non-materialized disposition points to no job
+and records the actor, authority, reason and any covering
+reconciliation/backfill. Materialized and terminal non-materialized
+dispositions share the same `(event_id, route_key)` uniqueness boundary and
+cannot coexist for the same route/event pair. Coalescing therefore forms a
+many-route-to-one-job relationship only among materialized dispositions; it
+never erases the per-event route records needed for audit/completeness.
 
 An idempotency conflict never silently means "route satisfied". It either:
 
@@ -1327,8 +1333,14 @@ execution until a separate approved architecture decision says otherwise.
    explicit backfill/replay through the same route materialization records.
 7. Job idempotency identifies a specific intended effect; a resource-only key
    must not suppress later revisions/schedule slots/commands.
-8. Every event-route record maps to exactly one job; many route records may map
-   to one job only under an explicit not-yet-started coalescing rule.
+8. Exactly one durable disposition exists for each `(event_id, route_key)`.
+   A successfully materialized disposition maps to exactly one job; many
+   materialized dispositions may map to one not-yet-started job only under an
+   explicit durable coalescing rule. An explicit authorized/audited terminal
+   non-materialized disposition maps to no job, records actor, authority,
+   reason and any covering reconciliation/backfill, and shares the same
+   uniqueness boundary so it cannot coexist with a materialized disposition for
+   the same event/route pair.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
