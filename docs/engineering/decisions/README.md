@@ -103,9 +103,31 @@ For these controls, an ADR version is the exact Git blob of the ADR file. A mate
 
 Existing `ADR-0013` impact-assessment requirements for dependent programme slices continue to apply.
 
-#### Exact-final-blob approval
+#### Approval routes for a material correction
 
-A material correction uses this approval sequence:
+A material correction before repository authority uses exactly one of two
+routes. The CTO selects and records the route in the correction's task
+authorization before the implementing agent creates any correction commit:
+
+- **Route A - pre-commit exact-final-blob approval**: the CTO approves the exact
+  final ADR blob before it is committed.
+- **Route B - PR-first staged approval**: the corrected candidate is pushed to a
+  real task branch and pull request as `PROPOSED`, the CTO approves its exact
+  content from that pull request, one bounded approval-state commit then records
+  `APPROVED`, and the CTO approves the exact final ADR blob before merge.
+
+Both routes end with the same exact-version gates: CTO exact-final-blob
+approval of the final ADR blob, fresh independent review bound to the exact
+final source head, and separate CTO merge authorization where the task's risk or
+governing control requires it. Route B changes only *when* exact-final-blob
+approval occurs, not whether it occurs. Neither route changes the eligibility
+test above, the list of controls a material correction makes stale, the
+`ADR-0013` exact-version reliance and drift rules, or the repository-authority
+condition.
+
+#### Route A - pre-commit exact-final-blob approval
+
+A material correction under Route A uses this approval sequence:
 
 1. Prepare the exact final ADR bytes, including the corrected architecture, `Status: APPROVED`, the fresh approver, the fresh approval date, and any durable approval/authority wording required by the ADR.
 2. Calculate the exact Git blob with `git hash-object --no-filters` or an equivalently exact Git-object calculation before commit.
@@ -116,6 +138,94 @@ A material correction uses this approval sequence:
 7. Any later ADR byte change that is not recorded as a factual clarification under the rules above invalidates the exact-content approval and requires a new exact-blob approval.
 8. The final source head, including the approved ADR blob and all companion documentation, then requires fresh independent exact-head review before merge or reliance.
 9. CTO merge authorization remains a separate gate.
+
+#### Route B - PR-first staged approval
+
+Route B lets control review a correction candidate from an actual GitHub pull
+request instead of an out-of-band pre-commit candidate transport. It keeps the
+candidate, content-approval, approval-state, exact-final-blob, review and merge
+stages distinct:
+
+1. **Candidate stage.** The implementing agent prepares the corrected ADR on
+   the bounded task branch and opens or updates a draft pull request. The pushed
+   candidate carries `Status: PROPOSED`. It must not present the earlier
+   version's approver, approval date or approval statement as approval of the
+   corrected bytes. Earlier approval evidence may remain in the candidate only
+   where it is explicitly described as historical and bound to the earlier exact
+   blob or source head. Companion durable records in the same candidate, such as
+   the decision-register row, changelog entry and implementation report, must
+   likewise describe the corrected version as proposed and must not assert that
+   it is approved. The earlier exact version's historical `APPROVED` state is
+   unaffected by the candidate's `PROPOSED` status; the two states belong to
+   different exact versions.
+2. **Content-approval stage.** The CTO reviews the exact correction content
+   from the pull request and records architecture-content approval in durable
+   GitHub evidence. That record identifies at minimum the exact candidate ADR
+   blob SHA, ADR path, owning issue, the source head reviewed and the inspection
+   basis: the full candidate text or a diff against the exact prior approved
+   blob, which the record names. Content approval is approval of the corrected
+   architecture; it is not approval of the final bytes, not independent review,
+   and not merge authorization.
+3. **Approval-state stage.** Only after that content approval may the
+   implementing agent create exactly one bounded approval-state commit on the
+   same task branch, as a direct child of the content-approved head. It may
+   change only: the ADR status from `PROPOSED` to `APPROVED`; the fresh approver
+   and the fresh approval date; the ADR's own approval/authority wording required
+   to make the approved record truthful; and the companion durable metadata the
+   task specification already authorizes, such as the decision-register row,
+   changelog entry and implementation report. The architecture content approved
+   at the content-approval stage may not change. Any other ADR byte change
+   returns the correction to the candidate stage and requires fresh content
+   approval. The approval date carried by the blob is the date of the durable
+   content-approval record; it must not be back-dated and must not anticipate a
+   later record.
+4. **Exact-final-blob stage.** The final ADR blob is now visible in GitHub. The
+   CTO records exact-final-blob approval against that blob **before merge**
+   rather than before commit. The approval record carries the same fields as
+   Route A: the final ADR blob SHA, ADR path, owning issue, the approval date
+   carried by the blob, and the inspection basis, naming the content-approved
+   candidate blob when the basis is a diff. The approval date carried by the
+   blob must match the content-approval record it cites; if it does not, prepare
+   a new approval-state blob through the approval-state stage again and obtain
+   fresh exact-final-blob approval.
+5. **Review stage.** The final source head, including the approval-state commit
+   and all companion documentation, then requires fresh independent exact-head
+   review before merge or reliance. Any later source commit invalidates that
+   review. Any later ADR byte change that is not recorded as a factual
+   clarification under the rules above also invalidates the exact-final-blob
+   approval and requires a new one.
+6. **Merge stage.** CTO merge authorization, where required, remains a separate
+   gate bound to the exact reviewed head, and the merge itself remains guarded
+   by that expected head. Merge remains separate from runtime implementation,
+   migration execution, provider/IAM/runtime action, deployment, release and
+   production activation.
+
+Under Route B, no materially corrected ADR bytes may carry current `APPROVED`
+status before the content-approval record exists, and an approval-state commit
+created without a durable content-approval record for the exact parent head is
+unauthorized. If the content-approved head moves for any reason other than the
+single authorized approval-state commit, the correction returns to the candidate
+stage. Route B requires no force push, amend or history rewrite; the candidate
+and approval-state commits are ordinary additive commits on the task branch.
+
+**Why the Route B approval-state commit is consistent with `ADR-0005`.**
+`ADR-0005` prohibits a commit whose sole purpose is copying review identifiers,
+approval identifiers, merge-authorization identifiers, merge SHAs, timestamps or
+other transient lifecycle facts that GitHub already holds authoritatively. The
+Route B approval-state commit is not such a commit. It records durable decision
+state that only the repository can carry and that the corrected ADR needs in
+order to be truthful: the `PROPOSED` to `APPROVED` status transition, the
+approver and approval date that the decision statuses in this document and the
+required ADR content already demand, and the companion durable metadata that
+must agree with that state. It is the first commit in which the corrected
+version can truthfully say `APPROVED`, so it is substantive decision content,
+not a transcription of lifecycle evidence. It must not be used to copy
+content-approval, exact-final-blob approval, review or merge identifiers into
+repository files; those remain GitHub-owned lifecycle evidence under `ADR-0005`,
+and the ADR, decision register and implementation report reference the owning
+issue and pull request rather than restating them.
+
+#### Rules common to both routes
 
 No earlier approver or approval date may be retained as though it approved corrected decision bytes. Earlier approvals and reviews remain historical evidence bound to their actual exact versions and heads.
 
