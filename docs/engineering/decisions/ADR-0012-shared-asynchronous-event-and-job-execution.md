@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-09-30
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -234,40 +232,120 @@ handler registration and not from a bare PostgreSQL sequence high-water mark.
 A sequence may be used as an identifier/order aid, but the implementation must
 not assume sequence allocation order equals commit order.
 
-Every event consumer has a durable route registration with:
+Every event consumer has a durable **logical route** registration with:
 
-- a stable `route_key`;
-- an explicit activation boundary;
-- an optional explicit deactivation boundary;
+- a stable `route_key` that identifies the logical route for its whole life;
 - the supported event kind/version contract;
+- an append-only, totally ordered history of **activation epochs**;
+- a route lifecycle state;
 - enough durable state to decide whether an event is eligible for that route.
 
-Activation and deactivation are durable, separately authorized and audited
-operations. They are not side effects of merely deploying or deleting handler
-code.
+An activation epoch is one continuous active interval of the logical route. It
+is the half-open routing-generation interval:
 
-Route boundaries use a durable routing generation/epoch, or an equivalently
-strong serialized database mechanism, that an event captures inside its
-creating transaction and a route records when it is activated or deactivated.
-An event is eligible exactly when its captured routing generation is at or after
-the route's activation generation and, when a deactivation generation exists,
-strictly before that deactivation generation.
+```text
+[activation_generation, deactivation_generation)
+```
 
-That interval must partition events deterministically even when transactions
+An open epoch has no deactivation boundary yet. Each epoch also records the
+authorizing actor/authority and the deployment evidence that satisfied the
+activation gates below. A route may be activated, deactivated and reactivated
+any number of times; every activation creates a new epoch beneath the same
+`route_key`. A new `route_key` is never created merely to reactivate a route.
+
+An implementation may assign an epoch identifier for storage and audit. That
+identifier is subordinate to the logical `route_key`: it never replaces
+`route_key` as the route identity and never enters the route-disposition
+uniqueness key.
+
+Epochs are immutable, append-only history:
+
+- at most one epoch of a route is open at any time;
+- an epoch's identity and activation boundary never change once recorded;
+- closing an open epoch is a write-once durable close/deactivation fact, or an
+  equivalently strong append-only close record, that records its deactivation
+  boundary. Once an epoch is closed, its deactivation boundary cannot change
+  and the epoch cannot be reopened;
+- deactivating a route closes only its current open epoch; no operation
+  rewrites, reopens, merges or deletes any epoch;
+- the epochs of one route are pairwise-disjoint and totally ordered by
+  activation generation. A new epoch's activation generation is at or after the
+  deactivation generation of the route's previous epoch, so the open epoch, when
+  one exists, is the epoch with the greatest activation generation.
+
+Opening an epoch, closing an epoch and permanently retiring a route are
+serialized for each `route_key` through the same durable database serialization
+mechanism required for route activation. Concurrent activation, deactivation and
+retirement requests for one route therefore resolve into one durable total
+order: they cannot open two epochs, close one epoch twice, reopen a closed epoch
+or record boundaries out of order.
+
+A route's lifecycle state is one of:
+
+- **active** - exactly one epoch is open;
+- **temporarily inactive** - no epoch is open and the route is not retired,
+  whether it has never been activated or has been deactivated. It may open a
+  new epoch only through the normal activation gates;
+- **permanently retired** - terminal. Once retirement is durably recorded, no
+  later activation epoch may be opened for that route identity. If a
+  reactivation serializes before retirement, the later retirement closes that
+  open epoch and terminates the route's active state; if retirement serializes
+  first, the later reactivation request is rejected. Resuming that consumer
+  requires a separately authorized new route identity or a later architecture
+  decision. A new route identity is a different logical route with its own
+  epochs and dispositions; it receives earlier events only through explicitly
+  authorized backfill/replay.
+
+Activation, deactivation, reactivation and retirement are durable, separately
+authorized and audited operations. They are not side effects of merely deploying
+or deleting handler code.
+
+Epoch boundaries use a durable routing generation, or an equivalently strong
+serialized database mechanism, that an event captures inside its creating
+transaction and a route records when it opens or closes an epoch. An event is
+historically eligible for a route exactly when its captured routing generation
+lies inside **any** activation epoch of that route, whether that epoch is
+currently open or already closed: at or after that epoch's activation
+generation and, when the epoch has been closed, strictly before its deactivation
+generation. Because epochs are pairwise-disjoint, an eligible event belongs to
+exactly one epoch. An event whose captured generation falls before the route's
+first epoch, in an inactive gap between two epochs, or after its most recent
+closed epoch while no later epoch is open is not eligible for that route.
+
+Eligibility is fixed history. The mechanism must allocate each deactivation
+boundary so that closing an epoch never removes or rewrites eligibility for an
+event that captured a routing generation inside that epoch. Opening a later
+epoch never retroactively covers routing generations in an inactive inter-epoch
+gap, and retiring the route never changes whether an already-committed event
+was eligible.
+
+These intervals must partition events deterministically even when transactions
 commit out of sequence. Sequence allocation order and commit observation order
 alone are insufficient.
 
 For every committed event, the engine must eventually establish a durable route
-disposition for every route for which that event is eligible. The normal
-disposition materializes a job and is unique on `(event_id, route_key)`
-regardless of whether the resulting job is pending, running, waiting or
-terminal.
+disposition for every route for which that event is eligible. Exactly one
+durable disposition exists for each `(event_id, route_key)`. The normal
+disposition materializes a job: a materialized disposition points to exactly one
+job and remains unique on `(event_id, route_key)` regardless of whether that job
+is pending, running, waiting or terminal. The only alternative is the explicit,
+authorized and audited terminal non-materialized disposition described below,
+which points to no job (section 3.5 and invariant 8).
 
-A route may not be "fixed" by deleting its registration. Deactivation affects
-only events at or after the deactivation boundary. Events already eligible
-before that boundary remain owed after retirement. If an eligible route can no
-longer be materialized safely, each affected event requires an explicit,
-authorized, audited terminal route disposition describing why it was not
+Disposition uniqueness is per logical route, not per epoch: `(event_id,
+route_key)` is the complete uniqueness boundary across every epoch of that
+route. A disposition may record the epoch through which the event became
+eligible, or that an explicit backfill/replay enrolled it, for audit and
+metrics, but that attribute is never part of the uniqueness key. Reactivating a
+route therefore cannot rematerialize, duplicate or reset a disposition that
+already exists for that route and event.
+
+A route may not be "fixed" by deleting its registration or any of its epochs.
+Deactivation and retirement affect only events at or after the closing
+boundary. Events already eligible through any earlier epoch remain owed after
+deactivation and after retirement. If an eligible route can no longer be
+materialized safely, each affected event requires an explicit, authorized,
+audited terminal route disposition describing why it was not
 materialized and what reconciliation/backfill, if any, covers it. Each such
 disposition remains one durable `(event_id, route_key)` record even when an
 operator authorizes a bulk action, and records the actor/authority and reason.
@@ -281,14 +359,18 @@ domain/effect target and raises durable operator attention; an operator cannot
 make required work disappear merely by supplying a reason.
 
 The engine exposes route-level backlog independently of job-level queue metrics.
-For every route key it must make queryable at least the count of eligible events
-without a disposition, the age of the oldest such event, and whether a compatible
-materializer for the route kind/version is deployed and eligible to perform the
-materialization. A route may not activate until deployment evidence establishes
-both the event-emission floor below and at least one compatible materializer in
-the intended environment. If compatible materialization later becomes
-unavailable, outstanding obligations remain owed and the unavailable-materializer
-and route-backlog signals raise attention.
+For every route key it must make queryable at least its lifecycle state (active,
+temporarily inactive or permanently retired), the count of events eligible
+through any of its epochs that still have no disposition, the age of the oldest
+such event, and whether a compatible materializer for the route kind/version is
+deployed and eligible to perform the materialization. Obligations from closed
+epochs and from retired routes remain in that backlog until dispositioned. A
+route may not open any epoch - its first activation or a later reactivation -
+until deployment evidence establishes both the event-emission floor below and at
+least one compatible materializer in the intended environment. If compatible
+materialization later becomes unavailable, outstanding obligations remain owed and
+the unavailable-materializer and route-backlog signals raise attention, whether
+the route is active, temporarily inactive or permanently retired.
 
 A crash after some consumers are materialized therefore resumes from durable
 route records. A worker must never mark an event fully routed merely because it
@@ -297,27 +379,43 @@ if a worker encounters an eligible route whose kind/version it cannot
 materialize, it leaves that route incomplete for a compatible worker rather than
 silently completing the event.
 
-A route introduced by a later release receives only events in its active
-routing-generation interval. Historical events are processed only through an
-explicitly authorized backfill/replay using the same `(event_id, route_key)`
-identity; backfill cannot bypass route deduplication.
+A route introduced by a later release, or reactivated after an inactive gap,
+receives only events within its activation epochs. Historical events from before
+its first epoch and events from an inactive inter-epoch gap are processed only
+through an explicitly authorized historical backfill/replay under the same
+stable `route_key` and the same `(event_id, route_key)` deduplication boundary;
+backfill cannot bypass route deduplication and cannot create a second
+disposition for an event that already has one for that route. Deliberately
+re-executing work for an already-dispositioned event is an explicit replay or
+current-state job under section 3.5, carrying replay/correlation metadata, not a
+second route disposition.
 
 ### Event-emission deployment floor
 
-A route consuming event kind/version `K` may be activated only after deployment
-evidence proves that **every running binary that can perform the relevant
-business mutation, and every binary still retained as a supported production
-rollback target, emits K atomically with that mutation**.
+A route consuming event kind/version `K` may open an activation epoch - on its
+first activation and on every reactivation - only after deployment evidence
+proves that **every running binary that can perform the relevant business
+mutation, and every binary still retained as a supported production rollback
+target, emits K atomically with that mutation**.
 
-The event-emission floor is therefore established before route activation.
-Activating a route while some serving/rollback binary can still perform the
+The event-emission floor is therefore established before every epoch opens.
+Opening an epoch while some serving/rollback binary can still perform the
 business mutation without emitting K is prohibited.
 
-If production must roll back below that emission-capable floor after activation,
-the route is deactivated before the older binary can perform relevant writes, or
-the rollback is accompanied by an explicitly authorized current-state
-reconciliation/backfill that covers the precise emission gap. Silent loss of
-business changes is not an acceptable rollback behaviour.
+If production must roll back below that emission-capable floor while an epoch is
+open, the route's current epoch is closed before the older binary can perform
+relevant writes, or the rollback is accompanied by an explicitly authorized
+current-state reconciliation/backfill that covers the precise emission gap.
+Silent loss of business changes is not an acceptable rollback behaviour.
+
+Closing the epoch makes the rollback interval an explicit inactive gap that
+remains visible in the route's epoch history. Forward recovery above the floor
+may open a new epoch under the same `route_key` only after the event-emission
+floor and compatible-materializer gates are re-established for the recovered
+deployment. Opening that new epoch does not make gap events eligible; business
+changes made during the gap that the route must still reflect are covered only
+by an explicitly authorized current-state reconciliation/backfill through the
+same route identity.
 
 The binary emission floor does not exempt canonical writes performed outside
 those binaries. An authorized data migration, administrative repair or exceptional
@@ -1007,9 +1105,13 @@ job kind:
 
 It also exposes route-materialization health at least by route key:
 
-- count of eligible events with no durable route disposition;
-- age of the oldest eligible event with no route disposition;
-- active routes with no compatible deployed/eligible materializer;
+- lifecycle state - active, temporarily inactive or permanently retired - and
+  the route's activation-epoch history;
+- count of events eligible through any epoch with no durable route disposition;
+- age of the oldest such event;
+- active routes, and temporarily inactive or permanently retired routes with
+  outstanding obligations, that have no compatible deployed/eligible
+  materializer;
 - terminal route dispositions that represent accepted divergence rather than
   covered reconciliation/backfill.
 
@@ -1321,16 +1423,30 @@ execution until a separate approved architecture decision says otherwise.
 
 1. PostgreSQL remains canonical for event/job lifecycle.
 2. Business mutation plus caused event is atomic where both are PostgreSQL-owned.
-3. Route registration, activation and deactivation boundaries are durable
-   database state; eligibility is a durable routing-generation interval.
-4. Route activation occurs only after all serving and supported rollback binaries
-   that can perform the relevant business mutation emit the consumed event
-   kind/version atomically.
-5. Deactivation never erases previously eligible work: pre-deactivation events
-   remain owed until materialized or given an explicit authorized/audited route
-   disposition.
-6. A newly activated route does not consume historical events without an
-   explicit backfill/replay through the same route materialization records.
+3. A logical route keeps one stable `route_key` across an append-only history of
+   activation epochs; its registration, epochs and lifecycle state are durable
+   database state. Epochs are pairwise-disjoint half-open routing-generation
+   intervals `[activation_generation, deactivation_generation)`, totally ordered
+   by activation generation, with at most one open epoch. An epoch's identity
+   and activation boundary are immutable and its close is a write-once durable
+   fact, so a closed epoch's boundary never changes and the epoch never reopens.
+   Opening, closing and permanent retirement for one route are serialized
+   through the same durable database mechanism and resolve into one total order.
+   Eligibility is membership in any epoch, open or closed; closing an epoch
+   never rewrites eligibility, and inactive-gap events are not eligible. Any
+   epoch identifier is subordinate to `route_key`. Permanent retirement is
+   terminal and prohibits any later epoch for that route identity.
+4. Every route activation, including each reactivation epoch, occurs only after
+   all serving and supported rollback binaries that can perform the relevant
+   business mutation emit the consumed event kind/version atomically and a
+   compatible materializer is deployed.
+5. Deactivation and retirement never erase previously eligible work: events
+   eligible through any epoch remain owed until materialized or given an
+   explicit authorized/audited route disposition.
+6. A newly opened epoch, whether a first activation or a reactivation, does not
+   consume events from before its activation boundary, including inactive-gap
+   events, without an explicitly authorized historical backfill/replay under the
+   same `route_key` and `(event_id, route_key)` deduplication boundary.
 7. Job idempotency identifies a specific intended effect; a resource-only key
    must not suppress later revisions/schedule slots/commands.
 8. Exactly one durable disposition exists for each `(event_id, route_key)`.
@@ -1340,7 +1456,10 @@ execution until a separate approved architecture decision says otherwise.
    non-materialized disposition maps to no job, records actor, authority,
    reason and any covering reconciliation/backfill, and shares the same
    uniqueness boundary so it cannot coexist with a materialized disposition for
-   the same event/route pair.
+   the same event/route pair. The uniqueness boundary spans every activation
+   epoch of the route and excludes any epoch identifier, so neither
+   reactivation nor backfill/replay can rematerialize an event that already has
+   a disposition.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
@@ -1413,7 +1532,8 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
 
 1. **Release N shared schema/engine/API in `thoth`**
    - additive generic async migration;
-   - durable route registration/activation/deactivation/materialization model;
+   - durable logical-route registration, append-only activation-epoch,
+     retirement and materialization model;
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
    - effect-scoped idempotency and explicit coalescing;
@@ -1519,8 +1639,9 @@ legacy automatic job creation/activation OFF.
 
 Any new event route remains INACTIVE until every serving binary and supported
 rollback target capable of the relevant business mutation emits the event
-kind/version atomically. Route activation is a separate authorized operation
-after deployment evidence establishes that emission floor.
+kind/version atomically. Route activation, including every later reactivation
+epoch, is a separate authorized operation after deployment evidence establishes
+that emission floor and a compatible materializer.
 
 Release N must be fully deployed and become a valid rollback target before any
 downstream consumer migration starts.
@@ -1591,8 +1712,11 @@ The migration test matrix must include:
 - pre-v1.7 upgrade applying v1.7.0 plus additive generic schema;
 - full empty-database migration chain;
 - rolling deploy with mixed old/new application versions during Phase A;
-- event-route activation only after emission-capable deployment/rollback floor;
-- route deactivation before rollback below an event-emission floor;
+- event-route activation, and every reactivation epoch, only after the
+  emission-capable deployment/rollback floor;
+- closing the current activation epoch before rollback below an event-emission
+  floor, and opening a new epoch only after forward recovery re-establishes the
+  activation gates;
 - current-state reconciliation/backfill covering an authorized emission gap;
 - later API/runtime-retirement rollback window;
 - proof Phase-C binaries have zero runtime legacy-table access;
@@ -1611,7 +1735,8 @@ Rollout should prove in order:
 
 1. schema/event-route/job concurrency without external writes;
 2. mixed-version route completeness and out-of-order transaction commits;
-3. activation/deactivation and event-emission-floor behaviour;
+3. activation, deactivation, reactivation-epoch, retirement and
+   event-emission-floor behaviour;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
@@ -1633,7 +1758,8 @@ Architecture rollback before implementation is ordinary documentation revert.
 Once implemented, rollback must distinguish:
 
 - stopping new event/job creation;
-- deactivating routes before rolling below their event-emission floor;
+- closing each affected route's current activation epoch before rolling below
+  its event-emission floor;
 - stopping worker claiming;
 - preserving durable event/route/job/attempt/checkpoint records;
 - rolling back individual handler activation;
@@ -1646,10 +1772,12 @@ only while all schema/API that image needs remains present **and** route
 activation remains compatible with that image's event-emission behaviour.
 
 If rollback below an already-active route's emission floor is unavoidable, the
-route is deactivated before old writers resume or a specifically authorized
-current-state reconciliation/backfill covers the exact gap. Existing
-pre-deactivation eligible route obligations remain durable; deactivation does
-not delete them.
+route's current epoch is closed before old writers resume or a specifically
+authorized current-state reconciliation/backfill covers the exact gap. Existing
+obligations from every epoch, including the one being closed, remain durable;
+closing an epoch does not delete them. Forward recovery may open a new epoch under the same `route_key`
+only after the activation gates are re-established; it does not make
+inactive-gap events eligible.
 
 Legacy BE-04 storage contraction cannot occur until every supported rollback
 binary has zero runtime legacy-table access. After that contraction, an older
@@ -1669,23 +1797,49 @@ durable jobs/events/route obligations.
 Before shared implementation can be approved, evidence must include:
 
 - real PostgreSQL concurrent claim tests with multiple workers;
-- durable route registration/activation/deactivation tests;
-- concurrent event creation versus route activation/deactivation under the
-  routing generation/epoch mechanism;
-- proof that pre-deactivation eligible events remain owed after route retirement;
+- durable logical-route registration and activation-epoch tests covering
+  activate -> deactivate -> reactivate and repeated activation cycles under one
+  stable `route_key`;
+- event creation on both sides of every epoch boundary - each activation and
+  each deactivation, concurrently with the boundary transition - under the
+  routing-generation mechanism;
+- concurrent epoch-transition tests, including simultaneous activate and
+  deactivate requests, proving one durable total order, at most one open epoch
+  and pairwise-disjoint half-open epoch intervals totally ordered by activation
+  generation;
+- closed-epoch immutability tests proving an epoch's identity and activation
+  boundary never change, its write-once close fact cannot be rewritten and a
+  closed epoch cannot be reopened;
+- historical eligibility tests proving that an event inside any epoch, open or
+  closed, remains eligible after that epoch closes, after later epochs open and
+  after retirement;
+- inactive-gap exclusion tests proving events captured before the first epoch or
+  between epochs are not eligible and are processed only through explicitly
+  authorized backfill/replay;
+- proof that events eligible through any epoch remain owed after deactivation
+  and after permanent retirement;
+- retirement-versus-reactivation tests in both serialization orders, proving
+  that retirement after a reactivation closes the open epoch and that
+  reactivation after retirement is rejected, and that a retired route can never
+  open another epoch;
+- tests proving any epoch identifier is excluded from the `(event_id,
+  route_key)` disposition uniqueness key;
 - explicit authorized terminal route-disposition tests when an eligible route
   can no longer be materialized, including per-event actor/authority/reason and
   ADR-0010 protected staff-command authorization/audit where staff acts;
 - accepted-divergence attention when a terminal disposition has no covering
   reconciliation/backfill;
-- queryable per-route undisposed-event count/oldest-age and unavailable
+- queryable per-route undisposed-event count/oldest-age across every epoch,
+  active / temporarily inactive / permanently retired state and unavailable
   compatible-materializer signals;
-- activation refusal until at least one compatible materializer is deployed;
+- activation and reactivation refusal until the event-emission floor and at
+  least one compatible materializer are established for that epoch;
 - event-emission-floor tests proving a route cannot activate while any serving
   or supported rollback binary can perform the mutation without emitting its
   event kind/version;
-- rollback-below-emission-floor tests requiring prior deactivation or explicit
-  current-state reconciliation/backfill;
+- rollback-below-emission-floor tests requiring the current epoch to be closed
+  first or explicit current-state reconciliation/backfill, and forward recovery
+  opening a new epoch only after the activation gates are re-established;
 - migration/administrative-write tests proving non-emitting canonical writes are
   paired with transactional emission or exact-scope reconciliation/backfill;
 - mixed worker-version routing where an older worker cannot silently complete an
@@ -1694,7 +1848,9 @@ Before shared implementation can be approved, evidence must include:
   sequence/cursor optimization;
 - crash during partial fan-out with exact resume and no duplicate route record;
 - explicit historical backfill through the same `(event_id, route_key)`
-  materialization identity;
+  materialization identity, including across epochs and inactive gaps, proving
+  that neither reactivation nor backfill/replay rematerializes an
+  already-dispositioned event;
 - effect-scoped idempotency tests across newer source revisions/schedule slots;
 - CURRENT_STATE tests that read canonical latest state and prove the effect
   fingerprint covers every canonical input affecting the external result before
@@ -1811,31 +1967,57 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-This ADR is **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-09-30
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
-The approval adopts the architecture decision and invariants recorded in this
-ADR. It remains architecture approval only: it does not authorize implementation,
-schema or data migration, worker deployment, IAM/provider changes, credentials,
-external writes, BE-04/DIS-02 activation, Hosting implementation, release or
-production activation.
+This version is a material architectural correction of ADR-0012, made before
+any approved version of ADR-0012 was repository-authoritative, under the
+material-correction rules in `docs/engineering/decisions/README.md`. It
+replaces the single activation interval per route with the append-only
+activation-epoch model in section 3.2.
 
-Authority condition: this approved record becomes repository-authoritative only
-when this exact approval-state content has received independent exact-head review
-and is reachable from the repository's authoritative integration branch
-(`develop`). A branch carrying `APPROVED` is not repository-authoritative
-before merge. Live review, CI, merge-authorization and merge evidence belongs in
-GitHub and is not duplicated into this ADR as transient lifecycle metadata.
+Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
+approval dated 2026-09-30. That approval, and every review of those earlier
+versions, remains historical evidence bound to those exact earlier versions and
+source heads only; it does not approve this corrected version. The exact
+historical identities are recorded in the task implementation report and the
+owning issue.
+
+CTO approval of this ADR adopts the architecture decision and invariants
+recorded here. It is architecture approval only: it does not authorize
+implementation, schema or data migration, worker deployment, IAM/provider
+changes, credentials, external writes, BE-04/DIS-02 activation, Hosting
+implementation, release or production activation.
+
+Authority condition: this record becomes repository-authoritative only when its
+exact `APPROVED` approval-state content has received independent exact-head
+review and is reachable from the repository's authoritative integration branch
+(`develop`). A branch carrying `APPROVED` is not repository-authoritative before
+merge. Programme-integration reliance under ADR-0013, where a programme uses
+it, is a narrower exact-version state that does not make this ADR
+repository-authoritative. Live review, CI, merge-authorization and merge
+evidence belongs in GitHub and is not duplicated into this ADR as transient
+lifecycle metadata.
 
 The partial supersession of ADR-0008 and ADR-0010 is limited exactly to the
 clauses identified in this ADR's header. All unaffected architecture in those
-records remains binding. After approval, material architectural changes require a new ADR that
-supersedes this one. Factual clarifications may update this ADR only when they
-do not alter the decision. Every update follows normal review and changelog
-requirements.
+records remains binding.
+
+Amendments to this ADR follow the Amendments section of
+`docs/engineering/decisions/README.md`. After approval, the CTO classifies a
+proposed update as a factual clarification or a material architectural
+correction. A factual clarification may update this ADR in place only when it
+does not alter the selected architecture decision. A material architectural
+correction may update this ADR in place only when that README's
+material-correction-before-repository-authority rule permits it, including
+explicit CTO authorization and the requirement that no approved version of
+ADR-0012 has ever been repository-authoritative; otherwise a material
+architectural change requires a new ADR that supersedes this one. Every update
+follows normal review and changelog requirements.
 
 BE-04/DIS-02 deployment/activation and Hosting implementation that depends on
 the async architecture remain separately controlled and are not authorized by
-this approval.
+this ADR or its approval.
