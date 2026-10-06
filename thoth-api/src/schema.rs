@@ -705,6 +705,24 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::{MetricCoverageStatus, MetricImportStatus};
+
+    metric_coverage_run (source_account_id, platform_id, publisher_id, measure_id, run_start) {
+        source_account_id -> Uuid,
+        platform_id -> Uuid,
+        publisher_id -> Uuid,
+        measure_id -> Uuid,
+        run_start -> Date,
+        run_end -> Date,
+        coverage_status -> MetricCoverageStatus,
+        import_status -> MetricImportStatus,
+        country_coverage -> Bool,
+        institution_coverage -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::MetricReportingGrain;
 
     metric_identifier_quarantine (identifier_quarantine_id) {
@@ -1716,6 +1734,10 @@ joinable!(metric_coverage -> metric_import (import_id));
 joinable!(metric_coverage -> metric_measure (measure_id));
 joinable!(metric_coverage -> metric_platform (platform_id));
 joinable!(metric_coverage -> metric_source_account (source_account_id));
+joinable!(metric_coverage_run -> metric_measure (measure_id));
+joinable!(metric_coverage_run -> metric_platform (platform_id));
+joinable!(metric_coverage_run -> metric_source_account (source_account_id));
+joinable!(metric_coverage_run -> publisher (publisher_id));
 joinable!(metric_identifier_quarantine -> metric_measure (measure_id));
 joinable!(metric_identifier_quarantine -> metric_platform (platform_id));
 joinable!(metric_identifier_quarantine -> metric_record_provenance (record_provenance_id));
@@ -1842,6 +1864,7 @@ allow_tables_to_appear_in_same_query!(
     location,
     location_history,
     metric_coverage,
+    metric_coverage_run,
     metric_identifier_quarantine,
     metric_identifier_quarantine_reconciliation,
     metric_import,

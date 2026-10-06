@@ -7,6 +7,8 @@ mod distribution_job_tests;
 #[cfg(test)]
 mod distribution_platform_tests;
 #[cfg(test)]
+mod metric_coverage_run_tests;
+#[cfg(test)]
 mod metric_dashboard_tests;
 #[cfg(test)]
 mod metric_identifier_quarantine_reconciliation_tests;

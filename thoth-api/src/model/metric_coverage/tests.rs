@@ -578,13 +578,21 @@ fn metric_coverage_has_exactly_the_authorized_non_cascading_foreign_keys() {
 }
 
 #[test]
-fn metric_coverage_has_no_index_beyond_its_primary_key() {
+fn metric_coverage_has_exactly_its_primary_key_and_the_two_b1_access_indexes() {
     let (_guard, pool) = setup_registry_db();
+    // `MET-WP1-05` created the primary key alone; `MET-WP4-03C-B1` adds exactly
+    // the two approved raw access indexes (the affected-hull lookup by import
+    // and the account-scoped recomputation by period end) and nothing else.
     assert_eq!(
         index_names(&pool, "metric_coverage"),
-        vec!["metric_coverage_pkey"],
-        "metric_coverage must carry exactly its primary key and no speculative \
-         secondary or uniqueness index"
+        vec![
+            "metric_coverage_import_id_idx",
+            "metric_coverage_pkey",
+            "metric_coverage_source_account_id_period_end_idx",
+        ],
+        "metric_coverage must carry exactly its primary key and the two approved \
+         MET-WP4-03C-B1 access indexes, with no speculative secondary or \
+         uniqueness index"
     );
 }
 

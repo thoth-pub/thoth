@@ -1,0 +1,13 @@
+thoth-h1-verifier-manifest/1
+dependency-lock	Cargo.lock
+workspace-manifest	Cargo.toml
+crate-manifest	thoth-api/Cargo.toml
+graphql-output	thoth-api/src/graphql/model.rs
+maintenance-resolver	thoth-api/src/graphql/mutation.rs
+coverage-model	thoth-api/src/model/metric_coverage/mod.rs
+h1-model	thoth-api/src/model/metric_coverage_run/mod.rs
+h1-verifier	thoth-api/src/model/metric_coverage_run/verification.rs
+import-model	thoth-api/src/model/metric_import/mod.rs
+source-account-model	thoth-api/src/model/metric_source_account/mod.rs
+authorization	thoth-api/src/policy.rs
+diesel-schema	thoth-api/src/schema.rs

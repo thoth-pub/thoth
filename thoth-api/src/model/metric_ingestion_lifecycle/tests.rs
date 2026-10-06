@@ -3975,3 +3975,367 @@ fn the_checkpoint_update_locks_checkpoint_import_account_then_source() {
         ]))
     );
 }
+
+// --------------------------------------------------------------------------
+// MET-WP4-03C-B1: coverage-run maintenance through the real lifecycle path
+// --------------------------------------------------------------------------
+//
+// The H1 producer is the `metric_import_maintain_coverage_runs` trigger; the
+// evidence of its semantics lives in `metric_coverage_run::tests`. Here the
+// unchanged lifecycle coordinator is driven end to end to prove that the
+// real `completeMetricImport` terminalization maintains the runs inside its
+// own transaction, that a committed replay rewrites nothing, that the
+// ordinary ingestion counter update never maintains them, that the lock
+// order inside one terminalization is checkpoint, import, then account, and
+// that a failure inside maintenance rolls the terminalization back whole.
+
+use crate::model::metric_coverage_run::verification::verify_source_account;
+
+const B1_PAUSE_KEY: i64 = 987_654_321_307;
+
+/// Every coverage run as `start|end|coverage|import` text, in stream order.
+fn coverage_runs(f: &Fixture) -> Vec<String> {
+    text(
+        &f.pool,
+        "(SELECT COALESCE(string_agg(concat_ws('|', source_account_id, platform_id, publisher_id, run_start, run_end, coverage_status, import_status, country_coverage, institution_coverage), ';' ORDER BY source_account_id, platform_id, publisher_id, measure_id, run_start), '') FROM metric_coverage_run)",
+    )
+    .unwrap_or_default()
+    .split(';')
+    .filter(|run| !run.is_empty())
+    .map(str::to_string)
+    .collect()
+}
+
+/// The physical row identity of every coverage run.
+fn coverage_run_versions(f: &Fixture) -> String {
+    text(
+        &f.pool,
+        "(SELECT COALESCE(string_agg(xmin::text || '@' || run_start::text, ';' ORDER BY run_start), '') FROM metric_coverage_run)",
+    )
+    .unwrap_or_default()
+}
+
+fn expected_run(
+    f: &Fixture,
+    start: NaiveDate,
+    end: NaiveDate,
+    coverage: &str,
+    import: &str,
+) -> String {
+    format!(
+        "{}|{}|{}|{start}|{end}|{coverage}|{import}|f|f",
+        f.account_a, f.platform_id, f.publisher_id
+    )
+}
+
+fn assert_account_a_exact(f: &Fixture, expected_rows: i32) {
+    let mut connection = f.pool.get().unwrap();
+    let verification = verify_source_account(&mut connection, f.account_a).expect("verification");
+    assert!(
+        verification.exact && verification.expected_rows == expected_rows,
+        "{verification:?}"
+    );
+}
+
+/// A test-only trigger on `metric_coverage_run`, removed on drop.
+struct CoverageRunTrigger {
+    pool: Arc<PgPool>,
+    name: String,
+}
+
+impl CoverageRunTrigger {
+    fn install(pool: &Arc<PgPool>, body: &str) -> Self {
+        let name = format!("wp4_03c_b1_test_{}", Uuid::new_v4().simple());
+        exec(pool, &format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN {body} END $$"));
+        exec(pool, &format!("CREATE TRIGGER {name} BEFORE INSERT ON metric_coverage_run FOR EACH ROW EXECUTE FUNCTION {name}()"));
+        CoverageRunTrigger {
+            pool: Arc::clone(pool),
+            name,
+        }
+    }
+}
+
+impl Drop for CoverageRunTrigger {
+    fn drop(&mut self) {
+        if let Ok(mut connection) = self.pool.get() {
+            let _ = sql_query(format!(
+                "DROP TRIGGER IF EXISTS {} ON metric_coverage_run",
+                self.name
+            ))
+            .execute(&mut connection);
+            let _ = sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name))
+                .execute(&mut connection);
+        }
+    }
+}
+
+#[test]
+fn a_lifecycle_terminalization_maintains_the_coverage_runs_in_its_own_transaction() {
+    let (_guard, f) = setup();
+    assert!(coverage_runs(&f).is_empty());
+    let claim = f.claim_a();
+
+    // A COMPLETED unit with one complete one-day assertion.
+    let import = f.run_unit(
+        claim.lease_token,
+        "report-1",
+        day(1),
+        vec![complete_day(day(1))],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, day(1), day(2), "COMPLETE", "COMPLETED")],
+        "the stream is the coverage platform and the import publisher"
+    );
+    assert_account_a_exact(&f, 1);
+
+    // A committed replay returns the terminal import and rewrites no run.
+    let versions = coverage_run_versions(&f);
+    assert_eq!(
+        f.complete(import.import_id, claim.lease_token).unwrap(),
+        import
+    );
+    assert_eq!(coverage_run_versions(&f), versions);
+
+    // A COMPLETED_WITH_ERRORS unit: a rejected row makes the import carry
+    // row errors, and the run records that raw terminal status.
+    let errored = f.begin(claim.lease_token, "report-2", day(2)).unwrap();
+    f.ingest(
+        errored.import_id,
+        claim.lease_token,
+        "b1",
+        vec![NormalizedMetricObservationInput {
+            work_doi: "https://doi.org/10.12345/unknown-b1".into(),
+            ..observation("1", day(2))
+        }],
+        vec![complete_day(day(2))],
+    )
+    .unwrap();
+    assert_eq!(
+        coverage_runs(&f).len(),
+        1,
+        "a PROCESSING import maintains nothing"
+    );
+    f.ingest(
+        errored.import_id,
+        claim.lease_token,
+        "b2",
+        vec![observation("5", day(2))],
+        vec![],
+    )
+    .unwrap();
+    let errored = f.complete(errored.import_id, claim.lease_token).unwrap();
+    assert_eq!(errored.status, MetricImportStatus::CompletedWithErrors);
+    assert_eq!(
+        coverage_runs(&f),
+        vec![
+            expected_run(&f, day(1), day(2), "COMPLETE", "COMPLETED"),
+            expected_run(&f, day(2), day(3), "COMPLETE", "COMPLETED_WITH_ERRORS"),
+        ],
+        "adjacent runs with a different visible import status are not coalesced"
+    );
+    assert_account_a_exact(&f, 2);
+}
+
+#[test]
+fn an_ingestion_batch_of_a_processing_import_never_maintains_the_coverage_runs() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    f.run_unit(
+        claim.lease_token,
+        "report-1",
+        day(5),
+        vec![complete_day(day(5))],
+    );
+    assert_eq!(coverage_runs(&f).len(), 1);
+
+    // A second import of the same account asserts partial coverage of the
+    // same day while still PROCESSING: its coverage row is written by the
+    // batch, its counters are updated by the batch, and no run changes.
+    let processing = f.begin(claim.lease_token, "report-2", day(5)).unwrap();
+    f.ingest(
+        processing.import_id,
+        claim.lease_token,
+        "b1",
+        vec![observation("3", day(5))],
+        vec![coverage(MetricCoverageStatus::Partial, day(5), day(6))],
+    )
+    .unwrap();
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, day(5), day(6), "COMPLETE", "COMPLETED")]
+    );
+    // Corrupt the derived state inside the processing import's hull: a
+    // maintenance pass over that hull would repair it.
+    f.sql("DELETE FROM metric_coverage_run");
+    f.ingest(
+        processing.import_id,
+        claim.lease_token,
+        "b2",
+        vec![observation("4", day(5))],
+        vec![],
+    )
+    .unwrap();
+    assert!(
+        coverage_runs(&f).is_empty(),
+        "the counter update of the batch ran no maintenance"
+    );
+    assert_eq!(
+        f.import(processing.import_id).status,
+        MetricImportStatus::Processing
+    );
+
+    // Terminalization recomputes the hull from all raw evidence: the later
+    // completion wins the day with its partial assertion.
+    let completed = f.complete(processing.import_id, claim.lease_token).unwrap();
+    assert_eq!(completed.status, MetricImportStatus::Completed);
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, day(5), day(6), "PARTIAL", "COMPLETED")]
+    );
+    assert_account_a_exact(&f, 1);
+}
+
+#[test]
+fn the_lifecycle_terminalization_holds_checkpoint_import_and_account_locks_during_maintenance() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f.begin(claim.lease_token, "report-1", day(1)).unwrap();
+    f.ingest(
+        import.import_id,
+        claim.lease_token,
+        "b1",
+        vec![observation("10", day(1))],
+        vec![complete_day(day(1))],
+    )
+    .unwrap();
+    f.ingest(
+        import.import_id,
+        claim.lease_token,
+        "b2",
+        vec![observation("10", day(1))],
+        vec![],
+    )
+    .unwrap();
+
+    // Freeze the terminalization inside the H1 trigger, while it inserts the
+    // recomputed runs: by then the checkpoint, the import and the account
+    // row must all be held by the one lifecycle transaction.
+    let mut hold = PgConnection::establish(&test_db_url()).expect("pause session");
+    sql_query(format!("SELECT pg_advisory_lock({B1_PAUSE_KEY})"))
+        .execute(&mut hold)
+        .unwrap();
+    let pausing = CoverageRunTrigger::install(
+        &f.pool,
+        &format!("PERFORM pg_advisory_xact_lock({B1_PAUSE_KEY}); RETURN NEW;"),
+    );
+    let (pool, pid) = pinned_pool();
+    let input = CompleteMetricImportInput {
+        import_id: import.import_id,
+        lease_token: claim.lease_token,
+    };
+    let completion = thread::spawn(move || complete_metric_import(&pool, &input));
+    wait_until_paused(&f, pid);
+
+    let checkpoint_row = format!(
+        "SELECT 1 FROM metric_source_checkpoint WHERE source_account_id = '{}'",
+        f.account_a
+    );
+    let import_row = format!(
+        "SELECT 1 FROM metric_import WHERE import_id = '{}'",
+        import.import_id
+    );
+    let account_row = format!(
+        "SELECT 1 FROM metric_source_account WHERE source_account_id = '{}'",
+        f.account_a
+    );
+    let other_account_row = format!(
+        "SELECT 1 FROM metric_source_account WHERE source_account_id = '{}'",
+        f.account_b
+    );
+    assert!(!row_is_free(&checkpoint_row), "the checkpoint row is held");
+    assert!(!row_is_free(&import_row), "the import row is held");
+    assert!(
+        !row_is_free(&account_row),
+        "the account row is held by the H1 trigger"
+    );
+    assert!(
+        row_is_free(&other_account_row),
+        "another account is not serialized"
+    );
+    assert!(
+        coverage_runs(&f).is_empty(),
+        "nothing is visible before commit"
+    );
+    assert_eq!(
+        f.import(import.import_id).status,
+        MetricImportStatus::Processing
+    );
+
+    sql_query(format!("SELECT pg_advisory_unlock({B1_PAUSE_KEY})"))
+        .execute(&mut hold)
+        .unwrap();
+    let completed = completion.join().unwrap().expect("completion");
+    drop(pausing);
+    assert_eq!(completed.status, MetricImportStatus::Completed);
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, day(1), day(2), "COMPLETE", "COMPLETED")]
+    );
+    assert!(row_is_free(&checkpoint_row) && row_is_free(&import_row) && row_is_free(&account_row));
+    assert_account_a_exact(&f, 1);
+}
+
+#[test]
+fn a_failure_inside_coverage_run_maintenance_rolls_back_the_lifecycle_terminalization() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f.begin(claim.lease_token, "report-1", day(1)).unwrap();
+    for key in ["b1", "b2"] {
+        f.ingest(
+            import.import_id,
+            claim.lease_token,
+            key,
+            vec![observation("10", day(1))],
+            vec![complete_day(day(1))],
+        )
+        .unwrap();
+    }
+    let before = f.snapshot();
+
+    let failing = CoverageRunTrigger::install(
+        &f.pool,
+        "RAISE EXCEPTION 'thoth b1 lifecycle failure injection'; RETURN NULL;",
+    );
+    assert_eq!(
+        f.complete(import.import_id, claim.lease_token),
+        Err(E::Ingestion(Code::InternalDatabaseError)),
+        "the maintenance failure surfaces as the sanitized internal database failure"
+    );
+    drop(failing);
+    assert_eq!(
+        f.snapshot(),
+        before,
+        "the terminal status, completed_at and every other durable row rolled back"
+    );
+    assert_eq!(
+        f.import(import.import_id).status,
+        MetricImportStatus::Processing
+    );
+    assert!(coverage_runs(&f).is_empty());
+    assert_eq!(
+        f.checkpoint(f.account_a).lease_owner,
+        Some(claim.lease_token.to_string()),
+        "the claim is still held, so the terminalization can be retried"
+    );
+
+    // The retry recomputes from raw state and commits both together.
+    let completed = f.complete(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(completed.status, MetricImportStatus::Completed);
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, day(1), day(2), "COMPLETE", "COMPLETED")]
+    );
+    assert_account_a_exact(&f, 1);
+}
