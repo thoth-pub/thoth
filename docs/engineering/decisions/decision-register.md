@@ -2,7 +2,7 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-09-30
+Last updated: 2026-10-05
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
