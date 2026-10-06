@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-05
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -237,10 +235,17 @@ not assume sequence allocation order equals commit order.
 Every event consumer has a durable **logical route** registration with:
 
 - a stable `route_key` that identifies the logical route for its whole life;
-- the supported event kind/version contract;
-- an append-only, totally ordered history of **activation epochs**;
+- an append-only history of immutable **route-contract revisions** that define
+  how the route interprets and materializes the events it consumes (below);
+- an append-only, totally ordered history of **activation epochs**, each bound
+  to exactly one of those revisions;
 - a route lifecycle state;
 - enough durable state to decide whether an event is eligible for that route.
+
+A logical route has no mutable route-level event kind/version contract. Any
+"current contract" that an implementation exposes is only a projection of the
+immutable revision referenced by the route's currently open epoch; it never
+determines how an event captured inside an earlier epoch is interpreted.
 
 An activation epoch is one continuous active interval of the logical route. It
 is the half-open routing-generation interval:
@@ -249,21 +254,25 @@ is the half-open routing-generation interval:
 [activation_generation, deactivation_generation)
 ```
 
-An open epoch has no deactivation boundary yet. Each epoch also records the
-authorizing actor/authority and the deployment evidence that satisfied the
-activation gates below. A route may be activated, deactivated and reactivated
-any number of times; every activation creates a new epoch beneath the same
-`route_key`. A new `route_key` is never created merely to reactivate a route.
+An open epoch has no deactivation boundary yet. Each epoch references exactly
+one immutable route-contract revision, fixed when the epoch opens, and records
+the authorizing actor/authority and the deployment evidence that satisfied the
+activation gates below for that exact revision. A route may be activated,
+deactivated and reactivated any number of times; every activation creates a new
+epoch beneath the same `route_key`. A new `route_key` is never created merely to
+reactivate a route or to move it to another revision of its contract.
 
-An implementation may assign an epoch identifier for storage and audit. That
-identifier is subordinate to the logical `route_key`: it never replaces
-`route_key` as the route identity and never enters the route-disposition
-uniqueness key.
+An implementation may assign epoch and route-contract-revision identifiers for
+storage and audit. Those identifiers are subordinate to the logical
+`route_key`: they never replace `route_key` as the route identity and never
+enter the route-disposition uniqueness key.
 
 Epochs are immutable, append-only history:
 
 - at most one epoch of a route is open at any time;
-- an epoch's identity and activation boundary never change once recorded;
+- an epoch's identity, activation boundary and referenced route-contract
+  revision never change once recorded; opening, closing, reactivating or
+  retiring the route never changes the revision attached to any epoch;
 - closing an open epoch is a write-once durable close/deactivation fact, or an
   equivalently strong append-only close record, that records its deactivation
   boundary. Once an epoch is closed, its deactivation boundary cannot change
@@ -304,51 +313,71 @@ or deleting handler code.
 
 Epoch boundaries use a durable routing generation, or an equivalently strong
 serialized database mechanism, that an event captures inside its creating
-transaction and a route records when it opens or closes an epoch. An event is
-historically eligible for a route exactly when its captured routing generation
-lies inside **any** activation epoch of that route, whether that epoch is
-currently open or already closed: at or after that epoch's activation
-generation and, when the epoch has been closed, strictly before its deactivation
-generation. Because epochs are pairwise-disjoint, an eligible event belongs to
-exactly one epoch. An event whose captured generation falls before the route's
-first epoch, in an inactive gap between two epochs, or after its most recent
-closed epoch while no later epoch is open is not eligible for that route.
+transaction and a route records when it opens or closes an epoch. A captured
+routing generation lies inside an epoch when it is at or after that epoch's
+activation generation and, when the epoch has been closed, strictly before its
+deactivation generation. Because epochs are pairwise-disjoint, a captured
+generation lies inside at most one epoch of a route.
+
+An event is historically **eligible** for a route exactly when both:
+
+1. its captured routing generation lies inside **any** activation epoch of that
+   route, whether that epoch is currently open or already closed; and
+2. the event satisfies the immutable contract predicate of the route-contract
+   revision referenced by that epoch: its durable event kind is the revision's
+   consumed event kind and its durable payload/schema version is a member of
+   the revision's accepted-version set.
+
+An eligible event therefore belongs to exactly one epoch and is interpreted
+under that epoch's revision. An event whose captured generation falls before
+the route's first epoch, in an inactive gap between two epochs, or after its
+most recent closed epoch while no later epoch is open is not eligible for that
+route. An event of the consumed event kind whose captured generation lies inside
+an epoch but whose version fails condition 2 is not eligible either, and is
+never silently ignored: it is an in-epoch contract mismatch (below). An event of
+a kind that the epoch's revision does not consume is outside that route's
+contract and creates neither an obligation nor an anomaly for it.
 
 Eligibility is fixed history. The mechanism must allocate each deactivation
 boundary so that closing an epoch never removes or rewrites eligibility for an
-event that captured a routing generation inside that epoch. Opening a later
-epoch never retroactively covers routing generations in an inactive inter-epoch
-gap, and retiring the route never changes whether an already-committed event
-was eligible.
+event that captured a routing generation inside that epoch. Because an epoch's
+revision is immutable, no later revision, current-contract projection or
+executor change can rewrite whether, or under which contract, an
+already-committed event was eligible. Opening a later epoch never retroactively
+covers routing generations in an inactive inter-epoch gap, and retiring the
+route never changes whether an already-committed event was eligible.
 
 These intervals must partition events deterministically even when transactions
 commit out of sequence. Sequence allocation order and commit observation order
 alone are insufficient.
 
 For every committed event, the engine must eventually establish a durable route
-disposition for every route for which that event is eligible. Exactly one
-durable disposition exists for each `(event_id, route_key)`. The normal
-disposition materializes a job: a materialized disposition points to exactly one
-job and remains unique on `(event_id, route_key)` regardless of whether that job
-is pending, running, waiting or terminal. The only alternative is the explicit,
-authorized and audited terminal non-materialized disposition described below,
-which points to no job (section 3.5 and invariant 8).
+disposition for every route for which that event is eligible, and a durable
+in-epoch contract-mismatch anomaly for every route for which it is mismatched.
+Exactly one durable disposition exists for each `(event_id, route_key)`. The
+normal disposition materializes a job: a materialized disposition points to
+exactly one job and remains unique on `(event_id, route_key)` regardless of
+whether that job is pending, running, waiting or terminal. The only alternative
+is the explicit, authorized and audited terminal non-materialized disposition
+described below, which points to no job (section 3.5 and invariant 8).
 
-Disposition uniqueness is per logical route, not per epoch: `(event_id,
-route_key)` is the complete uniqueness boundary across every epoch of that
-route. A disposition may record the epoch through which the event became
-eligible, or that an explicit backfill/replay enrolled it, for audit and
-metrics, but that attribute is never part of the uniqueness key. Reactivating a
-route therefore cannot rematerialize, duplicate or reset a disposition that
-already exists for that route and event.
+Disposition uniqueness is per logical route, not per epoch or per revision:
+`(event_id, route_key)` is the complete uniqueness boundary across every epoch
+and every route-contract revision of that route. A disposition may record the
+epoch and revision through which the event became eligible, or the revision
+selected by an explicit historical enrollment, for audit and metrics, but those
+attributes are never part of the uniqueness key. Reactivating a route or moving
+it to another revision therefore cannot rematerialize, duplicate or reset a
+disposition that already exists for that route and event.
 
-A route may not be "fixed" by deleting its registration or any of its epochs.
-Deactivation and retirement affect only events at or after the closing
-boundary. Events already eligible through any earlier epoch remain owed after
-deactivation and after retirement. If an eligible route can no longer be
-materialized safely, each affected event requires an explicit, authorized,
-audited terminal route disposition describing why it was not
-materialized and what reconciliation/backfill, if any, covers it. Each such
+A route may not be "fixed" by deleting its registration or any of its epochs or
+revisions. Deactivation, a revision transition and retirement affect only
+events at or after the closing boundary. Events already eligible through any
+earlier epoch remain owed, under that epoch's revision, after deactivation,
+after a newer revision becomes active and after retirement. If an eligible
+route can no longer be materialized safely, each affected event requires an
+explicit, authorized, audited terminal route disposition describing why it was
+not materialized and what reconciliation/backfill, if any, covers it. Each such
 disposition remains one durable `(event_id, route_key)` record even when an
 operator authorizes a bulk action, and records the actor/authority and reason.
 Where a staff/operator action creates that disposition, it uses ADR-0010's
@@ -360,76 +389,351 @@ successful routing. It records an explicit accepted divergence for the affected
 domain/effect target and raises durable operator attention; an operator cannot
 make required work disappear merely by supplying a reason.
 
-The engine exposes route-level backlog independently of job-level queue metrics.
-For every route key it must make queryable at least its lifecycle state (active,
-temporarily inactive or permanently retired), the count of events eligible
-through any of its epochs that still have no disposition, the age of the oldest
-such event, and whether a compatible materializer for the route kind/version is
-deployed and eligible to perform the materialization. Obligations from closed
-epochs and from retired routes remain in that backlog until dispositioned. A
-route may not open any epoch - its first activation or a later reactivation -
-until deployment evidence establishes both the event-emission floor below and at
-least one compatible materializer in the intended environment. If compatible
-materialization later becomes unavailable, outstanding obligations remain owed and
-the unavailable-materializer and route-backlog signals raise attention, whether
-the route is active, temporarily inactive or permanently retired.
+The engine exposes route-level backlog independently of job-level queue
+metrics, because an undispositioned route obligation may not yet have any job.
+For every route key, and separately for each route-contract revision of that
+route, it must make queryable at least:
+
+- the route's lifecycle state (active, temporarily inactive or permanently
+  retired) and its activation-epoch and revision history;
+- per revision, the count of eligible events that still have no disposition and
+  the age of the oldest such event;
+- per revision and per accepted payload/schema version that can currently be
+  emitted or that has an undispositioned eligible event, whether a compatible
+  materializer (section 3.9) is deployed and eligible to perform the
+  materialization;
+- the count and oldest age of open in-epoch contract-mismatch anomalies, per
+  epoch and revision.
+
+Route-level totals may aggregate these values, but no aggregate may hide an
+undispositioned backlog, an open anomaly or an unavailable compatible
+materializer of an older revision behind a healthy current revision.
+Obligations from closed epochs, from older revisions and from retired routes
+remain in that backlog until dispositioned, each bound to the revision of the
+epoch that made it eligible.
+
+A route may not open any epoch - its first activation, a later reactivation or
+a transition to another revision - until deployment evidence establishes, for
+that epoch's exact revision, the event-emission floor and producer-version
+coverage below and compatible materialization for every accepted version that
+can actually be emitted. If compatible materialization later becomes
+unavailable for any revision or version with outstanding obligations, those
+obligations remain owed and the unavailable-materializer and route-backlog
+signals raise attention, whether the route is active, temporarily inactive or
+permanently retired.
+
+Outstanding obligations are interpreted against the immutable revision of the
+epoch that made each event eligible. After a newer revision becomes active, an
+undispositioned event from an older epoch remains owed under its older revision
+and may be materialized only by a materializer that deterministic compatibility
+(section 3.9) admits for that exact revision and event version. A newer
+materializer never silently reinterprets an older obligation.
 
 A crash after some consumers are materialized therefore resumes from durable
 route records. A worker must never mark an event fully routed merely because it
 processed all routes known to its own binary. During a mixed-version deployment,
-if a worker encounters an eligible route whose kind/version it cannot
-materialize, it leaves that route incomplete for a compatible worker rather than
-silently completing the event.
+if a worker encounters an eligible obligation whose revision and event version
+it is not compatible with, it leaves that obligation incomplete for a
+compatible worker rather than silently completing the event.
 
-A route introduced by a later release, or reactivated after an inactive gap,
-receives only events within its activation epochs. Historical events from before
-its first epoch and events from an inactive inter-epoch gap are processed only
-through an explicitly authorized historical backfill/replay under the same
-stable `route_key` and the same `(event_id, route_key)` deduplication boundary;
-backfill cannot bypass route deduplication and cannot create a second
-disposition for an event that already has one for that route. Deliberately
-re-executing work for an already-dispositioned event is an explicit replay or
-current-state job under section 3.5, carrying replay/correlation metadata, not a
-second route disposition.
+### Route-contract revisions
 
-### Event-emission deployment floor
+A route-contract revision is a durable, immutable record subordinate to one
+`route_key`. It binds everything needed to determine and execute the
+obligations of the epochs that reference it. Its **semantic signature** is the
+complete set of immutable fields that affect interpretation or executor
+compatibility, at minimum:
 
-A route consuming event kind/version `K` may open an activation epoch - on its
-first activation and on every reactivation - only after deployment evidence
-proves that **every running binary that can perform the relevant business
-mutation, and every binary still retained as a supported production rollback
-target, emits K atomically with that mutation**.
+- the `route_key`;
+- the consumed event kind;
+- the accepted-version set: an explicit, closed and immutable set of
+  payload/schema versions of the consumed event kind, held in one canonical
+  representation so that the order or repetition in which versions are
+  supplied cannot produce a different signature;
+- the route-to-materializer/job contract version that determines which
+  materializers are compatible;
+- the semantic consumer / owning-domain identity that shows the revision belongs
+  to the same logical route;
+- the identity and version of the immutable compatibility policy where the
+  revision declares one; the absence of a policy is itself part of the
+  signature.
 
-The event-emission floor is therefore established before every epoch opens.
-Opening an epoch while some serving/rollback binary can still perform the
-business mutation without emitting K is prohibited.
+Exact table, column and encoding names are implementation-specification
+details.
 
-If production must roll back below that emission-capable floor while an epoch is
-open, the route's current epoch is closed before the older binary can perform
-relevant writes, or the rollback is accompanied by an explicitly authorized
-current-state reconciliation/backfill that covers the precise emission gap.
+A revision may be prepared before any epoch references it. Once an epoch
+references it or a historical enrollment has selected it, no operation may
+rewrite any field of its semantic signature, and the revision is never deleted.
+The same immutable revision may be referenced again by a later epoch when
+rollback or recovery intentionally returns to that exact contract and the
+activation gates are re-established for it.
+
+Two revisions of one route with the same semantic signature are equivalent, and
+the engine must not hold ambiguous duplicate-equivalent revisions. Equivalence
+is decided by semantic content, never by revision identifier. Revision creation
+must converge atomically at the database: either a database-enforced
+uniqueness constraint over the route's canonical semantic signature, or over a
+deterministic canonical encoding of it, admits exactly one revision per
+signature; or revision creation for a route is serialized through that route's
+durable serialization mechanism with the equivalence check and the insert in the
+same transaction. Concurrent requests to create equivalent revisions therefore
+resolve to one canonical effective revision, and a request that does not create
+it receives that canonical revision instead of a competing identity. An
+application-level read-then-insert check without such a database-enforced
+uniqueness or serialization guarantee does not satisfy this rule. Revisions
+whose semantic signatures differ always remain distinct.
+
+A revision identifier is a storage/audit identity, not a compatibility key.
+Materializer compatibility derives from the revision's semantic content
+(section 3.9).
+
+Creating, selecting, withdrawing or otherwise changing the availability of a
+revision for activation or historical enrollment is a durable, audited control
+operation recording actor, authority and reason. Where staff/operators initiate
+it, it uses ADR-0010's protected, audited staff-command seam.
+
+Contract evolution remains under the same `route_key` only while the route is
+still the same semantic consumer and effect obligation and the existing
+`(event_id, route_key)` disposition identity remains correct:
+
+- the same semantic consumer/effect with an evolved compatible event or
+  materialization contract is a new revision under the same `route_key`;
+- the same consumer returning to an older compatible contract opens a later
+  epoch that references the existing immutable revision, after the normal
+  gates;
+- a change under which an event already dispositioned for the route could
+  legitimately require a second independent disposition or effect is not a
+  revision: it requires a new `route_key` or a separately approved architecture
+  decision.
+
+### In-epoch contract mismatch
+
+Producer-version coverage (below) prohibits an event from being emitted inside
+an open epoch in a version that the epoch's revision does not accept. The engine
+nevertheless fails safe if that invariant is violated.
+
+An event is an **in-epoch contract mismatch** for a route when its captured
+routing generation lies inside one of the route's epochs and its durable event
+kind is that epoch revision's consumed event kind, but its durable
+payload/schema version is not a member of the revision's accepted-version set,
+so that it fails the revision's immutable kind/version predicate. Such an event
+becomes a durable `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly, or an
+equivalently explicit durable routing anomaly whose exact representation is an
+implementation-specification detail. The anomaly:
+
+- durably identifies the event, the `route_key`, the epoch, the expected
+  immutable revision, and the actual durable event kind and payload/schema
+  version that failed matching;
+- is queryable, counted and age-visible, and raises durable operator attention;
+- is never classified as successful routing;
+- creates no route disposition and no job merely because it was detected, and
+  does not consume the `(event_id, route_key)` disposition uniqueness slot;
+- is never reinterpreted automatically under a later revision or any "current"
+  contract.
+
+The anomaly remains open until, under explicit authorization, either:
+
+1. historical enrollment (below) selects a revision of the same logical route
+   that is validated as compatible with the event and creates the one allowed
+   `(event_id, route_key)` disposition; or
+2. an explicitly approved reconciliation/divergence procedure records why no
+   route disposition will be created and what compensating state or effect
+   covers the event.
+
+Resolution is recorded as append-only, audited evidence linked to the anomaly,
+including actor, authority, reason and the resulting disposition or divergence
+record. Resolving an anomaly never deletes it or its detection evidence.
+
+Route health exposes open anomalies separately from, and alongside, the
+undispositioned eligible-event backlog. An in-epoch contract mismatch is
+therefore never an invisible fourth eligibility state.
+
+### Historical enrollment, backfill and replay
+
+A route introduced by a later release, reactivated after an inactive gap or
+moved to another revision receives through ordinary routing only events that are
+eligible through its epochs. Historical events from before its first epoch,
+events from an inactive inter-epoch gap and events held as in-epoch
+contract-mismatch anomalies are processed only through explicitly authorized
+historical enrollment (backfill/replay) under the same stable `route_key` and
+the same `(event_id, route_key)` deduplication boundary.
+
+Historical enrollment explicitly selects, for each event, the immutable revision
+of the same logical route under which that event is interpreted; it never
+implicitly uses whichever revision is current. Enrollment spanning events from
+several epochs or revisions makes that selection per event and
+deterministically. Enrollment may select a revision that was not active at the
+event's routing generation, because enrollment is explicit and outside ordinary
+epoch eligibility, but only when that revision is validated as semantically
+compatible with the event.
+
+Before enrollment creates the first route disposition for an event, the selected
+revision is validated against the event's durable facts, field by field across
+its semantic signature:
+
+- `route_key`: the revision belongs to the logical route being enrolled; a
+  revision of another route is never selected;
+- consumed event kind: it equals the event's durable event kind;
+- accepted-version set: it contains the event's durable payload/schema version;
+- semantic consumer / owning-domain identity: it is the identity of the logical
+  route being enrolled;
+- route-to-materializer/job contract version: deterministic compatibility
+  (section 3.9) identifies at least one materializer compatible with that
+  contract version for the event's kind and version;
+- compatibility policy, where the revision declares one: the policy admits the
+  event's kind and version.
+
+If any check fails, the enrollment is refused before any route disposition or
+job is created. The `(event_id, route_key)` uniqueness slot remains unused, so a
+later enrollment under a compatible revision remains possible. The refused
+attempt and its reason are durably audited, and any existing anomaly, backlog or
+attention state for the event remains visible.
+
+Enrollment cannot bypass route deduplication and cannot create a second
+disposition for an event that already has one for that route, whichever revision
+either enrollment selects. Deliberately re-executing work for an
+already-dispositioned event is an explicit replay or current-state job under
+section 3.5, carrying replay/correlation metadata; it is not historical
+enrollment and not a second route disposition.
+
+A new logical route may enroll historical events that another route has already
+dispositioned. The authorization of that enrollment must state explicitly
+whether a second external/domain effect is intended. Where the new route can
+write the same canonical external effect target as the earlier route, the
+target-scoped idempotency, concurrency and applied-revision/fingerprint evidence
+rules of sections 3.3 and 3.5 remain mandatory, so historical enrollment cannot
+produce an unintended duplicate or regressive effect. A new route identity does
+not by itself grant permission to duplicate an external effect.
+
+### Revision withdrawal and route retirement
+
+A route-contract revision that an epoch references, or that an enrollment,
+disposition or anomaly uses, is immutable historical state: it is never deleted
+or rewritten.
+
+A revision may be marked **withdrawn from future selection** by an append-only,
+audited control operation. Withdrawal only prevents a new epoch from referencing
+the revision and prevents its selection for new historical enrollment. It does
+not remove or rewrite epoch references, does not change how any event is
+interpreted, does not remove the revision from materializing or reporting
+obligations already eligible through epochs that reference it, and does not hide
+backlog, anomaly or attention state.
+
+Withdrawal is refused, or held, while it would strand work: while any
+undispositioned obligation that depends on the revision would be left without a
+compatible materialization path, or while any unresolved in-epoch
+contract-mismatch anomaly would be left without an approved resolution path (a
+selectable compatible revision or an approved reconciliation/divergence
+procedure), unless an explicitly approved migration, reconciliation or
+disposition plan closes or transfers that work safely.
+
+Permanent retirement of a logical route does not retire, withdraw or erase its
+revisions. Its historical obligations and anomalies remain visible and
+interpretable under their revisions until they are resolved.
+
+### Event-emission floor and producer-version coverage
+
+For each consumed event kind in an environment, the **producer emission set**
+is the union of the payload/schema versions of that kind that may be emitted for
+the relevant business mutation by every currently serving producer binary and
+every binary retained as a supported production rollback target.
+
+A route may open an activation epoch - on its first activation, on every
+reactivation and on every transition to another revision - only after
+deployment evidence for that epoch's exact revision proves all of:
+
+1. **every running binary that can perform the relevant business mutation, and
+   every binary still retained as a supported production rollback target, emits
+   the revision's consumed event kind atomically with that mutation**;
+2. every version that any of those binaries may emit is a member of the
+   revision's accepted-version set;
+3. compatible materialization (section 3.9) exists for every accepted version
+   that can actually be emitted in that deployment state;
+4. the revision is not withdrawn from future selection; and
+5. the route's lifecycle and retirement state permit the epoch.
+
+The event-emission floor and producer-version coverage are therefore
+established before every epoch opens. Opening an epoch while some
+serving/rollback binary can still perform the business mutation without
+emitting the consumed kind, or can emit a version outside the revision's
+accepted-version set, is prohibited. A route cannot open an epoch for a revision
+accepting only `v2` merely because binaries emit `v1`.
+
+Producer-version coverage is also a continuous deployment invariant, not only an
+activation check. For every route with an open epoch consuming an event kind:
+
+```text
+producer emission set  ⊆  accepted-version set of that epoch's revision
+```
+
+No deployment, rollback or producer configuration change may introduce a version
+outside the accepted-version set of any affected open epoch before each such
+route has been transitioned safely. Where several routes consume the same event
+kind with different accepted-version sets, the producer emission set may widen
+only when every affected open route already accepts the widened set: if route A
+accepts `{v1}` and route B accepts `{v1, v2}`, producers may not emit `v2` until
+route A has also moved to a revision accepting `v2` or its epoch is closed.
+Before a change makes an accepted version emittable that was not emittable
+before, compatible materialization for that version is verified for every
+affected open epoch's revision.
+
+A compatible version evolution such as `v1 -> v2` uses expand/contract:
+
+1. create or select an immutable revision accepting the transition set, for
+   example `{v1, v2}`;
+2. establish compatible materialization for every accepted version that can be
+   emitted;
+3. close the `{v1}` epoch and open the `{v1, v2}` epoch under the route's
+   serialized boundary, using adjacent generation boundaries - the new epoch's
+   activation generation equal to the closed epoch's deactivation generation -
+   where a zero-gap transition is intended;
+4. only then allow serving or supported rollback producer state to include
+   `v2`;
+5. once no serving or supported rollback producer can emit `v1`, a later epoch
+   may narrow to a `{v2}` revision after its own gates are satisfied.
+
+Obligations already eligible under an earlier revision remain owed and are
+interpreted under that revision throughout.
+
+If an affected route cannot satisfy coverage, its current epoch is closed before
+the incompatible producer writes occur, or a separately authorized exact-scope
+reconciliation/backfill plan covers the resulting gap. If coverage is
+nevertheless violated, the in-epoch contract-mismatch anomaly above is the
+fail-safe: an event outside the accepted-version set is never silently dropped.
+
+If production must roll back below the emission-capable floor, or to a producer
+set whose emission set an open epoch's revision does not accept, while that
+epoch is open, the route's current epoch is closed before the older binary can
+perform relevant writes, or the rollback is accompanied by an explicitly
+authorized current-state reconciliation/backfill that covers the precise gap.
 Silent loss of business changes is not an acceptable rollback behaviour.
 
 Closing the epoch makes the rollback interval an explicit inactive gap that
-remains visible in the route's epoch history. Forward recovery above the floor
-may open a new epoch under the same `route_key` only after the event-emission
-floor and compatible-materializer gates are re-established for the recovered
-deployment. Opening that new epoch does not make gap events eligible; business
-changes made during the gap that the route must still reflect are covered only
-by an explicitly authorized current-state reconciliation/backfill through the
-same route identity.
+remains visible in the route's epoch history. Forward or rollback recovery may
+open a new epoch under the same `route_key` only after these gates are
+re-established for the exact revision that epoch references. Reusing an older
+immutable revision is permitted only where its accepted-version set covers the
+then-current producer emission set, including supported rollback targets, and
+compatible materialization is available for every emittable accepted version.
+Opening that new epoch does not make gap events eligible; business changes made
+during the gap that the route must still reflect are covered only by an
+explicitly authorized current-state reconciliation/backfill through the same
+route identity.
 
 The binary emission floor does not exempt canonical writes performed outside
-those binaries. An authorized data migration, administrative repair or exceptional
-operator write that changes state consumed by an active route must either emit the
-same required event transactionally through an approved database/application
-mechanism or be followed by an explicitly authorized current-state
-reconciliation/backfill covering the exact affected write set. Direct production
-SQL is not an event-emission mechanism by implication.
+those binaries. An authorized data migration, administrative repair or
+exceptional operator write that changes state consumed by an active route must
+either emit the same required event transactionally, in a version accepted by
+the revision of every affected open epoch, through an approved
+database/application mechanism, or be followed by an explicitly authorized
+current-state reconciliation/backfill covering the exact affected write set.
+Such writers are bound by producer-version coverage; they are not a bypass
+around it. Direct production SQL is not an event-emission mechanism by
+implication.
 
 The implementation may optimize discovery/scanning, but routing completeness
-must be proven from durable event/route/disposition records. Any cursor or
-high-water optimization must prove that no lower/in-flight event can commit
+must be proven from durable event/route/disposition/anomaly records. Any cursor
+or high-water optimization must prove that no lower/in-flight event can commit
 later and be skipped; absent such proof, it is not authoritative.
 
 ### 3.3 Versioned contracts, payload minimization and revision semantics
@@ -446,6 +750,14 @@ Workers must reject or HOLD unsupported payload versions rather than guessing.
 Changes that require old in-flight jobs to remain executable must preserve the
 required compatibility window or provide an explicit migration/reconciliation
 plan.
+
+For event routing, whether a route accepts an event payload/schema version is
+defined only by the immutable accepted-version set of the route-contract
+revision referenced by the relevant epoch or selected for historical enrollment
+(section 3.2). An event kind's general compatibility policy never widens,
+narrows or reinterprets that set once the revision is in use. An event version
+outside it is held as an in-epoch contract mismatch or refused for enrollment
+rather than guessed.
 
 Event/job payloads default to **canonical references**, not copied domain
 snapshots. A payload should normally contain only:
@@ -940,13 +1252,47 @@ risk class are configured for that pool. Capability declarations are
 runtime/configuration boundaries and scheduling primitives; they do not imply
 one IAM role per ordinary handler.
 
+The registry also carries, for every route materializer a worker provides, an
+explicit capability declaration that is immutable for that worker version and
+covers at least:
+
+- the route-to-materializer/job contract versions it implements;
+- the consumed event kind and the payload/schema versions it can interpret;
+- any forward or backward compatibility it declares, and the
+  compatibility-policy identities/versions it honours;
+- the domain, trust/risk-class and capability constraints already required by
+  this ADR.
+
+Whether a materializer is compatible with a route obligation is derived
+deterministically from the immutable contents of the obligation's
+route-contract revision - its route-to-materializer/job contract version,
+consumed event kind, accepted-version set and compatibility policy - together
+with those declarations and the obligation's actual event version. It is never
+inferred from equality with a revision identifier, and matching job
+kind/version alone does not establish compatibility when event or
+materialization contracts differ. A newer materializer may handle an older
+revision, and an older materializer a newer revision, only where its
+declarations explicitly state that backward or forward compatibility and the
+revision's contract and policy make it semantically valid. For a revision whose
+accepted-version set has several versions, compatibility is decided separately
+for each version. During a mixed-version deployment each worker materializes
+only obligations that its own declarations make compatible and leaves every
+other obligation incomplete for a compatible worker. Mutable worker registry or
+deployment state may change which compatible materializers are **available**; it
+never changes what a revision means or which events it made eligible.
+
 A job kind/version cannot be removed from every compatible executor while
 non-terminal durable jobs of that kind/version remain. Retirement first stops new
 admission, then drains, migrates, reconciles or explicitly dispositions existing
 PENDING/RUNNING/WAITING/RETRY_SCHEDULED/RECONCILIATION_REQUIRED work under its
 approved domain rules. A compatible executor remains available until that
 obligation is closed; retirement must not orphan a retained concurrency key or
-make a durable job uninterpretable.
+make a durable job uninterpretable. Likewise, compatible materialization for a
+route-contract revision and event version cannot be removed from every worker
+while undispositioned obligations depend on it, unless those obligations are
+explicitly migrated, reconciled or dispositioned under an approved rule; if it
+nevertheless becomes unavailable, the obligations remain owed and visible
+(section 3.2).
 
 External/domain executors use the same kind scoping: their authorization permits
 only the job kinds assigned to that domain executor. A dissemination executor
@@ -1105,17 +1451,24 @@ job kind:
 - execution latency/attempt distribution;
 - worker liveness and last successful claim/heartbeat activity.
 
-It also exposes route-materialization health at least by route key:
+It also exposes route-materialization health at least by route key and by
+route-contract revision, without relying on job metrics for obligations that
+have no job yet:
 
 - lifecycle state - active, temporarily inactive or permanently retired - and
-  the route's activation-epoch history;
-- count of events eligible through any epoch with no durable route disposition;
-- age of the oldest such event;
-- active routes, and temporarily inactive or permanently retired routes with
-  outstanding obligations, that have no compatible deployed/eligible
-  materializer;
+  the route's activation-epoch and revision history;
+- per revision, the count of events eligible through any epoch with no durable
+  route disposition, and the age of the oldest such event;
+- per revision and per accepted version that can be emitted or has outstanding
+  obligations, whether a compatible deployed/eligible materializer exists, for
+  active routes and for temporarily inactive or permanently retired routes with
+  outstanding obligations;
+- the count and oldest age of open in-epoch contract-mismatch anomalies;
 - terminal route dispositions that represent accepted divergence rather than
   covered reconciliation/backfill.
+
+An aggregate route view never hides an unhealthy older revision behind a
+healthy current revision.
 
 Each job kind defines bounded attempts, backoff and concurrency limits. Backoff
 must prevent tight retry loops; exact algorithms and jitter are implementation
@@ -1434,21 +1787,39 @@ execution until a separate approved architecture decision says otherwise.
    fact, so a closed epoch's boundary never changes and the epoch never reopens.
    Opening, closing and permanent retirement for one route are serialized
    through the same durable database mechanism and resolve into one total order.
-   Eligibility is membership in any epoch, open or closed; closing an epoch
-   never rewrites eligibility, and inactive-gap events are not eligible. Any
-   epoch identifier is subordinate to `route_key`. Permanent retirement is
+   Every epoch references exactly one immutable route-contract revision, fixed
+   when it opens; a revision that an epoch references or an enrollment has
+   selected is never rewritten or deleted, and the route has no mutable
+   route-level contract. Eligibility is membership in any epoch, open or
+   closed, together with a match to that epoch's revision; closing an epoch or
+   activating a newer revision never rewrites eligibility or its
+   interpretation, and inactive-gap events are not eligible. Any epoch or
+   revision identifier is subordinate to `route_key`. Permanent retirement is
    terminal and prohibits any later epoch for that route identity.
-4. Every route activation, including each reactivation epoch, occurs only after
-   all serving and supported rollback binaries that can perform the relevant
-   business mutation emit the consumed event kind/version atomically and a
-   compatible materializer is deployed.
-5. Deactivation and retirement never erase previously eligible work: events
-   eligible through any epoch remain owed until materialized or given an
-   explicit authorized/audited route disposition.
-6. A newly opened epoch, whether a first activation or a reactivation, does not
-   consume events from before its activation boundary, including inactive-gap
-   events, without an explicitly authorized historical backfill/replay under the
-   same `route_key` and `(event_id, route_key)` deduplication boundary.
+4. Every epoch - first activation, reactivation or revision transition - opens
+   only after all serving and supported rollback binaries that can perform the
+   relevant business mutation emit the revision's consumed event kind
+   atomically, every version they may emit is in the revision's
+   accepted-version set, compatible materialization exists for every emittable
+   accepted version and the revision is not withdrawn. While an epoch is open,
+   the producer emission set remains a subset of its revision's
+   accepted-version set, for every route consuming that event kind; producers
+   widen only after every affected open route accepts the widened set.
+5. Deactivation, revision transitions and retirement never erase previously
+   eligible work: events eligible through any epoch remain owed, under that
+   epoch's revision, until materialized or given an explicit authorized/audited
+   route disposition. In-epoch contract-mismatch anomalies remain open and
+   visible until resolved through compatible enrollment or an approved
+   reconciliation/divergence, recorded append-only.
+6. A newly opened epoch, whether a first activation, a reactivation or a
+   revision transition, does not consume events from before its activation
+   boundary, including inactive-gap events, without explicitly authorized
+   historical enrollment (backfill/replay) under the same `route_key` and
+   `(event_id, route_key)` deduplication boundary. Enrollment explicitly selects
+   an immutable revision of the same logical route and validates the event
+   against every field of its semantic signature before creating a disposition;
+   a refused enrollment creates no disposition or job and leaves
+   `(event_id, route_key)` unused.
 7. Job idempotency identifies a specific intended effect; a resource-only key
    must not suppress later revisions/schedule slots/commands.
 8. Exactly one durable disposition exists for each `(event_id, route_key)`.
@@ -1459,9 +1830,9 @@ execution until a separate approved architecture decision says otherwise.
    reason and any covering reconciliation/backfill, and shares the same
    uniqueness boundary so it cannot coexist with a materialized disposition for
    the same event/route pair. The uniqueness boundary spans every activation
-   epoch of the route and excludes any epoch identifier, so neither
-   reactivation nor backfill/replay can rematerialize an event that already has
-   a disposition.
+   epoch and every route-contract revision of the route and excludes any epoch
+   or revision identifier, so neither reactivation, a revision transition nor
+   backfill/replay can rematerialize an event that already has a disposition.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
@@ -1527,6 +1898,36 @@ execution until a separate approved architecture decision says otherwise.
     can query or write it.
 34. Merge, migration, deployment, handler activation, provider access and
     production activation remain separate gates.
+35. An event of an epoch revision's consumed event kind, captured inside that
+    epoch, whose version is outside the revision's accepted-version set is a
+    durable `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly that is queryable,
+    counted, age-visible and attention-raising. Detection creates no route
+    disposition or job, consumes no `(event_id, route_key)` slot, is never
+    successful routing and is never reinterpreted under a later contract.
+36. Route-contract revisions with the same canonical semantic signature
+    converge atomically to one canonical revision through database-enforced
+    uniqueness or serialization, never an application-level check-then-insert;
+    revisions with different signatures remain distinct, and a revision
+    identifier is not a compatibility key.
+37. Materializer compatibility is derived deterministically from immutable
+    revision content and policy plus explicit materializer capability
+    declarations; matching job kind/version alone is insufficient, and mutable
+    registry state changes availability only, never historical meaning.
+38. Route health exposes, independently of job metrics and per revision, the
+    undispositioned eligible-event count and oldest age, compatible-materializer
+    availability for every emittable or outstanding accepted version, and open
+    contract-mismatch anomaly count and oldest age; no aggregate hides an
+    unhealthy older revision behind a healthy current one.
+39. Revision withdrawal is append-only and audited, affects only future
+    selection and is refused or held while it would strand undispositioned
+    obligations or unresolved contract-mismatch anomalies; permanent route
+    retirement never erases revisions, obligations or anomalies.
+40. Semantic evolution under which an already-dispositioned event could
+    require a second independent disposition or effect uses a new `route_key`,
+    not a revision. A new route identity grants no permission to duplicate or
+    regress an external effect: its historical enrollment states whether a
+    second effect is intended and obeys target-scoped idempotency, concurrency
+    and applied-revision evidence.
 
 ## 8. Implementation impact and decomposition
 
@@ -1535,7 +1936,10 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
 1. **Release N shared schema/engine/API in `thoth`**
    - additive generic async migration;
    - durable logical-route registration, append-only activation-epoch,
-     retirement and materialization model;
+     immutable route-contract-revision, retirement and materialization model,
+     including producer-version coverage evidence, in-epoch contract-mismatch
+     anomalies, revision-validated historical enrollment, atomic revision
+     equivalence and deterministic materializer compatibility;
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
    - effect-scoped idempotency and explicit coalescing;
@@ -1640,10 +2044,13 @@ worker runtime. Legacy BE-04 schema/API remains present and unchanged, with
 legacy automatic job creation/activation OFF.
 
 Any new event route remains INACTIVE until every serving binary and supported
-rollback target capable of the relevant business mutation emits the event
-kind/version atomically. Route activation, including every later reactivation
-epoch, is a separate authorized operation after deployment evidence establishes
-that emission floor and a compatible materializer.
+rollback target capable of the relevant business mutation emits the consumed
+event kind atomically, in versions within the accepted-version set of the
+route-contract revision the epoch will reference. Route activation, including
+every later reactivation or revision-transition epoch, is a separate authorized
+operation after deployment evidence establishes that emission floor and
+producer-version coverage, and compatible materialization for every emittable
+accepted version of that exact revision.
 
 Release N must be fully deployed and become a valid rollback target before any
 downstream consumer migration starts.
@@ -1714,11 +2121,15 @@ The migration test matrix must include:
 - pre-v1.7 upgrade applying v1.7.0 plus additive generic schema;
 - full empty-database migration chain;
 - rolling deploy with mixed old/new application versions during Phase A;
-- event-route activation, and every reactivation epoch, only after the
-  emission-capable deployment/rollback floor;
+- event-route activation, and every reactivation or revision-transition epoch,
+  only after the emission-capable deployment/rollback floor and
+  producer-version coverage for that epoch's exact revision;
+- producer deployments and rollbacks that keep the producer emission set within
+  the accepted-version set of every affected open epoch, including the
+  `{v1} -> {v1, v2} -> {v2}` expand/contract transition;
 - closing the current activation epoch before rollback below an event-emission
-  floor, and opening a new epoch only after forward recovery re-establishes the
-  activation gates;
+  floor or to an uncovered producer version, and opening a new epoch only after
+  recovery re-establishes the activation gates;
 - current-state reconciliation/backfill covering an authorized emission gap;
 - later API/runtime-retirement rollback window;
 - proof Phase-C binaries have zero runtime legacy-table access;
@@ -1737,8 +2148,9 @@ Rollout should prove in order:
 
 1. schema/event-route/job concurrency without external writes;
 2. mixed-version route completeness and out-of-order transaction commits;
-3. activation, deactivation, reactivation-epoch, retirement and
-   event-emission-floor behaviour;
+3. activation, deactivation, reactivation-epoch, route-contract-revision
+   transition, retirement, event-emission-floor and producer-version-coverage
+   behaviour, including in-epoch contract-mismatch detection;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
@@ -1761,7 +2173,8 @@ Once implemented, rollback must distinguish:
 
 - stopping new event/job creation;
 - closing each affected route's current activation epoch before rolling below
-  its event-emission floor;
+  its event-emission floor or to a producer set that can emit a version outside
+  that epoch revision's accepted-version set;
 - stopping worker claiming;
 - preserving durable event/route/job/attempt/checkpoint records;
 - rolling back individual handler activation;
@@ -1771,14 +2184,19 @@ Once implemented, rollback must distinguish:
 
 During the expand/migrate phases, rollback to a previous Thoth image is permitted
 only while all schema/API that image needs remains present **and** route
-activation remains compatible with that image's event-emission behaviour.
+activation remains compatible with that image's event-emission behaviour: the
+image emits each consumed event kind, and every version it may emit is in the
+accepted-version set of every affected open epoch's revision.
 
-If rollback below an already-active route's emission floor is unavoidable, the
-route's current epoch is closed before old writers resume or a specifically
-authorized current-state reconciliation/backfill covers the exact gap. Existing
-obligations from every epoch, including the one being closed, remain durable;
-closing an epoch does not delete them. Forward recovery may open a new epoch under the same `route_key`
-only after the activation gates are re-established; it does not make
+If rollback below an already-active route's emission floor, or to a producer
+version its open epoch's revision does not accept, is unavoidable, the route's
+current epoch is closed before old writers resume or a specifically authorized
+current-state reconciliation/backfill covers the exact gap. Existing
+obligations from every epoch, including the one being closed, remain durable
+and bound to their epochs' revisions; closing an epoch does not delete them.
+Recovery may open a new epoch under the same `route_key`, referencing a new
+revision or reusing an older immutable revision, only after the activation
+gates are re-established for that exact revision; it does not make
 inactive-gap events eligible.
 
 Legacy BE-04 storage contraction cannot occur until every supported rollback
@@ -1813,7 +2231,8 @@ Before shared implementation can be approved, evidence must include:
   boundary never change, its write-once close fact cannot be rewritten and a
   closed epoch cannot be reopened;
 - historical eligibility tests proving that an event inside any epoch, open or
-  closed, remains eligible after that epoch closes, after later epochs open and
+  closed, that matches that epoch's revision remains eligible, under that
+  revision, after that epoch closes, after later epochs and revisions open and
   after retirement;
 - inactive-gap exclusion tests proving events captured before the first epoch or
   between epochs are not eligible and are processed only through explicitly
@@ -1831,28 +2250,129 @@ Before shared implementation can be approved, evidence must include:
   ADR-0010 protected staff-command authorization/audit where staff acts;
 - accepted-divergence attention when a terminal disposition has no covering
   reconciliation/backfill;
-- queryable per-route undisposed-event count/oldest-age across every epoch,
-  active / temporarily inactive / permanently retired state and unavailable
-  compatible-materializer signals;
-- activation and reactivation refusal until the event-emission floor and at
-  least one compatible materializer are established for that epoch;
+- queryable per-route and per-revision undisposed-event count/oldest-age across
+  every epoch and revision, active / temporarily inactive / permanently retired
+  state and per-revision, per-version unavailable compatible-materializer
+  signals, including for obligations that have no job yet;
+- activation, reactivation and revision-transition refusal until the
+  event-emission floor, producer-version coverage and compatible
+  materialization for every emittable accepted version are established for that
+  epoch's exact revision, and refusal for a revision withdrawn from future
+  selection;
 - event-emission-floor tests proving a route cannot activate while any serving
   or supported rollback binary can perform the mutation without emitting its
-  event kind/version;
+  consumed event kind, or can emit a version outside the revision's
+  accepted-version set;
 - rollback-below-emission-floor tests requiring the current epoch to be closed
   first or explicit current-state reconciliation/backfill, and forward recovery
   opening a new epoch only after the activation gates are re-established;
-- migration/administrative-write tests proving non-emitting canonical writes are
-  paired with transactional emission or exact-scope reconciliation/backfill;
+- migration/administrative-write tests proving non-emitting canonical writes,
+  and exceptional writes that would emit a version outside an affected open
+  epoch's accepted-version set, are paired with transactional emission of an
+  accepted version or exact-scope reconciliation/backfill;
 - mixed worker-version routing where an older worker cannot silently complete an
   unknown eligible route;
 - out-of-order transaction commit tests proving no event can be skipped by a
   sequence/cursor optimization;
 - crash during partial fan-out with exact resume and no duplicate route record;
 - explicit historical backfill through the same `(event_id, route_key)`
-  materialization identity, including across epochs and inactive gaps, proving
-  that neither reactivation nor backfill/replay rematerializes an
-  already-dispositioned event;
+  materialization identity, including across epochs, revisions and inactive
+  gaps, proving that neither reactivation, a revision transition nor
+  backfill/replay rematerializes an already-dispositioned event;
+- `v1` epoch -> close -> `v2` epoch under one stable `route_key`, proving that
+  outstanding `v1` obligations survive `v2` activation, still require a
+  `v1`-compatible materializer, and are refused or left unclaimed by a
+  `v2`-only materializer;
+- the `{v1} -> {v1, v2} -> {v2}` expand/contract transition under one stable
+  `route_key`, proving that at every step, including supported rollback
+  targets, the producer emission set stays a subset of every affected open
+  epoch's accepted-version set;
+- refusal or blocking of a producer deployment, rollback or configuration change
+  that would emit `v2` while only a `{v1}` epoch is open;
+- cross-route fan-out tests in which several routes consume one event kind with
+  different accepted-version sets, proving producers cannot widen the emission
+  set until every affected open route accepts the widened set;
+- zero-gap revision transitions using adjacent epoch boundaries where the
+  serialized generation mechanism permits them, with events on both sides of
+  the boundary interpreted under the correct revision;
+- concurrent close / new-revision / open operations preserving one durable
+  total order and at most one open epoch;
+- eligibility tests requiring both epoch-generation membership and a match to
+  the epoch revision's consumed event kind and accepted-version set;
+- immutable closed-epoch revision bindings, and refusal of any in-place
+  mutation of a revision referenced by an epoch or selected by an enrollment;
+- reuse of the same immutable revision by a later epoch after rollback, only
+  after the exact accepted-set producer and materializer gates are
+  re-established for it;
+- multi-version accepted-set tests proving every accepted version is eligible,
+  materializer compatibility is decided per version, and versions outside the
+  closed set are never eligible;
+- materializer-coverage tests proving an accepted version that becomes newly
+  emittable is verified as compatibly materializable for every affected open
+  epoch's revision before producers may emit it;
+- durable in-epoch contract-mismatch detection for an event of the consumed
+  kind with an unaccepted version, recording the event, route, epoch, expected
+  revision and actual kind/version, and proving the anomaly is queryable,
+  counted, age-visible and attention-raising;
+- proof that detecting a mismatch creates no route disposition or job, does not
+  consume the `(event_id, route_key)` slot, is never counted as successful
+  routing and is never reinterpreted under a later revision or current-contract
+  projection;
+- mismatch resolution by compatible authorized enrollment that creates the one
+  allowed disposition, and by approved reconciliation/divergence that creates
+  none, each recorded append-only without deleting the anomaly or its
+  detection evidence;
+- aggregate route backlog/health tests proving that neither a mismatch anomaly
+  nor an older revision's backlog or unavailable materializer is hidden behind a
+  healthy current revision;
+- concurrent creation of semantically equivalent revisions converging, through
+  the database-enforced uniqueness or serialization property, to one canonical
+  revision, including concurrent requests that both pass any application-level
+  pre-check;
+- canonical accepted-version-set tests proving that different orderings or
+  repetitions of the same versions produce the same semantic signature;
+- distinct-signature tests proving revisions that differ in any signature field,
+  including the presence or absence of a compatibility policy, remain distinct;
+- revision-withdrawal tests proving withdrawal is append-only and audited,
+  affects only future selection, leaves historical interpretation, epoch
+  references, backlog and anomalies unchanged, and is refused or held while it
+  would strand undispositioned obligations or unresolved mismatch anomalies;
+- a backward-compatible materializer handling an older revision only where
+  explicitly declared, and a forward-compatible materializer handling a newer
+  revision only where explicitly declared and semantically valid;
+- refusal of an incompatible materializer despite a matching job kind/version;
+- proof that compatibility is derived from immutable revision content and
+  policy plus capability declarations rather than revision identifiers, and that
+  changing mutable registry state changes only availability;
+- mixed materializer-version tests proving no worker silently reinterprets an
+  old revision;
+- loss of every compatible materializer for a revision leaving its obligations
+  visible and raising attention;
+- valid historical-enrollment revision selection creating exactly one
+  disposition;
+- enrollment refusal before disposition creation for each signature-field
+  mismatch: event kind, payload/schema version, a revision of another route,
+  semantic consumer/owning-domain identity, an incompatible
+  route-to-materializer/job contract version and a compatibility-policy
+  rejection;
+- proof that a refused enrollment creates no disposition or job, leaves
+  `(event_id, route_key)` unused for a later compatible enrollment, and records
+  a durable audit while existing attention remains visible;
+- enrollment spanning several epochs and revisions selecting each event's
+  revision explicitly and deterministically, and undispositioned scans across
+  several closed and open revisions preserving each obligation's revision
+  binding;
+- in-epoch mismatch recovery through explicit compatible revision selection;
+- same-route replay creating no second disposition;
+- new-route historical enrollment that states explicitly whether a second effect
+  is intended, and that obeys target-scoped idempotency, concurrency and
+  applied-revision evidence when it shares an external effect target with an
+  older route;
+- a new route identity required where semantic evolution would require a second
+  independent disposition or effect for an already-dispositioned event;
+- old-revision obligations and anomalies remaining visible and executable after
+  newer revisions and after permanent route retirement, with retirement neither
+  deleting nor withdrawing historical revisions;
 - effect-scoped idempotency tests across newer source revisions/schedule slots;
 - CURRENT_STATE tests that read canonical latest state and prove the effect
   fingerprint covers every canonical input affecting the external result before
@@ -1969,26 +2489,31 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-This ADR is **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-05
-
-The CTO approved this exact corrected content on 2026-10-05 under the
-repository decision process.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
 material-correction rules in `docs/engineering/decisions/README.md`. It
 replaces the single activation interval per route with the append-only
-activation-epoch model in section 3.2.
+activation-epoch model in section 3.2 and binds every activation epoch to an
+immutable route-contract revision, so that no mutable route-level contract can
+reinterpret historical obligations. It also defines producer-version coverage,
+in-epoch contract-mismatch anomalies, revision-validated historical enrollment,
+atomic revision equivalence, deterministic materializer compatibility,
+per-revision route health and safe revision withdrawal.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
-approval dated 2026-09-30. That approval, and every review of those earlier
-versions, remains historical evidence bound to those exact earlier versions and
-source heads only; it does not approve this corrected version. The exact
-historical identities are recorded in the task implementation report and the
-owning issue.
+approval dated 2026-09-30. A later corrected version, which introduced the
+activation-epoch model without immutable route-contract revisions, carried
+`Status: APPROVED` with CTO approval dated 2026-10-05. Those approvals, and
+every review of those earlier versions, remain historical evidence bound to
+those exact earlier versions and source heads only; they do not approve this
+version. The exact historical identities are recorded in the task
+implementation report and the owning issue.
 
 CTO approval of this ADR adopts the architecture decision and invariants
 recorded here. It is architecture approval only: it does not authorize
