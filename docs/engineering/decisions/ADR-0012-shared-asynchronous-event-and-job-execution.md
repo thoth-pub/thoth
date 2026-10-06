@@ -1,7 +1,9 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-09-29
+Approved by: Javi, CTO
+Approval date: 2026-10-06
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -2489,11 +2491,16 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **PROPOSED**.
+This ADR is **APPROVED**.
 
-The corrected content of this version has not been approved. It may carry
-`APPROVED`, an approver and an approval date only after the CTO approves this
-exact corrected content under the repository decision process.
+Approved by: Javi, CTO
+Approval date: 2026-10-06
+
+The CTO approved this exact corrected content on 2026-10-06 under the
+repository decision process. That approval does not by itself make this ADR
+repository-authoritative: the authority condition below still applies. Any
+ADR-0013 programme-local reliance on this exact version is a separate state
+that is not effective until its own conditions are satisfied for this version.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
