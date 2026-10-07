@@ -2655,12 +2655,18 @@ fn the_identity_manifests_have_exactly_the_frozen_canonical_contents() {
          crate-manifest\tthoth-api/Cargo.toml\n\
          migration-down\tthoth-api/migrations/20261006_v1.9.0/down.sql\n\
          migration-up\tthoth-api/migrations/20261006_v1.9.0/up.sql\n\
+         database-runtime\tthoth-api/src/db.rs\n\
+         graphql-registration\tthoth-api/src/graphql/mod.rs\n\
+         graphql-context\tthoth-api/src/graphql/model.rs\n\
          maintenance-resolver\tthoth-api/src/graphql/mutation.rs\n\
+         crate-registration\tthoth-api/src/lib.rs\n\
          coverage-model\tthoth-api/src/model/metric_coverage/mod.rs\n\
          h1-producer\tthoth-api/src/model/metric_coverage_run/crud.rs\n\
          h1-model\tthoth-api/src/model/metric_coverage_run/mod.rs\n\
          h1-verifier\tthoth-api/src/model/metric_coverage_run/verification.rs\n\
          import-model\tthoth-api/src/model/metric_import/mod.rs\n\
+         import-batch-model\tthoth-api/src/model/metric_import_batch/mod.rs\n\
+         import-error-model\tthoth-api/src/model/metric_import_error/mod.rs\n\
          ingestion-country\tthoth-api/src/model/metric_ingestion/country.rs\n\
          ingestion-error\tthoth-api/src/model/metric_ingestion/error.rs\n\
          ingestion-hash\tthoth-api/src/model/metric_ingestion/hash.rs\n\
@@ -2669,11 +2675,18 @@ fn the_identity_manifests_have_exactly_the_frozen_canonical_contents() {
          measure-model\tthoth-api/src/model/metric_measure/mod.rs\n\
          platform-model\tthoth-api/src/model/metric_platform/mod.rs\n\
          platform-measure-model\tthoth-api/src/model/metric_platform_measure/mod.rs\n\
+         record-model\tthoth-api/src/model/metric_record/mod.rs\n\
+         record-provenance-model\tthoth-api/src/model/metric_record_provenance/mod.rs\n\
+         record-revision-model\tthoth-api/src/model/metric_record_revision/mod.rs\n\
          source-model\tthoth-api/src/model/metric_source/mod.rs\n\
          source-account-model\tthoth-api/src/model/metric_source_account/mod.rs\n\
+         source-checkpoint-model\tthoth-api/src/model/metric_source_checkpoint/mod.rs\n\
+         model-registration\tthoth-api/src/model/mod.rs\n\
+         publication-model\tthoth-api/src/model/publication/mod.rs\n\
          publisher-model\tthoth-api/src/model/publisher/mod.rs\n\
          authorization\tthoth-api/src/policy.rs\n\
-         diesel-schema\tthoth-api/src/schema.rs\n"
+         diesel-schema\tthoth-api/src/schema.rs\n\
+         graphql-error-mapping\tthoth-errors/src/lib.rs\n"
     );
     assert_eq!(
         VERIFIER_MANIFEST,
@@ -2681,20 +2694,25 @@ fn the_identity_manifests_have_exactly_the_frozen_canonical_contents() {
          dependency-lock\tCargo.lock\n\
          workspace-manifest\tCargo.toml\n\
          crate-manifest\tthoth-api/Cargo.toml\n\
+         database-runtime\tthoth-api/src/db.rs\n\
+         graphql-registration\tthoth-api/src/graphql/mod.rs\n\
          graphql-output\tthoth-api/src/graphql/model.rs\n\
          maintenance-resolver\tthoth-api/src/graphql/mutation.rs\n\
+         crate-registration\tthoth-api/src/lib.rs\n\
          coverage-model\tthoth-api/src/model/metric_coverage/mod.rs\n\
          h1-model\tthoth-api/src/model/metric_coverage_run/mod.rs\n\
          h1-verifier\tthoth-api/src/model/metric_coverage_run/verification.rs\n\
          import-model\tthoth-api/src/model/metric_import/mod.rs\n\
          source-account-model\tthoth-api/src/model/metric_source_account/mod.rs\n\
+         model-registration\tthoth-api/src/model/mod.rs\n\
          authorization\tthoth-api/src/policy.rs\n\
-         diesel-schema\tthoth-api/src/schema.rs\n"
+         diesel-schema\tthoth-api/src/schema.rs\n\
+         graphql-error-mapping\tthoth-errors/src/lib.rs\n"
     );
     let producer = parse_manifest(PRODUCER_MANIFEST, "thoth-h1-producer-manifest/1");
     let verifier = parse_manifest(VERIFIER_MANIFEST, "thoth-h1-verifier-manifest/1");
-    assert_eq!(producer.len(), 24);
-    assert_eq!(verifier.len(), 12);
+    assert_eq!(producer.len(), 37);
+    assert_eq!(verifier.len(), 17);
     assert_ne!(
         PRODUCER_MANIFEST, VERIFIER_MANIFEST,
         "separate files, separate identities"
