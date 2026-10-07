@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-06
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -292,6 +290,14 @@ mechanism required for route activation. Concurrent activation, deactivation and
 retirement requests for one route therefore resolve into one durable total
 order: they cannot open two epochs, close one epoch twice, reopen a closed epoch
 or record boundaries out of order.
+
+Withdrawing a route-contract revision from future selection and every operation
+that creates a new durable selection of, or reference to, a revision (opening
+an epoch that references it, or enrolling an event's first route disposition
+under it) share one database-atomic order for the same route; see "Revision
+withdrawal and route retirement" below. Whatever mechanism provides that order
+composes with this per-`route_key` lifecycle serialization: one route never has
+two contradictory lifecycle orders.
 
 A route's lifecycle state is one of:
 
@@ -587,11 +593,18 @@ its semantic signature:
 - compatibility policy, where the revision declares one: the policy admits the
   event's kind and version.
 
-If any check fails, the enrollment is refused before any route disposition or
-job is created. The `(event_id, route_key)` uniqueness slot remains unused, so a
-later enrollment under a compatible revision remains possible. The refused
-attempt and its reason are durably audited, and any existing anomaly, backlog or
-attention state for the event remains visible.
+The selected revision must also still be available for selection: it must not
+have been withdrawn from future selection. That availability is decided inside
+the database-atomic withdrawal/selection order of "Revision withdrawal and
+route retirement" below, in the same transaction that would create the
+disposition, never from an earlier separate read.
+
+If any check fails, or the revision has been withdrawn, the enrollment is
+refused before any route disposition or job is created. The
+`(event_id, route_key)` uniqueness slot remains unused, so a later enrollment
+under a compatible revision remains possible. The refused attempt and its reason
+are durably audited, and any existing anomaly, backlog or attention state for
+the event remains visible.
 
 Enrollment cannot bypass route deduplication and cannot create a second
 disposition for an event that already has one for that route, whichever revision
@@ -631,6 +644,60 @@ selectable compatible revision or an approved reconciliation/divergence
 procedure), unless an explicitly approved migration, reconciliation or
 disposition plan closes or transfers that work safely.
 
+Withdrawal shares one database-atomic serialization or constraint boundary with
+every operation that creates a new durable selection of, or reference to, the
+revision, so that for any revision, withdrawal and new future selection have one
+durable total (linearized) order. The operations covered include, at minimum:
+the first activation of the route opening an epoch that references the revision;
+a reactivation opening a later epoch that references it; a revision transition
+opening a new epoch that references it; historical enrollment that would create
+the first route disposition for an event under the selected revision; and the
+withdrawal itself. Every other operation that would create a new durable
+selection of or reference to the revision is covered by the same rule, not only
+those enumerated. A UI or API preselection, a preview or any other non-durable
+choice is not a selection; the selection is the transaction that makes the new
+epoch, reference or enrollment effective.
+
+Both commit orders are defined:
+
+- selection first: when the epoch opening or the valid first historical
+  enrollment linearizes before the withdrawal, the new epoch reference or
+  enrollment is valid historical state. The later withdrawal does not rewrite,
+  invalidate or remove it; it prevents only subsequent selection, and every
+  strand-prevention rule above remains binding on that later withdrawal;
+- withdrawal first: when the withdrawal linearizes first, a later epoch opening
+  that would reference the revision is refused before the epoch is created, a
+  later first historical enrollment that selects the revision is refused before
+  any route disposition or job is created, the `(event_id, route_key)`
+  uniqueness slot remains unused, and existing audit, anomaly, backlog and
+  attention state remains visible under the rules above.
+
+A transaction that loses that race may retry only after re-reading current
+durable state and selecting a revision that is still available, under the
+operation's normal authorization and validation; it never commits from a stale
+pre-withdrawal observation. An application-level check that the revision is not
+withdrawn, followed by a later insert or reference without database-enforced
+atomic ordering between the two, does not satisfy this rule.
+
+The implementation may provide that order by extending the per-`route_key`
+durable serialization boundary that already orders epoch opening, closing and
+permanent retirement so that revision withdrawal and revision selection
+participate in it, or by another database-enforced mechanism with equivalent
+atomic ordering; the exact table, row lock, advisory lock, uniqueness or
+exclusion constraint is an implementation-specification detail. Whichever
+mechanism is selected must compose with the serialized open, close, reactivate
+and retire lifecycle, with database-atomic equivalent-revision convergence, with
+historical-enrollment validation and `(event_id, route_key)` disposition
+uniqueness, with the strand-prevention rule above, with permanent route
+retirement and with the engine's normal deadlock and lock-ordering controls. No
+implementation may introduce a second route lifecycle order that contradicts the
+per-`route_key` order.
+
+Explicit replay or current-state work for an event that already has a route
+disposition is outside this first-selection rule: it remains governed by the
+replay semantics of section 3.5 and does not become a new route disposition
+merely because a revision has been withdrawn.
+
 Permanent retirement of a logical route does not retire, withdraw or erase its
 revisions. Its historical obligations and anomalies remain visible and
 interpretable under their revisions until they are resolved.
@@ -653,7 +720,9 @@ deployment evidence for that epoch's exact revision proves all of:
    revision's accepted-version set;
 3. compatible materialization (section 3.9) exists for every accepted version
    that can actually be emitted in that deployment state;
-4. the revision is not withdrawn from future selection; and
+4. the revision is not withdrawn from future selection, decided inside the
+   database-atomic withdrawal/selection order above, so that a withdrawal that
+   linearizes first refuses the epoch before it is created; and
 5. the route's lifecycle and retirement state permit the epoch.
 
 The event-emission floor and producer-version coverage are therefore
@@ -1935,6 +2004,22 @@ execution until a separate approved architecture decision says otherwise.
     regress an external effect: its historical enrollment states whether a
     second effect is intended and obeys target-scoped idempotency, concurrency
     and applied-revision evidence.
+41. For one route, revision withdrawal and every operation that creates a new
+    durable selection of or reference to a route-contract revision - at minimum
+    first activation, reactivation and revision-transition epoch opening and
+    first historical enrollment - share one database-atomic serialization or
+    constraint boundary that gives withdrawal and new future selection one
+    durable linearized order. A selection that linearizes first remains valid
+    historical state that the later withdrawal does not rewrite; after
+    withdrawal linearizes, no later epoch opening or first historical
+    enrollment may commit a selection of that revision: epoch opening is
+    refused before the epoch exists, enrollment before any disposition or job
+    exists, and the `(event_id, route_key)` slot stays unused. A losing
+    transaction re-reads durable state before any retry and never commits from
+    a stale pre-withdrawal observation; an application-level check-then-insert
+    without database-enforced ordering does not satisfy this. The mechanism
+    composes with the per-`route_key` lifecycle serialization and introduces
+    no second contradictory lifecycle order.
 
 ## 8. Implementation impact and decomposition
 
@@ -1946,7 +2031,8 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
      immutable route-contract-revision, retirement and materialization model,
      including producer-version coverage evidence, in-epoch contract-mismatch
      anomalies, revision-validated historical enrollment, atomic revision
-     equivalence and deterministic materializer compatibility;
+     equivalence, database-atomic ordering of revision withdrawal against new
+     revision selection and deterministic materializer compatibility;
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
    - effect-scoped idempotency and explicit coalescing;
@@ -2157,7 +2243,8 @@ Rollout should prove in order:
 2. mixed-version route completeness and out-of-order transaction commits;
 3. activation, deactivation, reactivation-epoch, route-contract-revision
    transition, retirement, event-emission-floor and producer-version-coverage
-   behaviour, including in-epoch contract-mismatch detection;
+   behaviour, including in-epoch contract-mismatch detection and the ordering
+   of revision withdrawal against epoch opening and first enrollment;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
@@ -2344,6 +2431,33 @@ Before shared implementation can be approved, evidence must include:
   affects only future selection, leaves historical interpretation, epoch
   references, backlog and anomalies unchanged, and is refused or held while it
   would strand undispositioned obligations or unresolved mismatch anomalies;
+- deterministic concurrency tests of revision withdrawal racing a first
+  activation, in the selection-first order and in the withdrawal-first order;
+- deterministic concurrency tests of revision withdrawal racing a reactivation
+  epoch opening and racing a revision-transition epoch opening, each in both
+  orders;
+- deterministic concurrency tests of revision withdrawal racing a first
+  historical enrollment, in both orders;
+- proof that a withdrawal-first enrollment refusal creates no route
+  disposition and no job and leaves the `(event_id, route_key)` slot unused,
+  and that a withdrawal-first epoch opening is refused before any epoch is
+  created;
+- proof that a selection-first epoch reference or enrollment remains valid
+  historical state after the later withdrawal, which prevents only subsequent
+  selection;
+- proof that no transaction holding a stale pre-withdrawal observation can
+  commit a new selection of the revision after the withdrawal linearizes, and
+  that a losing transaction re-reads durable state before any retry;
+- proof that withdrawal is still refused or held where undispositioned
+  obligations or unresolved in-epoch contract-mismatch anomalies would be
+  stranded, including obligations that became eligible through an epoch whose
+  opening linearized before the withdrawal;
+- proof that the selected locking or constraint order for withdrawal and
+  selection composes with the existing per-`route_key` open, close, reactivate
+  and retire serialization, with equivalent-revision convergence where it
+  shares that mechanism, with enrollment validation and disposition uniqueness
+  and with permanent route retirement, without deadlock and without a split or
+  contradictory lifecycle order;
 - a backward-compatible materializer handling an older revision only where
   explicitly declared, and a forward-compatible materializer handling a newer
   revision only where explicitly declared and semantically valid;
@@ -2496,16 +2610,11 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-This ADR is **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-06
-
-The CTO approved this exact corrected content on 2026-10-06 under the
-repository decision process. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -2516,16 +2625,23 @@ immutable route-contract revision, so that no mutable route-level contract can
 reinterpret historical obligations. It also defines producer-version coverage,
 in-epoch contract-mismatch anomalies, revision-validated historical enrollment,
 atomic revision equivalence, deterministic materializer compatibility,
-per-revision route health and safe revision withdrawal.
+per-revision route health and safe revision withdrawal, and it requires revision
+withdrawal and every new durable selection of a revision to share one
+database-atomic linearized order, so that a stale availability observation can
+never commit a new selection of a withdrawn revision.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
 activation-epoch model without immutable route-contract revisions, carried
-`Status: APPROVED` with CTO approval dated 2026-10-05. Those approvals, and
-every review of those earlier versions, remain historical evidence bound to
-those exact earlier versions and source heads only; they do not approve this
-version. The exact historical identities are recorded in the task
-implementation report and the owning issue.
+`Status: APPROVED` with CTO approval dated 2026-10-05. A further corrected
+version, which introduced immutable route-contract revisions without a
+database-atomic order between revision withdrawal and new revision selection,
+carried `Status: APPROVED` with CTO approval dated 2026-10-06, retained through
+a factual clarification of that version. Those approvals, and every review of
+those earlier versions, remain historical evidence bound to those exact earlier
+versions and source heads only; they do not approve this version. The exact
+historical identities are recorded in the task implementation report and the
+owning issue.
 
 CTO approval of this ADR adopts the architecture decision and invariants
 recorded here. It is architecture approval only: it does not authorize
