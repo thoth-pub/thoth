@@ -356,12 +356,14 @@ alone are insufficient.
 For every committed event, the engine must eventually establish a durable route
 disposition for every route for which that event is eligible, and a durable
 in-epoch contract-mismatch anomaly for every route for which it is mismatched.
-Exactly one durable disposition exists for each `(event_id, route_key)`. The
-normal disposition materializes a job: a materialized disposition points to
-exactly one job and remains unique on `(event_id, route_key)` regardless of
-whether that job is pending, running, waiting or terminal. The only alternative
-is the explicit, authorized and audited terminal non-materialized disposition
-described below, which points to no job (section 3.5 and invariant 8).
+At most one durable disposition may exist for a given `(event_id, route_key)`,
+and an eligible route obligation remains owed, visible in the route backlog,
+until it has received that one disposition. The normal disposition
+materializes a job: a materialized disposition points to exactly one job and
+remains unique on `(event_id, route_key)` regardless of whether that job is
+pending, running, waiting or terminal. The only alternative is the explicit,
+authorized and audited terminal non-materialized disposition described below,
+which points to no job (section 3.5 and invariant 8).
 
 Disposition uniqueness is per logical route, not per epoch or per revision:
 `(event_id, route_key)` is the complete uniqueness boundary across every epoch
@@ -980,8 +982,9 @@ current-state execution and backfill create new logical jobs with new effect
 identity and explicit parent/replay/correlation metadata, following ADR-0010's
 distinction between retry, replay and current-state redistribution.
 
-Event routing identity and job idempotency are related but distinct. Exactly one
-durable disposition exists for each `(event_id, route_key)`. A successfully
+Event routing identity and job idempotency are related but distinct. At most
+one durable disposition may exist for a given `(event_id, route_key)`, and an
+eligible route obligation eventually receives exactly one. A successfully
 materialized disposition points to exactly one materialized job. Several
 materialized route dispositions may point to one **not-yet-started** job only
 when the kind defines an explicit durable coalescing rule. An explicit,
@@ -1824,10 +1827,12 @@ execution until a separate approved architecture decision says otherwise.
    `(event_id, route_key)` unused.
 7. Job idempotency identifies a specific intended effect; a resource-only key
    must not suppress later revisions/schedule slots/commands.
-8. Exactly one durable disposition exists for each `(event_id, route_key)`.
-   A successfully materialized disposition maps to exactly one job; many
-   materialized dispositions may map to one not-yet-started job only under an
-   explicit durable coalescing rule. An explicit authorized/audited terminal
+8. At most one durable disposition may exist for a given
+   `(event_id, route_key)`; an eligible route obligation remains owed until it
+   has received exactly one. A successfully materialized disposition maps to
+   exactly one job; many materialized dispositions may map to one
+   not-yet-started job only under an explicit durable coalescing rule. An
+   explicit authorized/audited terminal
    non-materialized disposition maps to no job, records actor, authority,
    reason and any covering reconciliation/backfill, and shares the same
    uniqueness boundary so it cannot coexist with a materialized disposition for

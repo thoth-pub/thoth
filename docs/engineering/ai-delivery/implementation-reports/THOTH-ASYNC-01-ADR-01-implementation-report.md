@@ -8,19 +8,21 @@ clarification, the Route-B material activation-epoch correction, the bounded
 final-head recovery authorized by Specification Amendments 4-5, the Route-B
 candidate and approval-state stages of the immutable route-contract-revision
 correction specified by Specification Amendments 6-7, the one-path
-report-only control-record recovery of that approval-state report, and the
+report-only control-record recovery of that approval-state report, the
 one-path report-only transient-state correction that followed the configured
-final-head automated review of that recovery head. It records
+final-head automated review of that recovery head, and the two-path factual
+clarification of ADR-0012 and durable-report correction that followed the
+configured final-head automated review of that correction head. It records
 durable task evidence only. Live head, CI, review, authorization and
 merge state is GitHub-owned lifecycle evidence under `ADR-0005` and is not
 copied here.
 
 Sections 1-15 follow the repository implementation-report template for the
-Route-B correction stages, with the report-only transient-state correction as
-the current stage and every earlier candidate, approval-state, recovery and
-control-record recovery stage recorded as history. Appendix A preserves the
-earlier authoring, review, approval-state, reconciliation and validation
-record. Appendix B records the
+Route-B correction stages, with the factual clarification and durable-report
+correction as the current stage and every earlier candidate, approval-state,
+recovery and report-only correction stage recorded as history. Appendix A
+preserves the earlier authoring, review, approval-state, reconciliation and
+validation record. Appendix B records the
 durable control conditions.
 
 ## 1. Repository state
@@ -39,11 +41,13 @@ Actual base commit: `b44303c214498baf76c9d9a0a7cab374377f9cbe`
 PR target: `feature/worker`
 Programme integration branch: `feature/worker`
 Task branch: `feature/async/adr-0012`
-Head commit: the report-only transient-state correction commit that contains
-this report, an ordinary single-parent additive commit whose direct parent is
-the historical report-only control-record recovery head
-`22bd94dc959f11fe49c8bef8cd2a836140aadff7`; its SHA is deliberately not
-self-pinned here (section 3). That recovery head is the direct child of the
+Head commit: the factual-clarification commit that contains this report, an
+ordinary single-parent additive commit whose direct parent is the historical
+report-only transient-state correction head
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`; its SHA is deliberately not
+self-pinned here (section 3). That correction head is the direct child of the
+historical report-only control-record recovery head
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7`, which is the direct child of the
 historical Amendment-6/7 approval-state head
 `609a01427847233b7280557baa61825ac2079865`, which is the direct child of
 the content-approved Amendment-6/7 candidate
@@ -53,7 +57,7 @@ historical Amendment-4/5 recovery head
 historical activation-epoch approval-state head
 `c046e6bf6510f24ee1231f86293a3d499bceed7e`, itself the direct child of the
 historical content-approved activation-epoch candidate
-`95769537cdc9871e42f9f3e5443604a96beb74da`. The correction commit's
+`95769537cdc9871e42f9f3e5443604a96beb74da`. The clarification commit's
 publication as the PR #960 head is a post-commit, GitHub-owned lifecycle fact
 under `ADR-0005`.
 Pull request: [#960](https://github.com/thoth-pub/thoth/pull/960), targeting
@@ -66,8 +70,9 @@ Implementing model: activation-epoch candidate and approval-state stages -
 Claude (Opus 5.5), bounded implementing agent; Amendment-4/5 recovery stage -
 Claude (Fable 5.1), bounded implementing agent; Amendment-6/7 candidate,
 approval-state and control-record recovery stages - Claude (Opus 5.5), bounded
-implementing agent; transient-state correction stage - Claude (Fable 5.1),
-bounded implementing agent. Earlier rounds are recorded in Appendix A.
+implementing agent; transient-state correction and factual-clarification
+stages - Claude (Fable 5.1), bounded implementing agent. Earlier rounds are
+recorded in Appendix A.
 Reasoning level: standard
 
 Historical and current control identities:
@@ -150,13 +155,25 @@ implementation-report blob 6b1a0c2e5f353c6974bf011726eb7beac804a3bd (superseded 
 historical control-record recovery head / transient-state correction parent:
 22bd94dc959f11fe49c8bef8cd2a836140aadff7
 tree 7af3e0b8007eb6686e94043f57db63acc4edb4ab
-ADR-0012 blob a7d95ca918f418d596432071c8ba78a33c2630a9 (APPROVED; unchanged by the recovery and by the correction)
-decision-register blob b358acd5bbedf7482cfdc7b71866815c852773af (unchanged by the recovery and by the correction)
-CHANGELOG blob e2947275d19d3abb351a98854268d7db213370d7 (unchanged by the recovery and by the correction)
-implementation-report blob 74845b91dede2ba066bd0720598651e539196eb1 (superseded by the correction)
+ADR-0012 blob a7d95ca918f418d596432071c8ba78a33c2630a9 (APPROVED; unchanged by the recovery and by the transient-state correction)
+decision-register blob b358acd5bbedf7482cfdc7b71866815c852773af (unchanged by the recovery and by the transient-state correction)
+CHANGELOG blob e2947275d19d3abb351a98854268d7db213370d7 (unchanged by the recovery and by the transient-state correction)
+implementation-report blob 74845b91dede2ba066bd0720598651e539196eb1 (superseded by the transient-state correction)
+
+historical transient-state correction head / factual-clarification parent:
+9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a
+tree 862a8e32207f1e0f61cab532b08b65034979f5ac
+ADR-0012 blob a7d95ca918f418d596432071c8ba78a33c2630a9 (APPROVED; the exact prior approved blob clarified by the factual clarification)
+decision-register blob b358acd5bbedf7482cfdc7b71866815c852773af (unchanged by the factual clarification)
+CHANGELOG blob e2947275d19d3abb351a98854268d7db213370d7 (unchanged by the factual clarification)
+implementation-report blob 81db6d33bc0d103e149dd99e1f35150f35c079e3 (superseded by the factual clarification)
+
+factual clarification (the commit that contains this report):
+ADR-0012 blob 2db08058552ce901548ef3f71af4a294f5af7e61 (APPROVED; Javi, CTO; 2026-10-06; factual clarification of a7d95ca918f418d596432071c8ba78a33c2630a9)
 
 feature/worker at the recovery, the candidate, the approval-state commit, the
-control-record recovery and the transient-state correction (unchanged):
+control-record recovery, the transient-state correction and the factual
+clarification (unchanged):
 b44303c214498baf76c9d9a0a7cab374377f9cbe
 ```
 
@@ -208,7 +225,13 @@ Approved specification:
 - report-only control-record recovery authorization: #958 comment
   `6022850916`;
 - final-head review report-only transient-state correction authorization:
-  #958 comment `6036961945`.
+  #958 comment `6036961945`;
+- CTO factual-clarification classification of ADR-0012 blob
+  `a7d95ca918f418d596432071c8ba78a33c2630a9` and adjudication of the
+  final-head review of the transient-state correction head: #958 comment
+  `6041284313`;
+- factual-clarification and durable-report correction authorization: #958
+  comment `6041301223`.
 
 Implemented objective: the Route-B material architectural correction of
 ADR-0012 before repository authority. A first correction (activation epochs)
@@ -218,12 +241,18 @@ exposed a further architecture defect, specified by Amendments 6-7. Its
 `PROPOSED` Route-B candidate received CTO exact candidate-content approval, and
 the one bounded Route-B approval-state commit recorded that approval. A
 one-path report-only control-record recovery then corrected how the
-approval-state report recorded that content approval. The commit that contains
-this report is a second one-path report-only correction, made after the
-configured final-head automated review of that recovery head: it removes
-statements that treated the live number and resolved/unresolved state of
-PR #960 review threads as durable repository truth; it changes no ADR,
-decision-register or changelog byte.
+approval-state report recorded that content approval, and a second one-path
+report-only correction, made after the configured final-head automated review
+of that recovery head, removed statements that treated the live number and
+resolved/unresolved state of PR #960 review threads as durable repository
+truth. The commit that contains this report is a two-path correction made
+after the configured final-head automated review of that correction head: it
+applies the CTO-classified factual clarification of ADR-0012's
+route-disposition cardinality wording to the prior approved ADR blob
+`a7d95ca918f418d596432071c8ba78a33c2630a9`, and removes the report's remaining
+statements about which live PR #960 lifecycle gate was pending. It changes no
+decision-register or changelog byte and makes no material architecture
+change.
 
 - **Activation-epoch candidate stage (historical candidate
   `95769537cdc9871e42f9f3e5443604a96beb74da`).** The candidate implements the
@@ -339,7 +368,8 @@ decision-register or changelog byte.
   not another candidate, not another approval-state commit and not an ADR
   amendment, and that stage authorized no PR-state or PR-metadata change.
 - **Final-head review of the recovery head and report-only transient-state
-  correction (the commit that contains this report).** Authorized by #958
+  correction (historical correction head
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`).** Authorized by #958
   comment `6036961945`. Control separately marked PR #960 Ready at the
   recovery head, which triggered the configured final-head automated review of
   `22bd94dc959f11fe49c8bef8cd2a836140aadff7`, and returned PR #960 to Draft
@@ -359,18 +389,52 @@ decision-register or changelog byte.
   `docs/engineering/AGENTS.md`, under which committed files record durable
   repository state while GitHub records transient workflow state. Control
   accepted it as a valid blocking control-record defect. One ordinary
-  single-parent commit directly on the recovery head changes only this report:
-  stage-time review-thread inspections are rephrased as historical stage
-  evidence, the current-state assertion in section 14 is replaced by durable
+  single-parent commit directly on the recovery head changed only this report:
+  stage-time review-thread inspections were rephrased as historical stage
+  evidence, the current-state assertion in section 14 was replaced by durable
   wording that points to PR #960 for live thread state, the final-head review
-  outcome is recorded substantively without its review identifiers, and this
-  correction is recorded as the current stage. No ADR-0012 architecture,
+  outcome was recorded substantively without its review identifiers, and that
+  correction became the then-current stage. No ADR-0012 architecture,
   approval state, approver, approval date, decision-register state or
-  changelog state changes; ADR-0012 remains blob
-  `a7d95ca918f418d596432071c8ba78a33c2630a9`, so the existing CTO
-  exact-final-blob approval of that unchanged blob remains valid. It is not
+  changelog state changed; ADR-0012 remained blob
+  `a7d95ca918f418d596432071c8ba78a33c2630a9` at that head. It was not
   another candidate, not another approval-state commit and not an ADR
-  amendment. This stage authorizes no PR-state or PR-metadata change.
+  amendment, and that stage authorized no PR-state or PR-metadata change.
+- **Final-head review of the transient-state correction head, factual
+  clarification and durable-report correction (the commit that contains this
+  report).** Authorized by #958 comment `6041301223` after the CTO
+  classification and adjudication record #958 comment `6041284313`. Control
+  separately marked PR #960 Ready at the transient-state correction head,
+  which triggered the configured final-head automated review of
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`, and returned PR #960 to Draft
+  before any correction source was staged. That review raised two findings,
+  both accepted by control as valid and blocking (section 14). The first found
+  that ADR-0012 stated unconditionally, in section 3.2, section 3.5 and
+  invariant 8, that exactly one durable disposition exists for each
+  `(event_id, route_key)`, which is broader than the eligibility, backlog,
+  in-epoch mismatch, historical-enrollment and reconciliation/divergence
+  semantics the same ADR already selects. The CTO classified the required
+  change, under the Amendments rules of
+  `docs/engineering/decisions/README.md`, as a `FACTUAL CLARIFICATION` of the
+  exact prior approved ADR blob `a7d95ca918f418d596432071c8ba78a33c2630a9`:
+  the cardinality rule becomes at most one durable disposition per
+  `(event_id, route_key)`, an eligible route obligation remains owed until it
+  receives exactly one, and every existing no-disposition case and duplicate
+  prevention rule is unchanged. The second found that the report still
+  recorded which live PR #960 lifecycle gates were pending. One ordinary
+  single-parent commit directly on the transient-state correction head changes
+  only ADR-0012 and this report: the three unconditional cardinality
+  sentences are replaced by the at-most-one rule with the eventual-completion
+  clause (section 4; section 9, "Factual-clarification validation"), and the
+  report's current-gate statements are replaced by the durable lifecycle
+  model under which GitHub, through #958 and PR #960, is authoritative for
+  the current gate. ADR-0012 keeps `Status: APPROVED`, `Approved by: Javi,
+  CTO` and `Approval date: 2026-10-06`; under the factual-clarification rule
+  the existing architecture approval remains applicable within the classified
+  scope. No decision-register or changelog byte changes. It is not a
+  Specification Amendment, not another Route-B candidate or approval-state
+  commit and not a material architectural correction. This stage authorizes
+  no PR-state or PR-metadata change.
 
 Out-of-scope changes made: NONE
 
@@ -382,6 +446,11 @@ MATERIAL ARCHITECTURAL CORRECTION (base specification section 3)
 
 selected approval route:
 Route B - PR-first staged approval (Amendment 2 B2, ratified by Amendment 3)
+
+ADR-0012 change in the commit that contains this report:
+FACTUAL CLARIFICATION of prior approved blob a7d95ca918f418d596432071c8ba78a33c2630a9
+(docs/engineering/decisions/README.md, Amendments; CTO classification on #958;
+no Specification Amendment and no new Route-B cycle)
 ```
 
 Eligibility for the material pre-authority correction is keyed to the ADR
@@ -472,39 +541,59 @@ new version received its own independent control inspection and CTO exact
 candidate-content approval on 2026-10-06, the historical approval-state
 commit `609a01427847233b7280557baa61825ac2079865` recorded it, and neither
 the historical report-only control-record recovery
-`22bd94dc959f11fe49c8bef8cd2a836140aadff7` nor the report-only
-transient-state correction that contains this report changes ADR-0012. The
-exact final ADR-0012 blob `a7d95ca918f418d596432071c8ba78a33c2630a9` is
-unchanged, so the existing CTO exact-final-blob approval of that blob remains
-valid; the correction head still requires independent inspection, and any
-separately authorized PR metadata reconciliation, Draft -> Ready, fresh
-final-head automated review, adjudication of every historical and current
-review thread, fresh independent CRITICAL exact-head review and separate merge
-authorization are later gates.
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7` nor the historical report-only
+transient-state correction `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` changed
+ADR-0012; both left the approved blob
+`a7d95ca918f418d596432071c8ba78a33c2630a9`. The factual clarification that
+contains this report changes that blob to
+`2db08058552ce901548ef3f71af4a294f5af7e61` within the CTO-classified
+clarification scope only; under the factual-clarification rule the selected
+architecture and its approval are unchanged, while any source-head-bound
+review or merge authorization and any ADR-0013 exact-version programme pin
+bound to an earlier blob or head are stale for the clarified version until
+separately reconciled. Independent exact-head review, CTO merge authorization,
+guarded merge, programme-local reliance and later migration, deployment,
+activation and observation are distinct controlled lifecycle categories;
+GitHub, through #958 and PR #960, is authoritative for which of them is
+pending, satisfied or blocked for any head.
 
 ## 3. Commits
 
-Report-only transient-state correction commit (the commit that contains this
-report):
+Factual-clarification commit (the commit that contains this report):
 
 - exactly one ordinary single-parent additive commit on
   `feature/async/adr-0012` -
-  `THOTH-ASYNC-01-ADR-01: make report review-thread record durable`
-  - direct parent: the historical report-only control-record recovery head
-    `22bd94dc959f11fe49c8bef8cd2a836140aadff7`
-  - changes only this report (section 4)
+  `THOTH-ASYNC-01-ADR-01: clarify route-disposition cardinality`
+  - direct parent: the historical report-only transient-state correction head
+    `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`
+  - changes only ADR-0012 and this report (section 4); the clarified ADR-0012
+    blob is `2db08058552ce901548ef3f71af4a294f5af7e61`
 
 Its SHA, its tree and this report's final blob are deliberately not embedded
-here because this report is part of that tree; every other file, including
-ADR-0012, the decision register and the changelog, keeps its recovery-head
-blob, which is its approval-state blob (section 9). The commit identities are
-verified against the remote task-branch head after push and recorded in the
-post-publication handoff; once published, the PR #960 head and head tree are
-GitHub-owned lifecycle evidence under `ADR-0005`. The authorized topology is a
-non-force fast-forward of the task branch from the recovery head to the
-correction commit; no merge commit, rebase, squash, amend, force update or
-second correction commit is authorized, and no further source commit exists
-implicitly after it.
+here because this report is part of that tree; the clarified ADR-0012 blob
+does not depend on this report and is recorded above; every other file,
+including the decision register and the changelog, keeps its transient-state
+correction-head blob, which is its approval-state blob (section 9). The commit
+identities are verified against the remote task-branch head after push and
+recorded in the post-publication handoff; once published, the PR #960 head and
+head tree are GitHub-owned lifecycle evidence under `ADR-0005`. The authorized
+topology is a non-force fast-forward of the task branch from the
+transient-state correction head to the clarification commit; no merge commit,
+rebase, squash, amend, force update or second clarification commit is
+authorized, and no further source commit exists implicitly after it.
+
+Report-only transient-state correction commit (historical):
+
+- `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` -
+  `THOTH-ASYNC-01-ADR-01: make report review-thread record durable`
+  - ordinary single-parent additive commit; direct parent: the historical
+    report-only control-record recovery head
+    `22bd94dc959f11fe49c8bef8cd2a836140aadff7`
+  - tree `862a8e32207f1e0f61cab532b08b65034979f5ac`
+  - changed only this report (section 4)
+  - published by a non-force fast-forward of `feature/async/adr-0012` from the
+    recovery head; the remote head, tree, parent and ADR-0012 blob matched the
+    locally validated object
 
 Report-only control-record recovery commit (historical):
 
@@ -616,12 +705,18 @@ first-parent order, newest first:
 
 ## 4. Files changed
 
-Report-only transient-state correction write budget for the commit that
-contains this report (authorization #958 comment `6036961945`); exactly one
-existing path, no new file, no deletion, and every other path byte-identical
-to the recovery head `22bd94dc959f11fe49c8bef8cd2a836140aadff7`:
+Factual-clarification write budget for the commit that contains this report
+(authorization #958 comment `6041301223`); exactly two existing paths, no new
+file, no deletion, and every other path byte-identical to the transient-state
+correction head `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`:
 
+- `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
+
+Historical report-only transient-state correction write budget
+(authorization #958 comment `6036961945`): exactly the report path, no new
+file, no deletion, and every other path byte-identical to the recovery head
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7`.
 
 Historical report-only control-record recovery write budget (authorization
 #958 comment `6022850916`): the same single existing path, no new file, no
@@ -659,11 +754,68 @@ six paths at every stage):
 
 Authorized new-file paths: NONE at the approval-state, recovery,
 Amendment-6/7 candidate, Amendment-6/7 approval-state, control-record
-recovery and transient-state correction stages; this report already existed.
+recovery, transient-state correction and factual-clarification stages; this
+report and ADR-0012 already existed.
 
-Transient-state correction changes in the commit that contains this report,
-relative to the recovery head `22bd94dc959f11fe49c8bef8cd2a836140aadff7`
-(exactly the one authorized path):
+Factual-clarification changes in the commit that contains this report,
+relative to the transient-state correction head
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` (exactly the two authorized
+paths):
+
+- `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
+  - reason: the configured final-head automated review of the transient-state
+    correction head found that the unconditional sentence "exactly one durable
+    disposition exists for each `(event_id, route_key)`" in section 3.2,
+    section 3.5 and invariant 8 conflicted with the eligibility, backlog,
+    in-epoch mismatch, historical-enrollment and reconciliation/divergence
+    semantics already selected by the same ADR; the CTO classified the
+    correction as a factual clarification of prior approved blob
+    `a7d95ca918f418d596432071c8ba78a33c2630a9`.
+  - behavioural effect: factual clarification only; no architecture decision
+    changes. Three sentences change and nothing else: section 3.2 now states
+    that at most one durable disposition may exist for a given
+    `(event_id, route_key)` and that an eligible route obligation remains
+    owed, visible in the route backlog, until it has received that one
+    disposition; section 3.5 states the same at-most-one rule with eventual
+    receipt of exactly one for an eligible route obligation; invariant 8
+    states the same rule in its first sentence. The surrounding text of each
+    sentence, the materialized/terminal non-materialized disposition model,
+    the uniqueness boundary across epochs and revisions, the no-disposition
+    cases (ineligible events, in-epoch contract mismatch, refused historical
+    enrollment, approved reconciliation/divergence), the one allowed
+    disposition from validated enrollment, duplicate prevention and job
+    idempotency are byte-identical. The header keeps `Status: APPROVED`,
+    `Approved by: Javi, CTO` and `Approval date: 2026-10-06`; section 12 is
+    unchanged. Clarified blob: `2db08058552ce901548ef3f71af4a294f5af7e61`.
+  - within authorized write budget: YES
+- `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
+  - reason: the same review found that the report still recorded which live
+    PR #960 lifecycle gates were pending ("still requires", "does not
+    include", a next-step list of Ready, review, thread-adjudication and
+    merge-authorization gates); control accepted that as a blocking
+    control-record defect.
+  - behavioural effect: documentation only. Replaces every current-gate
+    statement with the durable lifecycle model (the ADR-0012 authority
+    condition; independent exact-head review, CTO merge authorization,
+    guarded merge, programme-local reliance, migration, deployment,
+    activation and observation as distinct controlled lifecycle categories;
+    GitHub, through #958 and PR #960, as the authority for the current gate);
+    records the final-head review of the transient-state correction head and
+    the CTO classification substantively, without review identifiers; records
+    the factual clarification and its validation (section 9); makes this
+    stage the current stage; and reframes statements that would otherwise
+    describe the transient-state correction commit as the commit containing
+    this report. All other historical evidence is preserved.
+  - within authorized write budget: YES
+
+Byte-identical to the transient-state correction head through the factual
+clarification: every path other than ADR-0012 and this report, including the
+decision register `b358acd5bbedf7482cfdc7b71866815c852773af` and
+`CHANGELOG.md` `e2947275d19d3abb351a98854268d7db213370d7`.
+
+Historical transient-state correction changes in the correction commit
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`, relative to the recovery head
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7` (exactly the one authorized path):
 
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
   - reason: the configured final-head automated review of the recovery head
@@ -676,11 +828,11 @@ relative to the recovery head `22bd94dc959f11fe49c8bef8cd2a836140aadff7`
     current-state assertion in section 14 with durable wording that points to
     PR #960 for live thread state; records the final-head review of the
     recovery head substantively, without its review identifiers, and the
-    rejection of its topology premise (section 5, decisions 40-43); makes this
-    correction the current stage; reframes statements that would otherwise
-    describe the recovery commit as the commit containing this report; and
-    records the correction's validation (section 9). All other historical
-    evidence is preserved.
+    rejection of its topology premise (section 5, decisions 40-43); made that
+    correction the then-current stage of this report; reframed statements
+    that would otherwise describe the recovery commit as the commit containing
+    the report; and recorded the correction's validation (section 9). All
+    other historical evidence was preserved.
   - within authorized write budget: YES
 
 Byte-identical to the recovery head through the transient-state correction:
@@ -837,8 +989,8 @@ Amendment-6/7 candidate changes in the historical content-approved candidate
   - within authorized write budget: YES
 
 Byte-identical to the recovery head through the Amendment-6/7 candidate, the
-approval-state commit, the control-record recovery and the transient-state
-correction:
+approval-state commit, the control-record recovery, the transient-state
+correction and the factual clarification:
 
 - ADR-0008 - blob `622060ad90eec41c792f110c373efffbb11a4b56`;
 - ADR-0010 - blob `aca2142a3387785e80db908b3a5c1b0afd82ab51`;
@@ -1017,7 +1169,11 @@ Files deleted, moved or renamed: NONE
 
 PASS
 
-The transient-state correction differs from the recovery head
+The factual clarification differs from the transient-state correction head
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` in exactly the two authorized
+paths and from refreshed `feature/worker` in exactly the six cumulative PR
+paths (section 9, "Factual-clarification validation"). The transient-state
+correction differed from the recovery head
 `22bd94dc959f11fe49c8bef8cd2a836140aadff7` in exactly the one authorized
 report path and from refreshed `feature/worker` in exactly the six cumulative
 PR paths (section 9, "Transient-state correction validation"). The
@@ -1049,9 +1205,11 @@ and `5998119577`), its approval-state stage (#958 comment `5999579357`), the
 Amendment-4/5 recovery stage (#958 comment `6013267369`), the Amendment-6/7
 candidate stage (#958 comment `6021574322`), the Amendment-6/7 approval-state
 stage (#958 comment `6022486352`), the control-record recovery stage (#958
-comment `6022850916`) and the transient-state correction stage (#958 comment
-`6036961945`). This matrix states only what had been done when the commit that
-contains this report was created.
+comment `6022850916`), the transient-state correction stage (#958 comment
+`6036961945`) and the factual-clarification stage (#958 comment
+`6041301223`). This matrix states only what had been done when the commit that
+contains this report was created; it is historical stage-time evidence and
+does not describe the current PR #960 lifecycle gate.
 
 Activation-epoch candidate stage - historical, completed before the
 approval-state commit:
@@ -1176,8 +1334,8 @@ transient-state correction:
   review of the recovery head, and returned it to Draft before the
   transient-state correction (section 2)
 
-Transient-state correction stage - done up to and including the creation of
-the commit that contains this report:
+Transient-state correction stage - historical, completed before the factual
+clarification:
 
 - repository inspection: USED (read-only verification of the exact refs,
   PR #960 open, draft, unmerged and mergeable with head
@@ -1188,42 +1346,78 @@ the commit that contains this report:
   GitHub; all matched the authorization; current review-thread state remains
   GitHub-owned)
 - PR creation/update: NOT USED (control had already returned PR #960 to
-  draft; no PR-state, title or description change is authorized at this
+  draft; no PR-state, title or description change was authorized at that
   stage)
 - source edit: USED (this report only)
 - new file creation: NOT USED (not authorized)
 - file deletion/move/rename: NOT USED (not authorized)
 - branch creation: NOT USED (not authorized; a detached local worktree at the
-  recovery head was used for construction, and the existing task branch is
+  recovery head was used for construction, and the existing task branch was
   the fast-forward target)
-- commit: USED (the single-parent correction commit that contains this
+- commit: USED (the single-parent correction commit
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`)
+- push: USED (one non-force fast-forward of `feature/async/adr-0012` from
+  `22bd94dc959f11fe49c8bef8cd2a836140aadff7` to the correction commit; the
+  remote head, tree, parent and protected blobs were verified)
+- Draft -> Ready: NOT USED by the implementing agent; control later separately
+  marked PR #960 Ready, which triggered the configured final-head automated
+  review of the correction head, and returned it to Draft before the factual
+  clarification (section 2)
+
+Factual-clarification stage - done up to and including the creation of the
+commit that contains this report:
+
+- repository inspection: USED (read-only verification of the exact refs,
+  PR #960 open, draft, unmerged and mergeable with head
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` and target `feature/worker`, the
+  correction head's tree and single parent, the ADR-0012, report,
+  decision-register and changelog blobs at that head, the six-path cumulative
+  footprint, the presence of the classification and authorization records on
+  #958 with no later superseding control record, and, as stage-time
+  evidence, the PR #960 review-thread state in GitHub; all matched the
+  authorization; current review-thread state remains GitHub-owned)
+- PR creation/update: NOT USED (control had already returned PR #960 to
+  draft; no PR-state, title or description change is authorized at this
+  stage)
+- source edit: USED (ADR-0012 and this report only)
+- new file creation: NOT USED (not authorized)
+- file deletion/move/rename: NOT USED (not authorized)
+- branch creation: NOT USED (not authorized; a detached local worktree at the
+  transient-state correction head was used for construction, and the existing
+  task branch is the fast-forward target)
+- commit: USED (the single-parent clarification commit that contains this
   report)
 
-Authorized post-commit actions for the correction commit - GitHub-owned
+Authorized post-commit actions for the clarification commit - GitHub-owned
 lifecycle evidence under `ADR-0005`, not self-recorded here:
 
 - the non-force push that fast-forwards `feature/async/adr-0012` from
-  `22bd94dc959f11fe49c8bef8cd2a836140aadff7` to the correction commit;
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` to the clarification commit;
 - post-push read-only verification of the remote head, tree, direct parent,
-  ADR-0012 blob, changed path set, cumulative footprint and PR #960 state,
-  and that no review thread was replied to, resolved or dismissed;
+  ADR-0012 and report blobs, changed path set, cumulative footprint and
+  PR #960 state, and that no review thread was replied to, resolved or
+  dismissed;
 - the automatic PR CI that the push causes.
 
 These actions necessarily follow the creation of the commit that contains this
 report. Their outcomes are recorded in the post-publication handoff and the
 GitHub ledger rather than written into the source tree as completed.
 
-Not authorized for the implementing agent at the transient-state correction
-stage, and separate later gates where applicable:
+Not authorized for the implementing agent at the factual-clarification stage,
+each a separate controlled lifecycle category where applicable (historical
+stage-time evidence; GitHub, through #958 and PR #960, is authoritative for
+the current state of each):
 
-- any edit to ADR-0012, the decision register, the changelog or any path other
-  than this report: NOT USED (not authorized)
-- independent inspection of the correction head: NOT USED (later gate; never
-  on the implementing agent's authority)
+- any edit to the decision register, the changelog or any path other than
+  ADR-0012 and this report: NOT USED (not authorized)
+- any ADR-0012 change outside the classified factual-clarification scope:
+  NOT USED (not authorized)
+- independent exact-head review or inspection: NOT USED (never on the
+  implementing agent's authority)
 - PR #960 title or description update: NOT USED (not authorized at this stage)
 - Draft -> Ready: NOT USED (not authorized)
-- any second correction commit or architecture change: NOT USED (not
-  authorized)
+- any second clarification commit or material architecture change: NOT USED
+  (not authorized)
 - issue/comment mutation: NOT USED (not authorized)
 - review-thread resolution/dismissal/reply: NOT USED (not authorized)
 - manual CI dispatch/rerun: NOT USED (not authorized)
@@ -1255,21 +1449,22 @@ classifies as documentation-only, so the `classify` and `check-changelog` jobs
 are expected to run and pass while the build, test, lint, format, migration and
 Docker build/push jobs are expected to be skipped. No container-registry push
 and no migration execution is expected. Under Amendment 3 C2/C11, Amendments
-4-5, Amendments 6-7 and the transient-state correction authorization,
-configured Codex/app review is not expected from a push to a draft PR and is
-not relied upon at the Amendment-6/7 candidate, approval-state, control-record
-recovery or transient-state correction stage; fresh final-head Codex/app
-review is expected only at a later, separately authorized Draft -> Ready
-transition. The actual job outcomes for the correction commit exist only after
+4-5, Amendments 6-7, the transient-state correction authorization and the
+factual-clarification authorization, configured Codex/app review is not
+expected from a push to a draft PR and is not relied upon at the Amendment-6/7
+candidate, approval-state, control-record recovery, transient-state
+correction or factual-clarification stage; configured Codex/app review runs on
+separately authorized Ready transitions, which are GitHub-owned lifecycle
+events. The actual job outcomes for the clarification commit exist only after
 its publication; they are GitHub-owned lifecycle evidence recorded in the pull
 request, the post-publication handoff and the owning issue, not in this file.
 If an automatic workflow unexpectedly intends to execute a migration or
 publish an image rather than skip, that is a HOLD condition.
 
 Historical automatic CI for earlier PR heads, as recorded by earlier stages of
-this report or read back from GitHub at the transient-state correction stage,
-followed the same documentation-only classification, with no manual dispatch
-or rerun:
+this report or read back from GitHub at the transient-state correction or
+factual-clarification stage, followed the same documentation-only
+classification, with no manual dispatch or rerun:
 
 ```text
 7f7e62824eb40308688b46351ffea182e9e52942: 4 success, 6 skipped
@@ -1281,6 +1476,7 @@ c046e6bf6510f24ee1231f86293a3d499bceed7e: 4 success (classify x3, check-changelo
 b596536e7db0d6b8ace0a42fdd26bff42cabf104: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (content-approved Amendment-6/7 candidate)
 609a01427847233b7280557baa61825ac2079865: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (Amendment-6/7 approval-state head)
 22bd94dc959f11fe49c8bef8cd2a836140aadff7: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (control-record recovery head)
+9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (transient-state correction head)
 ```
 
 Manually initiated external actions (anything the implementing agent
@@ -1446,8 +1642,9 @@ Amendment-6/7 approval-state stage (historical approval-state head
     candidate-state paragraphs, replaced by the approval statement, the
     approver/date and one paragraph stating that the approval does not by
     itself make the ADR repository-authoritative and that ADR-0013
-    programme-local reliance on this exact version is separate and not yet
-    effective. The historical-approval, architecture-only, authority-condition,
+    programme-local reliance on this exact version is separate and not
+    effective until its own conditions are satisfied. The
+    historical-approval, architecture-only, authority-condition,
     partial-supersession and amendment paragraphs were already true in the
     approved state (decision 9) and are unchanged.
 32. The decision-register `Last updated: 2026-10-06` header already carries the
@@ -1502,8 +1699,8 @@ Report-only control-record recovery (historical recovery head
     its own final blob; section 1 records them here as historical facts
     because the recovery head is the transient-state correction's parent.
 
-Report-only transient-state correction (the commit that contains this
-report):
+Report-only transient-state correction (historical correction head
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`):
 
 40. The committed report records review-thread evidence only as durable
     substantive dispositions and as historical stage-time inspection evidence
@@ -1530,15 +1727,71 @@ report):
 43. The correction changes only this report. ADR-0012
     (`a7d95ca918f418d596432071c8ba78a33c2630a9`), its architecture, approval
     state, approver and approval date, the decision register and the changelog
-    are byte-identical to the recovery head, so the existing CTO
-    exact-final-blob approval of that blob remains valid; the correction is
-    not an ADR amendment, another candidate or another approval-state commit.
-    Because this report now lives in the correction commit, statements that
-    described the recovery commit as the commit containing this report are
-    reframed as history, and the recovery commit's identities, now the
-    correction parent, are recorded in section 1 as historical facts. This
-    report does not self-pin the correction commit's SHA, its tree or its own
-    final blob.
+    were byte-identical to the recovery head; the correction was not an ADR
+    amendment, another candidate or another approval-state commit. Because
+    the report then lived in the correction commit, statements that described
+    the recovery commit as the commit containing the report were reframed as
+    history, and the recovery commit's identities, the correction parent,
+    were recorded in section 1 as historical facts. The correction report did
+    not self-pin the correction commit's SHA, its tree or its own final blob;
+    section 1 records them here as historical facts because the correction
+    head is the factual clarification's parent.
+
+Factual clarification and durable-report correction (the commit that contains
+this report):
+
+44. The ADR-0012 change is confined to the CTO-classified factual
+    clarification of prior approved blob
+    `a7d95ca918f418d596432071c8ba78a33c2630a9`: the unconditional sentence
+    "exactly one durable disposition exists for each `(event_id,
+    route_key)`" in section 3.2, section 3.5 and invariant 8 is replaced by
+    "at most one durable disposition may exist for a given
+    `(event_id, route_key)`", each time paired with the already-selected
+    completion rule that an eligible route obligation remains owed until it
+    has received exactly one disposition. The smallest wording that removes
+    the contradiction was chosen; no other sentence of the ADR changes.
+45. The clarification expresses semantics the ADR already selected rather
+    than selecting new behaviour: the surrounding rule that the engine must
+    eventually establish a durable disposition for every route for which a
+    committed event is eligible is unchanged (section 3.2); in-epoch
+    contract mismatch, refused historical enrollment and approved
+    reconciliation/divergence already stated that no disposition is created
+    and that the `(event_id, route_key)` slot stays unused; validated
+    historical enrollment already created "the one allowed" disposition; and
+    the uniqueness boundary across epochs and revisions, duplicate prevention
+    and job idempotency were already stated as they remain. Had the
+    contradiction required selecting new behaviour, the stage would have
+    stopped as exceeding the factual-clarification boundary.
+46. ADR-0012 keeps `Status: APPROVED`, `Approved by: Javi, CTO` and
+    `Approval date: 2026-10-06`, and section 12 is unchanged, because the
+    Amendments rules of `docs/engineering/decisions/README.md` let a factual
+    clarification update an approved ADR in place with the existing
+    architecture approval remaining; no `PROPOSED` candidate, approval-state
+    commit, changelog entry or register change belongs to this stage, and
+    the clarified ADR blob is recorded in section 1 for independent control
+    inspection because it does not depend on this report's bytes.
+47. The committed report records the ADR-0012 authority condition and the
+    distinct controlled lifecycle categories (independent exact-head review,
+    CTO merge authorization where required, guarded merge, programme-local
+    reliance, migration, deployment, activation and observation) but not
+    which PR #960 gate is currently pending, satisfied or blocked: GitHub,
+    through #958 and PR #960, owns that state (`docs/engineering/AGENTS.md`;
+    `ADR-0005`). Historical stages record what they did or did not perform
+    as stage-time evidence only. No sentence of this report becomes false
+    when PR metadata is reconciled, the PR changes Draft/Ready state, an
+    automated or independent review runs, a thread is adjudicated, merge
+    authorization is recorded or the PR merges.
+48. The final-head automated review of the transient-state correction head
+    and the CTO classification are recorded substantively (section 2,
+    section 14) without review, thread or review-comment identifiers,
+    consistent with decisions 15 and 41; the classification and authorization
+    records are identified through owning issue #958 as every stage
+    authorization is. Because this report now lives in the clarification
+    commit, statements that described the transient-state correction commit
+    as the commit containing this report are reframed as history, and that
+    commit's identities, now the clarification parent, are recorded in
+    section 1 as historical facts. This report does not self-pin the
+    clarification commit's SHA, its tree or its own final blob.
 
 List any deviation from the specification requiring authorization:
 
@@ -1584,11 +1837,15 @@ List any deviation from the specification requiring authorization:
   authorization exactly; no second path, new file, deletion, ADR, register or
   changelog change, second commit, amend, rebase, squash, force push or history
   rewrite was needed or performed at that stage.
-- Transient-state correction stage: NONE. The correction follows its separate
-  authorization exactly; no second path, new file, deletion, ADR, register or
-  changelog change, second commit, amend, rebase, squash, force push or history
-  rewrite was needed or performed before the commit that contains this report
-  was created.
+- Transient-state correction stage: NONE. The correction followed its
+  separate authorization exactly; no second path, new file, deletion, ADR,
+  register or changelog change, second commit, amend, rebase, squash, force
+  push or history rewrite was needed or performed at that stage.
+- Factual-clarification stage: NONE. The clarification follows its separate
+  authorization exactly; no third path, new file, deletion, register or
+  changelog change, ADR change outside the classified scope, second commit,
+  amend, rebase, squash, force push or history rewrite was needed or performed
+  before the commit that contains this report was created.
 
 ## 6. Database and migration effects
 
@@ -1606,7 +1863,8 @@ GraphQL/API changes: NONE
 Generated schema/client updates: NONE
 Backwards compatibility: unaffected; documentation/architecture only
 Deprecations: NONE
-Cross-repository dependencies: NONE for this correction. The verified BE-04
+Cross-repository dependencies: NONE for the corrections and clarification
+recorded here. The verified BE-04
 per-consumer impact record for the ADR's later legacy-contract retirement is
 preserved unchanged in Appendix A; neither the activation-epoch correction nor
 the route-contract-revision correction changes a released contract or adds a
@@ -1640,8 +1898,10 @@ approval-state validation" records the validation of the historical
 approval-state commit `609a01427847233b7280557baa61825ac2079865`.
 "Control-record recovery validation" records the validation of the historical
 recovery commit `22bd94dc959f11fe49c8bef8cd2a836140aadff7`. "Transient-state
-correction validation" at the end of this section records the validation of
-the commit that contains this report.
+correction validation" records the validation of the historical correction
+commit `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`. "Factual-clarification
+validation" at the end of this section records the validation of the commit
+that contains this report.
 
 Validation environment for the activation-epoch candidate: a full local Git
 worktree of `thoth-pub/thoth`,
@@ -2515,8 +2775,9 @@ a7d95ca918f418d596432071c8ba78a33c2630a9
 The approval-state ADR-0012, decision-register and changelog blobs were
 deterministic and did not depend on the approval-state report's bytes, so they
 were recorded above; the ADR-0012 blob
-`a7d95ca918f418d596432071c8ba78a33c2630a9` is the exact final blob that still
-requires CTO exact-final-blob confirmation. The approval-state report's own
+`a7d95ca918f418d596432071c8ba78a33c2630a9` was the exact final blob presented
+for CTO exact-final-blob confirmation at that stage. The approval-state
+report's own
 final blob, the approval-state tree and the approval-state commit SHA depended
 on that report's bytes and were not self-pinned in it; they were verified
 against the remote head after push and recorded in the post-publication
@@ -2794,13 +3055,16 @@ Approved by: Javi, CTO
 Approval date: 2026-10-06
 ```
 
-This report's own final blob, the correction tree and the correction commit
-SHA depend on this report's bytes and are not self-pinned; they are verified
-against the remote head after push and recorded in the post-publication
-handoff.
+The correction report did not self-pin its own final blob, the correction
+tree or the correction commit SHA; they were verified against the remote head
+after push and recorded in the post-publication handoff, and section 1 now
+records them as historical facts: commit
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`, tree
+`862a8e32207f1e0f61cab532b08b65034979f5ac`, report blob
+`81db6d33bc0d103e149dd99e1f35150f35c079e3`.
 
-Required topology of the correction commit, checked after it is created and
-before any push, with results recorded in the post-publication handoff:
+Required topology of the correction commit, checked after it was created and
+before push; the published correction commit satisfied every requirement:
 
 ```text
 git rev-list --parents -n 1 HEAD
@@ -2814,6 +3078,240 @@ required: exit 0; no output
 
 git diff --name-only 22bd94dc959f11fe49c8bef8cd2a836140aadff7 HEAD
 required: exactly this report
+
+git diff --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe HEAD
+required: exactly the six cumulative PR paths
+```
+
+### Factual-clarification validation
+
+Environment: a full local Git worktree of `thoth-pub/thoth`, detached at the
+historical transient-state correction head
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` (tree
+`862a8e32207f1e0f61cab532b08b65034979f5ac`), with every required object
+present locally. Immediately before construction, read-only GitHub inspection
+showed `develop` and `feature/worker` at
+`b44303c214498baf76c9d9a0a7cab374377f9cbe`, `feature/async/adr-0012` at
+`9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` with single parent
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7`, the ADR-0012, report,
+decision-register and changelog blobs named by the clarification
+authorization at that head, PR #960 open, draft, unmerged and mergeable with
+that head and target `feature/worker`, the cumulative PR footprint exactly the
+six paths, the classification and authorization records present on #958 with
+no later control record, and PR #960 review-thread state that matched the
+stage authorization (stage-time evidence; current review-thread state remains
+GitHub-owned). ADR-0012 was edited first and its deterministic blob recorded;
+then only this report was edited; both were staged, and every check below ran
+against that exact final staged index before the clarification commit was
+created from it; the report's numeric line counts below were filled in and
+the complete check set rerun with identical results.
+
+Whitespace:
+
+```text
+git diff --cached --check
+exit 0; no output
+
+git diff --cached --check 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a
+exit 0; no output
+
+git diff --cached --check b44303c214498baf76c9d9a0a7cab374377f9cbe
+exit 0; no output
+```
+
+Clarification delta against the transient-state correction head (exactly the
+two authorized paths):
+
+```text
+git diff --cached --name-only 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+
+git diff --cached --name-status 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a
+M	docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+M	docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+
+git diff --cached --numstat 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a
+738	196	docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+17	12	docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+```
+
+Cumulative footprint against refreshed `feature/worker` (exactly the six PR
+paths):
+
+```text
+git diff --cached --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md
+docs/engineering/decisions/ADR-0010-staff-operations-console.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+docs/engineering/decisions/decision-register.md
+```
+
+Exact ADR-0012 delta from the prior approved blob
+`a7d95ca918f418d596432071c8ba78a33c2630a9` to the clarified blob
+`2db08058552ce901548ef3f71af4a294f5af7e61` (three hunks; nothing else changes):
+
+```text
+git diff --cached -U0 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a -- docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+@@ -359,6 +359,8 @@ in-epoch contract-mismatch anomaly for every route for which it is mismatched.
+-Exactly one durable disposition exists for each `(event_id, route_key)`. The
+-normal disposition materializes a job: a materialized disposition points to
+-exactly one job and remains unique on `(event_id, route_key)` regardless of
+-whether that job is pending, running, waiting or terminal. The only alternative
+-is the explicit, authorized and audited terminal non-materialized disposition
+-described below, which points to no job (section 3.5 and invariant 8).
++At most one durable disposition may exist for a given `(event_id, route_key)`,
++and an eligible route obligation remains owed, visible in the route backlog,
++until it has received that one disposition. The normal disposition
++materializes a job: a materialized disposition points to exactly one job and
++remains unique on `(event_id, route_key)` regardless of whether that job is
++pending, running, waiting or terminal. The only alternative is the explicit,
++authorized and audited terminal non-materialized disposition described below,
++which points to no job (section 3.5 and invariant 8).
+@@ -983,2 +985,3 @@ distinction between retry, replay and current-state redistribution.
+-Event routing identity and job idempotency are related but distinct. Exactly one
+-durable disposition exists for each `(event_id, route_key)`. A successfully
++Event routing identity and job idempotency are related but distinct. At most
++one durable disposition may exist for a given `(event_id, route_key)`, and an
++eligible route obligation eventually receives exactly one. A successfully
+@@ -1827,4 +1830,6 @@ execution until a separate approved architecture decision says otherwise.
+-8. Exactly one durable disposition exists for each `(event_id, route_key)`.
+-   A successfully materialized disposition maps to exactly one job; many
+-   materialized dispositions may map to one not-yet-started job only under an
+-   explicit durable coalescing rule. An explicit authorized/audited terminal
++8. At most one durable disposition may exist for a given
++   `(event_id, route_key)`; an eligible route obligation remains owed until it
++   has received exactly one. A successfully materialized disposition maps to
++   exactly one job; many materialized dispositions may map to one
++   not-yet-started job only under an explicit durable coalescing rule. An
++   explicit authorized/audited terminal
+
+git diff --cached 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a -- docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | grep -c -E '^[-+](Status:|Approved by:|Approval date:|## 12)'
+0
+
+git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | sed -n 3,6p
+Status: APPROVED
+Date: 2026-09-29
+Approved by: Javi, CTO
+Approval date: 2026-10-06
+```
+
+ADR semantic validation of the clarified blob (line numbers refer to that
+blob):
+
+```text
+git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | grep -n -i -E 'exactly one durable|exactly one disposition|each \(event_id|every \(event_id'
+(no output)
+
+git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | grep -n -i 'at most one'
+lines 274, 322 (epochs, pre-existing), 359 (section 3.2), 1830 (invariant 8);
+section 3.5 carries the same rule across lines 985-987
+```
+
+- cardinality: at most one durable disposition per `(event_id, route_key)`
+  (lines 359, 985-986, 1830-1831), with the uniqueness boundary spanning every
+  epoch and revision and excluding their identifiers (lines 367-373,
+  1838-1841);
+- completion: the engine must eventually establish a durable route disposition
+  for every route for which a committed event is eligible (line 356), and an
+  eligible route obligation remains owed until it has received exactly one
+  (lines 360-361, 987, 1831-1832);
+- case 1, ineligible event: no obligation and no anomaly (lines 334-341), so
+  no slot is consumed;
+- case 2, eligible backlog: an eligible obligation may temporarily have no
+  disposition while owed and visible (line 360; undispositioned eligible-event
+  backlog, line 552);
+- case 3, in-epoch contract mismatch: no disposition or job, slot not consumed
+  (lines 533-534; invariant 35, lines 1911-1912);
+- case 4, refused historical enrollment: no disposition or job, slot unused
+  (lines 589-591; invariant 6, lines 1826-1827);
+- case 5, validated enrollment: creates the one allowed disposition (lines
+  540-541; validation requirement, lines 2365-2366);
+- case 6, approved reconciliation/divergence: records why no route disposition
+  is created (lines 543-545; lines 2328-2330);
+- case 7, already-dispositioned event: no second disposition through
+  enrollment, reactivation, revision transition or replay (lines 595-600,
+  1838-1841), and materialized and terminal non-materialized dispositions
+  cannot coexist (lines 992-994, 1837-1838).
+
+None of the seven cases is ambiguous or contradicted by the clarified text,
+and the clarification selects no behaviour that the prior approved blob did
+not already select.
+
+Report lifecycle validation (the current-gate formulations named by the
+clarification authorization are described rather than restated, so that this
+record does not reintroduce them):
+
+```text
+git show :docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md | grep -n -i -E '<still-requires phrase>|<requires-in-order phrase>|<current-gate phrase>|<later-gate phrase>|<not-yet phrase>|<awaits phrase>|<pending phrase>'
+every match read: each is inside this validation record's own description,
+historical stage-time evidence phrased as such, a quotation of a historical
+register or ADR state, or a durable rule; none states which PR #960
+review, Ready, thread-adjudication or merge-authorization gate is currently
+pending or completed
+```
+
+Final-head review identifiers (the review, thread and review-comment
+identifiers of the final-head automated review of the transient-state
+correction head are described rather than restated so that this report does
+not contain them):
+
+```text
+git show :docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md | grep -c -F -e '<final-head review identifier>' -e '<first thread identifier>' -e '<second thread identifier>' -e '<first review-comment identifier>' -e '<second review-comment identifier>'
+0
+```
+
+Every other path byte-identical to the transient-state correction head:
+
+```text
+git diff --cached --name-only 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a -- . ':!docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md' ':!docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md'
+(no output)
+```
+
+Staged blob identities (condensed `git ls-files -s` output; mode and stage
+omitted, paths abbreviated) and the ADR-0012 `git hash-object --no-filters`
+result:
+
+```text
+ADR-0012 (APPROVED, clarified)                        2db08058552ce901548ef3f71af4a294f5af7e61
+decision-register.md (unchanged)                      b358acd5bbedf7482cfdc7b71866815c852773af
+CHANGELOG.md (unchanged)                              e2947275d19d3abb351a98854268d7db213370d7
+ADR-0008                                              622060ad90eec41c792f110c373efffbb11a4b56
+ADR-0010                                              aca2142a3387785e80db908b3a5c1b0afd82ab51
+ADR-0013                                              d928f957bdf775d03e99fc73888ec8e2dec5f80b
+decisions/README.md                                   de7769a4ee6a50c79c1b57ae6993d7eb4fa673d7
+CTRL-ADR-AMEND-01 implementation report               7bf7425f0527dbaa72e718df5264e399035a148b
+CTRL-ADR-PR-FIRST-01 implementation report            d86cf215866750979eafea040426c51374d5155c
+ADR-0005                                              bdaa976e4893b1fc45f994236f9e56d433212d63
+docs/engineering/AGENTS.md                            e194b14e8c4fbb298db7ca6c38aebeb69547a29a
+implementation-report-template.md                     0ae39d3892bbca5b0ff90dc7ffa70038662351bc
+
+git hash-object --no-filters docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+2db08058552ce901548ef3f71af4a294f5af7e61
+```
+
+This report's own final blob, the clarification tree and the clarification
+commit SHA depend on this report's bytes and are not self-pinned; they are
+verified against the remote head after push and recorded in the
+post-publication handoff.
+
+Required topology of the clarification commit, checked after it is created
+and before any push, with results recorded in the post-publication handoff:
+
+```text
+git rev-list --parents -n 1 HEAD
+required: <clarification commit> 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a   (exactly one parent)
+
+git rev-parse HEAD^{tree}
+required: equal to the git write-tree output of the validated index
+
+git diff --check 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a HEAD
+required: exit 0; no output
+
+git diff --name-only 9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a HEAD
+required: exactly ADR-0012 and this report
 
 git diff --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe HEAD
 required: exactly the six cumulative PR paths
@@ -2886,6 +3384,20 @@ head, and no identifier of the control adjudication that classified it, occurs
 in this report; confirmed that the report's source lineage is unchanged; and
 read the report for statements that would become false once it moves into the
 correction commit and reframed them.
+Factual-clarification stage: compared the staged ADR-0012 with the prior
+approved blob `a7d95ca918f418d596432071c8ba78a33c2630a9` hunk by hunk (three
+hunks, each one cardinality sentence and its rewrapped continuation);
+confirmed for each of the seven disposition cases listed in section 9 that
+the clarified text states it without ambiguity and that the surrounding
+mismatch, enrollment, divergence, uniqueness-boundary and idempotency text is
+byte-identical; confirmed that header lines 3-6 and section 12 are unchanged;
+searched the report for every current-gate formulation named by the
+clarification authorization and reframed each as the durable lifecycle model
+or as explicitly historical stage evidence; confirmed by fixed-string search
+that no review, thread or review-comment identifier of the final-head review
+of the transient-state correction head occurs in this report; and read the
+report for statements that would become false once it moves into the
+clarification commit and reframed them.
 Evidence link/screenshot/log reference: the local validation in section 9.
 Pull-request diffs of earlier heads, including the published activation-epoch
 candidate `95769537cdc9871e42f9f3e5443604a96beb74da`, its approval-state head
@@ -2893,10 +3405,11 @@ candidate `95769537cdc9871e42f9f3e5443604a96beb74da`, its approval-state head
 `9db91af7bf3d9f969556c819187420fc31d25c10`, the content-approved
 Amendment-6/7 candidate `b596536e7db0d6b8ace0a42fdd26bff42cabf104`, the
 Amendment-6/7 approval-state head `609a01427847233b7280557baa61825ac2079865`
-and the control-record recovery head
-`22bd94dc959f11fe49c8bef8cd2a836140aadff7`, are historical evidence; the live
-PR #960 diff of the correction commit exists only after its publication and is
-GitHub-owned lifecycle evidence.
+the control-record recovery head
+`22bd94dc959f11fe49c8bef8cd2a836140aadff7` and the transient-state correction
+head `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a`, are historical evidence; the
+live PR #960 diff of the clarification commit exists only after its
+publication and is GitHub-owned lifecycle evidence.
 
 ## 11. CI
 
@@ -2906,9 +3419,10 @@ build, test, lint, format, migration and Docker jobs skipped).
 Checks: as listed in section 4.3.
 Failures or warnings: NONE EXPECTED. Under Amendment 3 C10, the Amendment-4/5
 recovery authorization, the Amendment-6/7 candidate and approval-state
-authorizations, the control-record recovery authorization and the
-transient-state correction authorization, an automatic CI failure, or any
-migration execution or Docker publication, is a HOLD condition.
+authorizations, the control-record recovery authorization, the
+transient-state correction authorization and the factual-clarification
+authorization, an automatic CI failure, or any migration execution or Docker
+publication, is a HOLD condition.
 
 ## 12. Rollout and rollback
 
@@ -2916,47 +3430,47 @@ Initial state after merge: after a guarded merge into `feature/worker`, the
 approved ADR-0012 version would be reachable from the programme integration
 branch only. It is not repository-authoritative until its authority condition,
 including reachability from `develop`, is met, and ADR-0013 programme-local
-reliance additionally requires the programme-pin conditions on #957. Merge
-itself still requires, in order: independent inspection of the exact
-transient-state correction head, at which the unchanged ADR-0012 blob
-`a7d95ca918f418d596432071c8ba78a33c2630a9` keeps its existing CTO
-exact-final-blob approval; any separately authorized PR #960 metadata
-reconciliation; separately authorized Draft -> Ready; fresh automatic
-final-head CI and configured Codex/app review; adjudication of every
-historical and current review thread; fresh independent CRITICAL exact-head
-review; separate CTO exact-head merge authorization; then the guarded merge
-and programme-pin/reliance reconciliation.
+reliance additionally requires the programme-pin conditions on #957.
+Independent exact-head review of whichever head is presented for merge, CTO
+merge authorization where the task's risk requires it, the guarded merge,
+programme-pin/reliance reconciliation and any later migration, deployment,
+activation and observation are distinct controlled lifecycle categories under
+the repository release gates and the task specification; GitHub, through #958
+and PR #960, is authoritative for which of them is pending, satisfied or
+blocked for any head, and this report does not record that state.
 Activation required: NONE. Merging the eventual approved version would make no
 runtime, schema, provider or deployment change.
 Feature flag/configuration: NONE
 Migration sequence: NONE
-Rollback/disable procedure: before merge, stop at the current gate; no history
-rewrite, force push or amend is permitted. The Amendment-6/7 authorizations
-permitted exactly one candidate commit and exactly one approval-state commit,
-the control-record recovery authorization permitted exactly one report-only
-recovery commit, and the transient-state correction authorization permits
-exactly one report-only correction commit; if the correction head needs
-correction, those authorizations are exhausted and a fresh CTO authorization
-is required (Amendment 3 C10; Amendments 6-7).
+Rollback/disable procedure: before merge, stop at whichever lifecycle gate
+GitHub records as pending; no history rewrite, force push or amend is
+permitted. The Amendment-6/7 authorizations permitted exactly one candidate
+commit and exactly one approval-state commit, the control-record recovery and
+transient-state correction authorizations each permitted exactly one
+report-only commit, and the factual-clarification authorization permits
+exactly one two-path clarification commit; any further source correction
+exhausts those authorizations and requires a fresh CTO authorization
+(Amendment 3 C10; Amendments 6-7; `docs/engineering/decisions/README.md`).
 Monitoring required: NONE
 
 ## 13. Known limitations and deferred work
 
-- This transient-state correction stage does not include independent
-  inspection of the correction head, PR #960 title/description
-  reconciliation, Draft -> Ready, the fresh final-head Codex/app review,
-  adjudication of the historical and current review threads, the fresh
-  independent exact-head review or merge. The PR #960 title and description
-  were last reconciled at an earlier stage; whether they match the correction
-  head is GitHub-owned lifecycle state, and their reconciliation requires a
-  separate authorization.
-- Programme-local reliance on ADR-0012 under ADR-0013 is not effective. The
-  stale #957 pin must be superseded using the corrected exact ADR-0012 blob and
-  the fresh independently reviewed PR #960 head; dependent `feature/worker`
-  slices must be rechecked and recorded as affected or `NONE` with the inspected
-  evidence (Amendment 1 A9, Amendment 2 B9, Amendment 3 C9) before that
-  supersession; ADR-0013 conditions 7 and 8 then follow the actual merge and
-  reachability evidence.
+- Historical stage-time evidence: at the factual-clarification stage the
+  implementing agent performed no independent review, PR #960
+  title/description reconciliation, Draft/Ready change, automated-review
+  request, thread adjudication, exact-head review or merge (section 4.2).
+  Those are separate controlled lifecycle categories; GitHub, through #958 and
+  PR #960, is authoritative for their current state, including whether the
+  PR title and description match the current head.
+- Programme-local reliance on ADR-0012 under ADR-0013 is exact-version-bound
+  and separately controlled. Any #957 pin bound to an earlier ADR-0012 blob or
+  PR #960 head is stale for the clarified version until superseded using the
+  exact clarified ADR-0012 blob and an independently reviewed PR #960 head;
+  dependent `feature/worker` slices must be rechecked and recorded as affected
+  or `NONE` with the inspected evidence (Amendment 1 A9, Amendment 2 B9,
+  Amendment 3 C9) before that supersession; ADR-0013 conditions 7 and 8 follow
+  the actual merge and reachability evidence. #957 is authoritative for the
+  current pin state.
 - The repository-wide Route-B recovery ambiguity raised on PR #967 (finding
   `4168223564`) is not resolved here. For #958, Amendment 3 C10 fails closed:
   any correction needing another candidate commit, another approval-state
@@ -2966,9 +3480,13 @@ Monitoring required: NONE
   so was the final-head route-contract finding (Amendments 6-7, one candidate
   commit and one approval-state commit). The approval-state control-record
   defect was likewise corrected only under a separate authorization for one
-  report-only recovery commit, and the transient review-thread-state defect
-  found by the final-head review of that recovery head only under a separate
-  authorization for this one report-only correction commit.
+  report-only recovery commit, the transient review-thread-state defect found
+  by the final-head review of that recovery head only under a separate
+  authorization for one report-only correction commit, and the overbroad
+  disposition-cardinality sentence and remaining live-gate wording found by
+  the final-head review of that correction head only under the CTO
+  factual-clarification classification and a separate authorization for this
+  one two-path clarification commit.
 - Exact table, column, index and encoding names for route-contract revisions,
   anomalies and capability declarations are deliberately left to the future
   shared-engine implementation specification.
@@ -2977,8 +3495,8 @@ Monitoring required: NONE
   `b4670b8b7cb6d61bc42fb8fd2c40b1d8acf70b20` (Appendix A) remains historical;
   section 9 is exact-worktree evidence for the activation-epoch candidate, its
   approval-state commit, the recovery commit, the Amendment-6/7 candidate, its
-  approval-state commit, the control-record recovery and this transient-state
-  correction.
+  approval-state commit, the control-record recovery, the transient-state
+  correction and this factual clarification.
 
 ## 14. Unresolved issues
 
@@ -3026,24 +3544,38 @@ Monitoring required: NONE
   identified that the recovery report treated the current number and
   resolved/unresolved state of PR #960 review threads as durable repository
   truth; control accepted it as a valid blocking control-record defect, and
-  the correction commit that contains this report addresses only that defect.
+  the transient-state correction commit
+  `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` addressed only that defect.
+- The configured final-head automated review of the transient-state
+  correction head `9b4bb1b02204aa2267a4c0b75016fa96c5e22f4a` opened two
+  further threads, identified here substantively only; control accepted both
+  as valid and blocking. One found that ADR-0012's unconditional "exactly one
+  durable disposition exists for each `(event_id, route_key)`" wording in
+  section 3.2, section 3.5 and invariant 8 was broader than the eligibility,
+  backlog, mismatch, enrollment and divergence semantics the same ADR selects;
+  the CTO classified its correction as a factual clarification of prior
+  approved blob `a7d95ca918f418d596432071c8ba78a33c2630a9`, and the
+  clarification commit that contains this report applies it (section 4;
+  section 5, decisions 44-46). The other found that the report still recorded
+  which live PR #960 lifecycle gates were pending; the same commit replaces
+  that wording with the durable lifecycle model (section 5, decision 47).
 
 PR #960 holds the historical and current review threads covering the findings
-summarized above. GitHub is authoritative for their current number and
-resolved/unresolved state; this report records only their durable substantive
-dispositions and source evidence. Every applicable thread must be adjudicated
-under the final exact-head review controls before merge, through the fresh
-independent CRITICAL exact-head review of the eventual final head. This report
-itself neither resolves nor dismisses any thread.
+summarized above. GitHub is authoritative for their current number,
+resolved/unresolved state and adjudication; this report records only their
+durable substantive dispositions and source evidence. Adjudication of review
+threads belongs to the independent exact-head review controls that precede any
+merge, not to this report, which neither resolves nor dismisses any thread.
 
 ## 15. Agent self-assessment
 
 The agent may identify risks but may not approve the task.
 
 The implementing agent does not approve, mark merge-ready or merge its own
-work. The implementing agent of this transient-state correction also
-implemented the control-record recovery, the Amendment-6/7 approval-state
-commit and candidate and earlier Route-B source stages of this task and
+work. The implementing agent of this factual clarification also implemented
+the transient-state correction, the control-record recovery, the Amendment-6/7
+approval-state commit and candidate and earlier Route-B source stages of this
+task and
 prepared the earlier uncommitted activation-epoch candidate referred to in
 Amendment 1 A10, so it is not eligible to act as an independent reviewer of
 this task (Amendment 5 F8; Amendment 6 G12; Amendment 7 H13).
@@ -3059,10 +3591,20 @@ Suggested review focus:
   approval date 2026-10-06, candidate head
   `b596536e7db0d6b8ace0a42fdd26bff42cabf104` and candidate ADR-0012 blob
   `cd897d576522a741c3dfa82f8de2f8d80d4288f6`, that the approval date matches
-  the CTO candidate-content approval record, and that the final ADR-0012 blob
-  `a7d95ca918f418d596432071c8ba78a33c2630a9` is the blob presented for
-  exact-final-blob confirmation;
-- that the transient-state correction changes only this report, that
+  the CTO candidate-content approval record, and that the approval-state
+  ADR-0012 blob `a7d95ca918f418d596432071c8ba78a33c2630a9` is the exact prior
+  approved blob that the factual clarification identifies;
+- that the factual clarification changes ADR-0012 only in the three
+  cardinality sentences recorded in section 4 and section 9
+  ("Factual-clarification validation"), that the clarified blob is
+  `2db08058552ce901548ef3f71af4a294f5af7e61`, that it continues to require
+  an eventual single disposition for every eligible route obligation, to
+  prevent a second disposition for any `(event_id, route_key)` and to state
+  every no-disposition case unchanged, that the header approval fields
+  and section 12 are unchanged, and that no sentence of this report states
+  which PR #960 lifecycle gate is currently pending (section 5, decisions
+  44-48);
+- that the transient-state correction changed only this report, that
   ADR-0012, the decision register and the changelog keep their recovery-head
   blobs, that no sentence presents the current count or resolved/unresolved
   state of PR #960 review threads as durable repository truth, that the
