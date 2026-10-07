@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-07
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -1058,7 +1056,9 @@ one durable disposition may exist for a given `(event_id, route_key)`, and an
 eligible route obligation eventually receives exactly one. A successfully
 materialized disposition points to exactly one materialized job. Several
 materialized route dispositions may point to one **not-yet-started** job only
-when the kind defines an explicit durable coalescing rule. An explicit,
+when the kind defines an explicit durable coalescing rule; a job is not yet
+started, and so coalescing-open, only until its first successful execution
+claim/start commits (below). An explicit,
 authorized and audited terminal non-materialized disposition points to no job
 and records the actor, authority, reason and any covering
 reconciliation/backfill. Materialized and terminal non-materialized
@@ -1070,7 +1070,8 @@ never erases the per-event route records needed for audit/completeness.
 An idempotency conflict never silently means "route satisfied". It either:
 
 1. attaches the route to an existing not-yet-started job when the kind's
-   coalescing rule explicitly permits it; or
+   coalescing rule explicitly permits it, inside the database-atomic
+   coalescing boundary below; or
 2. produces a deterministic routing/materialization error surfaced for
    attention/recovery.
 
@@ -1093,6 +1094,103 @@ their complete target-key set in a deterministic order as defined above.
 The shared scheduler supports per-kind concurrency limits. Provider-specific
 rate limits remain owned by handlers, but a single failing or rate-limited job
 kind must not consume all worker capacity indefinitely.
+
+### Coalescing-open and coalescing-sealed jobs
+
+For every job kind that permits many-route-to-one-job coalescing, each logical
+job has one durable semantic boundary. The logical job is **coalescing-open**
+only before its first successful execution claim/start transition linearizes;
+while it is open, a new materialized route disposition may still be attached to
+it under the kind's explicit coalescing rule. The first successful committed
+claim/start transition makes the logical job **coalescing-sealed**,
+permanently: no new route disposition may be attached to it afterwards. The
+"not-yet-started job" that coalescing may attach to and the "first successful
+claim/start" that seals it refer to the same durable transition. The seal is a
+property of the logical job, not of one attempt or one route disposition: a
+later retry after a pre-write failure, lease expiry and reclaim, WAITING and a
+later resume, RECONCILIATION_REQUIRED and its reconciliation attempts,
+cancellation or recovery transitions, and every later claim or attempt on the
+same logical job never reopen coalescing. The exact persisted column or state
+encoding is an implementation-specification detail; a separate sealed flag is
+not required where the canonical job state, attempt or claim transition already
+enforces the same property.
+
+A coalescing attachment and the logical job's first successful claim/start
+transition participate in one database-atomic serialization, lock or
+compare-and-set boundary, or another database-enforced mechanism with
+equivalent atomic ordering, so that the two operations have one durable
+linearized order. A router or materializer may not observe a job as not yet
+started, give up that protection and later commit a disposition attachment from
+that observation: the attachment write itself must atomically prove that the
+logical job is still coalescing-open. Likewise, the first claim/start
+transition participates in the boundary, so that no concurrent attachment can
+commit after it. An application-level pre-check without database-enforced
+ordering between the check and the attachment does not satisfy this rule. The
+exact SQL, lock or constraint is an implementation-specification detail.
+
+Both commit orders are defined:
+
+- attachment first: when a valid attachment linearizes before the first
+  claim/start, the new materialized disposition commits and points to the
+  existing job; the job remains a valid representative of that route and event
+  under the kind's explicit coalescing contract; the later first claim/start
+  may proceed; the job's execution represents every disposition and durable
+  input contribution that committed before the seal, under the kind's approved
+  coalescing semantics; and starting the job never rewrites or detaches a
+  previously attached valid disposition;
+- claim/start first: when the first successful claim/start linearizes first,
+  the logical job is sealed before execution proceeds; a later attempted
+  attachment is refused; no materialized route disposition is committed for
+  the losing route and event; the `(event_id, route_key)` uniqueness slot
+  remains unused; the eligible route obligation remains owed and visible in
+  the route backlog; and the idempotency-conflict rule above follows its
+  deterministic routing/materialization error and attention/recovery path
+  rather than treating the route as represented by the started job. The losing
+  router or materializer may retry only after re-reading current durable state
+  and under the kind's existing authorized materialization and recovery
+  semantics; this rule creates no new logical-job identity and no new replay
+  or current-state rule.
+
+Sealing is bound to the durable committed transition, not to an attempted
+claim. A worker attempt whose first claim/start transaction acquires transient
+locks but rolls back before its sealing transition commits has not sealed the
+job; after that rollback an attachment may still succeed when every ordinary
+coalescing, idempotency and materialization requirement remains satisfied.
+
+A kind that permits coalescing defines, in its approved coalescing contract,
+how the one surviving job represents every attachment that committed before
+the seal, so that execution never uses an input or membership snapshot that
+omits a disposition whose attachment linearized first. The contract stays
+mechanism-neutral: a `CURRENT_STATE` kind may represent accepted pre-seal
+attachments through its canonical current-state and effect-fingerprint
+semantics (section 3.3); another approved kind may require an explicit durable
+retained input set or an equivalent durable representation. A worker handler
+is not required to enumerate route dispositions. This boundary does not change
+`CURRENT_STATE` or `REVISION_BOUND` semantics, effect fingerprints,
+target-scoped concurrency or applied-revision evidence.
+
+Every operation that durably attaches a route disposition to an existing
+coalescible logical job uses this same boundary, including an attachment made
+through historical enrollment, backfill or replay, or to a directly created
+logical job, where this ADR already permits that attachment; none of those
+paths bypasses it. The boundary does not itself decide whether any path may
+coalesce: the kind's explicit durable coalescing rule and the rules above
+decide that.
+
+The coalescing seal is earlier than, and distinct from, `EFFECT_STARTED`:
+attachment closes at the first successful execution claim/start because
+coalescing is permitted only into a not-yet-started job, while
+`EFFECT_STARTED` fences the later external-write boundary (sections 3.4 and
+3.6). The boundary composes with database-enforced claims, leases and current
+claim tokens, `FOR UPDATE SKIP LOCKED` or the equivalent claim mechanism the
+implementation selects, `(event_id, route_key)` disposition uniqueness,
+idempotency-key uniqueness, explicit durable coalescing rules, `CURRENT_STATE`
+and `REVISION_BOUND` semantics, target-scoped concurrency and
+applied-revision/fingerprint evidence, the attempt phases, WAITING and
+RECONCILIATION_REQUIRED, retry and reconciliation transitions and the
+scheduler's deadlock and lock-ordering controls. It introduces no second job
+identity, job lifecycle, route lifecycle or claim-lock mode, and no second
+order for claim/start against attachment.
 
 ### 3.6 Delivery semantics, checkpoints and ambiguous writes
 
@@ -1574,7 +1672,10 @@ silently delete historical attempts.
 Coalescing/debouncing may be defined by individual job kinds, but it must be
 durable and auditable: it may reduce executable jobs only under an explicit
 domain rule and must retain enough correlation to explain which events or
-requests were represented by the surviving job.
+requests were represented by the surviving job. A surviving job accepts
+attachments only while it is coalescing-open and represents every attachment
+that committed before its first successful claim/start sealed it (section
+3.5).
 
 
 ---
@@ -1902,8 +2003,8 @@ execution until a separate approved architecture decision says otherwise.
    `(event_id, route_key)`; an eligible route obligation remains owed until it
    has received exactly one. A successfully materialized disposition maps to
    exactly one job; many materialized dispositions may map to one
-   not-yet-started job only under an explicit durable coalescing rule. An
-   explicit authorized/audited terminal
+   not-yet-started, coalescing-open job only under an explicit durable
+   coalescing rule (invariant 42). An explicit authorized/audited terminal
    non-materialized disposition maps to no job, records actor, authority,
    reason and any covering reconciliation/backfill, and shares the same
    uniqueness boundary so it cannot coexist with a materialized disposition for
@@ -2022,6 +2123,23 @@ execution until a separate approved architecture decision says otherwise.
     without database-enforced ordering does not satisfy this. The mechanism
     composes with the per-`route_key` lifecycle serialization and introduces
     no second contradictory lifecycle order.
+42. For every logical job of a kind that permits many-route-to-one-job
+    coalescing, the job is coalescing-open only before its first successful
+    execution claim/start transition commits and is permanently
+    coalescing-sealed by that transition; the seal belongs to the logical job,
+    and no retry, lease reclaim, WAITING resume, reconciliation, cancellation,
+    recovery or later claim reopens it. A coalescing attachment and that first
+    claim/start share one database-atomic serialization, lock or
+    compare-and-set boundary with one durable linearized order: an attachment
+    that linearizes first commits a disposition that the started job genuinely
+    represents and that is never rewritten or detached; a claim/start that
+    linearizes first seals the job before execution, and the later attachment
+    is refused with no disposition committed, the `(event_id, route_key)` slot
+    unused, the obligation still owed and visible and the deterministic
+    idempotency-conflict error path taken. A stale pre-claim observation never
+    commits an attachment after sealing; an application-level pre-check does
+    not satisfy this; a rolled-back first claim does not seal. The seal is
+    earlier than and distinct from `EFFECT_STARTED`.
 
 ## 8. Implementation impact and decomposition
 
@@ -2037,7 +2155,9 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
      revision selection and deterministic materializer compatibility;
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
-   - effect-scoped idempotency and explicit coalescing;
+   - effect-scoped idempotency and explicit coalescing, with the
+     database-atomic coalescing-open/coalescing-sealed boundary between
+     attachment and first claim/start;
    - revision semantics plus domain-owned canonical effect-target identity and
      target-scoped ordering/evidence contract;
    - new kind-scoped executor API;
@@ -2248,7 +2368,8 @@ Rollout should prove in order:
    behaviour, including in-epoch contract-mismatch detection and the ordering
    of revision withdrawal against epoch opening and first enrollment;
 4. crash/lease renewal/WAITING/reconciliation recovery;
-5. effect-scoped idempotency, revision ordering and coalescing;
+5. effect-scoped idempotency, revision ordering and coalescing, including the
+   ordering of coalescing attachment against first claim/start;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
 7. one or more non-destructive representative handlers;
 8. protected operator controls and reconciliation exit path;
@@ -2517,6 +2638,41 @@ Before shared implementation can be approved, evidence must include:
   per-target revision evidence;
 - allowed many-route-to-one-job coalescing tests and deterministic conflict
   attention when coalescing is not permitted;
+- deterministic concurrency tests of a coalescing attachment racing the first
+  successful claim/start of the same logical job, in the attachment-first
+  order and in the claim/start-first order, with the router/materializer and
+  the worker running as separate concurrent instances;
+- proof that after an attachment-first order the worker's execution genuinely
+  represents the newly attached disposition and input under the kind's
+  coalescing contract, shown for a `CURRENT_STATE` kind through its
+  current-state and effect-fingerprint semantics and, for a kind that uses a
+  retained input set or another durable representation, through that
+  representation;
+- proof that after a claim/start-first order no new route disposition is
+  committed, the `(event_id, route_key)` slot remains unused, the eligible
+  route obligation remains owed and visible in the route backlog, and the
+  deterministic routing/materialization error and attention/recovery path is
+  taken, including when the attachment attempt arrives through the
+  idempotency-conflict path;
+- proof that a stale pre-claim observation cannot commit an attachment after
+  the sealing transition linearizes;
+- proof that several concurrent attachments from several router or
+  materializer instances racing the first claim/start produce one total
+  order, every attachment that linearized before the seal being accepted and
+  represented and every attachment after it refused;
+- proof that a first claim/start transaction that rolls back before its
+  sealing transition commits does not durably seal the job, and that a later
+  attachment may still succeed when every ordinary coalescing, idempotency
+  and materialization condition holds;
+- proof that once a first claim/start has committed, retry scheduling, lease
+  expiry and reclaim, WAITING and resume, RECONCILIATION_REQUIRED and
+  reconciliation, cancellation and recovery transitions and later claims never
+  reopen coalescing, and that the seal persists across worker crash and
+  restart;
+- proof that the selected locking or compare-and-set order for attachment and
+  first claim/start composes with `(event_id, route_key)` disposition
+  uniqueness, idempotency-key uniqueness, worker claim locking and
+  target-scoped concurrency without deadlock or split ordering;
 - current-token lease renewal and refusal to renew superseded/expired claims;
 - stale-token refusal for completion, failure, cancellation, checkpointing and
   reconciliation;
@@ -2612,19 +2768,11 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-This ADR is **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-07
-
-The CTO approved this exact corrected content on 2026-10-07 under the
-repository decision process, as the architecture content represented by the
-Route-B candidate ADR-0012 blob `cbb31a53f6f4ed6b96faafb79b273b55664f3ae0`;
-this version differs from that candidate only in this approval-state
-representation. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -2638,7 +2786,11 @@ atomic revision equivalence, deterministic materializer compatibility,
 per-revision route health and safe revision withdrawal, and it requires revision
 withdrawal and every new durable selection of a revision to share one
 database-atomic linearized order, so that a stale availability observation can
-never commit a new selection of a withdrawn revision.
+never commit a new selection of a withdrawn revision. It further defines the
+coalescing-open/coalescing-sealed boundary of a logical job in section 3.5 and
+requires a coalescing attachment and the job's first successful claim/start to
+share one database-atomic linearized order, so that no route disposition can be
+attached from a stale observation to a job that has already started.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
@@ -2647,11 +2799,14 @@ activation-epoch model without immutable route-contract revisions, carried
 version, which introduced immutable route-contract revisions without a
 database-atomic order between revision withdrawal and new revision selection,
 carried `Status: APPROVED` with CTO approval dated 2026-10-06, retained through
-a factual clarification of that version. Those approvals, and every review of
-those earlier versions, remain historical evidence bound to those exact earlier
-versions and source heads only; they do not approve this version. The exact
-historical identities are recorded in the task implementation report and the
-owning issue.
+a factual clarification of that version. A further corrected version, which
+introduced that withdrawal/selection order without a database-atomic order
+between coalescing attachment and a job's first claim/start, carried
+`Status: APPROVED` with CTO approval dated 2026-10-07. Those approvals, and
+every review of those earlier versions, remain historical evidence bound to
+those exact earlier versions and source heads only; they do not approve this
+version. The exact historical identities are recorded in the task
+implementation report and the owning issue.
 
 CTO approval of this ADR adopts the architecture decision and invariants
 recorded here. It is architecture approval only: it does not authorize
