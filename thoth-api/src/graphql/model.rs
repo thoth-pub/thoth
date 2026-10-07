@@ -35,6 +35,10 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_coverage_run::{
+        MetricCoverageRunAccountVerification, MetricCoverageRunRebuildResult,
+        MetricCoverageRunVerificationPage,
+    },
     metric_identifier_quarantine_reconciliation::MetricIdentifierQuarantineReconciliationBatch,
     metric_import::{MetricImport, MetricImportStatus},
     metric_ingestion::MetricIngestionErrorCode,
@@ -4062,6 +4066,131 @@ impl MetricRollupMonthRebuildResult {
         description = "The exact six-family verification, independently derived from the work-day projection, that the transaction committed with"
     )]
     pub fn verification(&self) -> &MetricRollupMonthVerification {
+        &self.verification
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics coverage-run verification and rebuild (`MET-WP4-03C-B1`)
+//
+// These three object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` coverage-run maintenance operations and by
+// nothing else. They carry bounded per-account counts, the exclusive
+// ordering boundary of the next page and the complete-domain count and
+// fingerprint only: no run, stream identity, raw evidence row or mismatch
+// detail is exposed, and no field on `QueryRoot` or on any public type
+// navigates into them. The counts are GraphQL `Int` by the approved
+// contract (Amendment 5A section 11); a count that does not fit fails the
+// whole operation closed on the server instead of wrapping or truncating.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The independent verification of one source account's derived coverage runs: the runs the raw coverage and terminal import evidence imply, the runs the table holds, how many are missing, extra or mismatched between them, and how many structural violations the stored runs carry."
+)]
+impl MetricCoverageRunAccountVerification {
+    #[graphql(description = "The verified source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "How many maximally coalesced runs the raw evidence implies for this account, derived independently of the writer"
+    )]
+    pub fn expected_rows(&self) -> i32 {
+        self.expected_rows
+    }
+
+    #[graphql(description = "How many runs the table holds for this account")]
+    pub fn actual_rows(&self) -> i32 {
+        self.actual_rows
+    }
+
+    #[graphql(description = "Expected runs with no stored run of the same stream and run start")]
+    pub fn missing_rows(&self) -> i32 {
+        self.missing_rows
+    }
+
+    #[graphql(description = "Stored runs with no expected run of the same stream and run start")]
+    pub fn extra_rows(&self) -> i32 {
+        self.extra_rows
+    }
+
+    #[graphql(
+        description = "Runs matched by stream and run start whose run end, coverage status, import status, country coverage or institution coverage differs"
+    )]
+    pub fn mismatched_rows(&self) -> i32 {
+        self.mismatched_rows
+    }
+
+    #[graphql(
+        description = "The additive count of structural violations over the stored runs: an invalid interval, a stream identity that no longer resolves to its canonical account, platform, publisher or measure, an overlap between adjacent runs of one stream, and two adjacent runs of one stream that should have been coalesced. Current account enablement, platform or expected publisher is never a structural violation"
+    )]
+    pub fn structural_violations(&self) -> i32 {
+        self.structural_violations
+    }
+
+    #[graphql(
+        description = "True exactly when missingRows, extraRows, mismatchedRows and structuralViolations are all zero"
+    )]
+    pub fn exact(&self) -> bool {
+        self.exact
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One page of the strictly ascending full-domain coverage-run verification, taken in one read-only repeatable-read snapshot together with the complete source-account domain's count and fingerprint."
+)]
+impl MetricCoverageRunVerificationPage {
+    #[graphql(
+        description = "The verified accounts of this page, in exact ascending source account ID order"
+    )]
+    pub fn accounts(&self) -> &[MetricCoverageRunAccountVerification] {
+        &self.accounts
+    }
+
+    #[graphql(
+        description = "The last returned source account ID when at least one further account follows it, to be passed as afterSourceAccountId for the next page; null when this page exhausts the domain or is empty"
+    )]
+    pub fn next_after_source_account_id(&self) -> Option<Uuid> {
+        self.next_after_source_account_id
+    }
+
+    #[graphql(
+        description = "How many source accounts the complete domain holds in this page's snapshot; identical on every page of one coherent traversal"
+    )]
+    pub fn domain_account_count(&self) -> i32 {
+        self.domain_account_count
+    }
+
+    #[graphql(
+        description = "Lowercase hexadecimal SHA-256 of the complete source-account domain in this page's snapshot: the line thoth-metric-coverage-run-domain/1, then every source account ID as canonical lowercase hyphenated text in ascending order, each line ending in one LF; identical on every page of one coherent traversal"
+    )]
+    pub fn domain_fingerprint(&self) -> &str {
+        &self.domain_fingerprint
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The receipt of one coverage-run rebuild request: whether the account's runs were replaced, and the exact independent verification the transaction committed with."
+)]
+impl MetricCoverageRunRebuildResult {
+    #[graphql(description = "The rebuilt source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "False when the account's runs were already exact and nothing was written; true when they were replaced from raw evidence and independently verified exact in the same committed transaction"
+    )]
+    pub fn rebuilt(&self) -> bool {
+        self.rebuilt
+    }
+
+    #[graphql(description = "The exact independent verification the transaction committed with")]
+    pub fn verification(&self) -> &MetricCoverageRunAccountVerification {
         &self.verification
     }
 }

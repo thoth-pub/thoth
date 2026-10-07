@@ -1,4 +1,4 @@
-use juniper::FieldResult;
+use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 
 use crate::graphql::Context;
@@ -36,6 +36,10 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_coverage_run::{
+        crud::rebuild_metric_coverage_runs, verification::verify_metric_coverage_runs,
+        MetricCoverageRunRebuildResult, MetricCoverageRunVerificationPage,
+    },
     metric_identifier_quarantine_reconciliation::{
         reconcile_metric_identifier_quarantine, MetricIdentifierQuarantineReconciliationBatch,
     },
@@ -320,6 +324,47 @@ fn rebuild_rollup_months(
     rebuild_metric_rollup_months(&context.db, &data.expected_applied_through_sequence)
 }
 
+/// Authorize one coverage-run maintenance operation.
+///
+/// `MET-WP4-03C-B1`'s two operations require exactly `METRICS_INGEST_SERVICE`,
+/// checked here **before** the H1 model is called and therefore before any
+/// coverage-run, coverage, import or account read, snapshot, lock or write.
+/// `SUPERUSER`, `METRICS_READ_SERVICE`, `DISSEMINATION_WORKER`,
+/// publisher-scoped human roles and anonymous callers do not satisfy it, and
+/// the denial is rendered by the repository's existing `NO_ACCESS` path, not
+/// by the H1-local error boundary.
+fn authorize_metric_coverage_run_maintenance(context: &Context) -> Result<(), FieldError> {
+    context
+        .require_metrics_ingest_service()
+        .map(|_| ())
+        .map_err(IntoFieldError::into_field_error)
+}
+
+/// Authorize a coverage-run verification page and delegate to the read-only
+/// snapshot. Every H1-local failure is mapped to its approved public
+/// classification by the model's own error boundary.
+fn verify_coverage_runs(
+    context: &Context,
+    after_source_account_id: Option<Uuid>,
+    limit: Option<i32>,
+) -> FieldResult<MetricCoverageRunVerificationPage> {
+    authorize_metric_coverage_run_maintenance(context)?;
+    verify_metric_coverage_runs(&context.db, after_source_account_id, limit)
+        .map_err(IntoFieldError::into_field_error)
+}
+
+/// Authorize a coverage-run rebuild and delegate to the self-verifying
+/// transaction. The resolver authorizes and passes the account identity
+/// through, nothing more.
+fn rebuild_coverage_runs(
+    context: &Context,
+    source_account_id: Uuid,
+) -> FieldResult<MetricCoverageRunRebuildResult> {
+    authorize_metric_coverage_run_maintenance(context)?;
+    rebuild_metric_coverage_runs(&context.db, source_account_id)
+        .map_err(IntoFieldError::into_field_error)
+}
+
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
@@ -447,6 +492,35 @@ impl MutationRoot {
         input: RebuildMetricRollupMonthsInput,
     ) -> FieldResult<MetricRollupMonthRebuildResult> {
         rebuild_rollup_months(context, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Verify one strictly ascending page of source accounts' derived coverage runs against the runs independently derived from raw coverage and terminal import evidence, in one read-only repeatable-read snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. afterSourceAccountId is an exclusive ordering boundary that need not name an existing account; omitting it starts at the beginning of the domain. The limit must be between 1 and 10 inclusive and is never clamped. Every page reports the complete source-account domain's count and fingerprint from its own snapshot, so one coherent full traversal sees the same two values on every page. Returns bounded counts only; a mismatch never triggers a rebuild by itself."
+    )]
+    fn verify_metric_coverage_runs(
+        context: &Context,
+        #[graphql(
+            description = "Return only source accounts whose ID is strictly greater than this one, in ascending order; omit to start at the beginning of the domain"
+        )]
+        after_source_account_id: Option<Uuid>,
+        #[graphql(
+            default = 10,
+            description = "How many source accounts to verify in this page, from 1 to 10 inclusive"
+        )]
+        limit: Option<i32>,
+    ) -> FieldResult<MetricCoverageRunVerificationPage> {
+        verify_coverage_runs(context, after_source_account_id, limit)
+    }
+
+    #[graphql(
+        description = "Verify and, only if not already exact, rebuild one source account's derived coverage runs from raw coverage and terminal import evidence, in one all-or-nothing read-committed transaction beneath the source account row lock that every import terminalization of that account also takes. Requires the METRICS_INGEST_SERVICE role. An unknown source account is rejected before anything is read. An account whose runs independently verify exact is left untouched and returns rebuilt: false. Otherwise its runs are replaced and independently verified again; anything short of an exact match and any failure roll the whole rebuild back. Raw coverage, import, checkpoint and account rows are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
+    )]
+    fn rebuild_metric_coverage_runs(
+        context: &Context,
+        #[graphql(description = "Which source account's coverage runs to verify and rebuild")]
+        source_account_id: Uuid,
+    ) -> FieldResult<MetricCoverageRunRebuildResult> {
+        rebuild_coverage_runs(context, source_account_id)
     }
 
     #[graphql(

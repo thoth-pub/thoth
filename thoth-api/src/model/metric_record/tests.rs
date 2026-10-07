@@ -927,6 +927,7 @@ fn metric_record_has_exactly_the_required_indexes() {
         vec![
             "metric_record_identity_hash_key",
             "metric_record_measure_id_idx",
+            "metric_record_native_grain_idx",
             "metric_record_overlap_lookup_idx",
             "metric_record_period_start_idx",
             "metric_record_pkey",
@@ -934,9 +935,21 @@ fn metric_record_has_exactly_the_required_indexes() {
             "metric_record_work_id_idx",
         ],
         "metric_record must carry exactly its primary key, the unique identity \
-         hash, the four design-required access indexes and the one MET-WP2-01A \
-         overlap-lookup index, with no speculative dashboard composite and no \
-         second overlap index"
+         hash, the four design-required access indexes, the one MET-WP2-01A \
+         overlap-lookup index and the one MET-WP4-03C-B1 native-grain partial \
+         index, with no speculative dashboard composite and no second overlap \
+         index"
+    );
+    // The H2 native-grain index carries exactly the approved column order
+    // and the canonical partial predicate over the non-DAY grains; it
+    // changes access cost only, never the native-grain semantics.
+    assert_eq!(
+        index_definition(&pool, "metric_record", "metric_record_native_grain_idx"),
+        "CREATE INDEX metric_record_native_grain_idx ON public.metric_record USING btree \
+         (work_id, platform_id, measure_id, period_start) \
+         WHERE (reporting_grain <> 'DAY'::metric_reporting_grain)",
+        "the native-grain index must be (work_id, platform_id, measure_id, \
+         period_start) WHERE reporting_grain <> 'DAY'"
     );
     assert!(
         index_definition(&pool, "metric_record", "metric_record_identity_hash_key")

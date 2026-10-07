@@ -768,7 +768,8 @@ fn status_and_creation_time_have_the_required_operational_index() {
 }
 
 #[test]
-fn the_two_idempotency_indexes_are_partial_and_mutually_exclusive() {
+fn the_three_partial_indexes_are_the_two_idempotency_indexes_and_the_terminal_without_completion_index(
+) {
     let (_guard, pool) = setup_registry_db();
     #[derive(diesel::QueryableByName)]
     struct Index {
@@ -786,10 +787,31 @@ fn the_two_idempotency_indexes_are_partial_and_mutually_exclusive() {
     .into_iter()
     .map(|index| index.indexdef)
     .collect();
+    // `MET-WP1-03` created the two partial unique idempotency indexes;
+    // `MET-WP4-03C-B1` adds exactly one more partial index, the terminal-
+    // without-completion probe index, and no other.
     assert_eq!(
         definitions.len(),
-        2,
-        "exactly two partial idempotency indexes must exist, found {definitions:?}"
+        3,
+        "exactly three partial indexes must exist: the two idempotency indexes and \
+         the terminal-without-completion index, found {definitions:?}"
+    );
+    let terminal = definitions
+        .iter()
+        .find(|definition| definition.contains("metric_import_terminal_without_completion_idx"))
+        .expect("the terminal-without-completion index must exist");
+    assert_eq!(
+        terminal,
+        "CREATE INDEX metric_import_terminal_without_completion_idx ON public.metric_import \
+         USING btree (source_account_id) WHERE ((status = ANY (ARRAY['COMPLETED'::metric_import_status, \
+         'COMPLETED_WITH_ERRORS'::metric_import_status])) AND (completed_at IS NULL))",
+        "the terminal-without-completion index is a non-unique partial index on \
+         source_account_id whose predicate is the canonical enum-typed terminal \
+         status test and a null completion time"
+    );
+    assert!(
+        !terminal.contains("UNIQUE") && !terminal.contains("::text"),
+        "{terminal}"
     );
     let upstream = definitions
         .iter()
@@ -821,20 +843,32 @@ fn the_two_idempotency_indexes_are_partial_and_mutually_exclusive() {
 }
 
 #[test]
-fn metric_import_has_no_speculative_secondary_index() {
+fn metric_import_has_exactly_the_five_authorized_indexes() {
     let (_guard, pool) = setup_registry_db();
     // The complete intended index inventory is exactly: the primary key, the
-    // two partial unique idempotency indexes and the single operational
-    // (status, created_at) index.
+    // two partial unique idempotency indexes, the single operational
+    // (status, created_at) index and the `MET-WP4-03C-B1` terminal-without-
+    // completion partial index. No speculative secondary index exists.
     assert_eq!(
         scalar_i64(
             &pool,
             "(SELECT COUNT(*) FROM pg_indexes \
               WHERE schemaname = 'public' AND tablename = 'metric_import')",
         ),
-        4,
+        5,
         "metric_import must carry exactly its primary key, two idempotency \
-         indexes and one operational index"
+         indexes, one operational index and the terminal-without-completion index"
+    );
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM pg_indexes \
+              WHERE schemaname = 'public' AND tablename = 'metric_import' \
+                AND indexname = 'metric_import_terminal_without_completion_idx' \
+                AND indexdef LIKE '%(source_account_id) WHERE%')",
+        ),
+        1,
+        "the terminal-without-completion index is on source_account_id and partial"
     );
 }
 

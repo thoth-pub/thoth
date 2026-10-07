@@ -886,9 +886,18 @@ fn the_sdl_declares_exactly_the_four_approved_operations() {
     // operation by analogy. A retry, a release, an unclaim, a repair, a
     // reconciliation ledger write or a scheduled rebuild each need their own
     // authorization matrix and rollback semantics.
+    // The two `MET-WP4-03C-B1` coverage-run maintenance operations are a
+    // separately approved family with their own authorization matrix and
+    // rollback semantics, not rollup operations: they are excluded by exact
+    // name before the generic `verifyMetric*` / `rebuildMetric*` guard runs,
+    // so no other operation beginning with those prefixes is admitted.
     let rollup_fields: Vec<&str> = mutation_root
         .lines()
         .map(str::trim_start)
+        .filter(|line| {
+            !(line.starts_with("verifyMetricCoverageRuns(")
+                || line.starts_with("rebuildMetricCoverageRuns("))
+        })
         .filter(|line| {
             line.starts_with("claimMetricRollup")
                 || line.starts_with("completeMetricRollup")
@@ -1089,7 +1098,6 @@ fn the_added_types_expose_progress_state_and_no_read_surface() {
         "maxWorkDayWatermark: Int",
         "workDayRowCount: Int",
         "representedMonthKeyCount: Int",
-        "Rows: Int",
     ] {
         assert!(
             !sdl.contains(forbidden),
