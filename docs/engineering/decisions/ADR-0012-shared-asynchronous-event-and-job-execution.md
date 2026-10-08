@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-08
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -299,7 +297,9 @@ an epoch that references it, or enrolling an event's first route disposition
 under it) share one database-atomic order for the same route; see "Revision
 withdrawal and route retirement" below. Whatever mechanism provides that order
 composes with this per-`route_key` lifecycle serialization: one route never has
-two contradictory lifecycle orders.
+two contradictory lifecycle orders. The strand-safety decision on which a
+withdrawal relies is likewise database-consistent and stable through the
+withdrawal's commit; see the same section.
 
 A route's lifecycle state is one of:
 
@@ -556,6 +556,14 @@ Resolution is recorded as append-only, audited evidence linked to the anomaly,
 including actor, authority, reason and the resulting disposition or divergence
 record. Resolving an anomaly never deletes it or its detection evidence.
 
+Detection records the facts above and raises attention; it need not calculate
+or persist which resolution paths are available, and any
+availability-dependent decision about the anomaly is taken from the durable
+state current when that decision is made. Detection is never suppressed
+because a revision has been withdrawn. The ordering of anomaly creation
+against a concurrent revision withdrawal is defined in "Revision withdrawal
+and route retirement" below.
+
 Route health exposes open anomalies separately from, and alongside, the
 undispositioned eligible-event backlog. An in-epoch contract mismatch is
 therefore never an invisible fourth eligibility state.
@@ -646,6 +654,93 @@ selectable compatible revision or an approved reconciliation/divergence
 procedure), unless an explicitly approved migration, reconciliation or
 disposition plan closes or transfers that work safely.
 
+That strand-prevention decision must be **database-consistent and stable
+through the withdrawal's linearization/commit point**: a withdrawal may commit
+only from a strand-safety evaluation that is still true of durable state when
+the withdrawal commits. Evaluating the predicate inside the withdrawal's own
+transaction is not by itself sufficient; a scan that decided "safe to
+withdraw", followed by a concurrent commit that changes the durable facts the
+decision relied on, followed by the withdrawal's commit, does not satisfy this
+rule. Every already-defined durable mutation that can change the
+strand-prevention predicate for a proposed withdrawal from "safe to withdraw"
+to "withdrawal would strand existing work" must therefore either participate
+in the same database-atomic serialization or constraint boundary as the
+withdrawal, or cause the withdrawal transaction to detect the concurrent
+change and re-evaluate or abort before it commits, through a database-enforced
+mechanism with equivalent effect. The covered mutations include, at minimum:
+
+- durable creation of a new unresolved `IN_EPOCH_CONTRACT_MISMATCH` anomaly
+  whose approved resolution options the proposed withdrawal affects. Such an
+  anomaly identifies the epoch's expected revision; it need not select or
+  reference the separate compatible revision whose availability for historical
+  enrollment makes it resolvable, so the withdrawal/selection order below does
+  not by itself order it against the withdrawal, and this rule does;
+- any other already-defined durable operation that removes the last approved
+  resolution or materialization path - a selectable compatible revision, an
+  explicitly approved reconciliation/divergence procedure or an explicitly
+  approved migration, reconciliation or disposition plan - on which that
+  withdrawal's strand-safety decision relies.
+
+A durable change that can only make the predicate safer, such as completing
+or dispositioning existing work or adding a resolution path, need not be
+forced into that boundary for strand prevention, although an implementation
+may serialize it there to keep one coherent lock order. The mechanism is an
+implementation-specification detail: the per-route serialization boundary
+below extended to withdrawal, a row or advisory lock, a serializable or
+predicate-conflict mechanism, a commit-time generation or version check, or
+another database-enforced compare-and-recheck scheme with equivalent semantics
+all qualify; an application-level "scan, decide safe, commit" sequence without
+such enforcement does not. Whether a state transition that this ADR does not
+already define is strand-relevant is an architecture decision; implementation
+does not guess it and returns it for specification.
+
+Both orders of anomaly creation against withdrawal are defined:
+
+- anomaly first: when creation of the unresolved mismatch anomaly linearizes
+  before the withdrawal, the withdrawal's strand-safety decision includes
+  that anomaly; the withdrawal is refused or held if, after it, the anomaly
+  would have no selectable compatible revision and no approved
+  reconciliation/divergence path; the anomaly remains durable, visible and
+  attention-raising; detection creates no route disposition and no job; and
+  the `(event_id, route_key)` slot remains unused. A withdrawal transaction
+  whose scan preceded the anomaly's creation may not commit from that stale
+  scan. Where another valid approved resolution path remains after the
+  withdrawal, the anomaly's existence alone does not refuse it: the rule is
+  strand safety, not anomaly existence;
+- withdrawal first: when the withdrawal linearizes before the mismatch anomaly
+  exists, the later anomaly is still recorded durably under the fail-safe
+  mismatch semantics above; detection is never suppressed because a revision
+  has already been withdrawn; the anomaly transaction evaluates any
+  resolution availability it depends on from post-withdrawal durable state
+  and never treats the withdrawn revision as still selectable; no route
+  disposition or job is created and the `(event_id, route_key)` slot remains
+  unused merely because the anomaly was detected; and the anomaly remains
+  visible and attention-raising until a then-valid compatible historical
+  enrollment or an explicitly approved reconciliation/divergence procedure
+  resolves it. This order may leave a visible unresolved anomaly with no
+  immediately selectable compatible revision; the engine does not resolve it
+  automatically, does not record automatic divergence and does not delete it.
+
+Where the strand-safety decision relies on the continued existence of one or
+more selectable compatible revisions or another already-approved durable
+resolution or materialization path, concurrent withdrawal or control
+transactions must not be able to remove those paths through write skew while
+each independently observes the other path as still available. When two such
+transactions would together remove the last approved path for an existing
+unresolved anomaly or outstanding obligation, at most the safety-preserving
+one may commit without re-evaluation; the other detects the conflict and
+re-evaluates or aborts under the same database-enforced rule.
+
+This decision-stability rule is a property of the strand-prevention predicate
+and introduces no second withdrawal lifecycle: withdrawal remains append-only,
+audited and future-selection-only, the withdrawal/selection order below
+remains the one durable order between withdrawal and new selection, and the
+two rules share one coherent database ordering where practical. The rule
+closes the stale concurrent-withdrawal decision race only; it does not claim
+that a producer-contract violation occurring strictly after a completed
+withdrawal can never create a new unresolved anomaly, and such an anomaly is
+handled under the withdrawal-first order above.
+
 Withdrawal shares one database-atomic serialization or constraint boundary with
 every operation that creates a new durable selection of, or reference to, the
 revision, so that for any revision, withdrawal and new future selection have one
@@ -690,8 +785,9 @@ exclusion constraint is an implementation-specification detail. Whichever
 mechanism is selected must compose with the serialized open, close, reactivate
 and retire lifecycle, with database-atomic equivalent-revision convergence, with
 historical-enrollment validation and `(event_id, route_key)` disposition
-uniqueness, with the strand-prevention rule above, with permanent route
-retirement and with the engine's normal deadlock and lock-ordering controls. No
+uniqueness, with the strand-prevention rule above and its decision-stability
+rule, with permanent route retirement and with the engine's normal deadlock
+and lock-ordering controls. No
 implementation may introduce a second route lifecycle order that contradicts the
 per-`route_key` order.
 
@@ -2142,6 +2238,31 @@ execution until a separate approved architecture decision says otherwise.
     commits an attachment after sealing; an application-level pre-check does
     not satisfy this; a rolled-back first claim does not seal. The seal is
     earlier than and distinct from `EFFECT_STARTED`.
+43. A revision withdrawal commits only from a database-consistent
+    strand-safety decision that remains valid through the withdrawal's
+    linearization/commit point. Every already-defined durable mutation that
+    can change that strand-prevention predicate from safe to unsafe - at
+    minimum, creation of an unresolved `IN_EPOCH_CONTRACT_MISMATCH` anomaly
+    whose approved resolution options the withdrawal affects, even where the
+    anomaly references only the epoch's expected revision and not the
+    compatible revision being withdrawn, and removal of the last approved
+    resolution or materialization path on which the decision relies - shares
+    one database-atomic serialization or constraint boundary with the
+    withdrawal or forces the withdrawal to detect the change and re-evaluate
+    or abort before commit; a stale application-level scan, even inside the
+    withdrawal transaction, does not satisfy this. Anomaly-first, the
+    withdrawal includes the anomaly and is refused or held where it would
+    leave no selectable compatible revision and no approved
+    reconciliation/divergence path; withdrawal-first, mismatch detection is
+    never suppressed, records the anomaly durably and visibly, evaluates
+    availability from post-withdrawal state, never treats the withdrawn
+    revision as selectable and creates no disposition, job or route slot.
+    Concurrent removals of alternative resolution paths cannot write-skew into
+    stranded work. The rule composes with invariant 41's withdrawal/selection
+    order as one coherent database order, introduces no second withdrawal
+    lifecycle, invents no new revocability, reconciliation, compatibility or
+    availability semantics, and leaves the mechanism to the implementation
+    specification.
 
 ## 8. Implementation impact and decomposition
 
@@ -2154,7 +2275,8 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
      including producer-version coverage evidence, in-epoch contract-mismatch
      anomalies, revision-validated historical enrollment, atomic revision
      equivalence, database-atomic ordering of revision withdrawal against new
-     revision selection and deterministic materializer compatibility;
+     revision selection, database-consistent strand-safety decisions for
+     revision withdrawal and deterministic materializer compatibility;
    - job/attempt/checkpoint lifecycle;
    - claim/renewal/wait/reconciliation primitives;
    - effect-scoped idempotency and explicit coalescing, with the
@@ -2367,8 +2489,10 @@ Rollout should prove in order:
 2. mixed-version route completeness and out-of-order transaction commits;
 3. activation, deactivation, reactivation-epoch, route-contract-revision
    transition, retirement, event-emission-floor and producer-version-coverage
-   behaviour, including in-epoch contract-mismatch detection and the ordering
-   of revision withdrawal against epoch opening and first enrollment;
+   behaviour, including in-epoch contract-mismatch detection, the ordering
+   of revision withdrawal against epoch opening and first enrollment, and the
+   stability of withdrawal's strand-safety decision against concurrent
+   anomaly creation and resolution-path removal;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing, including the
    ordering of coalescing attachment against first claim/start;
@@ -2583,6 +2707,39 @@ Before shared implementation can be approved, evidence must include:
   shares that mechanism, with enrollment validation and disposition uniqueness
   and with permanent route retirement, without deadlock and without a split or
   contradictory lifecycle order;
+- deterministic concurrency tests of unresolved in-epoch contract-mismatch
+  anomaly creation racing withdrawal of the compatible revision on which that
+  anomaly's approved resolution depends, in the anomaly-first order, with the
+  anomaly referencing only the epoch's expected revision;
+- the same anomaly-creation/withdrawal race in the withdrawal-first order;
+- proof that a withdrawal transaction whose strand-safety scan ran before the
+  anomaly's creation cannot commit from that stale view after the anomaly
+  linearizes, including when the scan ran inside the withdrawal transaction;
+- proof that, anomaly-first, a withdrawal that would leave the anomaly with
+  no selectable compatible revision and no approved reconciliation/divergence
+  path is refused or held, with the anomaly still durable, visible and
+  attention-raising and no disposition, job or `(event_id, route_key)` slot
+  created;
+- proof that, anomaly-first, a withdrawal may be permitted where another
+  valid approved resolution path remains for the anomaly, showing that the
+  rule is strand safety rather than anomaly existence alone;
+- proof that, withdrawal-first, mismatch detection still records the anomaly
+  durably, creates no route disposition or job, consumes no
+  `(event_id, route_key)` slot, and evaluates any resolution availability it
+  depends on from post-withdrawal durable state rather than from a stale
+  pre-withdrawal observation, never treating the withdrawn revision as
+  selectable;
+- proof that concurrent withdrawals or removals of alternative resolution
+  paths cannot write-skew into a state in which an existing unresolved
+  anomaly or outstanding obligation has no approved path while each
+  transaction independently passed the strand check;
+- proof that the selected strand-safety boundary composes with the
+  withdrawal/selection order above, the per-`route_key` lifecycle
+  serialization, equivalent-revision convergence, enrollment validation,
+  `(event_id, route_key)` disposition uniqueness and permanent route
+  retirement without deadlock and without a split or contradictory order;
+- proof that existing mismatch/anomaly health, count, age and attention
+  evidence remains visible through both anomaly-creation/withdrawal orders;
 - a backward-compatible materializer handling an older revision only where
   explicitly declared, and a forward-compatible materializer handling a newer
   revision only where explicitly declared and semantically valid;
@@ -2770,19 +2927,11 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-08
-
-The CTO approved this exact corrected content on 2026-10-08 under the
-repository decision process, as the architecture content represented by the
-Route-B candidate ADR-0012 blob `0fc33df9aca61a2c82af452426f5574bfd3493cf`;
-this version differs from that candidate only in this approval-state
-representation. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -2800,7 +2949,15 @@ never commit a new selection of a withdrawn revision. It further defines the
 coalescing-open/coalescing-sealed boundary of a logical job in section 3.5 and
 requires a coalescing attachment and the job's first successful claim/start to
 share one database-atomic linearized order, so that no route disposition can be
-attached from a stale observation to a job that has already started.
+attached from a stale observation to a job that has already started. It
+further requires a revision withdrawal to commit only from a
+database-consistent strand-safety decision that remains valid through the
+withdrawal's commit, with every already-defined durable mutation that can make that decision
+unsafe - at minimum concurrent creation of an unresolved in-epoch
+contract-mismatch anomaly and removal of the last approved resolution path -
+sharing one database-atomic boundary with the withdrawal or forcing its
+re-evaluation, so that a stale strand-prevention scan can never commit a
+withdrawal that strands existing work.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
@@ -2812,7 +2969,10 @@ carried `Status: APPROVED` with CTO approval dated 2026-10-06, retained through
 a factual clarification of that version. A further corrected version, which
 introduced that withdrawal/selection order without a database-atomic order
 between coalescing attachment and a job's first claim/start, carried
-`Status: APPROVED` with CTO approval dated 2026-10-07. Those approvals, and
+`Status: APPROVED` with CTO approval dated 2026-10-07. A further corrected
+version, which introduced that coalescing boundary without a
+database-consistent strand-safety decision for revision withdrawal, carried
+`Status: APPROVED` with CTO approval dated 2026-10-08. Those approvals, and
 every review of those earlier versions, remain historical evidence bound to
 those exact earlier versions and source heads only; they do not approve this
 version. The exact historical identities are recorded in the task
