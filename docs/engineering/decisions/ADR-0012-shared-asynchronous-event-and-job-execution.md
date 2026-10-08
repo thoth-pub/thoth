@@ -2254,9 +2254,12 @@ execution until a separate approved architecture decision says otherwise.
     withdrawal includes the anomaly and is refused or held where it would
     leave no selectable compatible revision and no approved
     reconciliation/divergence path; withdrawal-first, mismatch detection is
-    never suppressed, records the anomaly durably and visibly, evaluates
-    availability from post-withdrawal state, never treats the withdrawn
-    revision as selectable and creates no disposition, job or route slot.
+    never suppressed and always records the anomaly durably and visibly,
+    creating no disposition, job or route slot and without being conditioned
+    on computing or persisting resolution-path availability; any
+    availability-dependent computation or decision, if performed during or
+    after detection, uses current post-withdrawal durable state and never
+    treats the withdrawn revision as selectable.
     Concurrent removals of alternative resolution paths cannot write-skew into
     stranded work. The rule composes with invariant 41's withdrawal/selection
     order as one coherent database order, introduces no second withdrawal
