@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-09
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -226,7 +224,8 @@ operator actions.
 
 Where an event is caused by a PostgreSQL business mutation, the business change
 and event record are written in the same transaction. Either both commit or
-neither commits.
+neither commits. A separate all-or-nothing rule binds a newly created routed
+job to its route disposition ("Atomic creation of a routed job", section 3.5).
 
 Every event has a unique durable `event_id`. Route eligibility and routing
 completion are determined from durable database state, not from worker-local
@@ -374,6 +373,15 @@ remains unique on `(event_id, route_key)` regardless of whether that job is
 pending, running, waiting or terminal. The only alternative is the explicit,
 authorized and audited terminal non-materialized disposition described below,
 which points to no job (section 3.5 and invariant 8).
+
+When materializing an obligation requires a **new** logical job, that job is
+created only together with its disposition: the new routed job, the
+materialized `(event_id, route_key)` disposition that gives it meaning and
+every durable job-input or membership fact indispensable for that
+disposition's effect semantics become durable in one PostgreSQL transaction,
+or none of them does. "Atomic creation of a routed job" in section 3.5 defines
+that boundary, its failure, crash and acknowledgment-loss behaviour and its
+interaction with coalescing into an existing job.
 
 Disposition uniqueness is per logical route, not per epoch or per revision:
 `(event_id, route_key)` is the complete uniqueness boundary across every epoch
@@ -554,9 +562,27 @@ The anomaly remains open until, under explicit authorization, either:
    route disposition will be created and what compensating state or effect
    covers the event.
 
-Resolution is recorded as append-only, audited evidence linked to the anomaly,
-including actor, authority, reason and the resulting disposition or divergence
-record. Resolving an anomaly never deletes it or its detection evidence.
+Those two paths are mutually exclusive for one logical anomaly. Every in-epoch
+contract mismatch has one **canonical logical anomaly identity**, a function
+of the mismatch facts rather than of the detection, backfill request or
+operator procedure that observed it, whose exact composition and storage are
+implementation-specification details; duplicate detection, a generic backfill
+request or a separately chosen resolution identifier can therefore never mint
+a parallel anomaly that reaches a second terminal outcome. Each logical
+anomaly reaches at most one effective **terminal resolution** - `ENROLLED`
+through path 1 or `RECONCILED/DIVERGED` through path 2 - arbitrated by a
+database-enforced terminal-resolution decision that both paths share. An
+application-level "read unresolved, act, then append the outcome" sequence
+without that enforcement does not satisfy this rule. "Mutually exclusive
+terminal resolution of a mismatch anomaly", in "Historical enrollment,
+backfill and replay" below, defines the decision boundary and both commit
+orders.
+
+Resolution is recorded as append-only, audited evidence linked to the one
+anomaly, including actor, authority, reason and the resulting disposition or
+divergence record. Resolving an anomaly never deletes it or its detection
+evidence, and a retry after terminal resolution reads and reports the same
+already-effective outcome rather than creating a second terminal decision.
 
 Detection records the facts above and raises attention; it need not calculate
 or persist which resolution paths are available, and any
@@ -612,7 +638,10 @@ route retirement" below, in the same transaction that would create the
 disposition, never from an earlier separate read.
 
 If any check fails, or the revision has been withdrawn, the enrollment is
-refused before any route disposition or job is created. The
+refused before any route disposition or job is created. Where the enrollment
+resolves an in-epoch contract-mismatch anomaly, these checks, the anomaly's
+still-open state and the terminal-resolution decision are made inside the one
+database-enforced boundary defined below. The
 `(event_id, route_key)` uniqueness slot remains unused, so a later enrollment
 under a compatible revision remains possible. The refused attempt and its reason
 are durably audited, and any existing anomaly, backlog or attention state for
@@ -633,6 +662,79 @@ target-scoped idempotency, concurrency and applied-revision/fingerprint evidence
 rules of sections 3.3 and 3.5 remain mandatory, so historical enrollment cannot
 produce an unintended duplicate or regressive effect. A new route identity does
 not by itself grant permission to duplicate an external effect.
+
+### Mutually exclusive terminal resolution of a mismatch anomaly
+
+An unresolved in-epoch contract-mismatch anomaly (above) is resolved by
+exactly one of two authorized paths: compatible historical enrollment, which
+creates the one allowed `(event_id, route_key)` disposition, or an explicitly
+approved reconciliation/divergence procedure, which creates none. Because
+divergence creates no disposition, `(event_id, route_key)` uniqueness alone
+cannot arbitrate between them. Both paths therefore compete through one
+database-enforced terminal-resolution decision on the anomaly's canonical
+logical identity: a terminal-resolution transition, a uniqueness constraint
+over the anomaly's terminal outcome or an equivalent serialized durable
+decision, selected by the implementation specification, that admits at most
+one effective terminal outcome per logical anomaly. Each path validates its
+authorization, the anomaly's still-open state and its applicable current
+conditions - for enrollment, the selected revision's field-by-field
+compatibility and its availability under the withdrawal/selection order of
+"Revision withdrawal and route retirement" below; for divergence, the
+reconciliation authority and approved reason - inside that database-enforced
+decision boundary, in the transaction that makes the outcome durable, never
+from a stale earlier observation.
+
+Both commit orders are defined:
+
+- enrollment first: the transaction that durably selects the terminal
+  `ENROLLED` outcome also creates the allowed `(event_id, route_key)`
+  disposition and, where the enrollment creates a new routed job rather than
+  attaching to an existing coalescing-open job, that job and its
+  indispensable input or membership facts under "Atomic creation of a routed
+  job" (section 3.5); a concurrent or later divergence attempt for the same
+  anomaly detects the effective terminal decision and cannot record a
+  contradictory accepted no-disposition outcome;
+- divergence first: the transaction that durably selects the terminal
+  `RECONCILED/DIVERGED` outcome persists the approved reason, authority and
+  the durable resolution or compensation reference; it creates no route
+  disposition and no job merely by resolving the anomaly, and the
+  `(event_id, route_key)` slot remains unused; a concurrent or later first
+  historical enrollment for that same anomaly is refused before it can create
+  a disposition, job or external effect, and the unused slot is not available
+  to that losing enrollment.
+
+In either order the losing path detects the durable terminal decision before
+committing its own conflicting record or work, aborts or deterministically
+refuses, and leaves accurate audit and attention state; no two contradictory
+terminal outcomes can both commit, regardless of the absence of a disposition
+from divergence. A transaction that aborts or crashes before its terminal
+decision commits leaves the anomaly unresolved and independently retryable.
+After a terminal decision commits, repeated requests, retries and audit reads
+observe the same effective outcome and create no second or contradictory
+terminal result. The anomaly's open count, age and attention evidence
+transition from open to exactly one terminal outcome without erasing the
+detection facts.
+
+A generic backfill or replay request that targets the event and route of a
+resolved anomaly is, for that anomaly, a first historical enrollment governed
+by this rule: it cannot bypass a terminal divergence. A later deliberately
+authorized replay, recovery or new independent effect remains governed by its
+separate existing permissions, replay/correlation metadata and target-scoped
+idempotency rules (section 3.5); it does not retroactively replace the
+anomaly's terminal outcome, does not issue a second disposition for the same
+`(event_id, route_key)` and does not treat the other path's losing attempt as
+approved.
+
+A reconciliation/divergence procedure's external compensating action, where it
+has one, obeys the existing durable job, `EFFECT_STARTED`, at-least-once,
+ambiguity and reconciliation controls (sections 3.4 and 3.6) and the authority
+rules of sections 3.14 and 3.15: the terminal decision and its canonical
+durable intent and evidence are what this rule makes consistent, and
+PostgreSQL is never assumed to commit atomically with a third-party provider
+write or to grant new external-write authority. This anomaly-resolution
+divergence is distinct from the separately authorized terminal non-materialized
+route disposition of an eligible obligation (section 3.2): under the mismatch
+semantics above it creates no disposition.
 
 ### Revision withdrawal and route retirement
 
@@ -1154,7 +1256,9 @@ distinction between retry, replay and current-state redistribution.
 Event routing identity and job idempotency are related but distinct. At most
 one durable disposition may exist for a given `(event_id, route_key)`, and an
 eligible route obligation eventually receives exactly one. A successfully
-materialized disposition points to exactly one materialized job. Several
+materialized disposition points to exactly one materialized job, and a job
+newly created for a route obligation becomes durable only together with that
+disposition ("Atomic creation of a routed job" below). Several
 materialized route dispositions may point to one **not-yet-started** job only
 when the kind defines an explicit durable coalescing rule; a job is not yet
 started, and so coalescing-open, only until its first successful execution
@@ -1291,6 +1395,60 @@ RECONCILIATION_REQUIRED, retry and reconciliation transitions and the
 scheduler's deadlock and lock-ordering controls. It introduces no second job
 identity, job lifecycle, route lifecycle or claim-lock mode, and no second
 order for claim/start against attachment.
+
+### Atomic creation of a routed job
+
+A **routed job** is a logical job created to satisfy an event-route
+obligation: through ordinary event-route materialization, or through a first
+historical enrollment that creates a routed job. When a route materializer
+creates a brand-new routed job, the new logical job, the materialized
+`(event_id, route_key)` disposition that it represents and every durable
+job-input or membership fact indispensable for that disposition's effect
+semantics under the kind's input or coalescing contract become durable in one
+PostgreSQL transaction. The job and the disposition become visible together on
+commit; a failure, a uniqueness conflict or a crash before commit leaves
+neither durably created by that attempt. The exact tables, constraints and SQL
+are implementation-specification details; the all-or-nothing boundary is not.
+
+The scheduler and the workers must never be able to claim, start or produce
+an external effect from a partially created routed job before that commit: a
+routed job is claimable only once its disposition and indispensable input
+facts are durable with it. After commit the job is a valid executable
+representative of its committed disposition and its approved input semantics.
+
+If disposition insertion or validation fails, or loses the
+`(event_id, route_key)` uniqueness race, the new job and its input or
+membership facts roll back with it: no orphan or claimable routed job, no
+phantom "route satisfied" result, no consumed disposition slot and no
+unaccounted external effect remain, and the route obligation stays owed and
+visible in the route backlog until a valid disposition exists. An
+idempotency-key or disposition-uniqueness collision is reconciled with the
+transaction's outcome; a collision is never accepted on its own as proof that
+the obligation is satisfied.
+
+If the transaction commits but the router or materializer loses its
+acknowledgment, its retry and the reconciliation path observe the same durable
+job and disposition identity and create no second job, second disposition or
+duplicate effect.
+
+When a concurrent router wants to use an **existing** logical job for the
+obligation, the coalescing-open/coalescing-sealed boundary above and the
+kind's explicit coalescing semantics apply unchanged: an attachment to an
+open job commits a disposition under that boundary; a sealed job acquires no
+new disposition; a losing attempt leaves its obligation owed and follows the
+existing deterministic error and recovery path. Two routes may share one
+eligible not-yet-started job only under the already-approved coalescing rule,
+and the creation of a new routed job and a concurrent other-route attachment
+to it obey that one linearized order.
+
+This boundary applies to event-route materialization and to first historical
+enrollment that creates a routed job. An independently authorized scheduled,
+operator, reconciliation, replay or current-state job that is not created to
+satisfy a route disposition keeps its existing direct-job semantics; the rule
+invents no route disposition for such a job, and such a job may not be used
+to satisfy a route obligation without the disposition this boundary requires.
+Whether a job is routed is decided by the obligation it is created to satisfy
+and the authority under which it is created, not by a label.
 
 ### 3.6 Delivery semantics, checkpoints and ambiguous writes
 
@@ -2268,6 +2426,44 @@ execution until a separate approved architecture decision says otherwise.
     lifecycle, invents no new revocability, reconciliation, compatibility or
     availability semantics, and leaves the mechanism to the implementation
     specification.
+44. A new logical job created to satisfy an event-route obligation - through
+    event-route materialization or a first historical enrollment that creates
+    a routed job - becomes durable only together with its materialized
+    `(event_id, route_key)` disposition and every indispensable durable
+    job-input or membership fact, in one PostgreSQL transaction: both are
+    visible together on commit, and a failure, uniqueness conflict or crash
+    before commit leaves neither. A routed job is never claimable or
+    effectful before that commit; a disposition insertion failure or lost
+    uniqueness race rolls the job back, leaving no orphan job, no phantom
+    satisfaction, no consumed slot and the obligation owed and visible; an
+    idempotency or disposition collision is reconciled with the transaction,
+    never accepted alone as satisfaction; and a committed transaction whose
+    acknowledgment is lost is observed by retry and reconciliation as the
+    same job and disposition, with no duplicate job, disposition or effect.
+    Attachment to an existing job remains governed by invariant 42;
+    independently authorized direct jobs keep their own semantics and cannot
+    be used to disguise a routed job.
+45. Every in-epoch contract-mismatch anomaly has one canonical logical
+    identity and at most one effective terminal resolution - compatible
+    historical enrollment or approved reconciliation/divergence - arbitrated
+    by a database-enforced terminal-resolution decision shared by both paths;
+    each path validates authorization, the anomaly's open state and its
+    current compatibility, availability or reconciliation conditions inside
+    that boundary, never from a stale observation. Enrollment-first commits
+    the terminal outcome, the allowed disposition and any new routed job and
+    input facts in one transaction and excludes a later accepted divergence;
+    divergence-first commits the approved reason, authority and resolution
+    reference, creates no disposition or job, leaves the
+    `(event_id, route_key)` slot unused and refuses the losing enrollment for
+    that anomaly before any disposition, job or effect. The loser detects the
+    terminal decision before committing, aborts or deterministically refuses
+    and preserves audit and attention state; abort or crash before commit
+    leaves the anomaly open and retryable; retries after commit observe one
+    outcome. Detection and resolution evidence remain append-only; a generic
+    backfill cannot bypass a terminal divergence; separately authorized
+    replay is governed by its own rules and replaces no terminal outcome; and
+    external compensation remains fenced by the existing effect, ambiguity
+    and reconciliation controls.
 
 ## 8. Implementation impact and decomposition
 
@@ -2287,6 +2483,9 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
    - effect-scoped idempotency and explicit coalescing, with the
      database-atomic coalescing-open/coalescing-sealed boundary between
      attachment and first claim/start;
+   - atomic creation of a routed job with its materialized disposition and
+     indispensable input facts, and the database-enforced mutually exclusive
+     terminal resolution of a mismatch anomaly;
    - revision semantics plus domain-owned canonical effect-target identity and
      target-scoped ordering/evidence contract;
    - new kind-scoped executor API;
@@ -2497,10 +2696,12 @@ Rollout should prove in order:
    behaviour, including in-epoch contract-mismatch detection, the ordering
    of revision withdrawal against epoch opening and first enrollment, and the
    stability of withdrawal's strand-safety decision against concurrent
-   anomaly creation and resolution-path removal;
+   anomaly creation and resolution-path removal, and the mutually exclusive
+   terminal resolution of a mismatch anomaly in both commit orders;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing, including the
-   ordering of coalescing attachment against first claim/start;
+   ordering of coalescing attachment against first claim/start and the atomic
+   creation of a routed job with its disposition;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
 7. one or more non-destructive representative handlers;
 8. protected operator controls and reconciliation exit path;
@@ -2837,6 +3038,56 @@ Before shared implementation can be approved, evidence must include:
   first claim/start composes with `(event_id, route_key)` disposition
   uniqueness, idempotency-key uniqueness, worker claim locking and
   target-scoped concurrency without deadlock or split ordering;
+- proof that a new routed job and its one materialized disposition commit
+  together, with the required durable initial membership/input facts, and
+  that workers can claim the job only after that commit;
+- proof that a crash or failure after the job insert but before the
+  disposition insert or transaction commit leaves no committed or claimable
+  routed job, no disposition, no input membership and an unused route slot,
+  with the route obligation still owed and visible and a retry recovering it;
+- proof that a crash or lost acknowledgment after both have committed permits
+  exact state recovery and replay-safe idempotent observation, with no
+  duplicate job, disposition or external effect;
+- proof that duplicate same-event/same-route materializations and
+  disposition-uniqueness races leave exactly one successful commit, no orphan
+  job and no false route completion;
+- proof that a disposition-insert error or constraint failure rolls back the
+  new job, that a job-idempotency collision with an existing coalescing-open
+  job uses only the approved coalescing path, and that an existing sealed job
+  rejects attachment without consuming the losing event's slot;
+- proof that concurrent first-claim and coalescing attempts, including a
+  simultaneously created initial routed job and an other-route attachment to
+  it, obey the atomic attachment/first-claim order above and represent every
+  accepted pre-seal input;
+- deterministic concurrency tests of simultaneous authorized compatible
+  enrollment and approved divergence of one mismatch anomaly, enrollment
+  first: one terminal enrollment resolution, one allowed disposition and job
+  where materialized, and no accepted divergence;
+- the same anomaly-resolution race, divergence first: one terminal
+  divergence with append-only authority and evidence, no disposition or job
+  from the losing enrollment and no external effect authorized by it;
+- proof that a stale "anomaly still open" observation in either competing
+  path cannot bypass the database-enforced winning resolution at commit;
+- proof that a transaction abort or crash before the resolution commits
+  leaves the anomaly unresolved and independently retryable, and that after
+  commit repeated requests and audit retries create no second or
+  contradictory terminal result;
+- proof that a terminal divergence leaves the `(event_id, route_key)` slot
+  unused without permitting the losing enrollment for that same resolved
+  anomaly to spend it, while a later deliberately authorized independent
+  replay remains separately governed;
+- proof that the anomaly count, open age, attention and append-only audit and
+  evidence transition accurately from open to exactly one terminal outcome
+  without erasing the mismatch detection facts;
+- proof that the atomic enrollment/job creation and the terminal-outcome
+  selection commit as one coherent database decision where enrollment creates
+  a new routed job;
+- composition tests of the routed-job and terminal-resolution boundaries with
+  the revision-withdrawal/selection races above, the anomaly-creation/
+  withdrawal strand-safety and last-resolution-path-removal cases above, the
+  claim/attachment races above, uniqueness and idempotency constraints and
+  deterministic lock and deadlock handling, proving no split ordering, no
+  stale strand decision and no permitted effect after a losing terminal path;
 - current-token lease renewal and refusal to renew superseded/expired claims;
 - stale-token refusal for completion, failure, cancellation, checkpointing and
   reconciliation;
@@ -2932,20 +3183,11 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-09
-
-The CTO approved this exact corrected content on 2026-10-09 under the
-repository decision process, as the architecture content represented by the
-Route-B candidate head `e0fa590e06a00d08df883bc4ddeae40b7660fcb8` and
-candidate ADR-0012 blob `b41e674dc5e3f1ba03715538ff2396e4d2f50c6c`; this
-version differs from that candidate only in this approval-state
-representation. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -2971,7 +3213,14 @@ unsafe - at minimum concurrent creation of an unresolved in-epoch
 contract-mismatch anomaly and removal of the last approved resolution path -
 sharing one database-atomic boundary with the withdrawal or forcing its
 re-evaluation, so that a stale strand-prevention scan can never commit a
-withdrawal that strands existing work.
+withdrawal that strands existing work. It further requires a new routed job
+to become durable only together with its materialized disposition and
+indispensable input facts in one transaction, so that no orphan or claimable
+routed job and no phantom route satisfaction can survive a failure, race or
+crash, and requires compatible historical enrollment and approved
+reconciliation/divergence of one mismatch anomaly to compete through one
+database-enforced terminal-resolution decision, so that no two contradictory
+terminal outcomes can both commit.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
@@ -2986,7 +3235,11 @@ between coalescing attachment and a job's first claim/start, carried
 `Status: APPROVED` with CTO approval dated 2026-10-07. A further corrected
 version, which introduced that coalescing boundary without a
 database-consistent strand-safety decision for revision withdrawal, carried
-`Status: APPROVED` with CTO approval dated 2026-10-08. Those approvals, and
+`Status: APPROVED` with CTO approval dated 2026-10-08. A further corrected
+version, which introduced that strand-safety decision without an atomic
+routed-job/disposition commit or a mutually exclusive terminal resolution of
+mismatch anomalies, carried `Status: APPROVED` with CTO approval dated
+2026-10-09. Those approvals, and
 every review of those earlier versions, remain historical evidence bound to
 those exact earlier versions and source heads only; they do not approve this
 version. The exact historical identities are recorded in the task
