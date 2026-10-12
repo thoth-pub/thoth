@@ -27,14 +27,16 @@ independent exact-candidate inspection, the Route-B approval-state stage of
 that corrected candidate, and the Route-B candidate stage of the atomic
 routed-job creation and mutually exclusive anomaly-resolution correction
 specified by Specification Amendment 11 after the configured final-head
-automated review of that Amendment-10 approval-state head. It records
+automated review of that Amendment-10 approval-state head, and the Route-B
+approval-state stage of that Amendment-11 candidate. It records
 durable task evidence only. Live head, CI, review, authorization and
 merge state is GitHub-owned lifecycle evidence under `ADR-0005` and is not
 copied here.
 
 Sections 1-15 follow the repository implementation-report template for the
-Route-B correction stages, with the Amendment-11 Route-B candidate as the
-current stage and every earlier candidate, approval-state, recovery,
+Route-B correction stages, with the Amendment-11 Route-B approval-state
+commit as the current stage and every earlier candidate, approval-state,
+recovery,
 report-only correction and clarification stage recorded as history. Appendix A
 preserves the earlier authoring, review, approval-state, reconciliation and
 validation record. Appendix B records the
@@ -56,11 +58,13 @@ Actual base commit: `b44303c214498baf76c9d9a0a7cab374377f9cbe`
 PR target: `feature/worker`
 Programme integration branch: `feature/worker`
 Task branch: `feature/async/adr-0012`
-Head commit: the Amendment-11 Route-B candidate commit that contains this
-report, an ordinary single-parent additive commit whose direct parent is the
+Head commit: the Amendment-11 Route-B approval-state commit that contains
+this report, an ordinary single-parent additive commit whose direct parent is
+the content-approved Amendment-11 candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`; its SHA is deliberately not
+self-pinned here (section 3). That candidate is the direct child of the
 historical Amendment-10 approval-state head
-`576a860be47aa1ebe39968f4d3297b26ee1d17df`; its SHA is deliberately not
-self-pinned here (section 3). That approval-state head is the direct child of
+`576a860be47aa1ebe39968f4d3297b26ee1d17df`, which is the direct child of
 the content-approved Amendment-10 replacement candidate
 `e0fa590e06a00d08df883bc4ddeae40b7660fcb8`, which is the direct child of
 the historical first Amendment-10 candidate
@@ -89,7 +93,7 @@ historical Amendment-4/5 recovery head
 historical activation-epoch approval-state head
 `c046e6bf6510f24ee1231f86293a3d499bceed7e`, itself the direct child of the
 historical content-approved activation-epoch candidate
-`95769537cdc9871e42f9f3e5443604a96beb74da`. The candidate commit's
+`95769537cdc9871e42f9f3e5443604a96beb74da`. The approval-state commit's
 publication as the PR #960 head is a post-commit, GitHub-owned lifecycle fact
 under `ADR-0005`.
 Pull request: [#960](https://github.com/thoth-pub/thoth/pull/960), targeting
@@ -105,9 +109,9 @@ approval-state and control-record recovery stages - Claude (Opus 5.5), bounded
 implementing agent; transient-state correction, factual-clarification,
 Amendment-8 candidate, Amendment-8 approval-state, Amendment-9 candidate,
 Amendment-9 approval-state, Amendment-10 candidate, Amendment-10
-consistency-correction, Amendment-10 approval-state and Amendment-11
-candidate stages - Claude (Fable 5.1), bounded implementing agent. Earlier
-rounds are recorded in Appendix A.
+consistency-correction, Amendment-10 approval-state, Amendment-11 candidate
+and Amendment-11 approval-state stages - Claude (Fable 5.1), bounded
+implementing agent. Earlier rounds are recorded in Appendix A.
 Reasoning level: standard
 
 Historical and current control identities:
@@ -267,17 +271,26 @@ decision-register blob 2ed1499172780c6db82bb5f8808f2368fd8b96d1
 CHANGELOG blob b9596d44ff260d6b818ad9c8174e843cf4d0c5b1
 implementation-report blob 65fdd7677b12a10dcf8e53f1f173531e9c088d6b (superseded by the Amendment-11 candidate)
 
-Amendment-11 Route-B candidate (the commit that contains this report):
-ADR-0012 blob 7e461106986fe6efad2021d1ad6f52573e6e9d66 (PROPOSED; material architectural correction of f8c258b0f1b0d19b401c4184ca4dc03a15c865d3)
+content-approved Amendment-11 candidate / approval-state parent:
+528c2db04af5c53b9820b946ddac2ebb936eb4cd
+tree 7de8c64a1bf570526822002b9d2f1bb81baef424
+ADR-0012 blob 7e461106986fe6efad2021d1ad6f52573e6e9d66 (PROPOSED; content-approved; material architectural correction of f8c258b0f1b0d19b401c4184ca4dc03a15c865d3; independent exact-candidate source review APPROVED)
 decision-register blob 98cf125665a3f0011a6ca9c7f90b2b9562931fe7
+implementation-report blob 6919cf8f5b5f854d56d93df7c283b416b5b4b84d
 CHANGELOG blob 91218d7aee40053dfb84c83414f50434e1398695
+
+Amendment-11 Route-B approval-state commit (the commit that contains this report):
+ADR-0012 blob df8017c57d74eaecf13041e231ef97625260fab1 (APPROVED; Javi, CTO; 2026-10-12; architecture-equivalent to 7e461106986fe6efad2021d1ad6f52573e6e9d66)
+decision-register blob c9ff92119095a162cf736304eb88ba595d3685ab
+CHANGELOG blob a4af0397dc37fdf782124573d9a4b7a7b55e8abe
 
 feature/worker at the recovery, the candidates, the approval-state commits, the
 control-record recovery, the transient-state correction, the factual
 clarification, the Amendment-8 candidate and approval-state commit, the
 Amendment-9 candidate and approval-state commit, the Amendment-10 candidate,
-its consistency correction, the Amendment-10 approval-state commit and the
-Amendment-11 candidate (unchanged):
+its consistency correction, the Amendment-10 approval-state commit, the
+Amendment-11 candidate and the Amendment-11 approval-state commit
+(unchanged):
 b44303c214498baf76c9d9a0a7cab374377f9cbe
 ```
 
@@ -427,7 +440,19 @@ Approved specification:
   and Amendments 1-11: #958 comment `6125170650`;
 - Amendment-11 Route-B candidate implementation authorization, which also
   authorized engineering control to return PR #960 to Draft once before the
-  candidate was written: #958 comment `6125285446`.
+  candidate was written: #958 comment `6125285446`;
+- independent CRITICAL exact-candidate source review of the Amendment-11
+  candidate, `APPROVED`: recorded on #958 on 2026-10-12; its GitHub comment
+  identifier is GitHub-owned lifecycle evidence under `ADR-0005` and Route-B
+  doctrine and is not copied here;
+- CTO exact candidate-content approval of the Amendment-11 candidate: recorded
+  on #958 on 2026-10-12 by Javi, CTO for candidate head
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+  `7e461106986fe6efad2021d1ad6f52573e6e9d66`; its GitHub comment identifier
+  is GitHub-owned lifecycle evidence under `ADR-0005` and Route-B doctrine and
+  is not copied here;
+- Amendment-11 Route-B approval-state implementation authorization: #958
+  comment `6128858897`.
 
 Implemented objective: the Route-B material architectural correction of
 ADR-0012 before repository authority. A first correction (activation epochs)
@@ -493,15 +518,22 @@ register row and the strand-safety correction changelog entry moved to the
 approved state), and the CTO recorded exact-final-blob approval of that ADR
 blob. The configured final-head automated review of that approval-state head
 exposed two further architecture defects, `R-576A-01` and `R-576A-02`,
-specified by Specification Amendment 11. The commit that contains this report
-is its Route-B candidate: one ordinary single-parent commit on the
-approval-state head that changes exactly the four authorized correction
-paths, returns ADR-0012 to `Status: PROPOSED`, requires a new routed job to
-become durable only together with its materialized disposition and
-indispensable input facts in one transaction, and requires compatible
-historical enrollment and approved reconciliation/divergence of one mismatch
-anomaly to compete through one database-enforced terminal-resolution
-decision.
+specified by Specification Amendment 11. Its `PROPOSED` Route-B candidate,
+one ordinary single-parent commit on the approval-state head that changed
+exactly the four authorized correction paths, returned ADR-0012 to
+`Status: PROPOSED`, requires a new routed job to become durable only together
+with its materialized disposition and indispensable input facts in one
+transaction, and requires compatible historical enrollment and approved
+reconciliation/divergence of one mismatch anomaly to compete through one
+database-enforced terminal-resolution decision, received independent
+CRITICAL exact-candidate source review (`APPROVED`) and CTO exact
+candidate-content approval on 2026-10-12. The commit that contains this
+report is the one bounded Route-B approval-state commit that records that
+approval as durable decision state: ADR-0012 `PROPOSED -> APPROVED` with
+`Approved by: Javi, CTO` and `Approval date: 2026-10-12`, the ADR-0012
+register row and the routed-job atomicity correction changelog entry moved to
+the approved state, and this report's approval-state evidence. No
+architecture content changes.
 
 - **Activation-epoch candidate stage (historical candidate
   `95769537cdc9871e42f9f3e5443604a96beb74da`).** The candidate implements the
@@ -931,7 +963,8 @@ decision.
   stage authorized no PR-state or PR-metadata change.
 - **Exact-final-blob approval, final-head review of the Amendment-10
   approval-state head, Specification Amendment 11 and the Amendment-11 Route-B
-  candidate (the commit that contains this report).** Authorized by #958
+  candidate (historical content-approved candidate
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd`).** Authorized by #958
   comment `6125285446` after the CTO approved Specification Amendment 11 (#958
   comments `6123767275` and `6124032150`) and a fresh independent CRITICAL
   specification review of the base specification and Amendments 1-11 returned
@@ -973,19 +1006,43 @@ decision.
   to the implementation specification. The independent review confirmed both
   findings, the classification, both rules, the composition and the
   sufficiency of the fourteen-case matrix, and recommended four non-blocking
-  negative vectors for the later implementation specification. The commit
-  that contains this report is one ordinary single-parent commit directly on
-  the approval-state head that changes exactly the four authorized correction
-  paths: ADR-0012 returns to `Status: PROPOSED` with no current approver or
-  approval date and implements Amendment 11 (section 4; section 5, decisions
-  113-124); the decision-register ADR-0012 row, one new changelog entry and
-  this report describe the corrected version as `PROPOSED`; and the
-  2026-09-30, 2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08 and 2026-10-09
-  CTO approvals remain historical evidence bound to the earlier exact
-  versions. This stage authorizes no PR-state or PR-metadata change; the PR
-  #960 title and description, which describe the historical Amendment-10
-  source, are GitHub-owned and their reconciliation is a separate control
-  action.
+  negative vectors for the later implementation specification. The candidate
+  was one ordinary single-parent commit directly on the approval-state head
+  that changed exactly the four authorized correction paths: ADR-0012
+  returned to `Status: PROPOSED` with no current approver or approval date
+  and implements Amendment 11 (section 4; section 5, decisions 113-124); the
+  decision-register ADR-0012 row, one new changelog entry and the
+  candidate-stage report described the corrected version as `PROPOSED`; and
+  the 2026-09-30, 2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08 and
+  2026-10-09 CTO approvals remain historical evidence bound to the earlier
+  exact versions. An independent CRITICAL exact-candidate source review of
+  the published candidate against the actual GitHub source returned
+  `APPROVED` with no blocking candidate-content finding, and Javi, CTO
+  approved its exact architecture content - head
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd`, ADR-0012 blob
+  `7e461106986fe6efad2021d1ad6f52573e6e9d66` - on 2026-10-12 in a durable
+  record on #958. That stage authorized no PR-state or PR-metadata change.
+- **Amendment-11 approval-state stage (the commit that contains this
+  report).** Authorized by #958 comment `6128858897`. One ordinary
+  single-parent commit directly on the content-approved candidate records
+  that approval as durable decision state, changing only the four authorized
+  paths: ADR-0012 `PROPOSED -> APPROVED` with `Approved by: Javi, CTO` and
+  `Approval date: 2026-10-12` and the leading section-12 approval paragraphs,
+  which identify the approved content as the content represented by candidate
+  head `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+  `7e461106986fe6efad2021d1ad6f52573e6e9d66`; the ADR-0012 register row; the
+  `THOTH-ASYNC-01-ADR-01-ROUTED-JOB-ATOMICITY-CORRECTION` changelog entry;
+  and this report. No architecture content changes (section 9, "Amendment-11
+  approval-state validation"). The content approval is recorded here through
+  owning issue #958, approver Javi, CTO, approval date 2026-10-12, the
+  candidate head and the candidate ADR-0012 blob; its GitHub comment
+  identifier is not copied into repository source, as the
+  repository-authoritative Route-B rule in
+  `docs/engineering/decisions/README.md` and the approval-state authorization
+  itself require (section 5, decision 128). PR #960 was already a draft; this
+  stage authorizes no PR-state or PR-metadata change; the PR #960 title and
+  description, which describe the historical Amendment-10 source, are
+  GitHub-owned and their reconciliation is a separate control action.
 
 Out-of-scope changes made: NONE
 
@@ -999,8 +1056,16 @@ selected approval route:
 Route B - PR-first staged approval (Amendment 2 B2, ratified by Amendment 3)
 
 ADR-0012 change in the commit that contains this report:
+Route-B approval-state recording (PROPOSED -> APPROVED; Javi, CTO; 2026-10-12)
+of the content-approved Amendment-11 candidate blob 7e461106986fe6efad2021d1ad6f52573e6e9d66
+at candidate head 528c2db04af5c53b9820b946ddac2ebb936eb4cd;
+no architecture change
+
+historical Amendment-11 candidate at 528c2db04af5c53b9820b946ddac2ebb936eb4cd:
 MATERIAL ARCHITECTURAL CORRECTION of prior approved blob f8c258b0f1b0d19b401c4184ca4dc03a15c865d3
-(Specification Amendment 11; Route-B candidate stage; candidate status PROPOSED)
+(Specification Amendment 11; Route-B candidate stage; candidate status PROPOSED;
+independent CRITICAL exact-candidate source review APPROVED; CTO exact
+candidate-content approval on 2026-10-12)
 
 historical Amendment-10 approval-state at 576a860be47aa1ebe39968f4d3297b26ee1d17df:
 Route-B approval-state recording (PROPOSED -> APPROVED; Javi, CTO; 2026-10-09)
@@ -1261,40 +1326,60 @@ well:
   and remains true only of that historical version, while the register row
   now records the candidate as `PROPOSED`.
 
-They remain historical evidence bound to their exact versions and heads. For
-the candidate version, independent exact-candidate inspection, CTO exact
-candidate-content approval, the approval-state commit, exact-final-blob
-approval, independent exact-head review, CTO merge authorization, guarded
-merge, programme-local reliance and later migration, deployment, activation
-and observation are distinct controlled lifecycle categories; GitHub, through
-#958 and PR #960, is authoritative for which of them is pending, satisfied or
-blocked for any head.
+They remain historical evidence bound to their exact versions and heads. The
+Amendment-11 candidate version received its own independent CRITICAL
+exact-candidate source review and CTO exact candidate-content approval on
+2026-10-12, and the approval-state commit that contains this report records
+it. For this version, exact-final-blob approval, independent exact-head
+review, CTO merge authorization, guarded merge, programme-local reliance and
+later migration, deployment, activation and observation are distinct
+controlled lifecycle categories; GitHub, through #958 and PR #960, is
+authoritative for which of them is pending, satisfied or blocked for any
+head.
 
 ## 3. Commits
 
-Amendment-11 Route-B candidate commit (the commit that contains this report):
+Amendment-11 Route-B approval-state commit (the commit that contains this
+report):
 
 - exactly one ordinary single-parent additive commit on
   `feature/async/adr-0012` -
-  `THOTH-ASYNC-01-ADR-01: propose Amendment-11 routed-job atomicity correction (#958)`
-  - direct parent: the historical Amendment-10 approval-state head
-    `576a860be47aa1ebe39968f4d3297b26ee1d17df`
-  - changes only the four authorized correction paths (section 4); the
-    candidate ADR-0012 blob is `7e461106986fe6efad2021d1ad6f52573e6e9d66`, the
-    candidate decision-register blob `98cf125665a3f0011a6ca9c7f90b2b9562931fe7`
-    and the candidate changelog blob `91218d7aee40053dfb84c83414f50434e1398695`
+  `THOTH-ASYNC-01-ADR-01: record Amendment-11 routed-job atomicity content approval (#958)`
+  - direct parent: the content-approved Amendment-11 candidate
+    `528c2db04af5c53b9820b946ddac2ebb936eb4cd`
+  - changes only the four authorized paths, and only to record the approval
+    state (section 4); the approval-state ADR-0012 blob is
+    `df8017c57d74eaecf13041e231ef97625260fab1`, the approval-state
+    decision-register blob `c9ff92119095a162cf736304eb88ba595d3685ab` and the
+    approval-state changelog blob `a4af0397dc37fdf782124573d9a4b7a7b55e8abe`
 
 Its SHA, its tree and this report's final blob are deliberately not embedded
-here because this report is part of that tree; the candidate ADR-0012,
+here because this report is part of that tree; the approval-state ADR-0012,
 decision-register and changelog blobs do not depend on this report and are
-recorded above; every other file keeps its approval-state-head blob (section
-9). The commit identities are verified against the remote task-branch head
-after push and recorded in the post-publication handoff; once published, the
-PR #960 head and head tree are GitHub-owned lifecycle evidence under
-`ADR-0005`. The authorized topology is a non-force fast-forward of the task
-branch from the approval-state head to the candidate commit; no merge commit,
-rebase, squash, amend, force update or second candidate commit is authorized,
-and no further source commit exists implicitly after it.
+recorded above; every other file keeps its candidate blob (section 9). The
+commit identities are verified against the remote task-branch head after push
+and recorded in the post-publication handoff; once published, the PR #960
+head and head tree are GitHub-owned lifecycle evidence under `ADR-0005`. The
+authorized topology is a non-force fast-forward of the task branch from the
+content-approved candidate to the approval-state commit; no merge commit,
+rebase, squash, amend, force update or second approval-state commit is
+authorized, and no further source commit exists implicitly after it.
+
+Amendment-11 Route-B candidate commit (content-approved; historical):
+
+- `528c2db04af5c53b9820b946ddac2ebb936eb4cd` -
+  `THOTH-ASYNC-01-ADR-01: propose Amendment-11 routed-job atomicity correction (#958)`
+  - ordinary single-parent additive commit; direct parent: the historical
+    Amendment-10 approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df`
+  - tree `7de8c64a1bf570526822002b9d2f1bb81baef424`
+  - changed only the four authorized correction paths (section 4); the
+    candidate ADR-0012 blob is `7e461106986fe6efad2021d1ad6f52573e6e9d66`,
+    independently reviewed `APPROVED` and content-approved by Javi, CTO on
+    2026-10-12
+  - published by a non-force fast-forward of `feature/async/adr-0012` from the
+    approval-state head; the remote head, tree, parent and ADR-0012,
+    decision-register, changelog and report blobs matched the locally
+    validated object
 
 Amendment-10 Route-B approval-state commit (historical):
 
@@ -1542,11 +1627,22 @@ first-parent order, newest first:
 
 ## 4. Files changed
 
-Amendment-11 Route-B candidate write budget for the commit that contains this
-report (authorization #958 comment `6125285446`; the same four existing paths
-as the Amendment-10 budgets); exactly four existing paths, no new file, no
-deletion, and every other path byte-identical to the historical Amendment-10
-approval-state head
+Amendment-11 Route-B approval-state write budget for the commit that contains
+this report (authorization #958 comment `6128858897`), identical to the
+Amendment-11 candidate write budget; exactly four existing paths, no new file,
+no deletion, and every other path byte-identical to the content-approved
+candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`:
+
+- `CHANGELOG.md`
+- `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
+- `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
+- `docs/engineering/decisions/decision-register.md`
+
+Historical Amendment-11 Route-B candidate write budget (authorization #958
+comment `6125285446`; the same four existing paths as the Amendment-10
+budgets); exactly four existing paths, no new file, no deletion, and every
+other path byte-identical to the historical Amendment-10 approval-state head
 `576a860be47aa1ebe39968f4d3297b26ee1d17df`:
 
 - `CHANGELOG.md`
@@ -1677,12 +1773,88 @@ Amendment-6/7 candidate, Amendment-6/7 approval-state, control-record
 recovery, transient-state correction, factual-clarification, Amendment-8
 candidate, Amendment-8 approval-state, Amendment-9 candidate, Amendment-9
 approval-state, Amendment-10 candidate, Amendment-10 consistency-correction,
-Amendment-10 approval-state and Amendment-11 candidate stages; all four
-correction paths already existed.
+Amendment-10 approval-state, Amendment-11 candidate and Amendment-11
+approval-state stages; all four correction paths already existed.
 
-Amendment-11 candidate changes in the commit that contains this report,
-relative to the approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df`
-(exactly the four authorized paths):
+Amendment-11 approval-state changes in the commit that contains this report,
+relative to the content-approved candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd` (exactly the four authorized paths,
+approval state only):
+
+- `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
+  - reason: record the CTO exact candidate-content approval of 2026-10-12.
+  - behavioural effect: the header's `Status: PROPOSED` becomes
+    `Status: APPROVED` and gains `Approved by: Javi, CTO` and
+    `Approval date: 2026-10-12`; section 12's two leading candidate-state
+    paragraphs ("Current decision state: **PROPOSED**." and the statement that
+    the corrected content has not been approved) are replaced by
+    "Current decision state: **APPROVED**.", the same approver and date, and
+    a paragraph stating that the CTO approved this exact corrected content on
+    2026-10-12 as the architecture content represented by candidate head
+    `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+    `7e461106986fe6efad2021d1ad6f52573e6e9d66`, that this version differs
+    from that candidate only in its approval-state representation, that the
+    approval does not by itself make the ADR repository-authoritative and
+    that any ADR-0013 programme-local reliance on this exact version is a
+    separate state not effective until its own conditions are satisfied.
+    Every other line, including all architecture, the Amendment-11
+    routed-job and terminal-resolution subsections, invariants 1-45, the
+    validation requirements, the historical-approval paragraph, the authority
+    condition and the architecture-versus-implementation separation, is
+    byte-identical to the candidate (section 9). Approval-state blob:
+    `df8017c57d74eaecf13041e231ef97625260fab1`.
+  - within authorized write budget: YES
+- `docs/engineering/decisions/decision-register.md`
+  - reason: record the approval state of the ADR-0012 row.
+  - behavioural effect: the ADR-0012 row - `PROPOSED` becomes `APPROVED`,
+    `Pending` becomes `Satisfied`, "its corrected content awaits CTO
+    approval" becomes "Javi, CTO approved its exact corrected content on
+    2026-10-12", bound to candidate head
+    `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+    `7e461106986fe6efad2021d1ad6f52573e6e9d66` as historical content-approval
+    evidence, with the statement that content approval is architecture-content
+    approval only and that exact-final-blob approval, independent final
+    source-head review, merge authorization and ADR-0013 reliance are separate
+    gates recorded in GitHub. The header `Last updated: 2026-10-12` already
+    carries the date of this row change and is unchanged (section 5, decision
+    129). Every other row is unchanged. Approval-state blob:
+    `c9ff92119095a162cf736304eb88ba595d3685ab`.
+  - within authorized write budget: YES
+- `CHANGELOG.md`
+  - reason: record the approval state of the routed-job atomicity correction
+    entry.
+  - behavioural effect: the
+    `THOTH-ASYNC-01-ADR-01-ROUTED-JOB-ATOMICITY-CORRECTION` entry only -
+    "propose" becomes "record a CTO-approved", "`PROPOSED`: the corrected
+    content is not approved" becomes "`APPROVED`: Javi, CTO approved the
+    exact corrected content on 2026-10-12", and "proposal only" becomes
+    "decision only". Its statements that the earlier entries and the
+    2026-09-30, 2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08 and 2026-10-09
+    approvals apply only to historical exact versions are unchanged, and
+    every other entry is byte-identical. Approval-state blob:
+    `a4af0397dc37fdf782124573d9a4b7a7b55e8abe`.
+  - within authorized write budget: YES
+- `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
+  - reason: record the Amendment-11 approval-state stage truthfully.
+  - behavioural effect: documentation only. Makes the approval-state commit
+    the current stage; records the independent exact-candidate source review,
+    the CTO candidate-content approval and the approval-state authorization;
+    records the approval-state validation and no-drift proof (section 9); and
+    reframes statements that would otherwise describe the candidate as the
+    commit containing this report, recording the candidate's identities as
+    historical facts. All still-true earlier evidence is preserved.
+  - within authorized write budget: YES
+
+Byte-identical to the content-approved candidate through the approval-state
+commit: every path other than the four authorized paths, including ADR-0008
+`622060ad90eec41c792f110c373efffbb11a4b56`, ADR-0010
+`aca2142a3387785e80db908b3a5c1b0afd82ab51` and ADR-0013
+`d928f957bdf775d03e99fc73888ec8e2dec5f80b`.
+
+Historical Amendment-11 candidate changes in the content-approved candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`, relative to the approval-state head
+`576a860be47aa1ebe39968f4d3297b26ee1d17df` (exactly the four authorized
+paths):
 
 - `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
   - reason: implement Specification Amendment 11 and record the corrected
@@ -1765,15 +1937,16 @@ relative to the approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df`
   - within authorized write budget: YES
 - `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
   - reason: record the Amendment-11 candidate stage truthfully.
-  - behavioural effect: documentation only. Makes the candidate the current
-    stage; records the approval-state inspection, the exact-final-blob
-    approval of the Amendment-10 approval-state blob, the final-head review of
-    that head, `R-576A-01` and `R-576A-02`, Amendment 11, its CTO approval,
-    its independent review and the candidate authorization as governing
-    evidence; records the candidate's validation (section 9); and reframes
-    statements that would otherwise describe the approval-state commit as the
-    commit containing this report, recording that commit's identities as
-    historical facts. All still-true earlier evidence is preserved.
+  - behavioural effect: documentation only. Made the candidate the
+    then-current stage; recorded the approval-state inspection, the
+    exact-final-blob approval of the Amendment-10 approval-state blob, the
+    final-head review of that head, `R-576A-01` and `R-576A-02`, Amendment
+    11, its CTO approval, its independent review and the candidate
+    authorization as governing evidence; recorded the candidate's validation
+    (section 9); and reframed statements that would otherwise describe the
+    approval-state commit as the commit containing the report, recording that
+    commit's identities as historical facts. All still-true earlier evidence
+    was preserved.
   - within authorized write budget: YES
 
 Byte-identical to the approval-state head through the Amendment-11 candidate:
@@ -2572,8 +2745,8 @@ approval-state commit, the control-record recovery, the transient-state
 correction, the factual clarification, the Amendment-8 candidate, the
 Amendment-8 approval-state commit, the Amendment-9 candidate, the Amendment-9
 approval-state commit, the Amendment-10 candidate, its consistency
-correction, the Amendment-10 approval-state commit and the Amendment-11
-candidate:
+correction, the Amendment-10 approval-state commit, the Amendment-11
+candidate and the Amendment-11 approval-state commit:
 
 - ADR-0008 - blob `622060ad90eec41c792f110c373efffbb11a4b56`;
 - ADR-0010 - blob `aca2142a3387785e80db908b3a5c1b0afd82ab51`;
@@ -2752,7 +2925,11 @@ Files deleted, moved or renamed: NONE
 
 PASS
 
-The Amendment-11 candidate differs from the approval-state head
+The Amendment-11 approval-state commit differs from the content-approved
+candidate `528c2db04af5c53b9820b946ddac2ebb936eb4cd` in exactly the four
+authorized paths and from refreshed `feature/worker` in exactly the six
+cumulative PR paths (section 9, "Amendment-11 approval-state validation").
+The Amendment-11 candidate differed from the approval-state head
 `576a860be47aa1ebe39968f4d3297b26ee1d17df` in exactly the four authorized
 correction paths and from refreshed `feature/worker` in exactly the six
 cumulative PR paths (section 9, "Amendment-11 candidate validation"). The
@@ -2829,8 +3006,9 @@ stage (#958 comment `6046895895`), the Amendment-9 approval-state stage
 (#958 comment `6065879000`), the Amendment-10 candidate stage (#958 comment
 `6067886387`), the F-A10-CAND-01 consistency-correction stage (#958 comment
 `6069074613`), the Amendment-10 approval-state stage (#958 comment
-`6083303288`) and the Amendment-11 candidate stage (#958 comment
-`6125285446`). This matrix
+`6083303288`), the Amendment-11 candidate stage (#958 comment
+`6125285446`) and the Amendment-11 approval-state stage (#958 comment
+`6128858897`). This matrix
 states only what had been done when the commit that
 contains this report was created; it is historical stage-time evidence and
 does not describe the current PR #960 lifecycle gate.
@@ -3240,8 +3418,8 @@ Amendment-11 candidate:
   review of the approval-state head, and returned it to Draft before the
   Amendment-11 candidate (section 2)
 
-Amendment-11 candidate stage - done up to and including the creation of the
-commit that contains this report:
+Amendment-11 candidate stage - historical, completed before the Amendment-11
+approval-state commit:
 
 - repository inspection: USED (read-only verification of the exact refs,
   including `develop` and `feature/worker` at the same base, PR #960 open,
@@ -3268,17 +3446,53 @@ commit that contains this report:
   worktree, verified clean and exact at the approval-state head and touching
   no other worktree, branch or ref, was reused for construction, and the
   existing task branch is the fast-forward target)
-- commit: USED (the single-parent candidate commit that contains this report)
+- commit: USED (the single-parent candidate commit
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd`)
+- push: USED (one non-force fast-forward of `feature/async/adr-0012` from
+  `576a860be47aa1ebe39968f4d3297b26ee1d17df` to the candidate; the remote head,
+  tree, parent and ADR-0012, decision-register, changelog and report blobs
+  were verified; no automated review ran on the draft candidate head)
+- independent exact-candidate source review: NOT USED by the implementing
+  agent; an independent reviewer reviewed the published candidate and
+  returned `APPROVED` (section 2)
 
-Authorized post-commit actions for the candidate commit - GitHub-owned
+Amendment-11 approval-state stage - done up to and including the creation of
+the commit that contains this report:
+
+- repository inspection: USED (read-only verification of the exact refs,
+  including `develop` and `feature/worker` at the same base, PR #960 open,
+  draft, unmerged and mergeable with head
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and target `feature/worker`,
+  the candidate's tree, single parent and ADR-0012, report, decision-register
+  and changelog blobs, the protected ADR-0008, ADR-0010 and ADR-0013 blobs
+  and the Route-B doctrine blob, the six-path cumulative footprint, the
+  absence of any ADR-0012 commit reachable from `develop`, `master` or
+  `feature/worker` (Route-B eligibility), the presence of the
+  exact-candidate review, content-approval and approval-state authorization
+  records on #958 with no later control record, the pull_request-triggered
+  workflow set and its documentation-only classification gate, and, as
+  stage-time evidence, the PR #960 review-thread state in GitHub; all matched
+  the authorization; current review-thread state remains GitHub-owned)
+- PR creation/update: NOT USED (PR #960 was already a draft; no PR-state,
+  title or description change is authorized at this stage)
+- source edit: USED (the four authorized paths, approval state only)
+- new file creation, file deletion/move/rename, branch creation: NOT USED
+  (not authorized; the same detached local worktree, verified clean and
+  exact at the content-approved candidate and touching no other worktree,
+  branch or ref, was reused for construction, and the existing task branch
+  is the fast-forward target)
+- commit: USED (the single-parent approval-state commit that contains this
+  report)
+
+Authorized post-commit actions for the approval-state commit - GitHub-owned
 lifecycle evidence under `ADR-0005`, not self-recorded here:
 
 - the non-force push that fast-forwards `feature/async/adr-0012` from
-  `576a860be47aa1ebe39968f4d3297b26ee1d17df` to the candidate commit;
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` to the approval-state commit;
 - post-push read-only verification of the remote head, tree, direct parent,
-  ADR-0012, decision-register, changelog and report blobs, changed path set,
-  cumulative footprint and PR #960 state, and that no review thread was
-  replied to, resolved or dismissed;
+  ADR-0012, decision-register, changelog and report blobs, ADR approval
+  state, changed path set, cumulative footprint and PR #960 state, and that
+  no review thread was replied to, resolved or dismissed;
 - the automatic PR CI that the push causes, and read-only inspection of any
   automated review that runs on the draft head.
 
@@ -3286,24 +3500,23 @@ These actions necessarily follow the creation of the commit that contains this
 report. Their outcomes are recorded in the post-publication handoff and the
 GitHub ledger rather than written into the source tree as completed.
 
-Not authorized for the implementing agent at the Amendment-11 candidate
+Not authorized for the implementing agent at the Amendment-11 approval-state
 stage, each a separate controlled lifecycle category where applicable
 (historical stage-time evidence; GitHub, through #958 and PR #960, is
 authoritative for the current state of each):
 
-- any edit to a path other than the four authorized correction paths: NOT USED
-  (not authorized)
-- any ADR-0012 change outside Amendment 11 and the candidate `PROPOSED` state:
-  NOT USED (not authorized)
-- independent exact-candidate inspection or exact-head review: NOT USED (never
-  on the implementing agent's authority)
-- CTO candidate-content approval, approval-state commit, fresh `APPROVED`
-  status, approver or approval date, exact-final-blob approval: NOT USED (not
+- any edit to a path other than the four authorized paths: NOT USED (not
   authorized)
+- any ADR-0012 change outside the approval-state representation, including
+  any architecture change: NOT USED (not authorized)
+- independent inspection or exact-head review: NOT USED (never on the
+  implementing agent's authority)
+- exact-final-blob approval or confirmation: NOT USED (not authorized; never
+  on the implementing agent's authority)
 - PR #960 title or description update: NOT USED (not authorized at this stage)
 - Draft -> Ready: NOT USED (not authorized)
-- any second candidate commit, amend, rebase, squash, force push or history
-  rewrite: NOT USED (not authorized)
+- any second approval-state commit, amend, rebase, squash, force push or
+  history rewrite: NOT USED (not authorized)
 - issue/comment mutation: NOT USED (not authorized)
 - review-thread resolution/dismissal/reply: NOT USED (not authorized)
 - manual CI dispatch/rerun: NOT USED (not authorized)
@@ -3340,17 +3553,19 @@ authorization, the factual-clarification authorization, the Amendment-8
 candidate and approval-state authorizations, the Amendment-9 candidate and
 approval-state authorizations, the Amendment-10 candidate authorization, the
 F-A10-CAND-01 consistency-correction authorization, the Amendment-10
-approval-state authorization and the Amendment-11 candidate authorization,
-configured Codex/app review is not expected from a push to a draft PR and is
-not relied upon at the Amendment-6/7 candidate, approval-state,
-control-record recovery, transient-state correction, factual-clarification,
-Amendment-8 candidate, Amendment-8 approval-state, Amendment-9 candidate,
-Amendment-9 approval-state, Amendment-10 candidate, consistency-correction,
-Amendment-10 approval-state or Amendment-11 candidate stage; configured
-Codex/app review runs on separately authorized Ready transitions, which are
-GitHub-owned lifecycle events, and any automated review that nevertheless
-runs on a draft head is inspected read-only. The actual job outcomes for the
-candidate commit exist only after its publication; they
+approval-state authorization, the Amendment-11 candidate authorization and
+the Amendment-11 approval-state authorization, configured Codex/app review is
+not expected from a push to a draft PR and is not relied upon at the
+Amendment-6/7 candidate, approval-state, control-record recovery,
+transient-state correction, factual-clarification, Amendment-8 candidate,
+Amendment-8 approval-state, Amendment-9 candidate, Amendment-9
+approval-state, Amendment-10 candidate, consistency-correction, Amendment-10
+approval-state, Amendment-11 candidate or Amendment-11 approval-state stage;
+configured Codex/app review runs on separately authorized Ready transitions,
+which are GitHub-owned lifecycle events, and any automated review that
+nevertheless runs on a draft head is inspected read-only. The actual job
+outcomes for the approval-state commit exist only after its publication;
+they
 are GitHub-owned lifecycle evidence recorded in the pull
 request, the post-publication handoff and the owning issue, not in this file.
 If an automatic workflow unexpectedly intends to execute a migration or
@@ -3360,9 +3575,9 @@ Historical automatic CI for earlier PR heads, as recorded by earlier stages of
 this report or read back from GitHub at the transient-state correction,
 factual-clarification, Amendment-8 candidate, Amendment-8 approval-state,
 Amendment-9 candidate, Amendment-9 approval-state, Amendment-10 candidate,
-consistency-correction, Amendment-10 approval-state or Amendment-11 candidate
-stage, followed the same documentation-only classification, with no manual
-dispatch or rerun:
+consistency-correction, Amendment-10 approval-state, Amendment-11 candidate or
+Amendment-11 approval-state stage, followed the same documentation-only
+classification, with no manual dispatch or rerun:
 
 ```text
 7f7e62824eb40308688b46351ffea182e9e52942: 4 success, 6 skipped
@@ -3383,6 +3598,7 @@ e41f377202379238b91eb43d60f5115aa8adc20f: 4 success (classify x3, check-changelo
 6e521f00b039769b28a26ab069c7e97d22de4e08: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (first Amendment-10 candidate)
 e0fa590e06a00d08df883bc4ddeae40b7660fcb8: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (content-approved Amendment-10 replacement candidate)
 576a860be47aa1ebe39968f4d3297b26ee1d17df: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (Amendment-10 approval-state head)
+528c2db04af5c53b9820b946ddac2ebb936eb4cd: 4 success (classify x3, check-changelog), 6 skipped (build, test, lint, format_check, run_migrations, build_and_push_staging_docker_image) (content-approved Amendment-11 candidate)
 ```
 
 Manually initiated external actions (anything the implementing agent
@@ -4275,9 +4491,10 @@ Amendment-10 approval-state stage (historical approval-state head
     approval-state commit's identities as historical facts because that head
     is the Amendment-11 candidate's parent.
 
-Amendment-11 Route-B candidate (the commit that contains this report). Items
-115, 117 and 120 record interpretations of the approved specification for
-explicit control inspection:
+Amendment-11 Route-B candidate (historical content-approved candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`). Items 115, 117 and 120 recorded
+interpretations of the approved specification for explicit control
+inspection:
 
 113. The two Amendment-11 rules are each stated once, in a new unnumbered
     subsection following the style of the Amendment-9 and Amendment-10
@@ -4397,17 +4614,87 @@ explicit control inspection:
     independent-review and candidate-authorization records are cited by
     their comment identifiers as specification and authorization evidence,
     consistent with section 2.
-124. This report does not self-pin the candidate commit's SHA, its tree or its
-    own final blob; because the report now lives in the candidate commit,
-    statements that described the approval-state commit as the commit
-    containing this report are reframed as history, and that commit's
-    identities, now the candidate parent, are recorded in section 1 as
-    historical facts. Construction reused the same detached scratch
-    worktree, verified clean and exact at the approval-state head before
-    editing, touching no other worktree, branch, ref, stash or uncommitted
-    change. The PR #960 title and description describe the historical
-    Amendment-10 source; this stage is not authorized to change them, and
-    their reconciliation is reported to control as a separate action.
+124. The candidate report did not self-pin the candidate commit's SHA, its
+    tree or its own final blob; because the report then lived in the
+    candidate commit, statements that described the approval-state commit as
+    the commit containing the report were reframed as history, and that
+    commit's identities, the candidate parent, were recorded in section 1 as
+    historical facts; section 1 now records the candidate's identities as
+    historical facts because that head is the Amendment-11 approval-state
+    commit's parent. Construction reused the same detached scratch worktree,
+    verified clean and exact at the approval-state head before editing,
+    touching no other worktree, branch, ref, stash or uncommitted change. The
+    PR #960 title and description describe the historical Amendment-10
+    source; that stage was not authorized to change them, and their
+    reconciliation was reported to control as a separate action.
+
+Amendment-11 approval-state stage (the commit that contains this report):
+
+125. The approval-state header uses the same field order as the earlier
+    approved ADR-0012 versions (`Status`, `Date`, `Approved by`,
+    `Approval date`, `Decision owner`), and section 12 repeats the approver
+    and date; the original decision date `2026-09-29` is preserved.
+126. The approval date carried by the ADR is the date of the CTO exact
+    candidate-content approval record, 2026-10-12, as Route B and the
+    approval-state authorization require; it is neither back-dated nor
+    anticipated, and it is not replaced by a commit or push date.
+127. Section 12's approval-state delta is limited to its two leading
+    candidate-state paragraphs, replaced by "Current decision state:
+    **APPROVED**.", the approver/date and one paragraph stating that the CTO
+    approved this exact corrected content on 2026-10-12 as the architecture
+    content represented by candidate head
+    `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+    `7e461106986fe6efad2021d1ad6f52573e6e9d66`, that this version differs
+    from that candidate only in its approval-state representation, that the
+    approval does not by itself make the ADR repository-authoritative and
+    that ADR-0013 programme-local reliance on this exact version is separate
+    and not effective until its own conditions are satisfied (decisions 83
+    and 107 pattern). The historical-approval, material-correction,
+    architecture-only, authority-condition, partial-supersession and
+    amendment paragraphs were already true in the approved state (decision
+    123) and are unchanged.
+128. The content approval is recorded only through owning issue #958, approver
+    Javi, CTO, approval date 2026-10-12, candidate head
+    `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+    `7e461106986fe6efad2021d1ad6f52573e6e9d66`. Its GitHub comment identifier
+    is not copied into repository source: the repository-authoritative Route-B
+    rule in `docs/engineering/decisions/README.md` forbids it, the control
+    adjudication on #958 of the earlier Amendment-6/7 approval-state report
+    applied that rule to this task (decisions 36-37, 64, 84 and 108), and the
+    approval-state authorization for this stage requires the same; the
+    independent exact-candidate review receipt is likewise recorded by
+    outcome and date only.
+129. The decision-register header `Last updated: 2026-10-12` already carries
+    the date on which the approval-state commit changes the ADR-0012 row, so
+    it is unchanged, as the approval-state authorization permits (decisions
+    25, 78 and 97 pattern); only the ADR-0012 row changes. The row binds the
+    content approval to the candidate head and blob as historical
+    content-approval evidence and states, in the durable form that
+    `docs/engineering/AGENTS.md` section 1.1 requires, that exact-final-blob
+    approval, independent final source-head review, merge authorization and
+    ADR-0013 reliance are separate gates recorded in GitHub; the existing
+    authority-condition sentence is unchanged.
+130. Only the `THOTH-ASYNC-01-ADR-01-ROUTED-JOB-ATOMICITY-CORRECTION`
+    changelog entry changes, following the earlier approval-state wording
+    pattern (decisions 66, 86 and 110: "propose" to "record a CTO-approved",
+    the `PROPOSED` sentence to the `APPROVED` sentence naming the approver
+    and date, and "proposal only" to "decision only"); every other entry,
+    including the historical approval entries, is byte-identical.
+131. Architecture no-drift is proven by the exact normalized comparison in
+    section 9 ("Amendment-11 approval-state validation"), not by assertion:
+    outside the header approval fields and the section-12 opening block, the
+    approval-state ADR is byte-identical to the content-approved candidate
+    blob, so every A11-1, A11-2 and A11-3 requirement, invariants 1-45 and
+    the complete validation matrix are unchanged.
+132. This report does not self-pin the approval-state commit's SHA, its tree
+    or its own final blob; it records only non-self-referential evidence and
+    the approval-state ADR-0012, decision-register and changelog blobs, which
+    do not depend on its bytes. Because the report now lives in the
+    approval-state commit, statements that described the candidate as the
+    commit containing this report are reframed as history, and the
+    candidate's identities, now the approval-state parent, are recorded in
+    section 1 as historical facts. The approval-state ADR blob is recorded as
+    a result; it is not represented as exact-final-blob approved.
 
 List any deviation from the specification requiring authorization:
 
@@ -4514,9 +4801,15 @@ List any deviation from the specification requiring authorization:
 - Amendment-11 candidate stage: NONE. No fifth path, new file, deletion, ADR
   change outside Amendment 11 and the candidate state, second commit, amend,
   rebase, squash, force push or history rewrite was needed or performed
-  before the commit that contains this report was created. Decisions 115,
-  117 and 120 are recorded for control inspection as interpretations within
-  the authorized scope, not as deviations.
+  before the candidate commit was created. Decisions 115, 117 and 120 were
+  recorded for control inspection as interpretations within the authorized
+  scope, not as deviations, and the independent exact-candidate review
+  raised no finding against them.
+- Amendment-11 approval-state stage: NONE. The approval-state transformation
+  followed its separate authorization exactly; no fifth path, new file,
+  deletion, architecture change, second commit, amend, rebase, squash, force
+  push or history rewrite was needed or performed before the commit that
+  contains this report was created.
 
 ## 6. Database and migration effects
 
@@ -4597,8 +4890,10 @@ content-approved replacement candidate
 `e0fa590e06a00d08df883bc4ddeae40b7660fcb8`. "Amendment-10 approval-state
 validation" records the validation of the historical approval-state commit
 `576a860be47aa1ebe39968f4d3297b26ee1d17df`. "Amendment-11 candidate validation"
-at the end of this section records the validation of the commit that
-contains this report.
+records the validation of the historical content-approved candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`. "Amendment-11 approval-state
+validation" at the end of this section records the validation of the commit
+that contains this report.
 
 Validation environment for the activation-epoch candidate: a full local Git
 worktree of `thoth-pub/thoth`,
@@ -7883,15 +8178,18 @@ git hash-object --no-filters docs/engineering/decisions/ADR-0012-shared-asynchro
 7e461106986fe6efad2021d1ad6f52573e6e9d66
 ```
 
-The candidate ADR-0012, decision-register and changelog blobs are
-deterministic and do not depend on this report's bytes, so they are recorded
-above. This report's own final blob, the candidate tree and the candidate
-commit SHA depend on this report's bytes and are not self-pinned; they are
-verified against the remote head after push and recorded in the
-post-publication handoff.
+The candidate ADR-0012, decision-register and changelog blobs were
+deterministic and did not depend on the candidate report's bytes, so they
+were recorded above. The candidate report's own final blob, the candidate
+tree and the candidate commit SHA depended on that report's bytes and were
+not self-pinned in it; they were verified against the remote head after push
+and recorded in the post-publication handoff, and section 1 now records them
+as historical facts: commit `528c2db04af5c53b9820b946ddac2ebb936eb4cd`, tree
+`7de8c64a1bf570526822002b9d2f1bb81baef424`, report blob
+`6919cf8f5b5f854d56d93df7c283b416b5b4b84d`.
 
-Required topology of the candidate commit, checked after it is created and
-before any push, with results recorded in the post-publication handoff:
+Required topology of the candidate commit, checked after it was created and
+before push; the published candidate satisfied every requirement:
 
 ```text
 git rev-list --parents -n 1 HEAD
@@ -7905,6 +8203,256 @@ required: exit 0; no output
 
 git diff --name-only 576a860be47aa1ebe39968f4d3297b26ee1d17df HEAD
 required: exactly the four candidate paths
+
+git diff --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe HEAD
+required: exactly the six cumulative PR paths
+```
+
+### Amendment-11 approval-state validation
+
+Environment: the same detached local Git worktree, verified clean (no tracked
+or untracked change) and exact at the content-approved Amendment-11 candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd` (tree
+`7de8c64a1bf570526822002b9d2f1bb81baef424`) before editing, touching no other
+worktree, branch or ref. Immediately before construction, read-only GitHub
+inspection showed `develop` and `feature/worker` at
+`b44303c214498baf76c9d9a0a7cab374377f9cbe`, no ADR-0012 commit reachable from
+`develop`, `master` or `feature/worker` (Route-B eligibility),
+`feature/async/adr-0012` at
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd` with single parent
+`576a860be47aa1ebe39968f4d3297b26ee1d17df` and no descendant, ADR-0012 blob
+`7e461106986fe6efad2021d1ad6f52573e6e9d66`, report blob
+`6919cf8f5b5f854d56d93df7c283b416b5b4b84d`, decision-register blob
+`98cf125665a3f0011a6ca9c7f90b2b9562931fe7` and changelog blob
+`91218d7aee40053dfb84c83414f50434e1398695` at that head, the protected
+ADR-0008, ADR-0010 and ADR-0013 blobs and the Route-B doctrine blob, PR #960
+open, draft, unmerged and mergeable with that head and target
+`feature/worker`, the cumulative PR footprint exactly the six paths, the
+exact-candidate review, content-approval and approval-state authorization
+records present on #958 as the three latest comments with no later control
+record, the pull_request-triggered workflows gated by the documentation-only
+classifier, and PR #960 review-thread state that matched the stage
+authorization (stage-time evidence; current review-thread state remains
+GitHub-owned). ADR-0012, the decision register and the changelog were edited
+first and their deterministic blobs recorded; then only this report was
+edited; all four were staged, and every check below ran against that exact
+final staged index before the approval-state commit was created from it; the
+report's numeric line counts below were filled in and the complete check set
+rerun with identical results.
+
+Whitespace:
+
+```text
+git diff --check
+exit 0; no output
+
+git diff --cached --check 528c2db04af5c53b9820b946ddac2ebb936eb4cd
+exit 0; no output
+
+git diff --cached --check b44303c214498baf76c9d9a0a7cab374377f9cbe
+exit 0; no output
+```
+
+Approval-state delta against the content-approved candidate (exactly the four
+authorized paths):
+
+```text
+git diff --cached --name-only 528c2db04af5c53b9820b946ddac2ebb936eb4cd
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+docs/engineering/decisions/decision-register.md
+
+git diff --cached --name-status 528c2db04af5c53b9820b946ddac2ebb936eb4cd
+M	CHANGELOG.md
+M	docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+M	docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+M	docs/engineering/decisions/decision-register.md
+
+git diff --cached --numstat 528c2db04af5c53b9820b946ddac2ebb936eb4cd
+1	1	CHANGELOG.md
+783	194	docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+16	5	docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+1	1	docs/engineering/decisions/decision-register.md
+```
+
+Cumulative footprint against refreshed `feature/worker` (exactly the six PR
+paths):
+
+```text
+git diff --cached --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe
+CHANGELOG.md
+docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md
+docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md
+docs/engineering/decisions/ADR-0010-staff-operations-console.md
+docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+docs/engineering/decisions/decision-register.md
+```
+
+ADR-0012 approval-state delta (four hunks: the header status line, the two
+inserted header approval lines, the section-12 decision-state line and the
+section-12 approval paragraphs; no other hunk):
+
+```text
+git diff --cached -U0 528c2db04af5c53b9820b946ddac2ebb936eb4cd -- docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | grep '^@@'
+@@ -3 +3 @@
+@@ -4,0 +5,2 @@ Date: 2026-09-29
+@@ -3186 +3188 @@ shared-engine tests.
+@@ -3188,3 +3190,12 @@ Current decision state: **PROPOSED**.
+
+git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | grep -n '^Status:\|^Approved by:\|^Approval date:\|^Current decision state:'
+3:Status: APPROVED
+5:Approved by: Javi, CTO
+6:Approval date: 2026-10-12
+3188:Current decision state: **APPROVED**.
+3190:Approved by: Javi, CTO
+3191:Approval date: 2026-10-12
+```
+
+Architecture no-drift proof. The normalization `N` drops the header
+`Status`, `Approved by` and `Approval date` lines before the first `---`
+separator and the section-12 lines from the heading up to, but not
+including, the line beginning "This version is a material architectural
+correction"; it keeps every other byte. The content-approved candidate blob
+and the staged approval-state ADR normalize to identical content, so every
+A11-1, A11-2 and A11-3 requirement, invariants 1-45 and the complete
+validation matrix are byte-identical:
+
+```text
+N='BEGIN{h=1} h&&/^---$/{h=0} h&&/^(Status|Approved by|Approval date): /{next} /^## 12\. Approval and authority$/{print;s=1;next} s&&/^This version is a material architectural correction/{s=0} s{next} {print}'
+
+diff <(git cat-file -p 7e461106986fe6efad2021d1ad6f52573e6e9d66 | awk "$N") <(git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | awk "$N")
+exit 0; no output (NO DIFFERENCE)
+
+git cat-file -p 7e461106986fe6efad2021d1ad6f52573e6e9d66 | awk "$N" | shasum -a 256
+d9ea7edf6a663d7e4a4eb636109f80c04e89396863c1cbc62f0c05cfd6173bf1  -
+
+git show :docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md | awk "$N" | shasum -a 256
+d9ea7edf6a663d7e4a4eb636109f80c04e89396863c1cbc62f0c05cfd6173bf1  -
+```
+
+Lines the normalization removes from each version (trailing blanks stripped
+for display), so that the complete raw delta is visible:
+
+```text
+candidate 7e461106986fe6efad2021d1ad6f52573e6e9d66:
+Status: PROPOSED
+Current decision state: **PROPOSED**.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
+
+approval-state ADR:
+Status: APPROVED
+Approved by: Javi, CTO
+Approval date: 2026-10-12
+Current decision state: **APPROVED**.
+Approved by: Javi, CTO
+Approval date: 2026-10-12
+The CTO approved this exact corrected content on 2026-10-12 under the
+repository decision process, as the architecture content represented by the
+Route-B candidate head `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and
+candidate ADR-0012 blob `7e461106986fe6efad2021d1ad6f52573e6e9d66`; this
+version differs from that candidate only in this approval-state
+representation. That approval does not by itself make this ADR
+repository-authoritative: the authority condition below still applies. Any
+ADR-0013 programme-local reliance on this exact version is a separate state
+that is not effective until its own conditions are satisfied for this version.
+```
+
+Decision-register delta (the ADR-0012 row only; the `Last updated:
+2026-10-12` header and every other line byte-identical):
+
+```text
+git diff --cached -U0 528c2db04af5c53b9820b946ddac2ebb936eb4cd -- docs/engineering/decisions/decision-register.md | grep '^@@'
+@@ -20 +20 @@ Last updated: 2026-10-12
+
+diff <(git show 528c2db04af5c53b9820b946ddac2ebb936eb4cd:docs/engineering/decisions/decision-register.md | sed '20d') <(git show :docs/engineering/decisions/decision-register.md | sed '20d')
+exit 0; no output
+
+git show :docs/engineering/decisions/decision-register.md | sed -n '5p;20p' | cut -c1-200
+Last updated: 2026-10-12
+| `ADR-0012` | [Shared asynchronous event and job execution architecture](ADR-0012-shared-asynchronous-event-and-job-execution.md) | APPROVED | Shared Backend Architecture; Publisher Services and
+```
+
+Changelog delta (the existing
+`THOTH-ASYNC-01-ADR-01-ROUTED-JOB-ATOMICITY-CORRECTION` entry only; every
+other line byte-identical):
+
+```text
+git diff --cached -U0 528c2db04af5c53b9820b946ddac2ebb936eb4cd -- CHANGELOG.md | grep '^@@'
+@@ -22 +22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+
+diff <(git show 528c2db04af5c53b9820b946ddac2ebb936eb4cd:CHANGELOG.md | sed '22d') <(git show :CHANGELOG.md | sed '22d')
+exit 0; no output
+
+git diff --cached --word-diff=plain -U0 528c2db04af5c53b9820b946ddac2ebb936eb4cd -- CHANGELOG.md | grep -o '\[-[^]]*-\]\|{+[^}]*+}'
+[-propose-]
+{+record+}
+{+CTO-approved+}
+[-`PROPOSED`:-]
+{+`APPROVED`: Javi, CTO approved+}
+{+exact+}
+[-is not approved.**-]
+{+on 2026-10-12.**+}
+[-proposal-]
+{+decision+}
+```
+
+Content-approval identifier (the command is shown with the identifier replaced
+by a description, so that this report itself does not contain it):
+
+```text
+git show :docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md | grep -F -c '<CTO content-approval comment identifier>'
+0
+```
+
+Staged blob identities (condensed `git ls-files -s` output; mode and stage
+omitted, paths abbreviated) and the ADR-0012 `git hash-object --no-filters`
+result:
+
+```text
+ADR-0012 (APPROVED)                                   df8017c57d74eaecf13041e231ef97625260fab1
+decision-register.md                                  c9ff92119095a162cf736304eb88ba595d3685ab
+CHANGELOG.md                                          a4af0397dc37fdf782124573d9a4b7a7b55e8abe
+ADR-0008                                              622060ad90eec41c792f110c373efffbb11a4b56
+ADR-0010                                              aca2142a3387785e80db908b3a5c1b0afd82ab51
+ADR-0013                                              d928f957bdf775d03e99fc73888ec8e2dec5f80b
+decisions/README.md                                   de7769a4ee6a50c79c1b57ae6993d7eb4fa673d7
+CTRL-ADR-AMEND-01 implementation report               7bf7425f0527dbaa72e718df5264e399035a148b
+CTRL-ADR-PR-FIRST-01 implementation report            d86cf215866750979eafea040426c51374d5155c
+ADR-0005                                              bdaa976e4893b1fc45f994236f9e56d433212d63
+docs/engineering/AGENTS.md                            e194b14e8c4fbb298db7ca6c38aebeb69547a29a
+implementation-report-template.md                     0ae39d3892bbca5b0ff90dc7ffa70038662351bc
+
+git hash-object --no-filters docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md
+df8017c57d74eaecf13041e231ef97625260fab1
+```
+
+The approval-state ADR-0012, decision-register and changelog blobs are
+deterministic and do not depend on this report's bytes, so they are recorded
+above; the ADR-0012 blob `df8017c57d74eaecf13041e231ef97625260fab1` is the exact
+final blob presented for CTO exact-final-blob approval at this stage and is
+not yet so approved. This report's own final blob, the approval-state tree
+and the approval-state commit SHA depend on this report's bytes and are not
+self-pinned; they are verified against the remote head after push and
+recorded in the post-publication handoff.
+
+Required topology of the approval-state commit, checked after it is created
+and before any push, with results recorded in the post-publication handoff:
+
+```text
+git rev-list --parents -n 1 HEAD
+required: <approval-state commit> 528c2db04af5c53b9820b946ddac2ebb936eb4cd   (exactly one parent)
+
+git rev-parse HEAD^{tree}
+required: equal to the git write-tree output of the validated index
+
+git diff --check 528c2db04af5c53b9820b946ddac2ebb936eb4cd HEAD
+required: exit 0; no output
+
+git diff --name-only 528c2db04af5c53b9820b946ddac2ebb936eb4cd HEAD
+required: exactly the four authorized paths
 
 git diff --name-only b44303c214498baf76c9d9a0a7cab374377f9cbe HEAD
 required: exactly the six cumulative PR paths
@@ -8115,6 +8663,19 @@ the candidate commit, in particular any statement naming the replacement
 candidate as the direct parent of the commit containing this report or
 presenting the approval-state commit as the current stage, and reframed
 them.
+Amendment-11 approval-state stage: compared the staged ADR-0012 with the
+content-approved candidate blob `7e461106986fe6efad2021d1ad6f52573e6e9d66` by
+the exact normalized comparison in section 9 (no difference), and read the
+raw delta line by line; compared the staged register and changelog with the
+candidate blobs (only the ADR-0012 row, and only the routed-job atomicity
+correction entry, change); confirmed the protected decision and control
+blobs are unchanged; confirmed by fixed-string search that the
+content-approval comment identifier does not occur in this report; and read
+the report for statements that would become false once it moves into the
+approval-state commit, in particular any statement naming the Amendment-10
+approval-state head as the direct parent of the commit containing this
+report or describing the candidate as still the current `PROPOSED`
+candidate, and reframed them.
 Evidence link/screenshot/log reference: the local validation in section 9.
 Pull-request diffs of earlier heads, including the published activation-epoch
 candidate `95769537cdc9871e42f9f3e5443604a96beb74da`, its approval-state head
@@ -8132,10 +8693,12 @@ the content-approved Amendment-9 candidate
 `8699af5635b8f18691ceaeccd3b24707a71ef4f2`, the Amendment-9 approval-state
 head `e41f377202379238b91eb43d60f5115aa8adc20f`, the first Amendment-10
 candidate `6e521f00b039769b28a26ab069c7e97d22de4e08` and the content-approved
-replacement candidate `e0fa590e06a00d08df883bc4ddeae40b7660fcb8` and the Amendment-10
-approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df`, are
-historical evidence; the live PR #960 diff of the candidate commit exists
-only after its publication and is GitHub-owned lifecycle evidence.
+replacement candidate `e0fa590e06a00d08df883bc4ddeae40b7660fcb8`, the Amendment-10
+approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df` and the
+content-approved Amendment-11 candidate
+`528c2db04af5c53b9820b946ddac2ebb936eb4cd`, are historical evidence; the live
+PR #960 diff of the approval-state commit exists only after its publication
+and is GitHub-owned lifecycle evidence.
 
 ## 11. CI
 
@@ -8151,9 +8714,10 @@ authorization, the Amendment-8 candidate authorization, the Amendment-8
 approval-state authorization, the Amendment-9 candidate authorization, the
 Amendment-9 approval-state authorization, the Amendment-10 candidate
 authorization, the F-A10-CAND-01 consistency-correction authorization, the
-Amendment-10 approval-state authorization and the Amendment-11 candidate
-authorization, an automatic CI failure, or any migration execution or Docker
-publication, is a HOLD condition.
+Amendment-10 approval-state authorization, the Amendment-11 candidate
+authorization and the Amendment-11 approval-state authorization, an
+automatic CI failure, or any migration execution or Docker publication, is a
+HOLD condition.
 
 ## 12. Rollout and rollback
 
@@ -8188,21 +8752,23 @@ permitted exactly one direct-child approval-state commit, the Amendment-10
 candidate authorization permitted exactly one four-path candidate commit, the
 F-A10-CAND-01 consistency-correction authorization permitted exactly one
 direct-child four-path correction commit, the Amendment-10 approval-state
-authorization permitted exactly one direct-child approval-state commit, and
-the Amendment-11 candidate authorization permits exactly one four-path
-candidate commit; any further source correction exhausts those
-authorizations and requires a fresh CTO authorization (Amendment 3 C10;
-Amendments 6-11; `docs/engineering/decisions/README.md`).
+authorization permitted exactly one direct-child approval-state commit, the
+Amendment-11 candidate authorization permitted exactly one four-path
+candidate commit, and the Amendment-11 approval-state authorization permits
+exactly one direct-child approval-state commit; any further source
+correction exhausts those authorizations and requires a fresh CTO
+authorization (Amendment 3 C10; Amendments 6-11;
+`docs/engineering/decisions/README.md`).
 Monitoring required: NONE
 
 ## 13. Known limitations and deferred work
 
-- Historical stage-time evidence: at the Amendment-11 candidate stage the
-  implementing agent performed no independent inspection or review,
-  candidate-content approval, PR #960 title/description reconciliation,
-  Draft/Ready change, automated-review request, thread adjudication,
-  exact-head review or merge (section 4.2). The PR #960 title and
-  description describe the historical Amendment-10 source; their
+- Historical stage-time evidence: at the Amendment-11 approval-state stage
+  the implementing agent performed no independent inspection or review,
+  exact-final-blob approval or confirmation, PR #960 title/description
+  reconciliation, Draft/Ready change, automated-review request, thread
+  adjudication, exact-head review or merge (section 4.2). The PR #960 title
+  and description describe the historical Amendment-10 source; their
   reconciliation is a separate control action.
   Those are separate controlled lifecycle categories; GitHub, through #958 and
   PR #960, is authoritative for their current state, including whether the
@@ -8249,10 +8815,11 @@ Monitoring required: NONE
   exact-candidate inspection of that candidate only under a separate
   authorization for one four-path correction commit, its approval state only
   under a separate authorization for one direct-child approval-state commit,
-  and the routed-job atomicity and anomaly terminal-resolution defects found
-  by the final-head review of that approval-state head only under
-  Specification Amendment 11, its independent review and a separate
-  authorization for this one four-path candidate commit.
+  the routed-job atomicity and anomaly terminal-resolution defects found by
+  the final-head review of that approval-state head only under Specification
+  Amendment 11, its independent review and a separate authorization for one
+  four-path candidate commit, and its approval state only under a separate
+  authorization for this one direct-child approval-state commit.
 - The strand-check timing question that decision 53 left outside the
   Amendment-8 correction is now determined by Specification Amendment 10 and
   implemented by the Amendment-10 candidate as corrected by this consistency
@@ -8275,7 +8842,8 @@ Monitoring required: NONE
   correction, the factual clarification, the Amendment-8 candidate and
   approval-state commit, the Amendment-9 candidate and approval-state commit,
   the Amendment-10 candidate, its consistency correction and approval-state
-  commit and this Amendment-11 candidate.
+  commit, the Amendment-11 candidate and this Amendment-11 approval-state
+  commit.
 
 ## 14. Unresolved issues
 
@@ -8443,12 +9011,16 @@ Monitoring required: NONE
   specification and Amendments 1-11 returned `APPROVED`, confirming both
   findings, the classification, both rules, the composition and the
   fourteen-case validation matrix and recommending four non-blocking negative
-  vectors for the implementation specification; and the Route-B candidate
-  that contains this report implements the correction in source as
-  `PROPOSED` (section 4; section 5, decisions 113-124). Both findings are
-  closed at specification level by Amendment 11; whether the candidate
-  closes them in source is decided by the independent inspection and review
-  of the candidate, which GitHub records.
+  vectors for the implementation specification; the Route-B candidate
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` implemented the correction in
+  source as `PROPOSED` (section 4; section 5, decisions 113-124); an
+  independent CRITICAL exact-candidate source review of that candidate found
+  no blocking candidate-content finding; Javi, CTO approved its exact
+  architecture content on 2026-10-12; and the approval-state commit that
+  contains this report records that approval. Both findings are closed at
+  specification level by Amendment 11; their source closure is adjudicated
+  by the independent exact-head review controls that precede any merge,
+  which GitHub records.
 
 PR #960 holds the historical and current review threads covering the findings
 summarized above. GitHub is authoritative for their current number,
@@ -8462,10 +9034,10 @@ merge, not to this report, which neither resolves nor dismisses any thread.
 The agent may identify risks but may not approve the task.
 
 The implementing agent does not approve, mark merge-ready or merge its own
-work. The implementing agent of this Amendment-11 candidate also implemented
-the Amendment-10 approval-state commit, the Amendment-10 replacement
-candidate and first candidate, the Amendment-9 approval-state commit and
-candidate, the Amendment-8
+work. The implementing agent of this Amendment-11 approval-state commit also
+implemented the Amendment-11 candidate, the Amendment-10 approval-state
+commit, the Amendment-10 replacement candidate and first candidate, the
+Amendment-9 approval-state commit and candidate, the Amendment-8
 approval-state commit and candidate, the factual clarification, the
 transient-state correction, the control-record recovery, the Amendment-6/7
 approval-state commit and candidate and earlier Route-B source stages of this
@@ -8476,10 +9048,24 @@ eligible to act as an independent inspector or reviewer of this task
 
 Suggested review focus:
 
-- that the candidate changes exactly the four authorized paths from the
+- that the approval-state delta from the content-approved Amendment-11
+  candidate `528c2db04af5c53b9820b946ddac2ebb936eb4cd` is limited to the ADR
+  header approval fields, the two leading section-12 paragraphs, the ADR-0012
+  register row and the routed-job atomicity correction changelog entry, that
+  the normalized comparison in section 9 shows no architecture drift from
+  candidate blob `7e461106986fe6efad2021d1ad6f52573e6e9d66`, and that the
+  approval-state ADR-0012 blob is `df8017c57d74eaecf13041e231ef97625260fab1`;
+- that the content approval is recorded only through owning issue #958,
+  approver Javi, CTO, approval date 2026-10-12, candidate head
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+  `7e461106986fe6efad2021d1ad6f52573e6e9d66`, that the approval date matches
+  the CTO candidate-content approval record, and that no content-approval,
+  exact-final-blob approval, review or merge identifier is copied into this
+  report (section 5, decision 128);
+- that the candidate changed exactly the four authorized paths from the
   approval-state head `576a860be47aa1ebe39968f4d3297b26ee1d17df`, that the
-  candidate ADR-0012 blob is `7e461106986fe6efad2021d1ad6f52573e6e9d66`, and that
-  ADR-0008, ADR-0010 and ADR-0013 keep their protected blobs;
+  candidate ADR-0012 blob was `7e461106986fe6efad2021d1ad6f52573e6e9d66`, and that
+  ADR-0008, ADR-0010 and ADR-0013 kept their protected blobs;
 - that every Amendment 11 A11-1 requirement is expressed in ADR-0012: the
   routed-job definition, the one-transaction boundary for job, disposition
   and indispensable input or membership facts, no precommit claim or
@@ -8686,15 +9272,18 @@ Suggested review focus:
   fan-out, newly emittable versions and non-binary writers;
 - that the new invariants 35-40 and the reconciled invariants 3-6 and 8 agree
   with section 3.2;
-- that the header and section 12 carry `PROPOSED` with no current approver or
-  approval date, bind the 2026-09-30, 2026-10-05, 2026-10-06, 2026-10-07,
-  2026-10-08 and 2026-10-09 approvals to the earlier exact versions and keep
-  the repository authority condition and the ADR-0013 reliance distinction;
-- that the register row, the new routed-job atomicity correction changelog
-  entry and this report describe the corrected version as `PROPOSED`, that
-  the strand-safety correction entry and every other historical changelog
-  entry are byte-preserved, and that the register header `Last updated` is
-  `2026-10-12`;
+- that the header and section 12 carry `APPROVED` with Javi, CTO and
+  2026-10-12, identify the approved content by candidate head
+  `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and candidate ADR-0012 blob
+  `7e461106986fe6efad2021d1ad6f52573e6e9d66`, bind the 2026-09-30,
+  2026-10-05, 2026-10-06, 2026-10-07, 2026-10-08 and 2026-10-09 approvals to
+  the earlier exact versions and keep the repository authority condition and
+  the ADR-0013 reliance distinction;
+- that the register row, the routed-job atomicity correction changelog entry
+  and this report describe the corrected version as `APPROVED` on
+  2026-10-12, that the strand-safety correction entry and every other
+  historical changelog entry are byte-preserved, and that the register header
+  `Last updated` is `2026-10-12`;
 - that ADR-0008, ADR-0010, ADR-0013, the decision README and the other
   protected control files are byte-identical to the approval-state heads, the
   clarification head, the recovery head and the content-approved candidates.
