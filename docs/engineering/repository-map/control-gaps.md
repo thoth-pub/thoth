@@ -269,9 +269,11 @@ remain exactly as recorded:
 
 This resolution resolves none of those later gates and weakens no other
 control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
-recorded. This record authorizes no Metrics implementation: every slice
-merged after `MET-WP1-01`, and every #981 integration stage, is separately
-specified, reviewed and authorized.
+recorded. This record authorizes no Metrics implementation: the slices
+already merged after `MET-WP1-01` were separately specified, independently
+reviewed and authorized; each #981 integration stage is separately gated and
+requires its applicable specification, independent review and explicit CTO
+action authorization before execution.
 
 ## Production-slice controls
 

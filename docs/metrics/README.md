@@ -225,9 +225,10 @@ WP1 entry:
 Discovery, benchmarking, fixture collection and task specification may
 continue. This record authorizes no Metrics implementation, integration,
 release, deployment or activation: the merged inactive foundation and the
-approved #981 parent specification do not by themselves authorize any of the
-A, A2 or B stages, any later work package or any task, each of which remains
-unauthorized until its own specification, review and authorization gates are
+approved #981 parent specification do not by themselves authorize any A, A2
+or B action, later work package or task. Each such stage or action is
+separately gated and may proceed only after its applicable specification,
+independent review and explicit action-authorization requirements are
 satisfied.
 
 ## 7. Files
