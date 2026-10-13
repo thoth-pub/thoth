@@ -250,11 +250,21 @@ rebuild or activation.
 development branch as recorded in
 [`branch-topology.md`](../engineering/repository-map/branch-topology.md); it is
 not assumed from `thoth`'s spelling. In `thoth` it is `develop`, so the Thoth
-flow is:
+programme-integration flow is:
 
 ```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
+
+For `thoth` only: the final integration of the Thoth `feature/metrics` line
+into `develop` is governed by [#981](https://github.com/thoth-pub/thoth/issues/981)
+through separately gated stages A (a develop-reconciliation slice merged into
+`feature/metrics`), A2 (inventory and retirement of every `feature/metrics--*`
+slice ref) and B (a true merge of `feature/metrics` into `develop`), each with
+its own independent review and explicit CTO authorization. After A2 no normal
+new `feature/metrics--<slice>` is created, except a separately authorized
+develop-refresh recovery under #981; after the final integration, later Thoth
+Metrics tasks use the STANDARD `feature/<area>/<task> -> develop` flow.
 
 In `metrics-dashboard` it is `dev`, that repository's approved permanent
 development branch.
@@ -288,7 +298,15 @@ permanent development branch, no `dev -> develop` reconciliation precedes it.
 The stale `develop` ref has not been deleted; its deletion is a separately
 authorized action.
 
-## 5. Immediate next actions
+## 5. Immediate next actions (historical WP1 entry-gate snapshot)
+
+Status note: the numbered checklist below is a historical WP1-entry and
+Sphinx-readiness snapshot from the WP1-entry period, retained as evidence; it
+is not a current instruction list. Current Thoth Metrics coordination,
+including the #981 A -> A2 -> B final-integration path, is held on
+[#766](https://github.com/thoth-pub/thoth/issues/766) and
+[#981](https://github.com/thoth-pub/thoth/issues/981); each task's authorization
+and lifecycle evidence remains in its owning GitHub issue.
 
 1. The shared foundation closeout is complete: PR #767 was independently
    `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing
