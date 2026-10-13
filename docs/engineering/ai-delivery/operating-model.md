@@ -143,6 +143,47 @@ applicable, runtime/provider evidence. Do not resume a task from conversational
 memory alone when this evidence conflicts with it; reconcile the conflict
 against live evidence first.
 
+### 3.3 Programme-integration reliance on approved decisions
+
+The default authority rule is unchanged: implementation relies on approved
+decisions that satisfy their repository-authority condition on the repository's
+authoritative development branch.
+
+ADR-0013 may provide a narrower programme-local exception only after ADR-0013
+itself is `APPROVED`, independently reviewed and repository-authoritative.
+Under that mechanism, an explicitly opted-in programme integration line may
+rely on one exact `APPROVED` and independently reviewed ADR version after that
+exact version is merged into the designated `feature/<programme>` branch.
+
+Programme-integration reliance is not repository authority. It is constrained
+to the opted-in programme line and does not bind unrelated programmes, normal
+development-branch work or production paths.
+
+Before Gate 1 can approve a task that relies on an ADR which is not yet
+repository-authoritative, the owning task specification and programme ledger
+must record:
+
+- the repository-authoritative ADR-0013 control enabling the mechanism;
+- the explicit programme opt-in and designated integration branch;
+- the relied-upon ADR identity and exact approved/reviewed source SHA;
+- evidence that that exact decision version is merged into the programme
+  integration branch;
+- the task's exact integration-branch base and target;
+- affected repositories, pinned cross-repository preview dependencies,
+  compatibility and merge/deployment order;
+- HOLD conditions for decision drift or dependency movement.
+
+If any item is absent, the task is not specification-ready and must HOLD.
+
+Every relying task still needs its own implementation authorization and exact
+head review. A material change to the relied-upon decision invalidates the
+programme-local reliance for new dependent work until the decision and impact
+are reconciled. Programme-integration reliance authorizes no migration
+execution, provider/IAM/runtime action, deployment, release or production
+activation.
+
+Existing programmes do not adopt this mechanism implicitly or retroactively.
+
 ## 4. Mandatory task and branch boundary
 
 Use one bounded task per slice branch and pull request.
@@ -245,6 +286,10 @@ matrix and cross-repository impact fields required by
 A specification for substantive or contract-affecting work is not approved
 until section 4.1's cross-repository impact analysis is complete for that
 task.
+
+A task relying on a decision that is not yet repository-authoritative must also
+satisfy section 3.3 in full. Approval of the ADR, presence of the ADR on a
+branch, or programme-branch membership alone is insufficient.
 
 ### Gate 2 - Implementation
 
