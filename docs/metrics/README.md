@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: WP1 IN PROGRESS ON `feature/metrics` - NO FURTHER SLICE AUTHORIZED WITHOUT ITS OWN APPROVED SPECIFICATION
+Status: INACTIVE METRICS FOUNDATION MERGED ON THE `feature/metrics` PROGRAMME LINE - FINAL INTEGRATION INTO `develop` GOVERNED BY #981 (A -> A2 -> B) - EVERY FURTHER ACTION REQUIRES ITS OWN APPROVED SPECIFICATION AND AUTHORIZATION
 Programme owner: CTO
 
 Primary repositories:
@@ -121,7 +121,9 @@ The initial programme does not store raw clickstream events in Thoth, create a s
 ## 6. Current programme decision
 
 ```text
-WP1 IN PROGRESS - EVERY FURTHER SLICE REQUIRES ITS OWN APPROVED SPECIFICATION
+INACTIVE METRICS FOUNDATION MERGED ON THE feature/metrics PROGRAMME LINE
+FINAL INTEGRATION INTO develop GOVERNED BY #981: A -> A2 -> B
+EVERY FURTHER ACTION REQUIRES ITS OWN APPROVED SPECIFICATION AND AUTHORIZATION
 ```
 
 The Publisher Services -> Metrics pivot is complete (recorded in
@@ -177,11 +179,36 @@ The Thoth-local WP1 entry gates are satisfied:
    schema, Rust domain foundation and the two approved seed measures — is
    merged into `feature/metrics` as an additive, inactive foundation.
 
-WP1 is therefore `IN PROGRESS`: started, not complete. Each further WP1 slice
-requires its own approved bounded specification and separate implementation
-authorization; none exists, and this record does not authorize creating one.
-No platform rows, platform-measure mappings, source mappings, GraphQL/API
-surface, ingestion, serving or production migration exist or are authorized.
+WP1 entry was therefore satisfied, and the Thoth Metrics foundation has since
+been delivered as bounded, independently reviewed slices merged into
+`feature/metrics`, each under its own approved specification and recorded
+under `[Unreleased]` in the repository `CHANGELOG.md`: the schema and domain
+foundations, registry and source/source-account administration, the Metrics
+service-role contract, canonical ingestion with rollup and delta application,
+protected `metricDashboard` read surfaces with derived monthly and yearly
+serving state, identifier quarantine and reconciliation, and the coverage-run
+foundation. That foundation is additive and inactive. Protected Metrics
+GraphQL surfaces therefore exist on the programme line; their integration into
+`develop`, release, deployment and activation are separately gated stages, and
+none is implied by this record. No production Metrics collection, Sphinx
+schedule, historical rebuild, client cutover or OPERAS cutover is authorized.
+
+Current Thoth programme flow and authority: the final integration of the Thoth
+`feature/metrics` line into `develop` is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981), reconciled on programme
+master issue [#766](https://github.com/thoth-pub/thoth/issues/766), through three
+separately gated stages — A, a develop-reconciliation slice merged into
+`feature/metrics` by an ordinary history-preserving merge; A2, the inventory
+and retirement of every `feature/metrics--*` slice ref; and B, a true merge of
+`feature/metrics` into `develop` — each with its own independent review and
+explicit CTO authorization. After A2 no normal new `feature/metrics--<slice>`
+is created, except a separately authorized develop-refresh recovery under
+#981; after the final integration, later Thoth-side Metrics work follows the
+STANDARD `feature/<area>/<task> -> develop` flow. The completed shared-control
+and WP1-entry lists above, and the "Later gates" list below, are the historical
+WP1 entry-gate record as it stood at entry; the present state of each later
+gate (Sphinx, clients, fixtures and mappings, WP5 service roles) is held in its
+owning GitHub issue, not in this list.
 
 Later gates, owned by their later work packages rather than blocking Thoth
 WP1 entry:
@@ -196,9 +223,13 @@ WP1 entry:
   arrangements remain unapproved WP5-owned bounded decisions.
 
 Discovery, benchmarking, fixture collection and task specification may
-continue. This record authorizes no further Metrics implementation: every
-remaining WP1 slice and every later work package remain unauthorized until
-their own specification, review and authorization gates are satisfied.
+continue. This record authorizes no Metrics implementation, integration,
+release, deployment or activation: the merged inactive foundation and the
+approved #981 parent specification do not by themselves authorize any A, A2
+or B action, later work package or task. Each such stage or action is
+separately gated and may proceed only after its applicable specification,
+independent review and explicit action-authorization requirements are
+satisfied.
 
 ## 7. Files
 

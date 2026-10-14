@@ -123,6 +123,46 @@ After it is merged:
 - retain the task specifications, PRs and review evidence;
 - prepare the normal `develop` to `master` release when the release is approved.
 
+### 3.1 Programme-integration reliance on approved decisions
+
+The normal decision-reliance rule remains that implementation depends on ADRs
+that are repository-authoritative on the repository development branch.
+
+When ADR-0013 is `APPROVED`, independently reviewed and
+repository-authoritative, an explicitly opted-in programme may use the narrower
+**programme-integration reliance** mechanism defined there. This mechanism is
+not automatic merely because a programme uses an integration branch.
+
+For programme-integration reliance:
+
+- programme control must explicitly designate the `feature/<programme>`
+  integration branch and opt into ADR-0013;
+- the relied-upon ADR must already be `APPROVED`, record approver/date and have
+  independent exact-head review;
+- the programme control must pin the exact reviewed ADR source SHA;
+- that exact approved ADR version must be merged into the designated programme
+  integration branch before dependent implementation relies on it;
+- every dependent task remains separately specified and authorized, branches
+  from and targets the same programme integration line, and receives its own
+  exact-head independent review;
+- a material change to the relied-upon decision invalidates the programme-local
+  reliance until decision/review controls and dependent impact assessment are
+  complete;
+- unrelated programmes and normal development-branch work do not inherit the
+  programme-local decision;
+- cross-repository consumers require their own bounded task and explicitly
+  pinned preview/dependency evidence;
+- programme-local reliance authorizes no migration execution, provider/IAM
+  action, deployment, release or production activation.
+
+Merging an approved decision into a programme integration branch does **not**
+make it repository-authoritative. Repository authority still follows the
+decision's normal development-branch authority condition.
+
+Existing programmes do not adopt this mechanism implicitly or retroactively.
+Until ADR-0013 itself becomes repository-authoritative, this subsection creates
+no exception to the normal decision-reliance rule.
+
 ## 4. Choosing standard versus programme integration flow
 
 Use the standard direct-to-`develop` flow when:
@@ -170,10 +210,16 @@ The Metrics design requires repository-local integration branches after branch r
   -> <development-branch>
 ```
 
-`<development-branch>` is that repository's own verified development branch, as recorded in its repository-map entry and in `docs/engineering/repository-map/branch-topology.md`, not `thoth`'s spelling (see section 6). In `thoth-pub/thoth` it is `develop`, so this repository's Metrics flow is:
+`<development-branch>` is that repository's own verified development branch, as recorded in its repository-map entry and in `docs/engineering/repository-map/branch-topology.md`, not `thoth`'s spelling (see section 6). In `thoth-pub/thoth` it is `develop`, so the programme-integration flow for this repository's Metrics line is:
 
 ```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
+```
+
+For `thoth-pub/thoth` specifically, the final integration of the `feature/metrics` line into `develop` is governed by [#981](https://github.com/thoth-pub/thoth/issues/981), reconciled on programme master issue [#766](https://github.com/thoth-pub/thoth/issues/766), through three separately gated stages: A, a develop-reconciliation slice merged into `feature/metrics` by an ordinary history-preserving merge; A2, the inventory and retirement of every `feature/metrics--*` slice ref; and B, a true merge of `feature/metrics` into `develop`. Each stage requires its own independent review and explicit CTO authorization, and no stage implies the next. After A2, no normal new `feature/metrics--<slice>` is created; the only exception is a separately authorized develop-refresh recovery under the #981 recovery mechanism. After the final integration, later Thoth-side Metrics work follows the STANDARD flow:
+
+```text
+feature/<area>/<task> -> develop
 ```
 
 Each focused Metrics child branch is created from `feature/metrics`, targets `feature/metrics`, and does not target the `<development-branch>` directly. `ADR-0009` standardizes the repository ref spelling of that child branch; it does not amend the substantive Metrics architecture.

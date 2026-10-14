@@ -245,9 +245,12 @@ components are now satisfied:
 Two state transitions stay distinct: specification approval satisfied the
 final CG-08 WP1-entry prerequisite and made CG-08 logically resolved, and the
 merge of the bounded `MET-WP1-01` registry-foundation slice into
-`feature/metrics` makes WP1 itself `IN PROGRESS` — started, not complete. WP1
-completion, integration of `feature/metrics` into `develop` and every later
-work package remain governed by their own gates.
+`feature/metrics` made WP1 itself `IN PROGRESS` at that point. The later
+Metrics foundation slices were each delivered under their own approved
+specifications; integration of `feature/metrics` into `develop` is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981) through the separately
+gated A -> A2 -> B stages, and every later work package, release, deployment
+and activation remains governed by its own gates.
 
 **Later gates**, owned by their dependent work rather than by WP1 entry,
 remain exactly as recorded:
@@ -266,8 +269,11 @@ remain exactly as recorded:
 
 This resolution resolves none of those later gates and weakens no other
 control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
-recorded. No Metrics implementation beyond the merged `MET-WP1-01`
-registry-foundation slice is authorized by this record.
+recorded. This record authorizes no Metrics implementation: the slices
+already merged after `MET-WP1-01` were separately specified, independently
+reviewed and authorized; each #981 integration stage is separately gated and
+requires its applicable specification, independent review and explicit CTO
+action authorization before execution.
 
 ## Production-slice controls
 
