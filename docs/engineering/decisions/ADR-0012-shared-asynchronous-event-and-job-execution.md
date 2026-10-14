@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-12
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -385,6 +383,18 @@ or none of them does. "Atomic creation of a routed job" in section 3.5 defines
 that boundary, its failure, crash and acknowledgment-loss behaviour and its
 interaction with coalescing into an existing job.
 
+A coalescing seal closes one logical job, never the obligations that follow
+it. When an eligible obligation cannot attach to a job of a coalescing kind
+because that job is permanently coalescing-sealed (section 3.5), the
+obligation remains owed, undispositioned and visible in the route backlog
+until a different eligible coalescing-open successor accepts it or a distinct
+legitimate routed successor is created for it under the same all-or-nothing
+boundary; "Post-seal materialization and successor generations" in section
+3.5 defines that ordinary path. The sealed job, the permanent collision with
+its idempotency key, retry exhaustion and an unavailable materializer are
+never themselves a disposition and never convert the obligation into the
+exceptional terminal non-materialized disposition below.
+
 Disposition uniqueness is per logical route, not per epoch or per revision:
 `(event_id, route_key)` is the complete uniqueness boundary across every epoch
 and every route-contract revision of that route. A disposition may record the
@@ -444,7 +454,11 @@ can actually be emitted. If compatible materialization later becomes
 unavailable for any revision or version with outstanding obligations, those
 obligations remain owed and the unavailable-materializer and route-backlog
 signals raise attention, whether the route is active, temporarily inactive or
-permanently retired.
+permanently retired. The same holds for an obligation refused after a
+coalescing seal while it awaits an eligible successor, and for a successor
+whose safe execution is held by target-scoped effect ambiguity (section 3.5):
+the obligation stays in that backlog with its reason, age-visible and
+attention-raising, and is never counted as dispositioned.
 
 Outstanding obligations are interpreted against the immutable revision of the
 epoch that made each event eligible. After a newer revision becomes active, an
@@ -1244,7 +1258,10 @@ meaningfully new, for example:
 - a source revision/fingerprint;
 - a schedule slot;
 - an explicit command/request id;
-- an approved coalescing/debounce window.
+- an approved coalescing/debounce group or window together with the
+  executable generation that represents it, wherever successive generations
+  of one group may be needed ("Post-seal materialization and successor
+  generations" below).
 
 A completed Crossref sync, search-index update, invalidation or reconciliation
 must not suppress a later effect for a newer revision merely because both target
@@ -1273,12 +1290,18 @@ cannot coexist for the same route/event pair. Coalescing therefore forms a
 many-route-to-one-job relationship only among materialized dispositions; it
 never erases the per-event route records needed for audit/completeness.
 
-An idempotency conflict never silently means "route satisfied". It either:
+An idempotency conflict never silently means "route satisfied", and it is
+never a reason to retry the same permanently unusable identity indefinitely.
+It either:
 
 1. attaches the route to an existing not-yet-started job when the kind's
    coalescing rule explicitly permits it, inside the database-atomic
-   coalescing boundary below; or
-2. produces a deterministic routing/materialization error surfaced for
+   coalescing boundary below;
+2. for a coalescing kind whose existing job is permanently coalescing-sealed,
+   follows the ordinary post-seal materialization path below, which selects a
+   different eligible coalescing-open successor or creates a distinct
+   legitimate routed successor after rereading durable state; or
+3. produces a deterministic routing/materialization error surfaced for
    attention/recovery.
 
 The owning domain defines the canonical effect-target identity and its
@@ -1349,13 +1372,17 @@ Both commit orders are defined:
   attachment is refused; no materialized route disposition is committed for
   the losing route and event; the `(event_id, route_key)` uniqueness slot
   remains unused; the eligible route obligation remains owed and visible in
-  the route backlog; and the idempotency-conflict rule above follows its
-  deterministic routing/materialization error and attention/recovery path
-  rather than treating the route as represented by the started job. The losing
-  router or materializer may retry only after re-reading current durable state
-  and under the kind's existing authorized materialization and recovery
-  semantics; this rule creates no new logical-job identity and no new replay
-  or current-state rule.
+  the route backlog; and the route is never treated as represented by the
+  started job. The losing stale attachment transaction attaches nothing,
+  invents no logical-job identity and introduces no new replay or
+  current-state rule. The losing router or materializer may retry only after
+  re-reading current durable state and under the kind's existing authorized
+  materialization and recovery semantics; that recovery is the ordinary
+  post-seal materialization path of "Post-seal materialization and successor
+  generations" below - a separate, database-arbitrated materialization
+  decision taken from the reread state, never a continuation of the losing
+  transaction - and it is the normal path, with attention raised only while
+  recovery is pending or blocked.
 
 Sealing is bound to the durable committed transition, not to an attempted
 claim. A worker attempt whose first claim/start transaction acquires transient
@@ -1394,9 +1421,199 @@ idempotency-key uniqueness, explicit durable coalescing rules, `CURRENT_STATE`
 and `REVISION_BOUND` semantics, target-scoped concurrency and
 applied-revision/fingerprint evidence, the attempt phases, WAITING and
 RECONCILIATION_REQUIRED, retry and reconciliation transitions and the
-scheduler's deadlock and lock-ordering controls. It introduces no second job
-identity, job lifecycle, route lifecycle or claim-lock mode, and no second
-order for claim/start against attachment.
+scheduler's deadlock and lock-ordering controls. It introduces no second
+identity for one logical job, no second job lifecycle, route lifecycle or
+claim-lock mode, and no second order for claim/start against attachment; a
+successor generation (below) is a distinct logical job, not a second identity
+of the sealed one.
+
+### Post-seal materialization and successor generations
+
+A coalescing seal closes one logical job, not the route obligations that
+arrive after it. An eligible event-route obligation whose attachment is
+refused because the logical job it would have joined is permanently
+coalescing-sealed - whether it lost the claim/start-first order above or
+arrived after the seal - remains undispositioned, owed and visible in the
+route backlog. It is never retroactively attached to the sealed job, never
+treated as complete because that job exists or has run, and never silently
+represented by that job's effect. The permanent idempotency-key collision
+with the sealed job is not proof of route completion and is not a reason to
+keep retrying that permanently unusable identity: because key uniqueness is
+absolute across job states and the seal never reopens, a reread that could
+resolve only to that identity would leave the obligation owed forever.
+
+Every job kind that permits many-route-to-one-job coalescing therefore has,
+as part of its approved coalescing contract, a deterministic **ordinary
+post-seal materialization contract** under which each such obligation
+eventually receives its one materialized disposition whenever compatible
+materialization is available and no genuine external reconciliation or
+authority blocker prevents progress. After re-reading canonical current
+durable state, the materializer takes exactly one of two normal paths, and
+the contract guarantees that at least one of them is always available:
+
+- it attaches the obligation to a **different eligible coalescing-open
+  successor job** of the same group under the attachment/seal boundary
+  above; a successor is eligible only where the kind's coalescing contract
+  admits it for the obligation's route, epoch, route-contract revision and
+  event version under the compatibility rules of sections 3.2 and 3.9, and an
+  ineligible open successor never prevents a compatible one from being
+  selected or created; or
+- it creates a **distinct legitimate routed successor job** that represents
+  the still-owed input, committing the job, its one `(event_id, route_key)`
+  disposition and its indispensable input or membership facts under "Atomic
+  creation of a routed job" below.
+
+The sealed job is not such a path. A new generation is considered only after
+the reread confirms that the obligation is still owed and that no eligible
+open successor exists; an unchanged retry that merely encounters the same
+conflict manufactures no identity, and an obligation already represented by a
+committed disposition receives no successor on any retry.
+
+**Successor identity.** For any coalescing kind in which more than one
+executable generation of one group may be needed - the default for every
+coalescing kind, which a kind may disclaim only by demonstrating that no
+eligible obligation can arrive after a seal - the coalescing group or window
+identity and the individual executable logical-job effect/idempotency
+identity are distinguishable: an approved group or window never irreversibly
+reserves the only executable identity when later eligible events of that same
+group can arrive after the first job seals. A successor is a distinct logical
+job representing a previously unrepresented, still-owed event-route input,
+with its own deterministic idempotency key that is unique and stable for that
+intended successor effect across retries and terminal states - for example a
+durably selected successor generation of the group, or another explicitly
+approved event-derived identity. The sealed predecessor's idempotency key,
+seal, dispositions, attempts and effect history are unchanged: a retry, lease
+reclaim, WAITING resume or reconciliation of the predecessor remains work on
+the predecessor and never becomes successor creation, and a successor created
+for a new owed obligation is not a covert retry, replay or forced external
+resend of the predecessor. Independently authorized direct, replay or
+current-state jobs keep their own effect identity under this section and
+consume no successor generation of a routed coalescing group. The group
+correlation, the predecessor/successor relationship and every represented
+event-route input remain auditable; successor generations never erase or
+rewrite predecessor dispositions or job or effect history.
+
+**Database-arbitrated convergence.** Selection of an eligible open successor
+or creation of the next executable generation of a group is
+database-arbitrated, with a deterministic observation and recovery result
+after competing materializers, uniqueness losses, transaction rollback or
+acknowledgment loss. A valid attachment to an open successor and that
+successor's first successful claim/start participate in the same
+database-enforced linearized boundary defined above, so an attachment after a
+successor's seal is refused without consuming the route slot and the
+materializer rereads and follows this path again. Two simultaneous
+materializers for the same obligation cannot create two dispositions, two
+jobs representing the same required work or a phantom satisfied route:
+`(event_id, route_key)` uniqueness, the successor's identity uniqueness and
+the atomic creation boundary arbitrate them, and the loser rereads committed
+state. Concurrent different owed obligations may attach to the same eligible
+open successor under the kind's coalescing contract; when that successor
+seals first, later obligations follow the next valid generation or path.
+Because a new successor is created only together with the disposition it
+represents, every generation represents at least one obligation, and
+materializers converge on committed successor state or serialize into a
+subsequent generation only when the earlier one is already sealed. Repeated
+retries, worker restarts and acknowledgment loss recover from the durably
+committed route-disposition, job and generation state; after a creation
+commits but its acknowledgment is lost, the retry observes the same job and
+disposition and creates no further generation, disposition or effect. The
+group, generation and `(event_id, route_key)` uniqueness boundaries compose
+with the attachment/seal boundary, the atomic creation boundary and the
+scheduler's lock-ordering controls without write skew or deadlock; the exact
+tables, constraints, sequences and locks are implementation-specification
+details.
+
+**Historical enrollment and anomaly resolution.** A first historical
+enrollment that uses this path obeys the same rules. Where the enrollment
+resolves an in-epoch contract-mismatch anomaly, the terminal-resolution
+decision, the enrollment disposition and any newly created successor and its
+input facts commit within one consistent terminal-decision transaction
+boundary ("Mutually exclusive terminal resolution of a mismatch anomaly",
+section 3.2); an enrollment that loses a successor's seal race aborts as a
+whole, leaving the anomaly open and retryable. Historical enrollment, anomaly
+terminal resolution, revision selection and withdrawal and route retirement
+keep their existing orders.
+
+**Effect semantics, fencing and ambiguity.** A successor executes under the
+same canonical external effect-target identity, target-scoped concurrency
+namespace, applied-revision/fingerprint evidence, lease and claim-token
+fencing, `PRE_WRITE` / `EFFECT_STARTED` / `EFFECT_CONFIRMED` phases, bounded
+retries, `WAITING` and `RECONCILIATION_REQUIRED` semantics as every other job
+(sections 3.3, 3.4 and 3.6). Generations never partition conflicting target
+keys and never relax target-scoped applied-state ordering. A predecessor
+whose effect is ambiguous at or after `EFFECT_STARTED` cannot be bypassed by
+creating a successor with a different key and asserting a safe second write:
+the predecessor retains its target-scoped boundary until reconciled, the
+successor may exist durably and wait, visibly, while safe execution is
+blocked, and the kind's approved contract holds, serializes or reconciles
+before any conflicting successor effect. A `CURRENT_STATE` successor reads
+canonical current state, acts on the complete target effect fingerprint and
+completes as a deterministic no-op where target-scoped evidence proves that
+the same fingerprint is already applied; a `REVISION_BOUND` successor retains
+the source revision/fingerprint its route requires and never regresses newer
+confirmed target state or bypasses supersession and replay controls. A new
+job identity alone is never evidence that another external effect is needed,
+and nothing here claims exactly-once provider effects or atomicity between
+PostgreSQL and a third-party provider write.
+
+**Route identity unchanged.** No source revision, route-contract revision,
+activation epoch, epoch eligibility, producer-version constraint,
+`route_key`, effect-target identity or provider authorization is redefined by
+successor materialization. The late obligation remains the original eligible
+`(event_id, route_key)` obligation, bound to its original route, epoch and
+revision; a successor never permits a newer incompatible materializer and
+never invents a new route or source event. Successor generation is
+job-materialization state, not route history.
+
+**Liveness and operational admission.** Under finite owed inputs, a
+compatible and available materializer, fair progress capacity and no
+outstanding legitimate dependency, authority or effect-ambiguity blocker,
+this path converges on one durable disposition for every eligible obligation;
+the engine never indefinitely reselects a permanently sealed job or group
+identity, and that collision is not itself a legitimate blocker. Continuous
+input, rate limits and unavailable workers remain governed by the bounded
+scheduler and backpressure requirements of section 3.15, not by a promise of
+real-time completion. While a successor cannot presently be admitted, no
+compatible worker exists or external ambiguity blocks safe execution, the
+owed obligation and its reason remain durable, age-visible and
+attention-raising in the route backlog without false success; errors and
+retries are bounded and backed off, create no unbounded generations and never
+hot-loop on one conflict; recovery after the blocker clears follows the
+kind's approved contract.
+
+**Unsupported contracts fail closed.** Before activation, a coalescing kind
+documents how late obligations select or generate safe executable
+identities, how candidate-generation growth is bounded under contention, how
+predecessor ambiguity gates successor effects, how its `CURRENT_STATE` or
+`REVISION_BOUND` semantics prevent duplicate or regressive effects, and what
+operational evidence demonstrates outstanding obligations and safe
+completion. A kind that cannot define and demonstrate a safe successor
+contract may not enable that coalescing mode; it may instead use a separately
+approved event-distinct, non-coalesced routed job identity whose effect
+semantics are safe under this section, and where neither is safe its
+activation is held for a design or authority decision. A generic
+implementation never invents a domain's intended-effect identity, and the
+engine never promises ordinary forward progress from an unsatisfiable
+permanent-key collision.
+
+**Exceptional dispositions unchanged.** The explicit, authorized and audited
+terminal non-materialized disposition of section 3.2 remains available only
+under its existing section-3.2 and ADR-0010 controls, with real covering
+reconciliation or expressly accepted divergence. A seal, an idempotency
+collision, retry exhaustion or an unavailable materializer never creates it
+automatically and is never success.
+
+This rule supplements only the post-seal recovery outcome of the
+claim/start-first order above. It keeps the first successful claim/start as
+the permanent seal and both attachment/claim commit orders, the atomic
+creation boundary below, the mutually exclusive anomaly resolution, one
+`(event_id, route_key)` namespace across epochs and revisions, the
+withdrawal/selection and strand-safety orders, event and route immutability,
+the job-attempt lifecycle and target-scoped effect ordering. It creates no
+generic route retry bypass, no free-form external-effect authority, no hidden
+terminal non-materialized disposition, no second claim lifecycle, no
+reopening of sealed jobs, no duplicate route effects and no new `route_key`
+for another generation of the same logical route.
 
 ### Atomic creation of a routed job
 
@@ -1438,7 +1655,9 @@ obligation, the coalescing-open/coalescing-sealed boundary above and the
 kind's explicit coalescing semantics apply unchanged: an attachment to an
 open job commits a disposition under that boundary; a sealed job acquires no
 new disposition; a losing attempt leaves its obligation owed and follows the
-existing deterministic error and recovery path. Two routes may share one
+post-seal materialization path above, under which a successor created for
+that obligation is a brand-new routed job governed by this boundary. Two
+routes may share one
 eligible not-yet-started job only under the already-approved coalescing rule,
 and the creation of a new routed job and a concurrent other-route attachment
 to it obey that one linearized order.
@@ -1935,7 +2154,9 @@ domain rule and must retain enough correlation to explain which events or
 requests were represented by the surviving job. A surviving job accepts
 attachments only while it is coalescing-open and represents every attachment
 that committed before its first successful claim/start sealed it (section
-3.5).
+3.5); an obligation refused after that seal follows the post-seal
+materialization path of section 3.5 and stays in the route backlog, with its
+reason and age visible, until it is dispositioned.
 
 
 ---
@@ -2395,8 +2616,10 @@ execution until a separate approved architecture decision says otherwise.
     represents and that is never rewritten or detached; a claim/start that
     linearizes first seals the job before execution, and the later attachment
     is refused with no disposition committed, the `(event_id, route_key)` slot
-    unused, the obligation still owed and visible and the deterministic
-    idempotency-conflict error path taken. A stale pre-claim observation never
+    unused, the obligation still owed and visible and its recovery governed
+    by invariant 46 after the losing materializer rereads durable state; the
+    losing stale attachment transaction invents no logical-job identity. A
+    stale pre-claim observation never
     commits an attachment after sealing; an application-level pre-check does
     not satisfy this; a rolled-back first claim does not seal. The seal is
     earlier than and distinct from `EFFECT_STARTED`.
@@ -2466,6 +2689,45 @@ execution until a separate approved architecture decision says otherwise.
     replay is governed by its own rules and replaces no terminal outcome; and
     external compensation remains fenced by the existing effect, ambiguity
     and reconciliation controls.
+46. A coalescing seal closes one logical job, not the route obligations that
+    follow it. An eligible obligation refused because its job is permanently
+    coalescing-sealed remains owed, undispositioned and visible; it is never
+    attached to the sealed job, never counted complete because that job
+    exists or ran, and never dispositioned by the permanent idempotency-key
+    collision, a seal, retry exhaustion or an unavailable materializer. Every
+    coalescing kind has an approved deterministic post-seal materialization
+    contract under which, after rereading canonical durable state, the
+    obligation attaches to a different eligible coalescing-open successor
+    under invariant 42 or is represented by a distinct legitimate routed
+    successor created under invariant 44 together with its disposition; the
+    sealed job is never such a path, a new generation is created only when
+    the reread shows the obligation still owed and no eligible open
+    successor, and an already represented obligation receives no successor on
+    any retry. Group or window identity is distinct from executable
+    generation identity wherever successive generations may be needed; a
+    successor has a unique, stable idempotency key for its intended successor
+    effect; the predecessor's key, seal, attempts and history are unchanged;
+    predecessor retry or reclaim is never successor creation; and a successor
+    is not a replay or forced resend. Successor selection and creation are
+    database-arbitrated with deterministic recovery after races, uniqueness
+    losses, rollback and acknowledgment loss: no duplicate disposition, no
+    two jobs for one obligation, no orphan or unrepresented successor, no
+    write skew and no deadlock. Successors keep the canonical target
+    identity, target-scoped concurrency, applied-fingerprint/revision
+    evidence, claim fencing, effect phases, `WAITING` and
+    `RECONCILIATION_REQUIRED` semantics; an ambiguous predecessor effect is
+    never bypassed by a new key; `CURRENT_STATE` and `REVISION_BOUND`
+    semantics prevent duplicate or regressive effects; and no `route_key`,
+    epoch, revision, event, eligibility or provider authorization is
+    redefined. Under finite owed inputs, a compatible available materializer,
+    fair capacity and no legitimate blocker the path converges on one
+    disposition per obligation and never reselects a sealed identity
+    indefinitely; blocked recovery stays backlogged, age-visible and
+    attention-raising with bounded backoff and bounded generations. A kind
+    without a demonstrated safe successor contract may not activate that
+    coalescing mode and may use only a separately approved safe
+    event-distinct identity; the exceptional terminal non-materialized
+    disposition stays under its existing controls and is never automatic.
 
 ## 8. Implementation impact and decomposition
 
@@ -2488,6 +2750,9 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
    - atomic creation of a routed job with its materialized disposition and
      indispensable input facts, and the database-enforced mutually exclusive
      terminal resolution of a mismatch anomaly;
+   - post-seal materialization of obligations refused after a coalescing seal
+     through eligible open successors or distinct successor generations, with
+     database-arbitrated convergence;
    - revision semantics plus domain-owned canonical effect-target identity and
      target-scoped ordering/evidence contract;
    - new kind-scoped executor API;
@@ -2687,7 +2952,9 @@ separately authorized. Effectful handler activation is prohibited until its
 
 High-volume handlers such as indexing/revalidation additionally require
 kind-specific retention, coalescing and admission/backpressure limits before
-activation.
+activation; any coalescing mode additionally requires the documented and
+demonstrated post-seal successor contract of section 3.5, failing closed
+without it.
 
 Rollout should prove in order:
 
@@ -2702,8 +2969,10 @@ Rollout should prove in order:
    terminal resolution of a mismatch anomaly in both commit orders;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing, including the
-   ordering of coalescing attachment against first claim/start and the atomic
-   creation of a routed job with its disposition;
+   ordering of coalescing attachment against first claim/start, the atomic
+   creation of a routed job with its disposition and the post-seal
+   materialization of an obligation refused after a coalescing seal through
+   successor generations;
 6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
 7. one or more non-destructive representative handlers;
 8. protected operator controls and reconciliation exit path;
@@ -3090,6 +3359,86 @@ Before shared implementation can be approved, evidence must include:
   claim/attachment races above, uniqueness and idempotency constraints and
   deterministic lock and deadlock handling, proving no split ordering, no
   stale strand decision and no permitted effect after a losing terminal path;
+- deterministic post-seal baseline tests in which an original coalescing job
+  `J0` seals before an eligible `E2` can attach, proving `E2` remains owed and
+  visible, its `(event_id, route_key)` slot unused, and that it is never
+  retroactively attached to `J0`;
+- proof that the same `E2` is materialized through one different eligible
+  coalescing-open successor or one newly created successor `J1` with a
+  genuinely distinct approved effect identity, and that eventually exactly one
+  `(E2, route_key)` disposition exists;
+- proof that retries encountering the same sealed `J0` idempotency key
+  neither loop indefinitely nor declare success, and that the supported
+  successor-selection path advances;
+- deterministic concurrency tests of two materializers racing the same owed
+  `E2` after the seal, proving one disposition, no duplicate successor or
+  external effect for the obligation, and deterministic loser recovery from
+  committed state;
+- deterministic concurrency tests of different owed obligations `E2` and `E3`
+  racing after `J0` seals, proving they converge on an eligible `J1` while it
+  is open or, when it seals first, follow correctly ordered later
+  generations, with no obligation dropped or represented by a job whose input
+  omits it;
+- deterministic concurrency tests of an attachment to successor `J1` racing
+  its first claim/start in both orders, proving one durable order and that
+  claim/start-first leaves the refused obligation owed and safely eligible for
+  a later successor, never stale-attached;
+- successive-seal tests in which `J0`, `J1` and `J2` are needed within one
+  approved group or window, proving distinct stable identities, no
+  permanently stuck eligible obligation and no false route completion;
+- precommit-crash tests proving that a crash after allocating or starting
+  creation of `J1` but before its disposition and input commit leaves no
+  durable orphan or claimable job, no consumed route slot and no false
+  materialization;
+- postcommit acknowledgment-loss tests proving that after the successor job,
+  disposition and input transaction commits, a retry observes that exact
+  state and creates no `J2`, second disposition or effect;
+- uniqueness and rollback race tests proving that generation arbitration,
+  original-group job-key collisions and `(event_id, route_key)` uniqueness
+  races abort or recover safely under one database ordering, with no write
+  skew, deadlock, phantom job, missing input or duplicate route;
+- predecessor tests proving that a pre-write retry, lease expiry and reclaim,
+  WAITING resume and reconciliation of `J0` never reopen it and never silently
+  absorb an owed `E2`, and that successor semantics alter no predecessor
+  attempt;
+- ambiguous-predecessor tests in which `J0` holds an unresolved
+  `EFFECT_STARTED` outcome, proving `J1` may be tracked durably but performs
+  no unsafe overlapping or duplicate effect before the required target-scoped
+  fencing and reconciliation evidence;
+- `CURRENT_STATE` successor tests proving `J1` acts on the current canonical
+  complete effect fingerprint, no-ops safely where that fingerprint is
+  already applied, and never reapplies an identical provider effect merely
+  because its key differs;
+- `REVISION_BOUND` successor tests proving older and newer revisions under one
+  target stay ordered and a later successor cannot regress newer applied
+  evidence or bypass supersession and replay controls;
+- historical-enrollment and anomaly tests proving that a compatible first
+  enrollment into a safe successor composes with revision-withdrawal
+  availability and the one terminal anomaly resolution: divergence-first
+  creates no successor or disposition, and enrollment-first commits its
+  allowed terminal resolution and routed facts atomically;
+- blocked-admission tests with an unavailable or incompatible materializer,
+  proving accurate backlog count and oldest age, bounded retry and backoff,
+  no fabricated success, no uncontrolled successor growth, and resumed safe
+  progress when an authorized compatible path returns;
+- escape-path negative tests proving that no staff exception is synthesized
+  from an ordinary sealed-key collision, that direct-job or replay identities
+  cannot evade a route obligation, and that no new route key or epoch is
+  invented as a fallback;
+- cross-target and cross-kind ordering tests proving that multiple generation
+  keys still serialize conflicting provider writes under one canonical target
+  lock and evidence namespace, including ambiguous provider outcomes and
+  multiple workers;
+- finite-workload liveness tests under an adversarial deterministic schedule
+  of late obligations and successively sealing jobs with a healthy compatible
+  materializer and no legitimate blocker, proving one disposition for every
+  eligible event-route pair within bounded fair recovery rather than an
+  indefinitely repeating permanent collision;
+- non-coalesced alternative tests proving a kind without a safe successor
+  contract cannot activate that coalescing mode, and that an explicitly
+  approved event-distinct non-coalesced mode keeps stable idempotency keys,
+  atomic job and disposition creation and no duplicate or regressive external
+  effects;
 - current-token lease renewal and refusal to renew superseded/expired claims;
 - stale-token refusal for completion, failure, cancellation, checkpointing and
   reconciliation;
@@ -3185,20 +3534,11 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-12
-
-The CTO approved this exact corrected content on 2026-10-12 under the
-repository decision process, as the architecture content represented by the
-Route-B candidate head `528c2db04af5c53b9820b946ddac2ebb936eb4cd` and
-candidate ADR-0012 blob `7e461106986fe6efad2021d1ad6f52573e6e9d66`; this
-version differs from that candidate only in this approval-state
-representation. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -3231,7 +3571,15 @@ routed job and no phantom route satisfaction can survive a failure, race or
 crash, and requires compatible historical enrollment and approved
 reconciliation/divergence of one mismatch anomaly to compete through one
 database-enforced terminal-resolution decision, so that no two contradictory
-terminal outcomes can both commit.
+terminal outcomes can both commit. It further defines the ordinary post-seal
+materialization path in section 3.5, under which an eligible obligation
+refused after a permanent coalescing seal remains owed and visible and is
+materialized through a different eligible coalescing-open successor or a
+distinct, stably identified routed successor generation created together
+with its disposition, with group identity distinct from executable
+generation identity and database-arbitrated convergence, so that no eligible
+obligation can remain owed indefinitely against a permanently sealed
+idempotency key and no successor can bypass target-scoped effect safety.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
@@ -3250,7 +3598,10 @@ database-consistent strand-safety decision for revision withdrawal, carried
 version, which introduced that strand-safety decision without an atomic
 routed-job/disposition commit or a mutually exclusive terminal resolution of
 mismatch anomalies, carried `Status: APPROVED` with CTO approval dated
-2026-10-09. Those approvals, and
+2026-10-09. A further corrected version, which introduced that atomic commit
+and terminal resolution without a defined post-seal materialization path for
+an obligation refused after a coalescing seal, carried `Status: APPROVED`
+with CTO approval dated 2026-10-12. Those approvals, and
 every review of those earlier versions, remain historical evidence bound to
 those exact earlier versions and source heads only; they do not approve this
 version. The exact historical identities are recorded in the task
