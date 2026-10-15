@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::naive::NaiveDate;
-use juniper::{FieldError, FieldResult};
+use juniper::{FieldError, FieldResult, IntoFieldError};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
@@ -35,6 +35,30 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_coverage_run::{
+        MetricCoverageRunAccountVerification, MetricCoverageRunRebuildResult,
+        MetricCoverageRunVerificationPage,
+    },
+    metric_identifier_quarantine_reconciliation::MetricIdentifierQuarantineReconciliationBatch,
+    metric_import::{MetricImport, MetricImportStatus},
+    metric_ingestion::MetricIngestionErrorCode,
+    metric_ingestion_lifecycle::{
+        MetricBatchResult, MetricIngestionRowResult, MetricSourceUnitClaim,
+    },
+    metric_measure::{MetricMeasure, MetricMeasureCategory, MetricMeasureUnit},
+    metric_platform::{MetricPlatform, MetricPlatformOwnershipClass},
+    metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain},
+    metric_record_provenance::MetricRecordProvenanceClassification,
+    metric_rollup_delta::{
+        MetricRollupDeltaClaim, MetricRollupMonthProjectionVerification,
+        MetricRollupMonthRebuildResult, MetricRollupMonthVerification, MetricRollupWatermark,
+    },
+    metric_source::{MetricSource, MetricSourceAcquisitionType},
+    metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
+    metric_source_checkpoint::{
+        MetricPeriodManifestCursor, MetricPeriodManifestCursorEntry, MetricSourceCheckpoint,
+        PERIOD_MANIFEST_CURSOR_SCHEMA,
+    },
     price::{CurrencyCode, Price},
     publication::{
         AccessibilityException, AccessibilityStandard, Publication, PublicationOrderBy,
@@ -3576,5 +3600,976 @@ impl Contact {
     #[graphql(description = "Get the publisher to which this contact belongs")]
     pub fn publisher(&self, context: &Context) -> FieldResult<Publisher> {
         Publisher::from_id(&context.db, &self.publisher_id).map_err(Into::into)
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics registry administration (`MET-WP1-12`)
+//
+// These three object types expose the persisted registry rows returned by the
+// protected SUPERUSER-only administration surface. They are reachable **only**
+// as the result of one of the six approved mutations or the three approved
+// administrative lookups, every one of which authorizes before touching the
+// database, and — for `MetricPlatform` and `MetricMeasure` — of the two
+// `METRICS_READ_SERVICE` registry lists `metricPlatforms` and `metricMeasures`
+// added by `MET-WP4-02`, which also authorize first. There is deliberately no
+// field on `Work`, on `Publisher` or on any other public type that navigates
+// into them, and no search, filter or pagination query.
+//
+// No object resolves a relation by issuing a further query. The mapping type
+// returns its foreign keys as plain identifiers rather than resolving them into
+// nested `MetricPlatform`/`MetricMeasure` objects, because such a field would
+// be an unauthorized second read path into the registry.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A service on which measured activity occurred. Administered through the protected superuser-only metric platform operations"
+)]
+impl MetricPlatform {
+    #[graphql(description = "Thoth ID of the metric platform")]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the platform. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Human-readable name of the platform")]
+    pub fn display_name(&self) -> &String {
+        &self.display_name
+    }
+
+    #[graphql(description = "Who operates and controls the platform")]
+    pub fn ownership_class(&self) -> &MetricPlatformOwnershipClass {
+        &self.ownership_class
+    }
+
+    #[graphql(description = "Whether the platform is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Optional public-facing description of the platform")]
+    pub fn public_description(&self) -> Option<&String> {
+        self.public_description.as_ref()
+    }
+
+    #[graphql(description = "Date and time at which the platform record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the platform record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "A quantity that can be measured. Administered through the protected superuser-only metric measure operations"
+)]
+impl MetricMeasure {
+    #[graphql(description = "Thoth ID of the metric measure")]
+    pub fn measure_id(&self) -> Uuid {
+        self.measure_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the measure. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Human-readable name of the measure")]
+    pub fn display_name(&self) -> &String {
+        &self.display_name
+    }
+
+    #[graphql(description = "The semantic family of the measure")]
+    pub fn category(&self) -> &MetricMeasureCategory {
+        &self.category
+    }
+
+    #[graphql(description = "The unit in which the measure's values are expressed")]
+    pub fn unit(&self) -> &MetricMeasureUnit {
+        &self.unit
+    }
+
+    #[graphql(description = "Whether the measure may carry negative values")]
+    pub fn allow_negative(&self) -> bool {
+        self.allow_negative
+    }
+
+    #[graphql(description = "Whether the measure may be shown publicly")]
+    pub fn public_visibility(&self) -> bool {
+        self.public_visibility
+    }
+
+    #[graphql(description = "Whether the measure's values may be summed across time")]
+    pub fn additive_across_time(&self) -> bool {
+        self.additive_across_time
+    }
+
+    #[graphql(description = "Whether the measure's values may be summed across works")]
+    pub fn additive_across_works(&self) -> bool {
+        self.additive_across_works
+    }
+
+    #[graphql(description = "Definition of exactly what the measure counts")]
+    pub fn definition(&self) -> &String {
+        &self.definition
+    }
+
+    #[graphql(
+        description = "The measure's declared current baseline methodology, if any. This does not replace per-import or per-observation methodology provenance"
+    )]
+    pub fn methodology_version(&self) -> Option<&String> {
+        self.methodology_version.as_ref()
+    }
+
+    #[graphql(description = "Whether the measure is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Date and time at which the measure record was created")]
+    pub fn created_at(&self) -> Timestamp {
+        self.created_at
+    }
+
+    #[graphql(description = "Date and time at which the measure record was last updated")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Which measure a platform supports, at which reporting grains and with which dimensions. Administered through the protected superuser-only metric platform measure operations"
+)]
+impl MetricPlatformMeasure {
+    #[graphql(description = "Thoth ID of the platform/measure mapping")]
+    pub fn platform_measure_id(&self) -> Uuid {
+        self.platform_measure_id
+    }
+
+    #[graphql(description = "Thoth ID of the mapped platform")]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(description = "Thoth ID of the mapped measure")]
+    pub fn measure_id(&self) -> Uuid {
+        self.measure_id
+    }
+
+    #[graphql(
+        description = "The distinct reporting grains at which the platform reports the measure, in their persisted order"
+    )]
+    pub fn supported_grains(&self) -> &Vec<MetricReportingGrain> {
+        &self.supported_grains
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by country")]
+    pub fn supports_country(&self) -> bool {
+        self.supports_country
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by institution")]
+    pub fn supports_institution(&self) -> bool {
+        self.supports_institution
+    }
+
+    #[graphql(description = "Whether the platform reports the measure broken down by publication")]
+    pub fn supports_publication(&self) -> bool {
+        self.supports_publication
+    }
+
+    #[graphql(
+        description = "Whether Thoth collects the measure directly from the platform. This is configuration only: changing it starts, stops and schedules nothing"
+    )]
+    pub fn direct_collection(&self) -> bool {
+        self.direct_collection
+    }
+
+    #[graphql(description = "Whether the mapping is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+// --------------------------------------------------------------------------
+// Identifier-quarantine reconciliation (`MET-WP7-PREREQ-03`)
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Aggregate-only result of one bounded unresolved-DOI reconciliation sweep"
+)]
+impl MetricIdentifierQuarantineReconciliationBatch {
+    #[graphql(description = "How many quarantine rows committed one reconciliation attempt")]
+    pub fn attempted(&self) -> i32 {
+        self.attempted
+    }
+
+    #[graphql(description = "How many attempted rows reached a terminal resolved state")]
+    pub fn resolved(&self) -> i32 {
+        self.resolved
+    }
+
+    #[graphql(description = "How many attempted rows remain pending because the DOI is unresolved")]
+    pub fn pending(&self) -> i32 {
+        self.pending
+    }
+
+    #[graphql(description = "How many attempted rows remain retryable in a blocked state")]
+    pub fn blocked(&self) -> i32 {
+        self.blocked
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics rollup application (`MET-WP4-01`)
+//
+// These two object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` rollup operations and by nothing else. There is
+// deliberately no field on `QueryRoot`, on `Work`, on `Publisher` or on any
+// other public type that navigates into rollup delta, projection or watermark
+// state: the coverage-aware Metrics read surface is a separate, separately
+// reviewed slice, and no read path may infer freshness from anything here.
+//
+// Both types render their durable progress positions as decimal **strings**.
+// GraphQL's built-in `Int` is 32-bit, so a 64-bit accounting position cannot
+// be carried by it without an eventual silent truncation, and a rollup
+// position is an ordering identity that must never be approximated.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One rollup delta granted by a claim, together with the batch claim it was granted under."
+)]
+impl MetricRollupDeltaClaim {
+    #[graphql(description = "Thoth ID of the claimed rollup delta")]
+    pub fn delta_id(&self) -> Uuid {
+        self.delta_id
+    }
+
+    #[graphql(
+        description = "The delta's immutable work-day progress position, as a decimal string. Positions are contiguous from 1 and are never reused"
+    )]
+    pub fn sequence(&self) -> String {
+        self.work_day_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "Present this token to apply the batch. Every row of one claim carries the same token, and it is returned only here"
+    )]
+    pub fn claim_token(&self) -> Uuid {
+        self.claim_token
+    }
+
+    #[graphql(
+        description = "When this claim's lease expires. After that the batch is reclaimable and this token can no longer apply it"
+    )]
+    pub fn lease_expires_at(&self) -> Timestamp {
+        self.lease_expires_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The durable safe boundary of applied rollup progress."
+)]
+impl MetricRollupWatermark {
+    #[graphql(
+        description = "Every work-day rollup position up to and including this one has been applied, as a decimal string. It never moves backwards and never crosses an unapplied position"
+    )]
+    pub fn applied_through_sequence(&self) -> String {
+        self.applied_through_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "When the current boundary was established. This is a fact about the boundary, not a claim that every canonical row has been projected"
+    )]
+    pub fn watermark_at(&self) -> Timestamp {
+        self.watermark_at
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics monthly verification and rebuild (`MET-WP4-03A-OPS-02`)
+//
+// These three object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` derived-state maintenance operations and by
+// nothing else. They carry bounded counts and frontier facts only: no
+// projection row, identity, value or mismatch detail is exposed, and no
+// field on `QueryRoot` or on any public type navigates into them.
+// `MET-WP4-03C-A` extends the verification to the six derived projection
+// families (four monthly, two yearly) with exactly two additive fields. Every 64-bit sequence, count
+// and watermark position is a decimal string for the same reason the rollup
+// types above use strings.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Bounded verification counts for one derived rollup projection family, monthly or yearly: the rows the work-day projection implies, the rows the table holds, and how many logical identities are missing, extra or mismatched between them."
+)]
+impl MetricRollupMonthProjectionVerification {
+    #[graphql(
+        description = "How many rows the independently derived expected state contains, as a decimal string"
+    )]
+    pub fn expected_rows(&self) -> String {
+        self.expected_rows.to_string()
+    }
+
+    #[graphql(
+        description = "How many rows the projection table actually holds, as a decimal string"
+    )]
+    pub fn actual_rows(&self) -> String {
+        self.actual_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Expected logical identities absent from the table, as a decimal string"
+    )]
+    pub fn missing_rows(&self) -> String {
+        self.missing_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Table rows whose logical identity is absent from the expected state, as a decimal string"
+    )]
+    pub fn extra_rows(&self) -> String {
+        self.extra_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Logical identities present on both sides whose value, dependency flag, ambiguity flag or watermark differs, as a decimal string"
+    )]
+    pub fn mismatched_rows(&self) -> String {
+        self.mismatched_rows.to_string()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One coherent verification of the six derived rollup projection families (monthly total, monthly country, monthly institution, monthly ambiguity, yearly country, yearly institution) against the state independently derived from the work-day projection at one durable rollup frontier."
+)]
+impl MetricRollupMonthVerification {
+    #[graphql(
+        description = "The durable frontier W the verification was taken at, as a decimal string"
+    )]
+    pub fn applied_through_sequence(&self) -> String {
+        self.applied_through_sequence.to_string()
+    }
+
+    #[graphql(
+        description = "The next work-day position to be allocated, as a decimal string. nextSequence - 1 above appliedThroughSequence is ordinary pending rollup lag, not projection corruption"
+    )]
+    pub fn next_sequence(&self) -> String {
+        self.next_sequence.to_string()
+    }
+
+    #[graphql(description = "When the current frontier was established")]
+    pub fn watermark_at(&self) -> Timestamp {
+        self.watermark_at
+    }
+
+    #[graphql(
+        description = "The greatest work-day row watermark, as a decimal string, or null when the work-day projection is empty. It is never above the frontier in a returned verification"
+    )]
+    pub fn max_work_day_watermark(&self) -> Option<String> {
+        self.max_work_day_watermark
+            .map(|watermark| watermark.to_string())
+    }
+
+    #[graphql(description = "How many work-day projection rows exist, as a decimal string")]
+    pub fn work_day_row_count(&self) -> String {
+        self.work_day_row_count.to_string()
+    }
+
+    #[graphql(
+        description = "How many distinct (work, platform, measure, month) keys the work-day projection represents, as a decimal string"
+    )]
+    pub fn represented_month_key_count(&self) -> String {
+        self.represented_month_key_count.to_string()
+    }
+
+    #[graphql(
+        description = "Verification of the resolved monthly total projection (monthly family)"
+    )]
+    pub fn total(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.total
+    }
+
+    #[graphql(
+        description = "Verification of the resolved monthly per-country projection (monthly family)"
+    )]
+    pub fn country(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country
+    }
+
+    #[graphql(
+        description = "Verification of the resolved monthly per-institution projection (monthly family)"
+    )]
+    pub fn institution(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution
+    }
+
+    #[graphql(description = "Verification of the sparse monthly ambiguity state (monthly family)")]
+    pub fn ambiguity(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.ambiguity
+    }
+
+    #[graphql(
+        description = "Verification of the derived yearly per-country projection (yearly family): calendar-year regrouping of the resolved monthly country rows, compared against the yearly state independently derived from the work-day projection"
+    )]
+    pub fn country_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country_year
+    }
+
+    #[graphql(
+        description = "Verification of the derived yearly per-institution projection (yearly family): calendar-year regrouping of the resolved monthly institution rows, compared against the yearly state independently derived from the work-day projection"
+    )]
+    pub fn institution_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution_year
+    }
+
+    #[graphql(
+        description = "True only when all six projection families have zero missing, extra and mismatched rows and no derived monthly or yearly row is watermarked above the frontier"
+    )]
+    pub fn matches(&self) -> bool {
+        self.matches
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The receipt of one derived-projection rebuild request: the six-family verification the transaction committed with, and whether the four monthly and two yearly projection tables were replaced to reach it."
+)]
+impl MetricRollupMonthRebuildResult {
+    #[graphql(
+        description = "False when all six derived projection families were already exact at the pinned frontier and no projection replacement occurred; true when the four monthly and two yearly derived projection tables were replaced and the six-family verification was exact before commit"
+    )]
+    pub fn rebuilt(&self) -> bool {
+        self.rebuilt
+    }
+
+    #[graphql(
+        description = "The exact six-family verification, independently derived from the work-day projection, that the transaction committed with"
+    )]
+    pub fn verification(&self) -> &MetricRollupMonthVerification {
+        &self.verification
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics coverage-run verification and rebuild (`MET-WP4-03C-B1`)
+//
+// These three object types are returned by the two protected
+// `METRICS_INGEST_SERVICE` coverage-run maintenance operations and by
+// nothing else. They carry bounded per-account counts, the exclusive
+// ordering boundary of the next page and the complete-domain count and
+// fingerprint only: no run, stream identity, raw evidence row or mismatch
+// detail is exposed, and no field on `QueryRoot` or on any public type
+// navigates into them. The counts are GraphQL `Int` by the approved
+// contract (Amendment 5A section 11); a count that does not fit fails the
+// whole operation closed on the server instead of wrapping or truncating.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The independent verification of one source account's derived coverage runs: the runs the raw coverage and terminal import evidence imply, the runs the table holds, how many are missing, extra or mismatched between them, and how many structural violations the stored runs carry."
+)]
+impl MetricCoverageRunAccountVerification {
+    #[graphql(description = "The verified source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "How many maximally coalesced runs the raw evidence implies for this account, derived independently of the writer"
+    )]
+    pub fn expected_rows(&self) -> i32 {
+        self.expected_rows
+    }
+
+    #[graphql(description = "How many runs the table holds for this account")]
+    pub fn actual_rows(&self) -> i32 {
+        self.actual_rows
+    }
+
+    #[graphql(description = "Expected runs with no stored run of the same stream and run start")]
+    pub fn missing_rows(&self) -> i32 {
+        self.missing_rows
+    }
+
+    #[graphql(description = "Stored runs with no expected run of the same stream and run start")]
+    pub fn extra_rows(&self) -> i32 {
+        self.extra_rows
+    }
+
+    #[graphql(
+        description = "Runs matched by stream and run start whose run end, coverage status, import status, country coverage or institution coverage differs"
+    )]
+    pub fn mismatched_rows(&self) -> i32 {
+        self.mismatched_rows
+    }
+
+    #[graphql(
+        description = "The additive count of structural violations over the stored runs: an invalid interval, a stream identity that no longer resolves to its canonical account, platform, publisher or measure, an overlap between adjacent runs of one stream, and two adjacent runs of one stream that should have been coalesced. Current account enablement, platform or expected publisher is never a structural violation"
+    )]
+    pub fn structural_violations(&self) -> i32 {
+        self.structural_violations
+    }
+
+    #[graphql(
+        description = "True exactly when missingRows, extraRows, mismatchedRows and structuralViolations are all zero"
+    )]
+    pub fn exact(&self) -> bool {
+        self.exact
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One page of the strictly ascending full-domain coverage-run verification, taken in one read-only repeatable-read snapshot together with the complete source-account domain's count and fingerprint."
+)]
+impl MetricCoverageRunVerificationPage {
+    #[graphql(
+        description = "The verified accounts of this page, in exact ascending source account ID order"
+    )]
+    pub fn accounts(&self) -> &[MetricCoverageRunAccountVerification] {
+        &self.accounts
+    }
+
+    #[graphql(
+        description = "The last returned source account ID when at least one further account follows it, to be passed as afterSourceAccountId for the next page; null when this page exhausts the domain or is empty"
+    )]
+    pub fn next_after_source_account_id(&self) -> Option<Uuid> {
+        self.next_after_source_account_id
+    }
+
+    #[graphql(
+        description = "How many source accounts the complete domain holds in this page's snapshot; identical on every page of one coherent traversal"
+    )]
+    pub fn domain_account_count(&self) -> i32 {
+        self.domain_account_count
+    }
+
+    #[graphql(
+        description = "Lowercase hexadecimal SHA-256 of the complete source-account domain in this page's snapshot: the line thoth-metric-coverage-run-domain/1, then every source account ID as canonical lowercase hyphenated text in ascending order, each line ending in one LF; identical on every page of one coherent traversal"
+    )]
+    pub fn domain_fingerprint(&self) -> &str {
+        &self.domain_fingerprint
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The receipt of one coverage-run rebuild request: whether the account's runs were replaced, and the exact independent verification the transaction committed with."
+)]
+impl MetricCoverageRunRebuildResult {
+    #[graphql(description = "The rebuilt source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "False when the account's runs were already exact and nothing was written; true when they were replaced from raw evidence and independently verified exact in the same committed transaction"
+    )]
+    pub fn rebuilt(&self) -> bool {
+        self.rebuilt
+    }
+
+    #[graphql(description = "The exact independent verification the transaction committed with")]
+    pub fn verification(&self) -> &MetricCoverageRunAccountVerification {
+        &self.verification
+    }
+}
+
+// --------------------------------------------------------------------------
+// Metrics source administration (`MET-WP1-13`)
+//
+// Like the registry objects above, these two types are reachable only through
+// the protected superuser-only operations on `QueryRoot` and `MutationRoot`.
+// No object resolves a relation by issuing a further query: the account
+// returns its source, platform and publisher identity as plain identifiers,
+// never as nested `MetricSource`/`MetricPlatform`/`Publisher` objects, and it
+// exposes its configuration only through the closed typed
+// `MetricSourceAccountConfiguration`, never as raw JSON.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "An acquisition route through which metric data arrives. Administered through the protected superuser-only metric source operations"
+)]
+impl MetricSource {
+    #[graphql(description = "Thoth ID of the metric source")]
+    pub fn source_id(&self) -> Uuid {
+        self.source_id
+    }
+
+    #[graphql(
+        description = "Stable code identifying the source. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "How metric data arrives from the source. Immutable after creation")]
+    pub fn acquisition_type(&self) -> &MetricSourceAcquisitionType {
+        &self.acquisition_type
+    }
+
+    #[graphql(
+        description = "The key of the Thoth-side driver for a DRIVER source, stored exactly as supplied; null for every other acquisition type. Immutable after creation"
+    )]
+    pub fn driver_key(&self) -> Option<&String> {
+        self.driver_key.as_ref()
+    }
+
+    #[graphql(description = "Whether the source is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    #[graphql(description = "Default number of days to look back when collecting, if set")]
+    pub fn default_lookback_days(&self) -> Option<i32> {
+        self.default_lookback_days
+    }
+
+    #[graphql(
+        description = "Default number of days after a period before it is treated as final, if set"
+    )]
+    pub fn default_finalization_delay_days(&self) -> Option<i32> {
+        self.default_finalization_delay_days
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One concrete account or partition of a metric source, routed to the platform on which its activity was observed. Administered through the protected superuser-only metric source account operations"
+)]
+impl MetricSourceAccount {
+    #[graphql(description = "Thoth ID of the metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(
+        description = "Globally unique stable code identifying the account. Matched exactly: it is never trimmed, case-folded or otherwise normalised"
+    )]
+    pub fn code(&self) -> &String {
+        &self.code
+    }
+
+    #[graphql(description = "Thoth ID of the account's metric source. Immutable")]
+    pub fn source_id(&self) -> Uuid {
+        self.source_id
+    }
+
+    #[graphql(
+        description = "Thoth ID of the platform on which the account's activity was observed. Immutable"
+    )]
+    pub fn platform_id(&self) -> Uuid {
+        self.platform_id
+    }
+
+    #[graphql(
+        description = "The source-side account or partition identifier, unique within the source. Immutable"
+    )]
+    pub fn external_key(&self) -> &String {
+        &self.external_key
+    }
+
+    #[graphql(
+        description = "Thoth ID of the publisher the account is expected to report for, if pinned. Immutable"
+    )]
+    pub fn expected_publisher_id(&self) -> Option<Uuid> {
+        self.expected_publisher_id
+    }
+
+    #[graphql(
+        description = "The account's closed typed configuration, decoded from its stored canonical value. A stored value outside the supported representations is never exposed"
+    )]
+    pub fn configuration(&self) -> FieldResult<MetricSourceAccountConfiguration> {
+        self.decoded_configuration()
+            .map_err(|error| thoth_errors::ThothError::from(error).into_field_error())
+    }
+
+    #[graphql(description = "Whether the account is currently enabled")]
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+}
+
+// --------------------------------------------------------------------------
+// Managed-DRIVER ingestion lifecycle (`MET-WP2-02`)
+//
+// These objects are returned only by the five protected
+// `METRICS_INGEST_SERVICE` lifecycle operations on `MutationRoot`, and no
+// public type navigates to them. They expose exactly the fields frozen by
+// Specification Amendments 2 and 3: the checkpoint never exposes its stored
+// claim token, cursor or error text, and the import never exposes its raw
+// evidence references, upstream identity, manifest, creator or counters. A
+// claim's token is returned once, on the claim itself.
+//
+// `MET-WP2-03` adds exactly two claim fields: the platform code copied from the
+// platform row the claim locked, and the typed period-manifest cursor decoded
+// under the claim's checkpoint lock. The two cursor objects are reachable only
+// through that claim field; the generic checkpoint object still exposes no
+// cursor.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One source account unit claimed for managed DRIVER collection, with the lease that authorizes its lifecycle"
+)]
+impl MetricSourceUnitClaim {
+    #[graphql(description = "The claimed unit's metric source")]
+    pub fn source(&self) -> &MetricSource {
+        &self.source
+    }
+
+    #[graphql(description = "The claimed metric source account")]
+    pub fn source_account(&self) -> &MetricSourceAccount {
+        &self.source_account
+    }
+
+    #[graphql(description = "The claimed checkpoint, as it stands after the claim")]
+    pub fn checkpoint(&self) -> &MetricSourceCheckpoint {
+        &self.checkpoint
+    }
+
+    #[graphql(description = "The checkpoint partition. Always \"default\"; fixed by Thoth")]
+    pub fn partition_key(&self) -> &String {
+        &self.checkpoint.partition_key
+    }
+
+    #[graphql(
+        description = "Present this token to every later lifecycle operation on the unit. It is returned only here"
+    )]
+    pub fn lease_token(&self) -> Uuid {
+        self.lease_token
+    }
+
+    #[graphql(
+        description = "When the lease expires. After that the unit is reclaimable and this token authorizes nothing"
+    )]
+    pub fn lease_expires_at(&self) -> Timestamp {
+        self.lease_expires_at
+    }
+
+    #[graphql(
+        description = "Stable code of the claimed account's metric platform, copied from the enabled platform row the claim locked to decide eligibility"
+    )]
+    pub fn platform_code(&self) -> &String {
+        &self.platform_code
+    }
+
+    #[graphql(
+        description = "The source manifests the checkpoint has accepted, by period, as decoded when the claim was granted. Null when none has been accepted. A period that is absent is unknown, never unchanged"
+    )]
+    pub fn period_manifest_cursor(&self) -> Option<&MetricPeriodManifestCursor> {
+        self.period_manifest_cursor.as_ref()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The source manifest digests one claimed checkpoint has accepted: at most 64 periods, oldest first"
+)]
+impl MetricPeriodManifestCursor {
+    #[graphql(description = "The cursor representation. Always \"thoth-period-manifest-cursor/1\"")]
+    pub fn schema_version(&self) -> &str {
+        PERIOD_MANIFEST_CURSOR_SCHEMA
+    }
+
+    #[graphql(description = "The retained periods, strictly ascending by periodStart")]
+    pub fn entries(&self) -> &[MetricPeriodManifestCursorEntry] {
+        self.retained_entries()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The manifest digest accepted for one period"
+)]
+impl MetricPeriodManifestCursorEntry {
+    #[graphql(description = "First day of the period")]
+    pub fn period_start(&self) -> NaiveDate {
+        self.period()
+    }
+
+    #[graphql(
+        description = "SHA-256 of the deterministic source manifest a successful import recorded for the period: 64 lowercase hexadecimal characters"
+    )]
+    pub fn manifest_digest(&self) -> &str {
+        self.digest()
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The collection progress of one metric source account partition"
+)]
+impl MetricSourceCheckpoint {
+    #[graphql(description = "Thoth ID of the checkpoint")]
+    pub fn source_checkpoint_id(&self) -> Uuid {
+        self.source_checkpoint_id
+    }
+
+    #[graphql(description = "Thoth ID of the checkpoint's metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(description = "The checkpoint partition")]
+    pub fn partition_key(&self) -> &String {
+        &self.partition_key
+    }
+
+    #[graphql(description = "When a new import was last begun for the partition, if ever")]
+    pub fn last_discovered_at(&self) -> Option<Timestamp> {
+        self.last_discovered_at
+    }
+
+    #[graphql(
+        description = "Latest completion time of an import recorded on the partition, if any"
+    )]
+    pub fn last_completed_at(&self) -> Option<Timestamp> {
+        self.last_completed_at
+    }
+
+    #[graphql(
+        description = "Latest exclusive period end recorded as successfully and completely collected, if any. It never moves backwards"
+    )]
+    pub fn last_successful_period_end(&self) -> Option<NaiveDate> {
+        self.last_successful_period_end
+    }
+
+    #[graphql(description = "When the current lease expires, if the partition is leased")]
+    pub fn lease_expires_at(&self) -> Option<Timestamp> {
+        self.lease_expires_at
+    }
+
+    #[graphql(description = "When the checkpoint was last changed")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One managed metric import"
+)]
+impl MetricImport {
+    #[graphql(description = "Thoth ID of the import")]
+    pub fn import_id(&self) -> Uuid {
+        self.import_id
+    }
+
+    #[graphql(description = "Thoth ID of the import's metric source account")]
+    pub fn source_account_id(&self) -> Uuid {
+        self.source_account_id
+    }
+
+    #[graphql(description = "Thoth ID of the publisher the import reports for, if any")]
+    pub fn publisher_id(&self) -> Option<Uuid> {
+        self.publisher_id
+    }
+
+    #[graphql(description = "First day of the import period, if any")]
+    pub fn period_start(&self) -> Option<NaiveDate> {
+        self.period_start
+    }
+
+    #[graphql(description = "Exclusive end of the import period, if any")]
+    pub fn period_end(&self) -> Option<NaiveDate> {
+        self.period_end
+    }
+
+    #[graphql(description = "The import's lifecycle state")]
+    pub fn status(&self) -> MetricImportStatus {
+        self.status
+    }
+
+    #[graphql(description = "When the import reached a terminal state, if it has")]
+    pub fn completed_at(&self) -> Option<Timestamp> {
+        self.completed_at
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The committed outcome of one metric ingestion batch"
+)]
+impl MetricBatchResult {
+    #[graphql(description = "Thoth ID of the committed batch")]
+    pub fn import_batch_id(&self) -> Uuid {
+        self.import_batch_id
+    }
+
+    #[graphql(description = "The deterministic hash of the batch request that committed it")]
+    pub fn request_hash(&self) -> &String {
+        &self.request_hash
+    }
+
+    #[graphql(
+        description = "Whether this outcome was read back from an already committed batch rather than written by this call"
+    )]
+    pub fn replayed(&self) -> bool {
+        self.replayed
+    }
+
+    #[graphql(description = "One result per submitted observation, in batch row order")]
+    pub fn rows(&self) -> &Vec<MetricIngestionRowResult> {
+        &self.rows
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The durable classification of one submitted observation"
+)]
+impl MetricIngestionRowResult {
+    #[graphql(description = "The observation's zero-based position in the batch")]
+    pub fn batch_row_index(&self) -> i32 {
+        self.batch_row_index
+    }
+
+    #[graphql(description = "How the observation related to canonical state")]
+    pub fn classification(&self) -> MetricRecordProvenanceClassification {
+        self.classification
+    }
+
+    #[graphql(
+        description = "The stable reason for a CONFLICT or REJECTED observation; null otherwise"
+    )]
+    pub fn reason_code(&self) -> Option<MetricIngestionErrorCode> {
+        self.reason_code
+    }
+
+    #[graphql(description = "Thoth ID of the canonical record the observation relates to, if any")]
+    pub fn record_id(&self) -> Option<Uuid> {
+        self.record_id
+    }
+
+    #[graphql(description = "The observation's canonical identity hash, if formed")]
+    pub fn identity_hash(&self) -> Option<&String> {
+        self.identity_hash.as_ref()
+    }
+
+    #[graphql(description = "The observation's canonical content hash, if formed")]
+    pub fn content_hash(&self) -> Option<&String> {
+        self.content_hash.as_ref()
     }
 }

@@ -27,11 +27,16 @@ Completed shared/global controls:
   merged PR #833 and reachable from `develop`; its dependency is satisfied and
   it is no longer a WP1 entry gate.
 
-Remaining Thoth-local gates for entering WP1:
+The Thoth-local WP1 entry gates are satisfied:
 
-- separately authorized repository-local `feature/metrics` creation from a
-  freshly verified `develop` head;
-- one approved bounded WP1 child specification.
+- repository-local `feature/metrics` exists, created from a verified
+  `develop` head under the SHA-bound authorization recorded in
+  [#766](https://github.com/thoth-pub/thoth/issues/766);
+- the first approved bounded WP1 child specification, `MET-WP1-01`
+  ([#836](https://github.com/thoth-pub/thoth/issues/836)), is delivered: its
+  registry-foundation slice is merged into `feature/metrics`, so Stage 1
+  began there. Each further WP1 slice required its own approved bounded
+  specification.
 
 Later gates, owned by the work they block (they do not gate Thoth WP1 entry
 and are not made ready by it):
@@ -51,13 +56,32 @@ and are not made ready by it):
 
 Deliver WP1 slices additively. Registries/accounts/routes/export stay disabled. Prove migrations, constraints, seeds, rollback and query baseline.
 
+Stage 1 status: the first slice, the `MET-WP1-01` registry foundation
+([#836](https://github.com/thoth-pub/thoth/issues/836)), is merged into
+`feature/metrics` — additive and inactive, with proven forward/latest-only
+rollback/reapply migration behaviour, constraints and the two approved seed
+measures, and with no platform rows, mappings, routes or exports. The
+remaining WP1 foundation slices followed the same bounded path, each under its
+own approved specification and independent review, and are merged into
+`feature/metrics` as additive, inactive `v1.9.0` migrations and domain code,
+recorded under `[Unreleased]` in the repository `CHANGELOG.md`. Their
+integration into `develop`, release, production migration execution and
+activation are separately gated under
+[#981](https://github.com/thoth-pub/thoth/issues/981); none is active or
+authorized by this plan.
+
 ## 4. Stage 2 - Ingestion
 
 Deliver WP2 against fixtures and disposable environments. Use bounded batches, central resolution, transactional identity/overlap handling, provenance and no production source credentials.
 
 ## 5. Stage 3 - Rollups/protected queries
 
-Deliver WP4/WP5 behind inactive flags. Prove correctness, p95, coverage, authorization, capability checks and rebuild.
+Deliver WP4/WP5 behind inactive flags. Normal rollup processing is continuous:
+Sphinx claims/completes bounded rollup work while Thoth atomically maintains
+the work-day projection and the affected monthly projection keys. Prove
+correctness, p95, coverage, authorization, capability checks and deterministic
+full rebuild. Full rebuild is exceptional/on-demand — initial historical
+population or separately authorized repair/recovery — not a monthly batch job.
 
 ## 6. Stage 4 - Sphinx core
 
@@ -85,7 +109,18 @@ Compare selected publishers/periods/measures/dimensions/coverage and known legac
 
 ## 12. Stage 10 - Migration/operations
 
-Use the migration inventory, versioned normalizers, CloudFront recomputation, no accidental export, restore readiness, monitoring, runbooks and reconciliation. Production requires CTO approval.
+Use the migration inventory, versioned normalizers, CloudFront recomputation,
+no accidental export, restore readiness, monitoring, runbooks and
+reconciliation. For the `MET-WP4-03A` monthly projections, test/production
+deployment runs pending migrations through `thoth init`; the deployment
+authorization must explicitly include that expected database side effect. The
+03A migration creates the monthly projections empty. Sphinx then orchestrates
+the separately authorized protected Thoth historical rebuild and independent
+reconciliation at an exact work-day frontier before 03B serving/client cutover
+may activate. Thereafter Sphinx may orchestrate periodic reconciliation, but a
+mismatch must not silently trigger a full rebuild. Production requires explicit
+CTO approval for each applicable deployment, rebuild, reconciliation acceptance
+and activation gate.
 
 ## 13. Observation/cleanup
 
