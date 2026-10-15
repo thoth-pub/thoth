@@ -455,10 +455,17 @@ unavailable for any revision or version with outstanding obligations, those
 obligations remain owed and the unavailable-materializer and route-backlog
 signals raise attention, whether the route is active, temporarily inactive or
 permanently retired. The same holds for an obligation refused after a
-coalescing seal while it awaits an eligible successor, and for a successor
-whose safe execution is held by target-scoped effect ambiguity (section 3.5):
-the obligation stays in that backlog with its reason, age-visible and
-attention-raising, and is never counted as dispositioned.
+coalescing seal while no eligible successor can be selected or admitted for
+it (section 3.5): until its materialized disposition commits, it stays in
+that backlog with its reason, age-visible and attention-raising. Once a
+successor and the obligation's disposition have committed together under
+"Atomic creation of a routed job" (section 3.5), the obligation is
+dispositioned and leaves the route backlog, even where that successor's
+execution is then held by target-scoped effect ambiguity or by the absence
+of a compatible worker; the held execution is job-level state, visible
+through the job's `WAITING`, `RECONCILIATION_REQUIRED`, blocked-successor
+and attention signals (sections 3.4 and 3.15), and no provider effect is
+claimed for it.
 
 Outstanding obligations are interpreted against the immutable revision of the
 epoch that made each event eligible. After a newer revision becomes active, an
@@ -1510,9 +1517,17 @@ state. Concurrent different owed obligations may attach to the same eligible
 open successor under the kind's coalescing contract; when that successor
 seals first, later obligations follow the next valid generation or path.
 Because a new successor is created only together with the disposition it
-represents, every generation represents at least one obligation, and
-materializers converge on committed successor state or serialize into a
-subsequent generation only when the earlier one is already sealed. Repeated
+represents, every generation represents at least one obligation.
+Materializers converge on an existing eligible coalescing-open successor
+whenever one exists, attaching under the approved coalescing rule rather
+than bypassing it to create another generation, and create a subsequent
+generation only when no eligible open successor can represent the
+obligation: because every earlier generation is sealed, or because an
+earlier generation that remains open is ineligible for the obligation's
+route, epoch, route-contract revision or event version under the kind's
+contract. An open ineligible generation therefore never blocks a compatible
+generation, and the same database arbitration, stable identity and
+atomic-creation rules apply to a generation created beside it. Repeated
 retries, worker restarts and acknowledgment loss recover from the durably
 committed route-disposition, job and generation state; after a creation
 commits but its acknowledgment is lost, the retry observes the same job and
@@ -1544,7 +1559,9 @@ keys and never relax target-scoped applied-state ordering. A predecessor
 whose effect is ambiguous at or after `EFFECT_STARTED` cannot be bypassed by
 creating a successor with a different key and asserting a safe second write:
 the predecessor retains its target-scoped boundary until reconciled, the
-successor may exist durably and wait, visibly, while safe execution is
+successor - already a dispositioned job whose obligation has left the route
+backlog - may exist durably and wait, visibly, in job-level `WAITING`,
+`RECONCILIATION_REQUIRED` or blocked-successor state while safe execution is
 blocked, and the kind's approved contract holds, serializes or reconciles
 before any conflicting successor effect. A `CURRENT_STATE` successor reads
 canonical current state, acts on the complete target effect fingerprint and
@@ -1573,13 +1590,20 @@ the engine never indefinitely reselects a permanently sealed job or group
 identity, and that collision is not itself a legitimate blocker. Continuous
 input, rate limits and unavailable workers remain governed by the bounded
 scheduler and backpressure requirements of section 3.15, not by a promise of
-real-time completion. While a successor cannot presently be admitted, no
+real-time completion. The two states are accounted for separately. While no
+eligible successor can presently be selected or admitted for an obligation,
+or no compatible materializer exists, the obligation remains undispositioned
+and its reason durable, age-visible and attention-raising in the route
+backlog without false success. Once a successor has committed together with
+the obligation's disposition, the obligation is dispositioned and no longer
+in the route backlog; if that successor's execution is then held because no
 compatible worker exists or external ambiguity blocks safe execution, the
-owed obligation and its reason remain durable, age-visible and
-attention-raising in the route backlog without false success; errors and
-retries are bounded and backed off, create no unbounded generations and never
-hot-loop on one conflict; recovery after the blocker clears follows the
-kind's approved contract.
+hold is job-level state visible through the job's `WAITING`,
+`RECONCILIATION_REQUIRED`, blocked-successor and attention signals (sections
+3.4 and 3.15), with no claim that an effect has executed. In both states,
+errors and retries are bounded and backed off, create no unbounded
+generations and never hot-loop on one conflict; recovery after the blocker
+clears follows the kind's approved contract.
 
 **Unsupported contracts fail closed.** Before activation, a coalescing kind
 documents how late obligations select or generate safe executable
@@ -2702,9 +2726,11 @@ execution until a separate approved architecture decision says otherwise.
     successor created under invariant 44 together with its disposition; the
     sealed job is never such a path, a new generation is created only when
     the reread shows the obligation still owed and no eligible open
-    successor, and an already represented obligation receives no successor on
-    any retry. Group or window identity is distinct from executable
-    generation identity wherever successive generations may be needed; a
+    successor - whether every earlier generation is sealed or an earlier open
+    generation is ineligible for the obligation - and an already represented
+    obligation receives no successor on any retry. Group or window identity
+    is distinct from executable generation identity wherever successive
+    generations may be needed; a
     successor has a unique, stable idempotency key for its intended successor
     effect; the predecessor's key, seal, attempts and history are unchanged;
     predecessor retry or reclaim is never successor creation; and a successor
@@ -2722,8 +2748,12 @@ execution until a separate approved architecture decision says otherwise.
     redefined. Under finite owed inputs, a compatible available materializer,
     fair capacity and no legitimate blocker the path converges on one
     disposition per obligation and never reselects a sealed identity
-    indefinitely; blocked recovery stays backlogged, age-visible and
-    attention-raising with bounded backoff and bounded generations. A kind
+    indefinitely; an obligation for which no eligible successor can be
+    selected or admitted stays undispositioned, backlogged, age-visible and
+    attention-raising, while a committed successor whose execution is held
+    is a dispositioned job visible through job-level waiting, reconciliation
+    and blocked-successor state, in both cases with bounded backoff and
+    bounded generations. A kind
     without a demonstrated safe successor contract may not activate that
     coalescing mode and may use only a separately approved safe
     event-distinct identity; the exceptional terminal non-materialized
@@ -3377,14 +3407,16 @@ Before shared implementation can be approved, evidence must include:
 - deterministic concurrency tests of different owed obligations `E2` and `E3`
   racing after `J0` seals, proving they converge on an eligible `J1` while it
   is open or, when it seals first, follow correctly ordered later
-  generations, with no obligation dropped or represented by a job whose input
-  omits it;
+  generations, and that where `J1` is open but ineligible for `E3`, `E3`
+  proceeds to a compatible generation while `J1` remains open, with no
+  obligation dropped or represented by a job whose input omits it;
 - deterministic concurrency tests of an attachment to successor `J1` racing
   its first claim/start in both orders, proving one durable order and that
   claim/start-first leaves the refused obligation owed and safely eligible for
   a later successor, never stale-attached;
 - successive-seal tests in which `J0`, `J1` and `J2` are needed within one
-  approved group or window, proving distinct stable identities, no
+  approved group or window, including a generation created while an earlier
+  ineligible generation is still open, proving distinct stable identities, no
   permanently stuck eligible obligation and no false route completion;
 - precommit-crash tests proving that a crash after allocating or starting
   creation of `J1` but before its disposition and input commit leaves no
@@ -3395,16 +3427,21 @@ Before shared implementation can be approved, evidence must include:
   state and creates no `J2`, second disposition or effect;
 - uniqueness and rollback race tests proving that generation arbitration,
   original-group job-key collisions and `(event_id, route_key)` uniqueness
-  races abort or recover safely under one database ordering, with no write
-  skew, deadlock, phantom job, missing input or duplicate route;
+  races - including a concurrent attachment to an open eligible successor
+  and the creation of a compatible generation beside an open ineligible one -
+  abort or recover safely under one database ordering, with no write skew,
+  deadlock, phantom job, missing input or duplicate route;
 - predecessor tests proving that a pre-write retry, lease expiry and reclaim,
   WAITING resume and reconciliation of `J0` never reopen it and never silently
   absorb an owed `E2`, and that successor semantics alter no predecessor
   attempt;
 - ambiguous-predecessor tests in which `J0` holds an unresolved
-  `EFFECT_STARTED` outcome, proving `J1` may be tracked durably but performs
-  no unsafe overlapping or duplicate effect before the required target-scoped
-  fencing and reconciliation evidence;
+  `EFFECT_STARTED` outcome, proving `J1` may be tracked durably as a
+  dispositioned job - its `(E2, route_key)` obligation absent from the route
+  backlog and its held execution visible through job-level waiting,
+  reconciliation or blocked-successor state - but performs no unsafe
+  overlapping or duplicate effect before the required target-scoped fencing
+  and reconciliation evidence;
 - `CURRENT_STATE` successor tests proving `J1` acts on the current canonical
   complete effect fingerprint, no-ops safely where that fingerprint is
   already applied, and never reapplies an identical provider effect merely
@@ -3418,9 +3455,11 @@ Before shared implementation can be approved, evidence must include:
   creates no successor or disposition, and enrollment-first commits its
   allowed terminal resolution and routed facts atomically;
 - blocked-admission tests with an unavailable or incompatible materializer,
-  proving accurate backlog count and oldest age, bounded retry and backoff,
-  no fabricated success, no uncontrolled successor growth, and resumed safe
-  progress when an authorized compatible path returns;
+  proving accurate backlog count and oldest age that count only obligations
+  without a committed disposition, with committed but held successors
+  reported through job-level signals rather than the route backlog, bounded
+  retry and backoff, no fabricated success, no uncontrolled successor growth,
+  and resumed safe progress when an authorized compatible path returns;
 - escape-path negative tests proving that no staff exception is synthesized
   from an ordinary sealed-key collision, that direct-job or replay identities
   cannot evade a route obligation, and that no new route key or epoch is
