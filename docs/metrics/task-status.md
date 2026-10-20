@@ -262,8 +262,18 @@ through separately gated stages A (a develop-reconciliation slice merged into
 `feature/metrics`), A2 (inventory and retirement of every `feature/metrics--*`
 slice ref) and B (a true merge of `feature/metrics` into `develop`), each with
 its own independent review and explicit CTO authorization. After A2 no normal
-new `feature/metrics--<slice>` is created, except a separately authorized
-develop-refresh recovery under #981; after the final integration, later Thoth
+new `feature/metrics--<slice>` is created; the only exceptions, neither of
+which is a standing authorization, are a separately authorized develop-refresh
+recovery under #981 and the single one-time CI-correction slice
+`feature/metrics--wp11-b-clippy` governed by
+[thoth-pub/thoth#981](https://github.com/thoth-pub/thoth/issues/981) /
+[thoth-pub/thoth#985](https://github.com/thoth-pub/thoth/issues/985), which is
+not a develop refresh and imports no `develop` commit. After that corrective
+slice merges into `feature/metrics`, the exact-list A2 inventory, independent
+review, retirement authorization, guarded retirement and completion receipt
+are repeated against the resulting `feature/metrics` head before B may
+proceed, and B keeps its own independent CRITICAL review and explicit CTO
+merge authorization under #981; after the final integration, later Thoth
 Metrics tasks use the STANDARD `feature/<area>/<task> -> develop` flow.
 
 In `metrics-dashboard` it is `dev`, that repository's approved permanent
