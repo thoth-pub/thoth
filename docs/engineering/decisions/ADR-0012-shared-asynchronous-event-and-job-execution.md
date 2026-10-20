@@ -1,9 +1,7 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: APPROVED
+Status: PROPOSED
 Date: 2026-09-29
-Approved by: Javi, CTO
-Approval date: 2026-10-15
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
 Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
@@ -372,9 +370,15 @@ and an eligible route obligation remains owed, visible in the route backlog,
 until it has received that one disposition. The normal disposition
 materializes a job: a materialized disposition points to exactly one job and
 remains unique on `(event_id, route_key)` regardless of whether that job is
-pending, running, waiting or terminal. The only alternative is the explicit,
-authorized and audited terminal non-materialized disposition described below,
-which points to no job (section 3.5 and invariant 8).
+pending, running, waiting or terminal. The only alternative for an eligible
+obligation is the explicit, authorized and audited terminal non-materialized
+disposition described below, which points to no job (section 3.5 and
+invariant 8). Every operation that could create the first disposition for an
+`(event_id, route_key)` pair is subject to the universal admission guard of
+"Original-epoch classification and first route-disposition admission" below:
+an in-epoch contract mismatch receives a disposition only through compatible,
+explicitly authorized first historical enrollment, together with its canonical
+terminal `ENROLLED` anomaly (invariant 47).
 
 When materializing an obligation requires a **new** logical job, that job is
 created only together with its disposition: the new routed job, the
@@ -418,12 +422,26 @@ disposition remains one durable `(event_id, route_key)` record even when an
 operator authorizes a bulk action, and records the actor/authority and reason.
 Where a staff/operator action creates that disposition, it uses ADR-0010's
 protected, audited staff-command seam; direct production SQL is not the normal
-route-disposition interface.
+route-disposition interface. This terminal non-materialized disposition exists
+only for an obligation proven ordinarily eligible from its immutable original
+epoch and still owed: the transaction that would commit it proves that
+eligibility, together with the required actor, authority, reason, covering
+reconciliation/backfill or expressly accepted divergence and audit, under the
+universal admission guard of "Original-epoch classification and first
+route-disposition admission" below. It is refused for an in-epoch contract
+mismatch, for an event outside every epoch of the route and for an event of a
+kind the epoch's revision does not consume, and a bulk authorization applies
+that guard to each `(event_id, route_key)` pair individually.
 
 A terminal disposition with no covering reconciliation/backfill is not normal
 successful routing. It records an explicit accepted divergence for the affected
 domain/effect target and raises durable operator attention; an operator cannot
-make required work disappear merely by supplying a reason.
+make required work disappear merely by supplying a reason. That accepted
+divergence of an ordinarily eligible obligation is a route disposition. It is
+distinct from the `RECONCILED/DIVERGED` terminal resolution of an in-epoch
+contract-mismatch anomaly (below), which is not a route disposition, creates
+none and has its own authorization; the two are recorded, reported and
+counted separately.
 
 The engine exposes route-level backlog independently of job-level queue
 metrics, because an undispositioned route obligation may not yet have any job.
@@ -439,7 +457,10 @@ route, it must make queryable at least:
   materializer (section 3.9) is deployed and eligible to perform the
   materialization;
 - the count and oldest age of open in-epoch contract-mismatch anomalies, per
-  epoch and revision.
+  epoch and revision, counting only anomalies committed `OPEN`; an anomaly
+  created born-terminal `ENROLLED` by first historical enrollment (below) was
+  never open, is never counted or aged as open and remains queryable as
+  terminal history.
 
 Route-level totals may aggregate these values, but no aggregate may hide an
 undispositioned backlog, an open anomaly or an unavailable compatible
@@ -566,60 +587,195 @@ payload/schema version is not a member of the revision's accepted-version set,
 so that it fails the revision's immutable kind/version predicate. Such an event
 becomes a durable `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly, or an
 equivalently explicit durable routing anomaly whose exact representation is an
-implementation-specification detail. The anomaly:
+implementation-specification detail. The anomaly comes into existence in only
+two ways, both governed by "Canonical mismatch-anomaly decision order" below:
+detection records it `OPEN`; or, where a compatible, explicitly authorized
+first historical enrollment linearizes before any detector has committed it,
+that enrollment's transaction records it born-terminal `ENROLLED`. The
+anomaly:
 
-- durably identifies the event, the `route_key`, the epoch, the expected
-  immutable revision, and the actual durable event kind and payload/schema
-  version that failed matching;
-- is queryable, counted and age-visible, and raises durable operator attention;
+- durably identifies the event, the `route_key`, the original epoch, the
+  expected immutable revision, and the actual durable event kind and
+  payload/schema version that failed matching, together with truthful
+  first-observer provenance: the detector that recorded it `OPEN`, or the
+  enrollment that created it born-terminal;
+- is durable, queryable and auditable whether it is open or terminal; while it
+  is `OPEN` it is counted and age-visible and raises durable operator
+  attention, and an anomaly created born-terminal `ENROLLED` is never counted
+  or aged as open;
 - is never classified as successful routing;
 - creates no route disposition and no job merely because it was detected, and
-  does not consume the `(event_id, route_key)` disposition uniqueness slot;
+  detection does not consume the `(event_id, route_key)` disposition
+  uniqueness slot;
 - is never reinterpreted automatically under a later revision or any "current"
   contract.
 
-The anomaly remains open until, under explicit authorization, either:
+A detector-created anomaly remains `OPEN` until, under explicit authorization,
+either:
 
 1. historical enrollment (below) selects a revision of the same logical route
    that is validated as compatible with the event and creates the one allowed
-   `(event_id, route_key)` disposition; or
+   `(event_id, route_key)` disposition, with terminal outcome `ENROLLED`; or
 2. an explicitly approved reconciliation/divergence procedure records why no
    route disposition will be created and what compensating state or effect
-   covers the event.
+   covers the event, with terminal outcome `RECONCILED/DIVERGED`.
+
+Where path 1 linearizes before any detector has committed the anomaly, the
+same enrollment transaction creates it born-terminal `ENROLLED`; it never
+commits, and never pretends to have observed, a prior `OPEN` state or a prior
+detector run. Path 2 resolves only an already committed `OPEN` anomaly and
+never creates one.
 
 Those two paths are mutually exclusive for one logical anomaly. Every in-epoch
-contract mismatch has one **canonical logical anomaly identity**, a function
-of the mismatch facts rather than of the detection, backfill request or
-operator procedure that observed it, whose exact composition and storage are
+contract mismatch has one **canonical logical anomaly identity**, a pure
+function of the immutable mismatch facts of the event and the route: because
+an event's captured routing generation lies inside at most one epoch of a
+route, the event and the stable `route_key` determine the original epoch and
+its expected revision, which are recorded as immutable audit facts. The
+identity never depends on the detection, enrollment, backfill request,
+compatible revision selected for remediation or operator procedure that
+observes or resolves the anomaly, and its exact composition and storage are
 implementation-specification details; duplicate detection, a generic backfill
 request or a separately chosen resolution identifier can therefore never mint
 a parallel anomaly that reaches a second terminal outcome. Each logical
 anomaly reaches at most one effective **terminal resolution** - `ENROLLED`
-through path 1 or `RECONCILED/DIVERGED` through path 2 - arbitrated by a
-database-enforced terminal-resolution decision that both paths share. An
-application-level "read unresolved, act, then append the outcome" sequence
-without that enforcement does not satisfy this rule. "Mutually exclusive
-terminal resolution of a mismatch anomaly", in "Historical enrollment,
-backfill and replay" below, defines the decision boundary and both commit
-orders.
+through path 1 or `RECONCILED/DIVERGED` through path 2 - arbitrated by one
+database-enforced canonical-anomaly decision order that detection, first
+historical enrollment and divergence share and that also arbitrates first
+creation of the anomaly when no anomaly row yet exists. An application-level
+"read unresolved, act, then append the outcome" or "check absent, then
+insert" sequence without that enforcement does not satisfy this rule.
+"Canonical mismatch-anomaly decision order", in "Historical enrollment,
+backfill and replay" below, defines the decision boundary and every commit
+order.
 
 Resolution is recorded as append-only, audited evidence linked to the one
 anomaly, including actor, authority, reason and the resulting disposition or
-divergence record. Resolving an anomaly never deletes it or its detection
-evidence, and a retry after terminal resolution reads and reports the same
-already-effective outcome rather than creating a second terminal decision.
+divergence record. Resolving an anomaly never deletes it, its immutable
+mismatch evidence or its detection provenance, and a retry after terminal
+resolution reads and reports the same already-effective outcome rather than
+creating a second terminal decision.
 
 Detection records the facts above and raises attention; it need not calculate
 or persist which resolution paths are available, and any
 availability-dependent decision about the anomaly is taken from the durable
-state current when that decision is made. Detection is never suppressed
+state current when that decision is made. Detection that finds the canonical
+anomaly already committed, `OPEN` or terminal, converges on it without
+reopening, re-aging or duplicating it. Detection is never suppressed
 because a revision has been withdrawn. The ordering of anomaly creation
 against a concurrent revision withdrawal is defined in "Revision withdrawal
 and route retirement" below.
 
 Route health exposes open anomalies separately from, and alongside, the
 undispositioned eligible-event backlog. An in-epoch contract mismatch is
-therefore never an invisible fourth eligibility state.
+therefore never an invisible fourth eligibility state, and a mismatched event
+is never counted in the eligible-event backlog. An anomaly's terminal
+`ENROLLED` outcome is a route decision; it is not evidence that a job
+executed or that a provider accepted an effect.
+
+### Original-epoch classification and first route-disposition admission
+
+For each logical route, every committed event has exactly one immutable
+**original-epoch classification**, derived only from facts this section
+already fixes - the event's committed durable kind, payload/schema version
+and captured routing generation, and the route's activation epochs with the
+immutable route-contract revision each references. It introduces no second
+epoch or eligibility definition:
+
+1. **ordinarily eligible** - the captured generation lies inside an epoch and
+   the event satisfies that epoch revision's kind/version predicate;
+2. **in-epoch contract mismatch** - the captured generation lies inside an
+   epoch, the event's kind is that revision's consumed event kind and its
+   version is outside the revision's accepted-version set (above);
+3. **outside every epoch** - the captured generation lies before the route's
+   first epoch, in an inactive inter-epoch gap, or after its most recent
+   closed epoch while no later epoch is open;
+4. **unrelated kind** - the captured generation lies inside an epoch whose
+   revision does not consume the event's kind.
+
+Because epochs are immutable and pairwise-disjoint and a revision referenced
+by an epoch is never rewritten, the classification never changes after the
+event commits: closing an epoch, opening a later epoch, a revision transition,
+revision withdrawal and route retirement leave it unchanged. It is never
+derived from a currently open epoch's revision, a current-contract projection,
+a revision selected for remediation, an operator's assertion or an earlier
+non-serialized application read.
+
+**Universal first route-disposition admission guard.** Every operation that
+can create the first durable disposition for an `(event_id, route_key)` pair
+derives this classification from the committed immutable facts and proves its
+own path-specific eligibility and authorization inside the
+database-consistent transaction that would consume that pair's uniqueness
+slot. A stale application observation, a stated staff reason or covering
+evidence is not a substitute for that proof, and an admission whose facts
+cannot be verified fails closed. The first-disposition writers this ADR
+already approves are, exhaustively:
+
+- ordinary routed materialization of an ordinarily eligible obligation under
+  its original epoch revision: creation of a new routed job, attachment to a
+  coalescing-open job, and the post-seal successor path of section 3.5;
+- explicitly authorized historical enrollment of an event outside every epoch
+  of the route, under the selected-revision validation below;
+- compatible, explicitly authorized first historical enrollment of an
+  in-epoch contract mismatch, under the canonical mismatch-anomaly decision
+  order below;
+- the explicit, authorized and audited terminal non-materialized disposition
+  of an ordinarily eligible, still-owed obligation (above), through ADR-0010's
+  protected staff-command seam where staff act.
+
+An explicitly approved migration, reconciliation or disposition plan under
+"Revision withdrawal and route retirement" below creates a first disposition
+only through one of those writers, under that writer's guard and authority;
+such a plan grants no additional mutation authority. The writers do not share
+one permission: each keeps its own authorization.
+
+Admission by classification:
+
+- **ordinarily eligible** - ordinary materialization, or the explicit terminal
+  non-materialized disposition where the obligation is proven still owed and
+  the existing section-3.2 and ADR-0010 conditions hold. An idempotency
+  collision, a sealed job, an unavailable materializer or retry exhaustion
+  never qualifies the obligation for that disposition automatically. Historical
+  work for the obligation is handled under its original epoch revision and the
+  existing owed-route and materializer rules; an enrollment or mismatch command
+  cannot select a different revision for it, change its original
+  interpretation or bypass its disposition uniqueness.
+- **in-epoch contract mismatch** - **no disposition exists for an in-epoch
+  contract mismatch except the one created by compatible, explicitly
+  authorized first historical enrollment, atomically with its canonical
+  anomaly's terminal `ENROLLED` outcome** and with its indispensable newly
+  created routed job and input facts or eligible open-job attachment. The
+  terminal non-materialized disposition command and every other
+  disposition-creating path refuse. The anomaly's `RECONCILED/DIVERGED`
+  terminal outcome creates no disposition.
+- **outside every epoch** - only the existing explicitly authorized historical
+  enrollment/backfill path, subject to its own first-disposition and
+  compatibility controls. Staff authority or covering evidence does not make
+  such an event ordinarily eligible, and the terminal non-materialized
+  disposition command refuses.
+- **unrelated kind** - the event creates neither an obligation nor an anomaly
+  for the route; the terminal non-materialized disposition command and every
+  mismatch operation refuse.
+
+A refused admission creates no disposition, consumes no uniqueness slot and
+creates no job, canonical anomaly, terminal anomaly resolution or external
+effect; the refusal is audited under the refusing path's existing command
+semantics. An existing `OPEN` or terminal anomaly and its immutable evidence
+remain unchanged. Where no anomaly exists, the refused operation neither
+creates, suppresses nor resolves it, and independent detection remains able to
+record it `OPEN` later.
+
+Admission stays valid against concurrent detection, first enrollment,
+divergence, ordinary materialization, revision withdrawal and epoch lifecycle
+operations. Ordinary materialization and the terminal non-materialized
+disposition of an ordinarily eligible obligation compete through the existing
+absolute `(event_id, route_key)` uniqueness boundary, and a loser resolves its
+outcome from committed durable state; first mismatch enrollment additionally
+participates in the canonical mismatch-anomaly decision order, even when no
+anomaly row exists at its first read. A uniqueness conflict alone never means
+that work is complete and never permits the event to be reinterpreted. The
+guard introduces no new route key, epoch, replay or current-state job and no
+external-effect authority.
 
 ### Historical enrollment, backfill and replay
 
@@ -639,6 +795,18 @@ deterministically. Enrollment may select a revision that was not active at the
 event's routing generation, because enrollment is explicit and outside ordinary
 epoch eligibility, but only when that revision is validated as semantically
 compatible with the event.
+
+Before selecting a revision, enrollment classifies the event under
+"Original-epoch classification and first route-disposition admission" above,
+inside the transaction that would create its disposition. Enrollment applies
+only to an event outside every epoch
+of the route or to an in-epoch contract mismatch. A mismatch-enrollment or
+mismatch-divergence command for an ordinarily eligible, outside-epoch or
+unrelated-kind event is refused as a mismatch operation, with no anomaly, no
+terminal mismatch decision and no change to the event's route disposition or
+backlog; explicitly authorized outside-epoch enrollment and ordinary
+materialization keep their own semantics and are never relabelled as anomaly
+resolution.
 
 Before enrollment creates the first route disposition for an event, the selected
 revision is validated against the event's durable facts, field by field across
@@ -664,13 +832,16 @@ disposition, never from an earlier separate read.
 
 If any check fails, or the revision has been withdrawn, the enrollment is
 refused before any route disposition or job is created. Where the enrollment
-resolves an in-epoch contract-mismatch anomaly, these checks, the anomaly's
-still-open state and the terminal-resolution decision are made inside the one
-database-enforced boundary defined below. The
-`(event_id, route_key)` uniqueness slot remains unused, so a later enrollment
-under a compatible revision remains possible. The refused attempt and its reason
-are durably audited, and any existing anomaly, backlog or attention state for
-the event remains visible.
+is the first historical enrollment of an in-epoch contract mismatch - whether
+its canonical anomaly is committed `OPEN` or absent at the enrollment's first
+read - the immutable classification, these checks, the anomaly's current state
+and the terminal decision are made inside the canonical mismatch-anomaly
+decision order defined below. A refused enrollment leaves the
+`(event_id, route_key)` uniqueness slot unused, so a later enrollment under a
+compatible revision remains possible, and it neither creates nor terminally
+resolves a previously absent anomaly. The refused attempt and its reason are
+durably audited, and any existing anomaly, backlog or attention state for the
+event remains visible.
 
 Enrollment cannot bypass route deduplication and cannot create a second
 disposition for an event that already has one for that route, whichever revision
@@ -688,57 +859,168 @@ rules of sections 3.3 and 3.5 remain mandatory, so historical enrollment cannot
 produce an unintended duplicate or regressive effect. A new route identity does
 not by itself grant permission to duplicate an external effect.
 
-### Mutually exclusive terminal resolution of a mismatch anomaly
+### Canonical mismatch-anomaly decision order
 
-An unresolved in-epoch contract-mismatch anomaly (above) is resolved by
-exactly one of two authorized paths: compatible historical enrollment, which
-creates the one allowed `(event_id, route_key)` disposition, or an explicitly
-approved reconciliation/divergence procedure, which creates none. Because
-divergence creates no disposition, `(event_id, route_key)` uniqueness alone
-cannot arbitrate between them. Both paths therefore compete through one
-database-enforced terminal-resolution decision on the anomaly's canonical
-logical identity: a terminal-resolution transition, a uniqueness constraint
-over the anomaly's terminal outcome or an equivalent serialized durable
-decision, selected by the implementation specification, that admits at most
-one effective terminal outcome per logical anomaly. Each path validates its
-authorization, the anomaly's still-open state and its applicable current
-conditions - for enrollment, the selected revision's field-by-field
+For one event and logical route classified as an in-epoch contract mismatch
+from immutable original-epoch facts (above), three kinds of operation compete:
+detection, which may create the canonical anomaly `OPEN`; compatible,
+explicitly authorized first historical enrollment, which creates the one
+allowed `(event_id, route_key)` disposition with terminal outcome `ENROLLED`;
+and an explicitly approved reconciliation/divergence procedure, which creates
+no disposition and may only resolve an already committed `OPEN` anomaly to
+`RECONCILED/DIVERGED`. Because divergence creates no disposition,
+`(event_id, route_key)` uniqueness alone cannot arbitrate between enrollment
+and divergence; and because the anomaly row may not exist when the contenders
+begin, uniqueness enforced only on a later anomaly insert cannot arbitrate
+between detection and enrollment either.
+
+All three therefore share one database-enforced, serially consistent
+**canonical mismatch-anomaly decision order** on the anomaly's canonical
+logical identity. The order covers first creation of the anomaly as well as
+its terminal resolution, including the case in which no anomaly row exists
+when several contenders take their first reads; an application-level "check
+absent, then act" or "read unresolved, act, then append the outcome"
+sequence, with uniqueness enforced only on a later insert, does not satisfy
+it. Every outcome is equivalent to one lawful serial order of the contenders.
+The mechanism - a claimed canonical identity, a terminal-outcome uniqueness
+constraint, an upsert, a canonical lock key, predicate or serializable
+conflict detection, or another equivalent database-enforced scheme - is
+selected by the implementation specification; the observable atomicity and
+order are mandatory. Each operation validates the immutable classification,
+its own authorization and its current conditions inside that order, in the
+transaction that makes its outcome durable, never from a stale earlier
+observation: for enrollment, the selected revision's field-by-field
 compatibility and its availability under the withdrawal/selection order of
 "Revision withdrawal and route retirement" below; for divergence, the
-reconciliation authority and approved reason - inside that database-enforced
-decision boundary, in the transaction that makes the outcome durable, never
-from a stale earlier observation.
+committed `OPEN` state, the reconciliation authority, the approved reason and
+the covering or compensation evidence.
 
-Both commit orders are defined:
+The lawful orders are:
 
-- enrollment first: the transaction that durably selects the terminal
-  `ENROLLED` outcome also creates the allowed `(event_id, route_key)`
-  disposition and, where the enrollment creates a new routed job rather than
-  attaching to an existing coalescing-open job, that job and its
-  indispensable input or membership facts under "Atomic creation of a routed
-  job" (section 3.5); a concurrent or later divergence attempt for the same
-  anomaly detects the effective terminal decision and cannot record a
-  contradictory accepted no-disposition outcome;
-- divergence first: the transaction that durably selects the terminal
-  `RECONCILED/DIVERGED` outcome persists the approved reason, authority and
-  the durable resolution or compensation reference; it creates no route
-  disposition and no job merely by resolving the anomaly, and the
-  `(event_id, route_key)` slot remains unused; a concurrent or later first
-  historical enrollment for that same anomaly is refused before it can create
-  a disposition, job or external effect, and the unused slot is not available
-  to that losing enrollment.
+- **detection first:** the first valid detection commits one canonical `OPEN`
+  anomaly with its immutable mismatch evidence and attention, and no route
+  disposition or job. A later compatible, authorized first enrollment changes
+  it to terminal `ENROLLED` in the transaction that also creates the one route
+  disposition and either a new routed job with its indispensable input or
+  membership facts under "Atomic creation of a routed job" (section 3.5) or an
+  eligible attachment to an existing coalescing-open job under the
+  attachment/seal boundary of section 3.5. A later authorized divergence may
+  instead change it to terminal `RECONCILED/DIVERGED`, persisting the approved
+  reason, authority and durable resolution or compensation reference, with no
+  route disposition and no job.
+- **enrollment first:** where a compatible, authorized first enrollment
+  linearizes before any detector has committed the anomaly, the same
+  transaction creates the canonical anomaly born-terminal `ENROLLED` - with the
+  immutable mismatch facts and the enrollment's actor and authority as its
+  provenance - together with the one route disposition and the indispensable
+  new routed job and input facts or eligible open-job attachment. These commit
+  together or none commits. The enrollment never commits its disposition first
+  and attaches anomaly evidence or resolution later, never commits a transient
+  `OPEN` state and never records a detector run that did not occur.
+- **later detection:** detection after either terminal outcome observes that
+  outcome and converges on the same canonical anomaly. It may deduplicate and
+  retain truthful detection provenance, but it never reopens or re-ages the
+  anomaly, never counts it as open, never creates a second anomaly, job or
+  disposition and never claims that an earlier detector transaction existed
+  where only enrollment established the first anomaly evidence.
+- **divergence requires a committed `OPEN` anomaly:** a divergence may commit
+  terminal `RECONCILED/DIVERGED` only by proving, inside the decision order,
+  that the event is an in-epoch contract mismatch under immutable
+  original-epoch facts, that its canonical anomaly is already committed and
+  `OPEN`, that the actor holds explicit reconciliation authority with an
+  approved reason and durable covering or compensation evidence under
+  ADR-0010 and this ADR, and that no competing terminal outcome has won. An
+  absent anomaly, an `ENROLLED` anomaly (born-terminal or resolved), a
+  `RECONCILED/DIVERGED` anomaly and a non-mismatch event each refuse it.
+  Divergence never creates the anomaly, even born-terminal, and never creates
+  a route disposition or job.
+- **divergence before detection:** a divergence that linearizes before a
+  concurrent detector's creation commits is refused, with no canonical
+  anomaly, terminal record, route disposition, job or external effect, even if
+  the detector commits immediately afterwards; request arrival and first-read
+  timing are not the linearization order. The detector may then commit `OPEN`.
+  The refusal is not authority for a later terminal decision: a new divergence
+  attempt is decided at its own linearization, revalidating explicit
+  authority, reason and evidence and the existing command-idempotency
+  semantics of ADR-0010 section 4.7 and the owning domain. Whether a
+  still-valid authorization may be re-presented is governed by that existing
+  policy; this ADR mandates no new command identity or approval kind.
+- **enrollment versus divergence on an `OPEN` anomaly:** the first committed
+  terminal outcome wins. Divergence first prevents any later first enrollment
+  from creating a disposition, job or effect, notwithstanding the unused route
+  slot, which is not available to the losing enrollment; enrollment first,
+  including a born-terminal `ENROLLED` anomaly, prevents any later accepted
+  no-disposition divergence. There is no born-terminal `RECONCILED/DIVERGED`
+  outcome.
 
-In either order the losing path detects the durable terminal decision before
-committing its own conflicting record or work, aborts or deterministically
-refuses, and leaves accurate audit and attention state; no two contradictory
-terminal outcomes can both commit, regardless of the absence of a disposition
-from divergence. A transaction that aborts or crashes before its terminal
-decision commits leaves the anomaly unresolved and independently retryable.
-After a terminal decision commits, repeated requests, retries and audit reads
-observe the same effective outcome and create no second or contradictory
-terminal result. The anomaly's open count, age and attention evidence
-transition from open to exactly one terminal outcome without erasing the
-detection facts.
+In every order the losing operation detects the effective durable decision
+before committing its own conflicting record or work, then aborts, re-reads
+or deterministically returns the already-effective outcome, and leaves
+accurate audit and attention state. No two contradictory terminal outcomes, no
+second anomaly and no second disposition can commit; no `ENROLLED` outcome
+can commit without its disposition and indispensable job or attachment facts;
+and a losing, refused or aborted path leaves no orphan or claimable job and no
+provider effect. A zero-row or phantom race, a stale absence read, a
+uniqueness collision or a lost lock never bypasses the order. A transaction
+that aborts or crashes before its decision commits leaves no partial result:
+the anomaly stays in its prior committed state - `OPEN`, or absent - and
+independent detection and a later authorized enrollment or divergence remain
+possible. After a decision commits, repeated requests, retries after
+acknowledgment loss and audit reads observe the same anomaly, terminal
+outcome, disposition and job or attachment, and create no second or
+contradictory result and no provider replay. A detector-created anomaly's open
+count, age and attention evidence transition from open to exactly one terminal
+outcome without erasing its detection facts; a born-terminal anomaly was never
+open.
+
+A refused first enrollment - wrong original classification, an invalid or
+withdrawn revision, missing explicit authority, an unavailable materializer,
+an unsafe seal or successor, a uniqueness or transaction failure, a lost
+terminal race or a crash before commit - does not itself create or terminally
+resolve a previously absent anomaly. An existing `OPEN` anomaly stays `OPEN`
+with truthful age and attention; otherwise independent detection from the
+immutable event and epoch facts can still record it `OPEN`. An audited
+refusal fabricates no anomaly, job or authority.
+
+Compliant first-disposition writers make a mismatch disposition without its
+canonical terminal `ENROLLED` anomaly and indispensable job or attachment
+facts impossible. Should contradictory durable state nevertheless be
+observed, for example a disposition for an in-epoch contract mismatch without
+that canonical outcome, the engine fails closed for that event and route: no
+operation treats it as healthy or successful routing, adopts the existing
+disposition as `ENROLLED`, records divergence or repairs it, and no new
+disposition, job or provider effect is justified by it; the mandatory
+immutable mismatch evidence and the contradictory durable records are
+preserved and made visible to engineering control rather than suppressed,
+hidden or normalized into success. The condition is a control HOLD pending a
+separately authorized incident-recovery design. This ADR defines no third
+anomaly lifecycle state, job hold, automatic adoption or repair, detector
+bypass, retroactive authority or provider effect for such state.
+
+Terminal `ENROLLED` completes the mismatch's routing/disposition decision
+only. It does not claim that a job executed, that a provider accepted an
+effect or that external state is current; the shared job lifecycle and
+target-scoped reconciliation continue to decide effect progress
+independently.
+
+The decision order composes with, and introduces no second order beside, the
+per-`route_key` epoch lifecycle and retirement serialization, the
+withdrawal/selection order and the withdrawal strand-safety decision of
+"Revision withdrawal and route retirement" below, `(event_id, route_key)`
+uniqueness, atomic routed-job creation, the coalescing attachment/seal
+boundary and the post-seal successor path of section 3.5. A terminal
+`ENROLLED` decision is atomic with the selected revision's availability and
+with its routed-job creation or attachment. A permanently sealed job never
+receives the mismatched input, so the mismatch reaches `ENROLLED` only
+together with a valid eligible open attachment or a newly created successor
+with its disposition and input facts, and otherwise stays unresolved -
+`OPEN` where detected, absent pending detection - with truthful attention. A
+new job or generation identity grants no duplicate external-effect authority.
+The combined locks, constraints and serializable retries follow one
+documented, deterministic and deadlock-safe order, or an equivalent
+deadlock-safe retry discipline, proven against the actual PostgreSQL design
+that the implementation specification selects; this ADR selects no lock
+order, SQL or schema.
 
 A generic backfill or replay request that targets the event and route of a
 resolved anomaly is, for that anomaly, a first historical enrollment governed
@@ -758,8 +1040,9 @@ durable intent and evidence are what this rule makes consistent, and
 PostgreSQL is never assumed to commit atomically with a third-party provider
 write or to grant new external-write authority. This anomaly-resolution
 divergence is distinct from the separately authorized terminal non-materialized
-route disposition of an eligible obligation (section 3.2): under the mismatch
-semantics above it creates no disposition.
+route disposition of an ordinarily eligible obligation (section 3.2): under
+the mismatch semantics above it creates no disposition, and it is recorded and
+counted separately from that disposition's accepted divergence.
 
 ### Revision withdrawal and route retirement
 
@@ -781,7 +1064,11 @@ compatible materialization path, or while any unresolved in-epoch
 contract-mismatch anomaly would be left without an approved resolution path (a
 selectable compatible revision or an approved reconciliation/divergence
 procedure), unless an explicitly approved migration, reconciliation or
-disposition plan closes or transfers that work safely.
+disposition plan closes or transfers that work safely. Such a plan creates any
+first route disposition only through a writer this ADR already approves, under
+the universal admission guard of "Original-epoch classification and first
+route-disposition admission" above, and grants no additional mutation
+authority.
 
 That strand-prevention decision must be **database-consistent and stable
 through the withdrawal's linearization/commit point**: a withdrawal may commit
@@ -803,7 +1090,11 @@ mechanism with equivalent effect. The covered mutations include, at minimum:
   anomaly identifies the epoch's expected revision; it need not select or
   reference the separate compatible revision whose availability for historical
   enrollment makes it resolvable, so the withdrawal/selection order below does
-  not by itself order it against the withdrawal, and this rule does;
+  not by itself order it against the withdrawal, and this rule does. Only
+  detection creates an unresolved (`OPEN`) anomaly: an anomaly that compatible
+  first historical enrollment creates born-terminal `ENROLLED` is not
+  unresolved and cannot be stranded by a withdrawal, while that enrollment's
+  revision selection participates in the withdrawal/selection order below;
 - any other already-defined durable operation that removes the last approved
   resolution or materialization path - a selectable compatible revision, an
   explicitly approved reconciliation/divergence procedure or an explicitly
@@ -894,9 +1185,12 @@ Both commit orders are defined:
 - withdrawal first: when the withdrawal linearizes first, a later epoch opening
   that would reference the revision is refused before the epoch is created, a
   later first historical enrollment that selects the revision is refused before
-  any route disposition or job is created, the `(event_id, route_key)`
-  uniqueness slot remains unused, and existing audit, anomaly, backlog and
-  attention state remains visible under the rules above.
+  any route disposition or job is created - and, for an in-epoch contract
+  mismatch, before any canonical anomaly creation or terminal `ENROLLED`
+  decision - the `(event_id, route_key)` uniqueness slot remains unused, and
+  existing audit, anomaly, backlog and attention state remains visible under
+  the rules above. Mismatch detection remains able to record or retain the
+  canonical anomaly after such a withdrawal.
 
 A transaction that loses that race may retry only after re-reading current
 durable state and selecting a revision that is still available, under the
@@ -914,9 +1208,10 @@ exclusion constraint is an implementation-specification detail. Whichever
 mechanism is selected must compose with the serialized open, close, reactivate
 and retire lifecycle, with database-atomic equivalent-revision convergence, with
 historical-enrollment validation and `(event_id, route_key)` disposition
-uniqueness, with the strand-prevention rule above and its decision-stability
-rule, with permanent route retirement and with the engine's normal deadlock
-and lock-ordering controls. No
+uniqueness, with the canonical mismatch-anomaly decision order above, with the
+strand-prevention rule above and its decision-stability rule, with permanent
+route retirement and with the engine's normal deadlock and lock-ordering
+controls. No
 implementation may introduce a second route lifecycle order that contradicts the
 per-`route_key` order.
 
@@ -1293,9 +1588,12 @@ started, and so coalescing-open, only until its first successful execution
 claim/start commits (below). An explicit,
 authorized and audited terminal non-materialized disposition points to no job
 and records the actor, authority, reason and any covering
-reconciliation/backfill. Materialized and terminal non-materialized
-dispositions share the same `(event_id, route_key)` uniqueness boundary and
-cannot coexist for the same route/event pair. Coalescing therefore forms a
+reconciliation/backfill; it exists only for an ordinarily eligible, still-owed
+obligation under the universal first route-disposition admission guard of
+section 3.2, never for an in-epoch contract mismatch. Materialized and
+terminal non-materialized dispositions share the same `(event_id, route_key)`
+uniqueness boundary and cannot coexist for the same route/event pair.
+Coalescing therefore forms a
 many-route-to-one-job relationship only among materialized dispositions; it
 never erases the per-event route records needed for audit/completeness.
 
@@ -1541,15 +1839,21 @@ tables, constraints, sequences and locks are implementation-specification
 details.
 
 **Historical enrollment and anomaly resolution.** A first historical
-enrollment that uses this path obeys the same rules. Where the enrollment
-resolves an in-epoch contract-mismatch anomaly, the terminal-resolution
-decision, the enrollment disposition and any newly created successor and its
-input facts commit within one consistent terminal-decision transaction
-boundary ("Mutually exclusive terminal resolution of a mismatch anomaly",
-section 3.2); an enrollment that loses a successor's seal race aborts as a
-whole, leaving the anomaly open and retryable. Historical enrollment, anomaly
-terminal resolution, revision selection and withdrawal and route retirement
-keep their existing orders.
+enrollment that uses this path obeys the same rules. Where the enrollment is
+the first historical enrollment of an in-epoch contract mismatch, the
+canonical-anomaly decision - resolving a committed `OPEN` anomaly to
+`ENROLLED`, or creating the anomaly born-terminal `ENROLLED` where none is
+committed - the enrollment disposition and the eligible open-successor
+attachment or newly created successor and its input facts commit within one
+transaction under the canonical mismatch-anomaly decision order of section
+3.2. A permanently sealed job never receives the mismatched input. An
+enrollment that loses a successor's seal race, or finds no eligible successor
+that can lawfully be selected or created, aborts or is refused as a whole,
+leaving the anomaly in its prior committed state - `OPEN` and retryable, or
+absent and still detectable - with truthful attention; it never creates the
+absent anomaly. Historical enrollment, the canonical anomaly decision order,
+revision selection and withdrawal and route retirement keep their existing
+orders.
 
 **Effect semantics, fencing and ambiguity.** A successor executes under the
 same canonical external effect-target identity, target-scoped concurrency
@@ -1625,9 +1929,11 @@ permanent-key collision.
 **Exceptional dispositions unchanged.** The explicit, authorized and audited
 terminal non-materialized disposition of section 3.2 remains available only
 under its existing section-3.2 and ADR-0010 controls, with real covering
-reconciliation or expressly accepted divergence. A seal, an idempotency
-collision, retry exhaustion or an unavailable materializer never creates it
-automatically and is never success.
+reconciliation or expressly accepted divergence, and only for an ordinarily
+eligible, still-owed obligation under the universal first route-disposition
+admission guard; it is refused for an in-epoch contract mismatch. A seal, an
+idempotency collision, retry exhaustion or an unavailable materializer never
+creates it automatically and is never success.
 
 This rule supplements only the post-seal recovery outcome of the
 claim/start-first order above. It keeps the first successful claim/start as
@@ -1652,7 +1958,13 @@ job-input or membership fact indispensable for that disposition's effect
 semantics under the kind's input or coalescing contract become durable in one
 PostgreSQL transaction. The job and the disposition become visible together on
 commit; a failure, a uniqueness conflict or a crash before commit leaves
-neither durably created by that attempt. The exact tables, constraints and SQL
+neither durably created by that attempt. Where the routed job is created by
+the first historical enrollment of an in-epoch contract mismatch, the same
+transaction also carries that mismatch's canonical terminal `ENROLLED`
+decision under the canonical mismatch-anomaly decision order of section 3.2;
+if any indispensable insert fails, every newly created routed fact and the
+terminal selection roll back together, leaving the anomaly in its prior
+committed state, `OPEN` or absent. The exact tables, constraints and SQL
 are implementation-specification details; the all-or-nothing boundary is not.
 
 The scheduler and the workers must never be able to claim, start or produce
@@ -2116,6 +2428,18 @@ to perform internal domain operations merely to impersonate a machine role;
 internal authorization/execution boundaries must instead be specified explicitly
 by the owning implementation.
 
+Staff and reconciliation authority used by section 3.2 - for explicit
+historical enrollment, mismatch-anomaly divergence, the terminal
+non-materialized route disposition and other route or anomaly control
+operations - remains ADR-0010's protected, audited staff-command authority
+(ADR-0010 sections 4.7 and 4.8) or another explicitly approved domain
+authority. This ADR creates no new staff, reconciliation, worker or machine
+permission for those operations. Correct original-epoch classification, a
+stated reason or a generic command that claims staff or reconciliation
+authority never grants permission by itself, and each such operation
+revalidates its actual authority and the existing command-idempotency
+semantics at its own decision boundary.
+
 ### 3.15 Operability, fairness and operator controls
 
 The shared engine must expose durable/queryable operational signals at least by
@@ -2142,12 +2466,22 @@ have no job yet:
   obligations, whether a compatible deployed/eligible materializer exists, for
   active routes and for temporarily inactive or permanently retired routes with
   outstanding obligations;
-- the count and oldest age of open in-epoch contract-mismatch anomalies;
-- terminal route dispositions that represent accepted divergence rather than
-  covered reconciliation/backfill.
+- the count and oldest age of open in-epoch contract-mismatch anomalies,
+  counting only anomalies committed `OPEN`: an anomaly created born-terminal
+  `ENROLLED` by first historical enrollment is never counted or aged as open,
+  and terminal anomalies remain queryable with their original mismatch facts,
+  provenance, terminal outcome and authority;
+- terminal non-materialized route dispositions of ordinarily eligible
+  obligations that represent accepted divergence rather than covered
+  reconciliation/backfill, reported separately from `RECONCILED/DIVERGED`
+  terminal resolutions of mismatch anomalies, which are not route
+  dispositions.
 
 An aggregate route view never hides an unhealthy older revision behind a
-healthy current revision.
+healthy current revision. A mismatched event is never counted in the
+eligible-event backlog, and a committed but held successor or routed job is
+reported through job-level signals, not as an open anomaly or an
+undispositioned obligation; no metric double-counts or hides one event.
 
 Each job kind defines bounded attempts, backoff and concurrency limits. Backoff
 must prevent tight retry loops; exact algorithms and jitter are implementation
@@ -2492,9 +2826,13 @@ execution until a separate approved architecture decision says otherwise.
 5. Deactivation, revision transitions and retirement never erase previously
    eligible work: events eligible through any epoch remain owed, under that
    epoch's revision, until materialized or given an explicit authorized/audited
-   route disposition. In-epoch contract-mismatch anomalies remain open and
+   route disposition. Every in-epoch contract mismatch is recorded as a
+   durable, visible anomaly. A detector-created anomaly remains `OPEN` and
    visible until resolved through compatible enrollment or an approved
-   reconciliation/divergence, recorded append-only.
+   reconciliation/divergence, recorded append-only; an anomaly that compatible
+   first historical enrollment creates born-terminal `ENROLLED` was never
+   open, is not required to have been, and keeps its mismatch evidence
+   durable and queryable.
 6. A newly opened epoch, whether a first activation, a reactivation or a
    revision transition, does not consume events from before its activation
    boundary, including inactive-gap events, without explicitly authorized
@@ -2515,10 +2853,20 @@ execution until a separate approved architecture decision says otherwise.
    non-materialized disposition maps to no job, records actor, authority,
    reason and any covering reconciliation/backfill, and shares the same
    uniqueness boundary so it cannot coexist with a materialized disposition for
-   the same event/route pair. The uniqueness boundary spans every activation
-   epoch and every route-contract revision of the route and excludes any epoch
-   or revision identifier, so neither reactivation, a revision transition nor
-   backfill/replay can rematerialize an event that already has a disposition.
+   the same event/route pair. Only a durable route obligation proven
+   ordinarily eligible from its immutable original epoch and still owed may
+   receive that terminal non-materialized disposition: the authorizing
+   evidence, reconciliation or expressly accepted divergence, protected
+   staff-command audit and immutable eligibility are validated inside the
+   disposition's transaction. It is prohibited for an in-epoch contract
+   mismatch, an event outside every epoch and an event of an unrelated kind;
+   a mismatched event's first route disposition arises solely from explicitly
+   authorized compatible historical enrollment under canonical anomaly and
+   terminal `ENROLLED` arbitration (invariant 47). The uniqueness boundary
+   spans every activation epoch and every route-contract revision of the
+   route and excludes any epoch or revision identifier, so neither
+   reactivation, a revision transition nor backfill/replay can rematerialize
+   an event that already has a disposition.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
@@ -2585,11 +2933,20 @@ execution until a separate approved architecture decision says otherwise.
 34. Merge, migration, deployment, handler activation, provider access and
     production activation remain separate gates.
 35. An event of an epoch revision's consumed event kind, captured inside that
-    epoch, whose version is outside the revision's accepted-version set is a
-    durable `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly that is queryable,
-    counted, age-visible and attention-raising. Detection creates no route
-    disposition or job, consumes no `(event_id, route_key)` slot, is never
-    successful routing and is never reinterpreted under a later contract.
+    epoch, whose version is outside the revision's accepted-version set is an
+    in-epoch contract mismatch, classified solely from immutable event, epoch
+    and revision kind/version facts, and is recorded as one durable, queryable
+    `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly that is never successful
+    routing and is never reinterpreted under a later contract. A pure
+    detection transaction creates or observes that one canonical anomaly -
+    created `OPEN`, counted, age-visible and attention-raising - with no route
+    disposition or job and without consuming the `(event_id, route_key)`
+    slot. Separately authorized successful first historical enrollment may
+    create or observe the same anomaly born-terminal `ENROLLED` only in its
+    all-in-one anomaly, resolution, disposition and job transaction
+    (invariant 47); that is enrollment, not a detector creating a
+    disposition. Divergence never creates the anomaly, a route disposition or
+    a job. Durable attention and audit history are preserved.
 36. Route-contract revisions with the same canonical semantic signature
     converge atomically to one canonical revision through database-enforced
     uniqueness or serialization, never an application-level check-then-insert;
@@ -2694,27 +3051,40 @@ execution until a separate approved architecture decision says otherwise.
     Attachment to an existing job remains governed by invariant 42;
     independently authorized direct jobs keep their own semantics and cannot
     be used to disguise a routed job.
-45. Every in-epoch contract-mismatch anomaly has one canonical logical
-    identity and at most one effective terminal resolution - compatible
-    historical enrollment or approved reconciliation/divergence - arbitrated
-    by a database-enforced terminal-resolution decision shared by both paths;
-    each path validates authorization, the anomaly's open state and its
-    current compatibility, availability or reconciliation conditions inside
-    that boundary, never from a stale observation. Enrollment-first commits
-    the terminal outcome, the allowed disposition and any new routed job and
-    input facts in one transaction and excludes a later accepted divergence;
-    divergence-first commits the approved reason, authority and resolution
-    reference, creates no disposition or job, leaves the
-    `(event_id, route_key)` slot unused and refuses the losing enrollment for
-    that anomaly before any disposition, job or effect. The loser detects the
-    terminal decision before committing, aborts or deterministically refuses
-    and preserves audit and attention state; abort or crash before commit
-    leaves the anomaly open and retryable; retries after commit observe one
-    outcome. Detection and resolution evidence remain append-only; a generic
-    backfill cannot bypass a terminal divergence; separately authorized
-    replay is governed by its own rules and replaces no terminal outcome; and
-    external compensation remains fenced by the existing effect, ambiguity
-    and reconciliation controls.
+45. Exactly one canonical in-epoch contract-mismatch anomaly, whose canonical
+    logical identity is a pure function of immutable mismatch facts, and at
+    most one effective terminal resolution - compatible historical enrollment
+    (`ENROLLED`) or approved reconciliation/divergence
+    (`RECONCILED/DIVERGED`) - exist for one logical event/route mismatch. One
+    database-enforced canonical-anomaly decision order covers both first
+    creation when the anomaly is absent and resolution when it is `OPEN`;
+    each path validates its authorization, the immutable classification, the
+    anomaly's state and its current compatibility, availability or
+    reconciliation conditions inside that order, never from a stale
+    observation. Authorized enrollment with a valid original classification
+    and a selected compatible revision may create the canonical anomaly
+    born-terminal `ENROLLED` or resolve an existing `OPEN` anomaly to
+    `ENROLLED`, atomically with its one disposition and indispensable new
+    routed job and input facts or eligible attachment, and excludes a later
+    accepted divergence. Authorized divergence may resolve only an already
+    committed `OPEN` anomaly, with immutable mismatch reclassification and
+    valid authority, reason and covering evidence; it commits the approved
+    reason, authority and resolution reference, creates no anomaly,
+    disposition or job, leaves the `(event_id, route_key)` slot unused and
+    refuses the losing enrollment for that anomaly before any disposition,
+    job or effect. Divergence while the anomaly is absent refuses and does
+    not preclude a later detector-created `OPEN` anomaly followed by
+    separately authorized resolution. The loser detects the effective
+    decision before committing, aborts or deterministically refuses and
+    preserves audit and attention state; abort or crash before commit leaves
+    the anomaly in its prior state, `OPEN` or absent, and retryable; retries
+    after commit, including after acknowledgment loss, observe one outcome
+    and create no competing terminal result or job. Detection, mismatch and
+    resolution evidence remain append-only; a generic backfill cannot bypass
+    a terminal divergence; separately authorized replay is governed by its
+    own rules and replaces no terminal outcome; and external compensation
+    remains fenced by the existing effect, ambiguity and reconciliation
+    controls.
 46. A coalescing seal closes one logical job, not the route obligations that
     follow it. An eligible obligation refused because its job is permanently
     coalescing-sealed remains owed, undispositioned and visible; it is never
@@ -2760,6 +3130,45 @@ execution until a separate approved architecture decision says otherwise.
     coalescing mode and may use only a separately approved safe
     event-distinct identity; the exceptional terminal non-materialized
     disposition stays under its existing controls and is never automatic.
+47. Every operation that can create the first durable disposition for an
+    `(event_id, route_key)` pair - ordinary routed materialization, explicitly
+    authorized historical enrollment and the authorized terminal
+    non-materialized disposition, including when an approved migration,
+    reconciliation or disposition plan acts through them - classifies the
+    event from committed immutable original-epoch facts and proves its own
+    path-specific eligibility and authorization inside the
+    database-consistent transaction that would consume that slot, failing
+    closed when those facts cannot be verified. No disposition exists for an
+    in-epoch contract mismatch except the one created by compatible,
+    explicitly authorized first historical enrollment together with its exact
+    canonical terminal `ENROLLED` anomaly; detection and the
+    eligible-obligation terminal non-materialized disposition can neither
+    bypass canonical anomaly identity nor consume a mismatched route slot. For
+    an event and route classified as an in-epoch contract mismatch, detection
+    and compatible first historical enrollment share one database-enforced
+    canonical-anomaly creation and decision order even when no anomaly exists
+    at either transaction's first read, and authorized divergence shares that
+    order only as the resolution of a previously committed `OPEN` anomaly and
+    never creates one. Successful first enrollment atomically creates or
+    observes the canonical anomaly and commits terminal `ENROLLED`, exactly
+    one `(event_id, route_key)` disposition and every indispensable new-job or
+    eligible-attachment input fact; detection first may create only `OPEN`,
+    with no disposition or job; later detection converges with any already
+    effective terminal state without reopening, re-aging or double-counting it
+    and without fabricating earlier detection provenance. Divergence before
+    the anomaly exists refuses, and mismatch divergence and mismatch
+    enrollment refuse for a non-mismatch event. All contenders use immutable
+    original-epoch classification, preserve authorization and the revision
+    withdrawal/selection and strand-safety orders, allow at most one terminal
+    resolution and never create an orphan job, a duplicate route disposition,
+    a falsely successful route, an unauthorized provider effect or a hidden
+    open-anomaly obligation. A refused or failed enrollment neither creates
+    nor resolves a previously absent anomaly. Terminal `ENROLLED` is a route
+    decision, not evidence of handler or provider success. Contradictory
+    durable state outside these compliant transactions fails closed, with its
+    mismatch evidence preserved and visible to engineering control, and
+    requires separately approved incident recovery rather than an automatic
+    third anomaly state, job hold, adoption or repair.
 
 ## 8. Implementation impact and decomposition
 
@@ -2782,6 +3191,11 @@ Approval of this ADR should lead to separate bounded tasks, at minimum:
    - atomic creation of a routed job with its materialized disposition and
      indispensable input facts, and the database-enforced mutually exclusive
      terminal resolution of a mismatch anomaly;
+   - the canonical mismatch-anomaly decision order between detection, first
+     historical enrollment (including a born-terminal `ENROLLED` anomaly) and
+     divergence of an already `OPEN` anomaly, and the universal
+     original-epoch first route-disposition admission guard for every
+     first-disposition writer;
    - post-seal materialization of obligations refused after a coalescing seal
      through eligible open successors or distinct successor generations, with
      database-arbitrated convergence;
@@ -2998,7 +3412,10 @@ Rollout should prove in order:
    of revision withdrawal against epoch opening and first enrollment, and the
    stability of withdrawal's strand-safety decision against concurrent
    anomaly creation and resolution-path removal, and the mutually exclusive
-   terminal resolution of a mismatch anomaly in both commit orders;
+   terminal resolution of a mismatch anomaly in both commit orders, the
+   canonical mismatch-anomaly decision order between detection, first
+   enrollment and divergence, including the absent-anomaly orders, and the
+   universal first route-disposition admission guard;
 4. crash/lease renewal/WAITING/reconciliation recovery;
 5. effect-scoped idempotency, revision ordering and coalescing, including the
    ordering of coalescing attachment against first claim/start, the atomic
@@ -3171,9 +3588,11 @@ Before shared implementation can be approved, evidence must include:
   routing and is never reinterpreted under a later revision or current-contract
   projection;
 - mismatch resolution by compatible authorized enrollment that creates the one
-  allowed disposition, and by approved reconciliation/divergence that creates
-  none, each recorded append-only without deleting the anomaly or its
-  detection evidence;
+  allowed disposition - resolving a committed `OPEN` anomaly or, enrollment
+  first, creating it born-terminal `ENROLLED` - and by approved
+  reconciliation/divergence of an already committed `OPEN` anomaly that
+  creates none, each recorded append-only without deleting the anomaly, its
+  immutable mismatch evidence or its detection provenance;
 - aggregate route backlog/health tests proving that neither a mismatch anomaly
   nor an older revision's backlog or unavailable materializer is hidden behind a
   healthy current revision;
@@ -3363,8 +3782,9 @@ Before shared implementation can be approved, evidence must include:
   it, obey the atomic attachment/first-claim order above and represent every
   accepted pre-seal input;
 - deterministic concurrency tests of simultaneous authorized compatible
-  enrollment and approved divergence of one mismatch anomaly, enrollment
-  first: one terminal enrollment resolution, one allowed disposition and job
+  enrollment and approved divergence of one committed `OPEN` mismatch
+  anomaly, enrollment first: one terminal enrollment resolution, one allowed
+  disposition and job
   where materialized, and no accepted divergence;
 - the same anomaly-resolution race, divergence first: one terminal
   divergence with append-only authority and evidence, no disposition or job
@@ -3372,16 +3792,18 @@ Before shared implementation can be approved, evidence must include:
 - proof that a stale "anomaly still open" observation in either competing
   path cannot bypass the database-enforced winning resolution at commit;
 - proof that a transaction abort or crash before the resolution commits
-  leaves the anomaly unresolved and independently retryable, and that after
-  commit repeated requests and audit retries create no second or
-  contradictory terminal result;
+  leaves the anomaly in its prior committed state, `OPEN` or absent, and
+  independently retryable, and that after commit repeated requests and audit
+  retries create no second or contradictory terminal result;
 - proof that a terminal divergence leaves the `(event_id, route_key)` slot
   unused without permitting the losing enrollment for that same resolved
   anomaly to spend it, while a later deliberately authorized independent
   replay remains separately governed;
 - proof that the anomaly count, open age, attention and append-only audit and
   evidence transition accurately from open to exactly one terminal outcome
-  without erasing the mismatch detection facts;
+  for a detector-created anomaly, that a born-terminal `ENROLLED` anomaly is
+  never counted or aged as open, and that neither erases the mismatch facts
+  or their provenance;
 - proof that the atomic enrollment/job creation and the terminal-outcome
   selection commit as one coherent database decision where enrollment creates
   a new routed job;
@@ -3453,9 +3875,11 @@ Before shared implementation can be approved, evidence must include:
   evidence or bypass supersession and replay controls;
 - historical-enrollment and anomaly tests proving that a compatible first
   enrollment into a safe successor composes with revision-withdrawal
-  availability and the one terminal anomaly resolution: divergence-first
-  creates no successor or disposition, and enrollment-first commits its
-  allowed terminal resolution and routed facts atomically;
+  availability and the one terminal anomaly resolution: divergence-first on
+  an `OPEN` anomaly creates no successor or disposition, and
+  enrollment-first - resolving an `OPEN` anomaly or creating it
+  born-terminal `ENROLLED` - commits its allowed terminal resolution and
+  routed facts atomically;
 - blocked-admission tests with an unavailable or incompatible materializer,
   proving accurate backlog count and oldest age that count only obligations
   without a committed disposition, with committed but held successors
@@ -3570,25 +3994,250 @@ Before shared implementation can be approved, evidence must include:
 - deployment tests with more than one compatible worker task even if production
   initially runs one.
 
+The canonical mismatch-anomaly decision order and the universal first
+route-disposition admission guard of section 3.2 additionally require the
+thirty active cases below, identified `A13-T01` to `A13-T24` and `A13-T26` to
+`A13-T31` for traceability to the specification that introduced them. They
+supplement, and replace none of, the cases above, including the twenty
+post-seal materialization cases. Each case is individually falsifiable. Every
+concurrency case uses real PostgreSQL transactions in distinct sessions or
+processes, driven by deterministic barriers and fault injection, or
+equivalently falsifiable transactional instrumentation, and exercises loser
+conflict, winner commit and winner rollback, serializable or uniqueness
+failure, deadlock handling and retry, and lost acknowledgment where relevant;
+a mock or harness that serializes the contenders in advance, or that removes
+the absent-anomaly race, does not satisfy it. Each case asserts, as
+applicable: the original-epoch classification and epoch/revision identity;
+one canonical anomaly identity; the correct `OPEN`, born-terminal or terminal
+state; zero or one effective terminal resolution and zero or one route
+disposition, as required; committed job-input or membership atomicity and
+claimability; actor, authority, reason and provenance fidelity; immutable
+retry identity; accurate open-anomaly count and oldest age, eligible-route
+backlog and job-level waiting and attention signals; and no hidden terminal
+success and no unauthorized provider write. These are acceptance requirements
+for the later implementation; no documentation change executes them.
+
+- **A13-T01 - detection first:** an original-epoch mismatched event is
+  detected and one canonical `OPEN` anomaly is recorded; a later valid,
+  authorized enrollment of a compatible selected revision commits exactly one
+  terminal `ENROLLED` outcome atomically with one disposition and all job
+  inputs or one valid attachment, with one canonical identity and accurate
+  open and terminal counts.
+- **A13-T02 - enrollment first with no anomaly row:** enrollment commits the
+  single canonical anomaly born-terminal `ENROLLED`, its disposition and all
+  job inputs atomically; the first later detector reports the unchanged
+  terminal state, deduplicates the original mismatch provenance, creates no
+  second or `OPEN` anomaly and records no fictitious prior detector run; the
+  born-terminal anomaly stays historically queryable and is reported through
+  terminal, not open, signals.
+- **A13-T03 - absent-anomaly race:** in distinct sessions or processes, a
+  detector and an enroller both initially find no anomaly, and the loser's
+  first conflicting write is blocked by, or aborted against, the winner's
+  uncommitted canonical-identity claim (a row, unique-key, predicate or
+  serializable conflict, as the selected mechanism dictates). The schedule
+  covers both commit orders, winner commit and winner rollback with loser
+  wake-up and retry, and at least one explicit serializable-failure-and-retry
+  schedule, with deterministic loser reconciliation. Every order converges on
+  the same unique canonical outcome; none splits terminal `ENROLLED` from its
+  job and disposition, leaves a half-committed job or leaves a phantom `OPEN`
+  anomaly after a terminal outcome.
+- **A13-T04 - duplicate detectors:** several independent detectors race
+  before, during and after enrollment-first and detection-first outcomes; one
+  canonical anomaly and idempotent evidence result, a terminal outcome is
+  never reopened or re-aged, no second `OPEN` anomaly appears, detection
+  provenance is neither duplicated nor fabricated, and a born-terminal anomaly
+  remains historically queryable and separate from open signals.
+- **A13-T05 - duplicate identical enrollments:** two authorized enrollments
+  selecting the same revision race; exactly one terminal decision, one route
+  disposition and one valid job or attachment survive, the retry result is
+  stable and the loser leaves deterministic evidence.
+- **A13-T06 - competing compatible revisions:** concurrent authorized
+  enrollments select different, individually compatible revisions; one
+  selection wins under the revision-availability order and the canonical
+  anomaly order, and the loser creates no second terminal outcome,
+  disposition or effect and leaves deterministic evidence. A three-way
+  absent-anomaly race with two compatible revisions is optional additional
+  coverage and substitutes for no mandatory case.
+- **A13-T07 - divergence first:** an approved divergence of an already
+  committed `OPEN` anomaly commits terminal `RECONCILED/DIVERGED` with no
+  disposition, job or provider effect; a later enrollment is refused despite
+  the unused route slot. The case does not establish that divergence may
+  create an anomaly.
+- **A13-T08 - enrollment first versus divergence:** a compatible enrollment
+  commits terminal `ENROLLED` with its disposition and job; a later or
+  concurrent divergence is refused with no contradictory accepted
+  no-disposition evidence, including against a born-terminal `ENROLLED`
+  anomaly where the divergence read the anomaly as absent before it
+  committed.
+- **A13-T09 - detection after divergence:** a delayed or repeated detector
+  records or observes the original mismatch facts while the terminal
+  `RECONCILED/DIVERGED` outcome is retained, never reopened, and no job or
+  disposition arises from the divergence.
+- **A13-T10 - incompatible enrollment:** refusal for each semantic-signature
+  field - wrong route, consumed kind, accepted version, owning domain,
+  materializer contract and compatibility policy - and for an unavailable
+  materializer and a wrong original classification; no `ENROLLED` outcome,
+  disposition or job results, mismatch evidence and attention are preserved,
+  and a refused first enrollment with no anomaly row leaves the anomaly absent
+  until a detector independently records it `OPEN`.
+- **A13-T11 - unauthorized enrollment or divergence:** missing staff or
+  reconciliation authority cannot mint a terminal decision, disposition, job
+  or provider effect, including when the anomaly row is absent; a refused
+  enrollment creates no anomaly.
+- **A13-T12 - outside every epoch:** before-first-epoch and inactive-gap
+  events keep the existing explicitly authorized historical enrollment
+  without an invented mismatch anomaly, stay outside mismatch semantics, and
+  repeated attempts remain deduplicated.
+- **A13-T13 - ordinarily eligible:** an event whose original epoch revision
+  accepts its kind and version keeps its ordinary obligation, its original
+  epoch revision, its backlog accounting and one original-epoch disposition;
+  a selected historical revision cannot relabel it as mismatched or enrolled,
+  re-enroll it under another revision or duplicate its disposition.
+- **A13-T14 - unrelated event kind:** an event of a kind the epoch's revision
+  does not consume is not an in-epoch contract mismatch for that route and
+  obtains no mismatch anomaly, anomalous job or attention.
+- **A13-T15 - withdrawal first:** the compatible revision's withdrawal
+  linearizes before the enrollment's selection; no terminal `ENROLLED`
+  outcome, disposition, job or enrollment-created anomaly results, and a
+  detector run after the withdrawal records the mismatch durably and visibly
+  under the existing withdrawal-first rule.
+- **A13-T16 - enrollment before withdrawal:** the terminal admission commits
+  first; the later withdrawal observes that history rather than revoking it
+  and continues to protect remaining unresolved work, and a born-terminal
+  `ENROLLED` anomaly is not unresolved work for strand safety.
+- **A13-T17 - detection versus withdrawal:** anomaly-first and withdrawal-first
+  races against withdrawal of the last compatible revision preserve strand
+  safety, permit no stale strand scan and never suppress anomaly creation
+  because a withdrawal already committed.
+- **A13-T18 - concurrent last-path removals:** two operations racing to remove
+  distinct last compatible or approved resolution paths cannot strand a
+  pre-existing `OPEN` anomaly through write skew; only a safety-preserving
+  serial result is admitted.
+- **A13-T19 - epoch lifecycle and delayed routing:** detection and enrollment
+  race epoch closure, reactivation, retirement and mixed-version routing; the
+  event's captured generation and immutable original-epoch classification
+  never change.
+- **A13-T20 - new-job atomic failure:** forcing a missing input, a job
+  uniqueness or disposition failure, a post-allocation precommit crash and a
+  fault injected after each constituent write of the enrollment transaction
+  leaves no committed `ENROLLED` outcome without its valid disposition, job
+  and inputs, no orphan or claimable job, and mismatch facts that remain
+  recoverable.
+- **A13-T21 - coalescing attachment versus first claim:** with an
+  already-open eligible shared job, attachment-first attaches and commits
+  `ENROLLED` atomically before the seal; claim/start-first refuses the
+  attachment without falsely resolving the anomaly or consuming the
+  disposition slot.
+- **A13-T22 - post-seal successor:** a legitimate approved successor admits
+  and atomically dispositions a previously unrepresented mismatched input,
+  while an ineligible or unavailable successor cannot falsely resolve it, even
+  where an earlier generation is sealed.
+- **A13-T23 - ambiguous predecessor or effect:** a successor whose predecessor
+  holds unresolved `EFFECT_STARTED` evidence may carry a committed terminal
+  `ENROLLED` route decision but performs no unsafe provider effect, and
+  job-level blocked and reconciliation visibility remains accurate.
+- **A13-T24 - loss and retry:** an abort or crash before commit, including a
+  fault after each constituent write, leaves no terminal outcome, job or
+  disposition and remains retryable; a lost acknowledgment after commit makes
+  the retry observe exactly the committed anomaly, resolution, disposition and
+  job, with no duplication or provider replay.
+- **A13-T26 - coverage and observability:** across detection-first,
+  born-terminal enrollment-first, failed enrollment with no anomaly,
+  divergence only from a committed `OPEN` anomaly, terminal history and a
+  committed but held successor, the open-anomaly count and oldest age,
+  terminal anomaly history, the distinct eligible-route backlog and job-level
+  blocked indicators never hide or double-count an obligation; a born-terminal
+  anomaly is never counted as subsequently open and remains historically
+  queryable; and accepted-divergence terminal non-materialized dispositions
+  are reported separately from `RECONCILED/DIVERGED` anomaly resolutions.
+- **A13-T27 - divergence first when no anomaly exists:** an authorized
+  divergence for an immutable mismatched event linearizes before any detector
+  or anomaly transaction and is refused with no canonical anomaly, terminal
+  resolution, disposition, new job or external effect. A later independent
+  detector creates exactly one `OPEN` anomaly, which only a new, valid,
+  authorized terminal request can resolve.
+- **A13-T28 - detector versus divergence in both orders:** in distinct
+  sessions or processes with real transaction barriers, including the
+  detector's uncommitted canonical insert and the diverger's stale absence
+  read: (i) the divergence linearizes before the detector commits and is
+  refused, and the detector then commits `OPEN`; (ii) the detector commits
+  `OPEN` before the divergence decision, and the authorized divergence commits
+  exactly one terminal `RECONCILED/DIVERGED` outcome with no disposition or
+  job, which a repeated later detector never reopens. The case establishes
+  database linearization, not wall-clock request arrival.
+- **A13-T29 - divergence of a non-mismatch event:** for (i) an ordinarily
+  eligible event, including one with a still-owed obligation, (ii) an
+  inactive-gap or before-first-epoch event, (iii) an unrelated kind within an
+  epoch and (iv) a claimed incompatible or current-only revision, every
+  mismatch-divergence request is refused without an anomaly, terminal
+  resolution, route-slot consumption, change to lawful backlog, direct job or
+  provider effect. A valid, independently authorized terminal
+  non-materialized disposition of an eligible obligation remains a different
+  command.
+- **A13-T30 - refused first enrollment followed by detection:** with no
+  anomaly initially, refusals for an invalid signature or authorization, a
+  withdrawn revision, an unavailable materializer and an unsafe coalescing
+  successor, including under concurrent detector scheduling, create no
+  anomaly, terminal resolution, disposition or new job. An independently
+  committed detector then creates or observes exactly one canonical `OPEN`
+  anomaly from the original facts, and a later authorized enrollment or
+  divergence may resolve it under the decision order; a failed attempt
+  neither consumes the route slot nor disguises an effect.
+- **A13-T31 - exceptional terminal non-materialized disposition versus
+  mismatch classification and concurrent detection:** an event inside route
+  R's epoch matches the consumed kind with a version outside the original
+  revision's accepted set; the staff actor otherwise holds valid explicit
+  authorization, a plausible reason and covering evidence, so each refusal
+  proves immutable-eligibility refusal rather than a missing staff privilege.
+  (A) Anomaly absent: the staff command linearizes before mismatch detection
+  and is refused with no new anomaly, terminal outcome, disposition, route-slot
+  consumption, job or provider effect; a later independent detector records
+  one canonical `OPEN` anomaly with the original facts. (B) Concurrent
+  detector: in distinct sessions or processes, the command and a detector
+  begin before either observes the other's committed anomaly; both
+  serialization orders, including conflicting and stale first reads, refuse
+  the command, and detection produces or retains one `OPEN` canonical anomaly
+  unless a separate, independently authorized first mismatch enrollment has
+  lawfully resolved it, with no false terminal outcome or consumed mismatch
+  slot. (C) Existing `OPEN`: the command is refused, and the anomaly keeps its
+  immutable evidence, age and attention; a separate valid historical
+  enrollment can then resolve it `ENROLLED` with the sole disposition and
+  job, or a separately authorized anomaly divergence can resolve it with no
+  disposition. (D) Existing terminal: with the canonical anomaly already
+  `ENROLLED`, and separately already `RECONCILED/DIVERGED`, the command is
+  refused without reopening, consuming another slot or creating an effect.
+  (E) Eligible positive control: for a genuinely ordinarily eligible,
+  still-owed event that meets the existing exceptional non-materialization
+  requirements, the authorized and audited command commits one unique no-job
+  disposition with its covering evidence; raced against lawful ordinary
+  routed materialization, including a coalescing attachment, exactly one
+  disposition wins the slot, the loser observes the durable outcome, and a
+  postcommit lost-acknowledgment retry creates no phantom completion,
+  duplicate job or effect. (F) Outside-epoch and unrelated kind: the command
+  is refused for a before-first-epoch or inactive-gap event and for an
+  unrelated event kind, with no anomaly, job, slot or provider effect, while
+  explicitly authorized outside-epoch historical enrollment keeps working
+  under its existing semantics. A mixed bulk staff command over eligible,
+  mismatched, outside-epoch and unrelated-kind events applies the refusal per
+  event.
+
+`A13-T25` is retired and is not an active case. It would have tested a
+speculative automatic repair or adoption of a pre-existing mismatch
+disposition without its canonical anomaly, which this decision does not
+adopt; the identifier is not renumbered or reused, and contradictory existing
+state is handled only by the fail-closed control HOLD of "Canonical
+mismatch-anomaly decision order" (section 3.2).
+
 Provider-specific handlers owe their own acceptance evidence in addition to the
 shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **APPROVED**.
+Current decision state: **PROPOSED**.
 
-Approved by: Javi, CTO
-Approval date: 2026-10-15
-
-The CTO approved this exact corrected content on 2026-10-15 under the
-repository decision process, as the architecture content represented by the
-Route-B candidate head `9db7f7760f22ed2f6e7826b323f5d09c032ed4f9` and
-candidate ADR-0012 blob `c4ca99ce2e538ae607496ecf7c89108501b5fe76`; this
-version differs from that candidate only in this approval-state
-representation. That approval does not by itself make this ADR
-repository-authoritative: the authority condition below still applies. Any
-ADR-0013 programme-local reliance on this exact version is a separate state
-that is not effective until its own conditions are satisfied for this version.
+The corrected content of this version has not been approved. It may carry
+`APPROVED`, an approver and an approval date only after the CTO approves this
+exact corrected content under the repository decision process.
 
 This version is a material architectural correction of ADR-0012, made before
 any approved version of ADR-0012 was repository-authoritative, under the
@@ -3629,7 +4278,25 @@ distinct, stably identified routed successor generation created together
 with its disposition, with group identity distinct from executable
 generation identity and database-arbitrated convergence, so that no eligible
 obligation can remain owed indefinitely against a permanently sealed
-idempotency key and no successor can bypass target-scoped effect safety.
+idempotency key and no successor can bypass target-scoped effect safety. It
+further defines, in section 3.2, the immutable original-epoch classification
+of every event for each route and requires every operation that can create
+the first `(event_id, route_key)` disposition - ordinary materialization,
+explicitly authorized historical enrollment and the authorized terminal
+non-materialized disposition - to prove that classification and its own
+eligibility and authorization inside the transaction that would consume that
+slot, so that no disposition can exist for an in-epoch contract mismatch
+except the one created by compatible, explicitly authorized first historical
+enrollment. It requires detection, first historical enrollment and divergence
+of a mismatch anomaly to share one database-enforced canonical decision order
+that also covers the anomaly's first creation when no anomaly row exists:
+enrollment first creates the anomaly born-terminal `ENROLLED` atomically with
+its disposition and routed facts, later detection converges without
+reopening it, and divergence resolves only an already committed `OPEN`
+anomaly and never creates one, so that detection and enrollment can never
+leave a contradictory open anomaly beside a committed disposition, and
+contradictory durable state fails closed for separately authorized incident
+recovery.
 
 Earlier pre-correction versions of this ADR carried `Status: APPROVED` with CTO
 approval dated 2026-09-30. A later corrected version, which introduced the
@@ -3651,7 +4318,12 @@ mismatch anomalies, carried `Status: APPROVED` with CTO approval dated
 2026-10-09. A further corrected version, which introduced that atomic commit
 and terminal resolution without a defined post-seal materialization path for
 an obligation refused after a coalescing seal, carried `Status: APPROVED`
-with CTO approval dated 2026-10-12. Those approvals, and
+with CTO approval dated 2026-10-12. A further corrected version, ADR-0012 Git
+blob `1c98ce0cca1eeb4bf46bbfc526a3826c534f637e`, which introduced that
+post-seal materialization path without a database-enforced order between
+mismatch detection and first historical enrollment or an original-epoch
+admission guard for every first route-disposition writer, carried
+`Status: APPROVED` with CTO approval dated 2026-10-15. Those approvals, and
 every review of those earlier versions, remain historical evidence bound to
 those exact earlier versions and source heads only; they do not approve this
 version. The exact historical identities are recorded in the task
