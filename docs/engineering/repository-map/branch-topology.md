@@ -85,6 +85,29 @@ feature/metrics--<slice>
 
 `ADR-0009` standardizes the repository ref spelling only. It does not amend the substantive Metrics architecture.
 
+For `thoth` specifically, the final integration of its `feature/metrics` line
+into `develop` is governed by [#981](https://github.com/thoth-pub/thoth/issues/981)
+through separately gated stages: A (a develop-reconciliation slice merged into
+`feature/metrics` by an ordinary history-preserving merge), A2 (inventory and
+retirement of every `feature/metrics--*` slice ref) and B (a true merge of
+`feature/metrics` into `develop`), each with its own independent review and
+explicit CTO authorization. After A2 no normal new `feature/metrics--<slice>`
+is created; the only exceptions, neither of which is a standing authorization,
+are a separately authorized develop-refresh recovery under #981 and the single
+one-time CI-correction slice `feature/metrics--wp11-b-clippy` governed by
+[thoth-pub/thoth#981](https://github.com/thoth-pub/thoth/issues/981) /
+[thoth-pub/thoth#985](https://github.com/thoth-pub/thoth/issues/985), which is
+not a develop refresh and imports no `develop` commit. After that corrective
+slice merges into `feature/metrics`, the exact-list A2 inventory, independent
+review, retirement authorization, guarded retirement and completion receipt
+are repeated against the resulting `feature/metrics` head before B may
+proceed, and B keeps its own independent CRITICAL review and explicit CTO
+merge authorization under
+#981. After the final integration, later Thoth-side Metrics work follows the
+STANDARD `feature/<area>/<task> -> develop` flow. This governs the current
+`thoth` line only; it changes no other repository's branch, development or
+release policy.
+
 ## 3. Observed state
 
 The `<release-branch>` column records each repository's verified established release/default branch. Under `ADR-0011` that value is preserved, so no row requires release-branch renaming. The remaining-work column records only work that is independently justified by something other than branch spelling.

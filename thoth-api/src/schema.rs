@@ -114,6 +114,70 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "distribution_job_cancellation_reason"))]
     pub struct DistributionJobCancellationReason;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_platform_ownership_class"))]
+    pub struct MetricPlatformOwnershipClass;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_measure_category"))]
+    pub struct MetricMeasureCategory;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_measure_unit"))]
+    pub struct MetricMeasureUnit;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_reporting_grain"))]
+    pub struct MetricReportingGrain;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_acquisition_type"))]
+    pub struct MetricSourceAcquisitionType;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_import_status"))]
+    pub struct MetricImportStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_import_error_severity"))]
+    pub struct MetricImportErrorSeverity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_record_revision_status"))]
+    pub struct MetricRecordRevisionStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_record_provenance_classification"))]
+    pub struct MetricRecordProvenanceClassification;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_identifier_quarantine_reconciliation_state"))]
+    pub struct MetricIdentifierQuarantineReconciliationState;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_coverage_status"))]
+    pub struct MetricCoverageStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_publisher_platform_approval_status"))]
+    pub struct MetricPublisherPlatformApprovalStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_registry_history_entity"))]
+    pub struct MetricRegistryHistoryEntity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_registry_history_action"))]
+    pub struct MetricRegistryHistoryAction;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_registry_history_entity"))]
+    pub struct MetricSourceRegistryHistoryEntity;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_source_registry_history_action"))]
+    pub struct MetricSourceRegistryHistoryAction;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -622,6 +686,575 @@ table! {
 
 table! {
     use diesel::sql_types::*;
+    use super::sql_types::MetricCoverageStatus;
+
+    metric_coverage (coverage_id) {
+        coverage_id -> Uuid,
+        source_account_id -> Uuid,
+        import_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        period_start -> Date,
+        period_end -> Date,
+        coverage_status -> MetricCoverageStatus,
+        country_coverage -> Bool,
+        institution_coverage -> Bool,
+        notes -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{MetricCoverageStatus, MetricImportStatus};
+
+    metric_coverage_run (source_account_id, platform_id, publisher_id, measure_id, run_start) {
+        source_account_id -> Uuid,
+        platform_id -> Uuid,
+        publisher_id -> Uuid,
+        measure_id -> Uuid,
+        run_start -> Date,
+        run_end -> Date,
+        coverage_status -> MetricCoverageStatus,
+        import_status -> MetricImportStatus,
+        country_coverage -> Bool,
+        institution_coverage -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_identifier_quarantine (identifier_quarantine_id) {
+        identifier_quarantine_id -> Uuid,
+        record_provenance_id -> Uuid,
+        source_account_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        schema_version -> Text,
+        work_doi -> Text,
+        period_start -> Date,
+        period_end -> Date,
+        reporting_grain -> MetricReportingGrain,
+        country_code -> Nullable<Text>,
+        value -> Int8,
+        methodology_version -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricIdentifierQuarantineReconciliationState;
+
+    metric_identifier_quarantine_reconciliation (identifier_quarantine_id) {
+        identifier_quarantine_id -> Uuid,
+        state -> MetricIdentifierQuarantineReconciliationState,
+        attempt_count -> Int4,
+        last_attempted_by -> Text,
+        first_attempt_at -> Timestamptz,
+        last_attempt_at -> Timestamptz,
+        next_attempt_at -> Nullable<Timestamptz>,
+        resolved_at -> Nullable<Timestamptz>,
+        record_id -> Nullable<Uuid>,
+        record_revision_id -> Nullable<Uuid>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricImportStatus;
+
+    metric_import (import_id) {
+        import_id -> Uuid,
+        source_account_id -> Uuid,
+        publisher_id -> Nullable<Uuid>,
+        format_code -> Text,
+        format_version -> Text,
+        raw_object_key -> Nullable<Text>,
+        raw_sha256 -> Nullable<Text>,
+        upstream_report_id -> Nullable<Text>,
+        period_start -> Nullable<Date>,
+        period_end -> Nullable<Date>,
+        status -> MetricImportStatus,
+        received_count -> Int8,
+        accepted_count -> Int8,
+        duplicate_count -> Int8,
+        revision_count -> Int8,
+        conflict_count -> Int8,
+        invalid_count -> Int8,
+        normalizer_version -> Text,
+        manifest -> Jsonb,
+        created_by -> Text,
+        created_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_import_batch (import_batch_id) {
+        import_batch_id -> Uuid,
+        import_id -> Uuid,
+        batch_key -> Text,
+        request_hash -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricImportErrorSeverity;
+
+    metric_import_error (import_error_id) {
+        import_error_id -> Uuid,
+        import_id -> Uuid,
+        row_number -> Nullable<Int8>,
+        error_code -> Text,
+        severity -> MetricImportErrorSeverity,
+        field_name -> Nullable<Text>,
+        message -> Text,
+        raw_value -> Nullable<Text>,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{MetricMeasureCategory, MetricMeasureUnit};
+
+    metric_measure (measure_id) {
+        measure_id -> Uuid,
+        code -> Text,
+        display_name -> Text,
+        category -> MetricMeasureCategory,
+        unit -> MetricMeasureUnit,
+        allow_negative -> Bool,
+        public_visibility -> Bool,
+        additive_across_time -> Bool,
+        additive_across_works -> Bool,
+        definition -> Text,
+        methodology_version -> Nullable<Text>,
+        enabled -> Bool,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_operas_export (export_id) {
+        export_id -> Uuid,
+        record_revision_id -> Uuid,
+        mapping_id -> Uuid,
+        status -> Text,
+        attempt_count -> Int4,
+        remote_event_id -> Nullable<Text>,
+        request_hash -> Nullable<Text>,
+        last_error -> Nullable<Text>,
+        created_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_operas_import (remote_instance, remote_event_id) {
+        remote_instance -> Text,
+        remote_event_id -> Text,
+        payload_hash -> Text,
+        import_id -> Nullable<Uuid>,
+        status -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_operas_mapping (mapping_id) {
+        mapping_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        event_uri -> Text,
+        measure_uri -> Text,
+        uploader_uri -> Text,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricPlatformOwnershipClass;
+
+    metric_platform (platform_id) {
+        platform_id -> Uuid,
+        code -> Text,
+        display_name -> Text,
+        ownership_class -> MetricPlatformOwnershipClass,
+        enabled -> Bool,
+        public_description -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_platform_measure (platform_measure_id) {
+        platform_measure_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        supported_grains -> Array<MetricReportingGrain>,
+        supports_country -> Bool,
+        supports_institution -> Bool,
+        supports_publication -> Bool,
+        direct_collection -> Bool,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricPublisherPlatformApprovalStatus;
+
+    metric_publisher_platform_approval (publisher_platform_approval_id) {
+        publisher_platform_approval_id -> Uuid,
+        publisher_id -> Uuid,
+        platform_id -> Uuid,
+        usage_submission_enabled -> Bool,
+        sales_submission_enabled -> Bool,
+        approval_status -> MetricPublisherPlatformApprovalStatus,
+        approved_by -> Nullable<Uuid>,
+        approved_at -> Nullable<Timestamptz>,
+        notes -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_reconciliation_issue (issue_id) {
+        issue_id -> Uuid,
+        run_id -> Uuid,
+        issue_type -> Text,
+        severity -> Text,
+        record_id -> Nullable<Uuid>,
+        remote_event_id -> Nullable<Text>,
+        details -> Jsonb,
+        resolved_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_reconciliation_run (run_id) {
+        run_id -> Uuid,
+        scope -> Jsonb,
+        status -> Text,
+        started_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+        summary -> Jsonb,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricReportingGrain;
+
+    metric_record (record_id) {
+        record_id -> Uuid,
+        identity_hash -> Text,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        period_start -> Date,
+        period_end -> Date,
+        reporting_grain -> MetricReportingGrain,
+        country_code -> Nullable<Bpchar>,
+        institution_id -> Nullable<Uuid>,
+        winning_source_account_id -> Uuid,
+        current_revision_id -> Nullable<Uuid>,
+        first_received_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricRecordProvenanceClassification;
+
+    metric_record_provenance (record_provenance_id) {
+        record_provenance_id -> Uuid,
+        record_id -> Nullable<Uuid>,
+        import_id -> Uuid,
+        source_record_id -> Nullable<Text>,
+        source_row_number -> Nullable<Int8>,
+        identity_hash -> Nullable<Text>,
+        content_hash -> Nullable<Text>,
+        classification -> MetricRecordProvenanceClassification,
+        details -> Jsonb,
+        received_at -> Timestamptz,
+        import_batch_id -> Nullable<Uuid>,
+        batch_row_index -> Nullable<Int8>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricRecordRevisionStatus;
+
+    metric_record_revision (record_revision_id) {
+        record_revision_id -> Uuid,
+        record_id -> Uuid,
+        revision_number -> Int4,
+        import_id -> Uuid,
+        value -> Int8,
+        content_hash -> Text,
+        status -> MetricRecordRevisionStatus,
+        supersedes_revision_id -> Nullable<Uuid>,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{MetricRegistryHistoryAction, MetricRegistryHistoryEntity};
+
+    metric_registry_history (metric_registry_history_id) {
+        metric_registry_history_id -> Uuid,
+        entity -> MetricRegistryHistoryEntity,
+        entity_id -> Uuid,
+        action -> MetricRegistryHistoryAction,
+        actor -> Text,
+        before_state -> Nullable<Jsonb>,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_delta (delta_id) {
+        delta_id -> Uuid,
+        record_id -> Uuid,
+        revision_id -> Uuid,
+        delta_value -> Int8,
+        status -> Text,
+        created_at -> Timestamptz,
+        applied_at -> Nullable<Timestamptz>,
+        work_day_sequence -> Nullable<Int8>,
+        claim_token -> Nullable<Uuid>,
+        claimed_by -> Nullable<Text>,
+        claimed_at -> Nullable<Timestamptz>,
+        lease_expires_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_country_month (rollup_work_country_month_id) {
+        rollup_work_country_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        country_code -> Bpchar,
+        value -> Int8,
+        requires_institution_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_country_year (rollup_work_country_year_id) {
+        rollup_work_country_year_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        year_start -> Date,
+        country_code -> Bpchar,
+        value -> Int8,
+        requires_institution_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_day (rollup_work_day_id) {
+        rollup_work_day_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        day -> Date,
+        country_code -> Nullable<Bpchar>,
+        institution_id -> Nullable<Uuid>,
+        value -> Int8,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_day_state (state_id) {
+        state_id -> Int2,
+        next_sequence -> Int8,
+        applied_through_sequence -> Int8,
+        watermark_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_institution_month (rollup_work_institution_month_id) {
+        rollup_work_institution_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        institution_id -> Uuid,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_institution_year (rollup_work_institution_year_id) {
+        rollup_work_institution_year_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        year_start -> Date,
+        institution_id -> Uuid,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_month (rollup_work_month_id) {
+        rollup_work_month_id -> Uuid,
+        work_id -> Uuid,
+        publication_id -> Nullable<Uuid>,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+        requires_institution_coverage -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_rollup_work_month_ambiguity (rollup_work_month_ambiguity_id) {
+        rollup_work_month_ambiguity_id -> Uuid,
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        total_ambiguous -> Bool,
+        country_ambiguous -> Bool,
+        institution_ambiguous -> Bool,
+        watermark -> Int8,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricSourceAcquisitionType;
+
+    metric_source (source_id) {
+        source_id -> Uuid,
+        code -> Text,
+        acquisition_type -> MetricSourceAcquisitionType,
+        driver_key -> Nullable<Text>,
+        enabled -> Bool,
+        default_lookback_days -> Nullable<Int4>,
+        default_finalization_delay_days -> Nullable<Int4>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_source_account (source_account_id) {
+        source_account_id -> Uuid,
+        code -> Text,
+        source_id -> Uuid,
+        platform_id -> Uuid,
+        external_key -> Text,
+        expected_publisher_id -> Nullable<Uuid>,
+        configuration -> Jsonb,
+        enabled -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_source_checkpoint (source_checkpoint_id) {
+        source_checkpoint_id -> Uuid,
+        source_account_id -> Uuid,
+        partition_key -> Text,
+        cursor -> Nullable<Jsonb>,
+        last_discovered_at -> Nullable<Timestamptz>,
+        last_completed_at -> Nullable<Timestamptz>,
+        last_successful_period_end -> Nullable<Date>,
+        lease_owner -> Nullable<Text>,
+        lease_expires_at -> Nullable<Timestamptz>,
+        last_error -> Nullable<Text>,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{MetricSourceRegistryHistoryAction, MetricSourceRegistryHistoryEntity};
+
+    metric_source_registry_history (metric_source_registry_history_id) {
+        metric_source_registry_history_id -> Uuid,
+        entity -> MetricSourceRegistryHistoryEntity,
+        entity_id -> Uuid,
+        action -> MetricSourceRegistryHistoryAction,
+        actor -> Text,
+        before_state -> Nullable<Jsonb>,
+        after_state -> Jsonb,
+        created_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
     use super::sql_types::CurrencyCode;
 
     price (price_id) {
@@ -1097,6 +1730,79 @@ joinable!(language -> work (work_id));
 joinable!(language_history -> language (language_id));
 joinable!(location -> publication (publication_id));
 joinable!(location_history -> location (location_id));
+joinable!(metric_coverage -> metric_import (import_id));
+joinable!(metric_coverage -> metric_measure (measure_id));
+joinable!(metric_coverage -> metric_platform (platform_id));
+joinable!(metric_coverage -> metric_source_account (source_account_id));
+joinable!(metric_coverage_run -> metric_measure (measure_id));
+joinable!(metric_coverage_run -> metric_platform (platform_id));
+joinable!(metric_coverage_run -> metric_source_account (source_account_id));
+joinable!(metric_coverage_run -> publisher (publisher_id));
+joinable!(metric_identifier_quarantine -> metric_measure (measure_id));
+joinable!(metric_identifier_quarantine -> metric_platform (platform_id));
+joinable!(metric_identifier_quarantine -> metric_record_provenance (record_provenance_id));
+joinable!(metric_identifier_quarantine -> metric_source_account (source_account_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_identifier_quarantine (identifier_quarantine_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_record (record_id));
+joinable!(metric_identifier_quarantine_reconciliation -> metric_record_revision (record_revision_id));
+joinable!(metric_import -> metric_source_account (source_account_id));
+joinable!(metric_import -> publisher (publisher_id));
+joinable!(metric_import_batch -> metric_import (import_id));
+joinable!(metric_import_error -> metric_import (import_id));
+joinable!(metric_operas_export -> metric_operas_mapping (mapping_id));
+joinable!(metric_operas_export -> metric_record_revision (record_revision_id));
+joinable!(metric_operas_import -> metric_import (import_id));
+joinable!(metric_platform_measure -> metric_measure (measure_id));
+joinable!(metric_platform_measure -> metric_platform (platform_id));
+joinable!(metric_publisher_platform_approval -> metric_platform (platform_id));
+joinable!(metric_publisher_platform_approval -> publisher (publisher_id));
+joinable!(metric_reconciliation_issue -> metric_reconciliation_run (run_id));
+joinable!(metric_reconciliation_issue -> metric_record (record_id));
+joinable!(metric_record -> institution (institution_id));
+joinable!(metric_record -> metric_measure (measure_id));
+joinable!(metric_record -> metric_platform (platform_id));
+joinable!(metric_record -> metric_source_account (winning_source_account_id));
+joinable!(metric_record -> publication (publication_id));
+joinable!(metric_record -> work (work_id));
+joinable!(metric_record_provenance -> metric_import (import_id));
+joinable!(metric_record_provenance -> metric_import_batch (import_batch_id));
+joinable!(metric_record_provenance -> metric_record (record_id));
+joinable!(metric_record_revision -> metric_import (import_id));
+joinable!(metric_record_revision -> metric_record (record_id));
+joinable!(metric_rollup_work_country_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_country_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_country_month -> publication (publication_id));
+joinable!(metric_rollup_work_country_month -> work (work_id));
+joinable!(metric_rollup_work_country_year -> metric_measure (measure_id));
+joinable!(metric_rollup_work_country_year -> metric_platform (platform_id));
+joinable!(metric_rollup_work_country_year -> publication (publication_id));
+joinable!(metric_rollup_work_country_year -> work (work_id));
+joinable!(metric_rollup_work_day -> institution (institution_id));
+joinable!(metric_rollup_work_day -> metric_measure (measure_id));
+joinable!(metric_rollup_work_day -> metric_platform (platform_id));
+joinable!(metric_rollup_work_day -> publication (publication_id));
+joinable!(metric_rollup_work_day -> work (work_id));
+joinable!(metric_rollup_work_institution_month -> institution (institution_id));
+joinable!(metric_rollup_work_institution_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_institution_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_institution_month -> publication (publication_id));
+joinable!(metric_rollup_work_institution_month -> work (work_id));
+joinable!(metric_rollup_work_institution_year -> institution (institution_id));
+joinable!(metric_rollup_work_institution_year -> metric_measure (measure_id));
+joinable!(metric_rollup_work_institution_year -> metric_platform (platform_id));
+joinable!(metric_rollup_work_institution_year -> publication (publication_id));
+joinable!(metric_rollup_work_institution_year -> work (work_id));
+joinable!(metric_rollup_work_month -> metric_measure (measure_id));
+joinable!(metric_rollup_work_month -> metric_platform (platform_id));
+joinable!(metric_rollup_work_month -> publication (publication_id));
+joinable!(metric_rollup_work_month -> work (work_id));
+joinable!(metric_rollup_work_month_ambiguity -> metric_measure (measure_id));
+joinable!(metric_rollup_work_month_ambiguity -> metric_platform (platform_id));
+joinable!(metric_rollup_work_month_ambiguity -> work (work_id));
+joinable!(metric_source_account -> metric_platform (platform_id));
+joinable!(metric_source_account -> metric_source (source_id));
+joinable!(metric_source_account -> publisher (expected_publisher_id));
+joinable!(metric_source_checkpoint -> metric_source_account (source_account_id));
 joinable!(price -> publication (publication_id));
 joinable!(price_history -> price (price_id));
 joinable!(publication -> work (work_id));
@@ -1157,6 +1863,39 @@ allow_tables_to_appear_in_same_query!(
     language_history,
     location,
     location_history,
+    metric_coverage,
+    metric_coverage_run,
+    metric_identifier_quarantine,
+    metric_identifier_quarantine_reconciliation,
+    metric_import,
+    metric_import_batch,
+    metric_import_error,
+    metric_measure,
+    metric_operas_export,
+    metric_operas_import,
+    metric_operas_mapping,
+    metric_platform,
+    metric_platform_measure,
+    metric_publisher_platform_approval,
+    metric_reconciliation_issue,
+    metric_reconciliation_run,
+    metric_record,
+    metric_record_provenance,
+    metric_record_revision,
+    metric_registry_history,
+    metric_rollup_delta,
+    metric_rollup_work_country_month,
+    metric_rollup_work_country_year,
+    metric_rollup_work_day,
+    metric_rollup_work_day_state,
+    metric_rollup_work_institution_month,
+    metric_rollup_work_institution_year,
+    metric_rollup_work_month,
+    metric_rollup_work_month_ambiguity,
+    metric_source,
+    metric_source_account,
+    metric_source_checkpoint,
+    metric_source_registry_history,
     price,
     price_history,
     publication,

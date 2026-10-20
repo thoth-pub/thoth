@@ -210,10 +210,16 @@ The Metrics design requires repository-local integration branches after branch r
   -> <development-branch>
 ```
 
-`<development-branch>` is that repository's own verified development branch, as recorded in its repository-map entry and in `docs/engineering/repository-map/branch-topology.md`, not `thoth`'s spelling (see section 6). In `thoth-pub/thoth` it is `develop`, so this repository's Metrics flow is:
+`<development-branch>` is that repository's own verified development branch, as recorded in its repository-map entry and in `docs/engineering/repository-map/branch-topology.md`, not `thoth`'s spelling (see section 6). In `thoth-pub/thoth` it is `develop`, so the programme-integration flow for this repository's Metrics line is:
 
 ```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
+```
+
+For `thoth-pub/thoth` specifically, the final integration of the `feature/metrics` line into `develop` is governed by [#981](https://github.com/thoth-pub/thoth/issues/981), reconciled on programme master issue [#766](https://github.com/thoth-pub/thoth/issues/766), through three separately gated stages: A, a develop-reconciliation slice merged into `feature/metrics` by an ordinary history-preserving merge; A2, the inventory and retirement of every `feature/metrics--*` slice ref; and B, a true merge of `feature/metrics` into `develop`. Each stage requires its own independent review and explicit CTO authorization, and no stage implies the next. After A2, no normal new `feature/metrics--<slice>` is created; the only exceptions, neither of which is a standing authorization, are a separately authorized develop-refresh recovery under the #981 recovery mechanism and the single one-time CI-correction slice `feature/metrics--wp11-b-clippy` governed by [thoth-pub/thoth#981](https://github.com/thoth-pub/thoth/issues/981) / [thoth-pub/thoth#985](https://github.com/thoth-pub/thoth/issues/985), which is not a develop refresh and imports no `develop` commit. After that corrective slice merges into `feature/metrics`, the exact-list A2 inventory, independent review, retirement authorization, guarded retirement and completion receipt are repeated against the resulting `feature/metrics` head before B may proceed, and B keeps its own independent CRITICAL review and explicit CTO merge authorization. After the final integration, later Thoth-side Metrics work follows the STANDARD flow:
+
+```text
+feature/<area>/<task> -> develop
 ```
 
 Each focused Metrics child branch is created from `feature/metrics`, targets `feature/metrics`, and does not target the `<development-branch>` directly. `ADR-0009` standardizes the repository ref spelling of that child branch; it does not amend the substantive Metrics architecture.

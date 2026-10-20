@@ -1,8 +1,8 @@
 # Metrics Source and Driver Inventory
 
-Status: INITIAL DESIGN INVENTORY; SOURCE MAPPINGS NOT APPROVED
+Status: DESIGN INVENTORY; FIRST CLOUDFRONT SOURCE CONTRACT APPROVED UNDER `CF-GATE-01`; ALL OTHER SOURCE MAPPINGS NOT APPROVED
 Owner: Thoth Metrics programme
-Evidence date: 2026-07-24
+Evidence date: 2026-07-24 (initial inventory); 2026-09-11 (`CF-GATE-01` outcome and `MET-WP1-13` administration contract)
 
 ## 1. Purpose
 
@@ -14,7 +14,7 @@ Distribution assignments do not authorize metrics.
 
 | Source/route | Candidate platform | Candidate measure | Grain | Dimensions | Acquisition | Fixture state | Mapping state | Readiness |
 |---|---|---|---|---|---|---|---|---|
-| CloudFront logs | publisher website/CDN | `title_sessions` | DAY | work, country | DRIVER | protected samples required | methodology fixed; path/resources required | SAMPLE REQUIRED |
+| CloudFront logs | publisher website/CDN | `title_sessions` | DAY | work, country | DRIVER (`driver_key = cloudfront`) | protected samples inspected in place under `CF-GATE-01`; synthetic fixtures owned by `MET-WP7-01` | first source contract approved (private ledger); typed `cloudfront-source-account/1` administration configuration delivered by `MET-WP1-13` | CONTRACT APPROVED; DRIVER NOT IMPLEMENTED |
 | Thoth CSV v1 | approved publisher platform | approved usage or `net_units` | DAY/MONTH/PERIOD | publication/country/institution optional | PUBLISHER_UPLOAD | canonical examples to create | common contract fixed | BLOCKED ON WP1/WP2 |
 | COUNTER 5 | approved publisher platform | selected mappings | report-dependent | report-dependent | PUBLISHER_UPLOAD | representative reports required | unresolved | SAMPLE + MAPPING |
 | OAPEN | OAPEN metric platform | source-defined usage | likely day/month | source-dependent | DRIVER or OPERAS | examples required | unresolved | SAMPLE + MAPPING |
@@ -68,7 +68,35 @@ Methodology version:
 
 ## 5. CloudFront gate
 
-Require protected previous/target/following-day samples, DOI path rules, bot/GeoIP versions, unknown-country handling, multi-country decision, deterministic expected aggregates and confirmation that raw personal data stays in place.
+`CF-GATE-01` is approved and complete in the private `thoth-pub/thoth-sphinx`
+ledger. This public inventory records only the architectural facts the
+source/administration contract depends on; exact provider identifiers,
+hostnames, buckets, prefixes, publisher identity and operational topology are
+private and are never copied into this repository.
+
+Public truth established by the gate and consumed by `MET-WP1-13`:
+
+- the first CloudFront source is a `DRIVER` acquisition route whose immutable
+  `driver_key` is exactly `cloudfront`;
+- its acquisition route is CloudFront standard logging (legacy) delivered to
+  S3; standard-logging-v2 delivery is excluded from collection;
+- a source account for it carries the typed configuration
+  `cloudfront-source-account/1` with `logging.mode = LEGACY_S3` and non-secret
+  `hostname`, `bucket` and `prefix` routing values, where the hostname equals
+  the account's immutable `external_key`; such an account is created with a
+  non-null `expected_publisher_id` naming the canonical publisher it reports
+  for, which the managed `DRIVER` ingestion coordinator requires to match the
+  import's publisher; credentials never enter that configuration;
+- request qualification, DOI-path resolution to canonical Works, the pinned
+  COUNTER bot resource, 30-minute IP + User-Agent sessionization with
+  previous/target/following-day context, and the `COMPLETE`/`PARTIAL`/`UNKNOWN`
+  coverage semantics are fixed by the gate's evidence and remain the driver's
+  contract.
+
+Not delivered by the gate or by `MET-WP1-13`: the CloudFront collection driver
+itself, checkpoint/claim/lease runtime, the versioned GeoIP resource, synthetic
+driver fixtures, and any real source, platform or source-account row. No
+collection is active.
 
 ## 6. COUNTER gate
 
