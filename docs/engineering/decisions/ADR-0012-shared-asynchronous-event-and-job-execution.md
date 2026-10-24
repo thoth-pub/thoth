@@ -1,0 +1,4619 @@
+# ADR-0012 - Shared asynchronous event and job execution architecture
+
+Status: PROPOSED
+Date: 2026-09-29
+Decision owner: Javi, CTO
+Material correction: Amendment 14 + Revision 1; Route B candidate
+Historical approved Amendment-13 ADR Git blob: 69f9ec9017ffe39d865bbe3ae67522c6917dc857 (CTO approval 2026-10-20; not approval of these A14 bytes)
+Decision owner: CTO
+Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
+Repositories affected: `thoth-pub/thoth` (shared durable engine and default worker runtime); `thoth-pub/thoth-dissemination` (dissemination executor/consumer); `thoth-pub/thoth-app` (released BE-04 read-surface consumer that must migrate before retirement); `thoth-pub/infrastructure` (worker runtime and IAM substrate)
+Parent programme: [THOTH-ASYNC-01 #957](https://github.com/thoth-pub/thoth/issues/957)
+Authoring task: [THOTH-ASYNC-01-ADR-01 #958](https://github.com/thoth-pub/thoth/issues/958)
+Superseded by: None
+Supersedes in part:
+- ADR-0008 only where it denies a reusable cross-programme job framework/API: the final shared-framework prohibition in section 3.3, section 3.4's programme-local-only ownership rule, section 5.1 item 6, section 5.2 item 6 and rejected alternative D. ADR-0008 section 3.5 is **satisfied by this ADR, not superseded**. Section 3.3's approved convention list, its `approved primitive != mandatory mechanism` rule, and all machine-role, least-privilege and `SUPERUSER` separation rules remain binding.
+- ADR-0010 only where invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source, and where section 4.4's final sentence says ADR-0008 remains *fully* binding without the later shared-framework exception introduced here. Section 4.4's substantive rule that `ServiceOperation` is not itself a queue/framework/executor API remains binding. ADR-0010's Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding as specified in section 1.3 below.
+
+Decision: Thoth establishes one shared PostgreSQL-backed asynchronous event and
+job engine for cross-programme durable work. Events record durable facts and may
+fan out idempotently into jobs; jobs record executable asynchronous work and may
+also be created directly for scheduled, reconciliation or operator-requested
+work. The engine provides one shared lifecycle, claim/lease/idempotency model and
+attempt history. A headless `thoth-worker` ECS/Fargate service is the default
+always-on executor for trusted handlers owned by `thoth`. The shared engine may
+use additional worker pools only where a materially different trust/authority
+boundary requires process/task isolation; this ADR specifically requires such an
+isolation boundary for publisher-controlled untrusted-content parsing. Domain-
+specific executors in other repositories may consume the same shared job
+protocol without moving their business logic into `thoth`.
+
+This ADR is architecture only. It authorizes no schema migration, source
+implementation, worker deployment, IAM change, provider write, credential
+provisioning, BE-04/DIS-02 activation, Hosting implementation or production
+activation.
+
+Verification baselines at programme setup:
+
+```text
+thoth-pub/thoth
+develop @ 923545d5c9028bc04c40e38efeb7de674efed3fd
+
+thoth-pub/thoth-dissemination
+main @ 0be4dfba0661816914a7fffa477fe33043a99793
+
+thoth-pub/infrastructure
+master @ 52c79cf19392df4c9989e5c68ad199c8bc2846a8
+```
+
+These SHAs are architecture-authoring evidence only. Every implementation task
+must bind its own fresh exact base.
+
+---
+
+## 1. Context
+
+Thoth now has several workloads that are naturally asynchronous:
+
+- Hosting provisioning and reconciliation;
+- Publisher Services dissemination such as Crossref deposits;
+- validation of uploaded files;
+- EPUB post-processing and reader deployment;
+- CDN invalidation;
+- website/cache revalidation;
+- search-index updates such as Algolia;
+- future external integrations and scheduled reconciliation.
+
+BE-04 introduced the first substantial durable-job implementation in `thoth`
+using `distribution_job`, `distribution_job_target` and
+`distribution_job_attempt`. ADR-0008 deliberately made those tables
+Publisher-Services-local and required a later explicit cross-programme ADR before
+a generic queue/job abstraction could exist.
+
+That later decision is now required. Deploying a Hosting-specific worker and
+retaining a separate distribution-job engine would create parallel durable
+execution architectures immediately before multiple further asynchronous
+consumers are expected.
+
+### 1.1 Current BE-04 deployment fact
+
+Migration `thoth-api/migrations/20260814_v1.7.0` has been applied to
+production and therefore the `distribution_job*` schema is part of production
+migration history. The tables have not been operationally used. The dev
+environment has not applied that BE-04 migration.
+
+Consequences:
+
+- the historical v1.7.0 migration is immutable and must not be rewritten;
+- a later separately authorized migration must remove the unused
+  `distribution_job*` schema and introduce the approved shared async schema;
+- no data-conversion requirement is currently known because the production
+  tables have not been used, but the implementation task must verify emptiness
+  immediately before any destructive migration is authorized;
+- BE-04/DIS-02 deployment and activation remain on HOLD pending this
+  supersession.
+
+### 1.2 Existing dissemination boundary
+
+`thoth-dissemination` owns platform-specific dissemination behaviour. Its
+current DIS-02A worker claims Thoth jobs and executes Crossref through Python
+domain code and an isolated runner. That ownership does not move into
+`thoth` merely because job durability becomes shared.
+
+The shared engine owns durable execution mechanics. The owning domain repository
+continues to own provider-specific semantics.
+
+### 1.3 Relationship to ADR-0008 and ADR-0010
+
+ADR-0012 is the explicit later cross-programme decision that ADR-0008 section
+3.5 required before a reusable generic job/queue abstraction could be introduced.
+
+ADR-0008's seven approved durable-work conventions remain valid engineering
+primitives. This ADR selects a shared implementation that uses several of those
+primitives because the cross-programme workload now justifies them; it does not
+turn every ADR-0008 primitive into a mandatory mechanism for unrelated work.
+
+ADR-0010 remains the authority for the Staff Operations Console and the
+cross-domain operational/audit seam. Its section 4.4 statement that ADR-0008
+remains fully binding is qualified only by the exact ADR-0008 partial
+supersession recorded by this later ADR; the `ServiceOperation` seam itself does
+not become the generic queue or executor API. The relationship is binding:
+
+```text
+async_job / async_job_attempt
+    canonical execution and attempt truth
+
+ServiceOperation
+    canonical staff operational/audit seam where ADR-0010 applies
+
+domain observed state
+    separately established external/service truth
+
+attention / reconciliation projection
+    whether human or reconciler action is required
+```
+
+`ServiceOperation` must project from or correlate to the canonical async
+execution record; it must not create a second independently mutable attempt
+history. Not every internal async job is automatically a Staff Operations
+record, but any job important enough for staff to monitor, explain, retry,
+replay, reconcile or report follows ADR-0010's canonical operational seam.
+
+ADR-0010 invariants 14, 16, 22 and 23 and sections 4.6 and 4.11-4.13 remain
+binding. In particular, retry, replay and current-state redistribution remain
+different actions; machine execution authority remains separate from staff
+authority; initial reconciliation remains report-only until separately
+activated; and staff external-write controls require their own production gate.
+
+A `RECONCILIATION_REQUIRED` async job may leave that state only through a
+domain reconciler or protected staff action that can establish a safe next
+state. The generic engine must never convert it into an ordinary retry merely
+because time passed. Staff actions use ADR-0010's protected, audited command
+seam with actor and reason. A reconciler may report evidence before write
+activation, but may not silently repair external state unless its owning
+specification and production activation authorize that action.
+
+When ADR-0012 reaches approval-state reconciliation, ADR-0008 and ADR-0010
+metadata/register entries must be updated to record these exact partial
+supersessions. That is decision-record reconciliation, not runtime
+implementation.
+
+---
+
+## 2. Decision drivers
+
+1. One robust queue/state-machine implementation should serve all future Thoth
+   asynchronous work rather than each programme rebuilding leases, retries and
+   audit independently.
+2. Business writes and the events they cause must not suffer a dual-write gap.
+3. External writes are not generally exactly-once; ambiguous outcomes require
+   reconciliation rather than blind replay.
+4. Worker crashes, deploys and horizontal scaling must not lose or duplicate
+   authoritative job state.
+5. One always-on Fargate worker should provide broad value rather than spend most
+   of its lifetime waiting for one Hosting-specific workload.
+6. Shared execution mechanics must not erase domain/repository ownership.
+7. A generic runtime must not become a generic all-powerful application role.
+8. Operational complexity should remain proportionate: PostgreSQL is already the
+   canonical durable store and is sufficient for expected Thoth volumes.
+9. Credentials and provider authority should remain simple to operate while
+   preventing unnecessary standing high-risk permissions.
+10. Existing production migration history must remain truthful and immutable.
+
+---
+
+## 3. Decision
+
+### 3.1 One shared durable engine
+
+`thoth` owns the canonical asynchronous persistence model. The implementation
+will introduce shared durable concepts equivalent to:
+
+```text
+async_event
+async_job
+async_job_attempt
+```
+
+The final table/column names are implementation-specification details, but the
+semantic separation is architectural.
+
+PostgreSQL is the authoritative owner of:
+
+- event records;
+- job state;
+- routing/materialization state;
+- leases and claim tokens;
+- attempt history;
+- retry availability;
+- cancellation/terminal outcomes;
+- reconciliation-required outcomes;
+- correlation/causation metadata.
+
+No local file, worker memory, GitHub Actions run, S3 object, message-bus message
+or external provider is the sole durable owner of that state.
+
+### 3.2 Events, routes and jobs are different
+
+An **event** records a durable fact that has happened, for example
+`WORK_UPDATED`, `FILE_UPLOADED` or `HOSTING_ENABLED`.
+
+A **job** records executable work, for example `ALGOLIA_INDEX_WORK`,
+`VALIDATE_FILE`, `CROSSREF_SYNC` or `HOSTING_PROVISION`.
+
+One event may materialize zero, one or many jobs. Jobs may also be created
+without an event for scheduled work, reconciliation, backfills or explicit
+operator actions.
+
+Where an event is caused by a PostgreSQL business mutation, the business change
+and event record are written in the same transaction. Either both commit or
+neither commits. A separate all-or-nothing rule binds a newly created routed
+job to its route disposition ("Atomic creation of a routed job", section 3.5).
+
+Every event has a unique durable `event_id`. Route eligibility and routing
+completion are determined from durable database state, not from worker-local
+handler registration and not from a bare PostgreSQL sequence high-water mark.
+A sequence may be used as an identifier/order aid, but the implementation must
+not assume sequence allocation order equals commit order.
+
+Every event consumer has a durable **logical route** registration with:
+
+- a stable `route_key` that identifies the logical route for its whole life;
+- an append-only history of immutable **route-contract revisions** that define
+  how the route interprets and materializes the events it consumes (below);
+- an append-only, totally ordered history of **activation epochs**, each bound
+  to exactly one of those revisions;
+- a route lifecycle state;
+- enough durable state to decide whether an event is eligible for that route.
+
+A logical route has no mutable route-level event kind/version contract. Any
+"current contract" that an implementation exposes is only a projection of the
+immutable revision referenced by the route's currently open epoch; it never
+determines how an event captured inside an earlier epoch is interpreted.
+
+An activation epoch is one continuous active interval of the logical route. It
+is the half-open routing-generation interval:
+
+```text
+[activation_generation, deactivation_generation)
+```
+
+An open epoch has no deactivation boundary yet. Each epoch references exactly
+one immutable route-contract revision, fixed when the epoch opens, and records
+the authorizing actor/authority and the deployment evidence that satisfied the
+activation gates below for that exact revision. A route may be activated,
+deactivated and reactivated any number of times; every activation creates a new
+epoch beneath the same `route_key`. A new `route_key` is never created merely to
+reactivate a route or to move it to another revision of its contract.
+
+An implementation may assign epoch and route-contract-revision identifiers for
+storage and audit. Those identifiers are subordinate to the logical
+`route_key`: they never replace `route_key` as the route identity and never
+enter the route-disposition uniqueness key.
+
+Epochs are immutable, append-only history:
+
+- at most one epoch of a route is open at any time;
+- an epoch's identity, activation boundary and referenced route-contract
+  revision never change once recorded; opening, closing, reactivating or
+  retiring the route never changes the revision attached to any epoch;
+- closing an open epoch is a write-once durable close/deactivation fact, or an
+  equivalently strong append-only close record, that records its deactivation
+  boundary. Once an epoch is closed, its deactivation boundary cannot change
+  and the epoch cannot be reopened;
+- deactivating a route closes only its current open epoch; no operation
+  rewrites, reopens, merges or deletes any epoch;
+- the epochs of one route are pairwise-disjoint and totally ordered by
+  activation generation. A new epoch's activation generation is at or after the
+  deactivation generation of the route's previous epoch, so the open epoch, when
+  one exists, is the epoch with the greatest activation generation.
+
+Opening an epoch, closing an epoch and permanently retiring a route are
+serialized for each `route_key` through the same durable database serialization
+mechanism required for route activation. Concurrent activation, deactivation and
+retirement requests for one route therefore resolve into one durable total
+order: they cannot open two epochs, close one epoch twice, reopen a closed epoch
+or record boundaries out of order.
+
+Withdrawing a route-contract revision from future selection and every operation
+that creates a new durable selection of, or reference to, a revision (opening
+an epoch that references it, or enrolling an event's first route disposition
+under it) share one database-atomic order for the same route; see "Revision
+withdrawal and route retirement" below. Whatever mechanism provides that order
+composes with this per-`route_key` lifecycle serialization: one route never has
+two contradictory lifecycle orders. The strand-safety decision on which a
+withdrawal relies is likewise database-consistent and stable through the
+withdrawal's commit; see the same section.
+
+A route's lifecycle state is one of:
+
+- **active** - exactly one epoch is open;
+- **temporarily inactive** - no epoch is open and the route is not retired,
+  whether it has never been activated or has been deactivated. It may open a
+  new epoch only through the normal activation gates;
+- **permanently retired** - terminal. Once retirement is durably recorded, no
+  later activation epoch may be opened for that route identity. If a
+  reactivation serializes before retirement, the later retirement closes that
+  open epoch and terminates the route's active state; if retirement serializes
+  first, the later reactivation request is rejected. Resuming that consumer
+  requires a separately authorized new route identity or a later architecture
+  decision. A new route identity is a different logical route with its own
+  epochs and dispositions; it receives earlier events only through explicitly
+  authorized backfill/replay.
+
+Activation, deactivation, reactivation and retirement are durable, separately
+authorized and audited operations. They are not side effects of merely deploying
+or deleting handler code.
+
+Epoch boundaries use a durable routing generation, or an equivalently strong
+serialized database mechanism, that an event captures inside its creating
+transaction and a route records when it opens or closes an epoch. A captured
+routing generation lies inside an epoch when it is at or after that epoch's
+activation generation and, when the epoch has been closed, strictly before its
+deactivation generation. Because epochs are pairwise-disjoint, a captured
+generation lies inside at most one epoch of a route.
+
+An event is historically **eligible** for a route exactly when both:
+
+1. its captured routing generation lies inside **any** activation epoch of that
+   route, whether that epoch is currently open or already closed; and
+2. the event satisfies the immutable contract predicate of the route-contract
+   revision referenced by that epoch: its durable event kind is the revision's
+   consumed event kind and its durable payload/schema version is a member of
+   the revision's accepted-version set.
+
+An eligible event therefore belongs to exactly one epoch and is interpreted
+under that epoch's revision. An event whose captured generation falls before
+the route's first epoch, in an inactive gap between two epochs, or after its
+most recent closed epoch while no later epoch is open is not eligible for that
+route. An event of the consumed event kind whose captured generation lies inside
+an epoch but whose version fails condition 2 is not eligible either, and is
+never silently ignored: it is an in-epoch contract mismatch (below). An event of
+a kind that the epoch's revision does not consume is outside that route's
+contract and creates neither an obligation nor an anomaly for it.
+
+Eligibility is fixed history. The mechanism must allocate each deactivation
+boundary so that closing an epoch never removes or rewrites eligibility for an
+event that captured a routing generation inside that epoch. Because an epoch's
+revision is immutable, no later revision, current-contract projection or
+executor change can rewrite whether, or under which contract, an
+already-committed event was eligible. Opening a later epoch never retroactively
+covers routing generations in an inactive inter-epoch gap, and retiring the
+route never changes whether an already-committed event was eligible.
+
+These intervals must partition events deterministically even when transactions
+commit out of sequence. Sequence allocation order and commit observation order
+alone are insufficient.
+
+For every committed event, the engine must eventually establish a durable route
+disposition for every route for which that event is eligible, and a durable
+in-epoch contract-mismatch anomaly for every route for which it is mismatched.
+At most one durable disposition may exist for a given `(event_id, route_key)`,
+and an eligible route obligation remains owed, visible in the route backlog,
+until it has received that one disposition. The normal disposition
+materializes a job: a materialized disposition points to exactly one job and
+remains unique on `(event_id, route_key)` regardless of whether that job is
+pending, running, waiting or terminal. The only alternative for an eligible
+obligation is the explicit, authorized and audited terminal non-materialized
+disposition described below, which points to no job (section 3.5 and
+invariant 8). Every operation that could create the first disposition for an
+`(event_id, route_key)` pair is subject to the universal admission guard of
+"Original-epoch classification and first route-disposition admission" below:
+an in-epoch contract mismatch receives a disposition only through compatible,
+explicitly authorized first historical enrollment, together with its canonical
+terminal `ENROLLED` anomaly (invariant 47).
+
+When materializing an obligation requires a **new** logical job, that job is
+created only together with its disposition: the new routed job, the
+materialized `(event_id, route_key)` disposition that gives it meaning and
+every durable job-input or membership fact indispensable for that
+disposition's effect semantics become durable in one PostgreSQL transaction,
+or none of them does. "Atomic creation of a routed job" in section 3.5 defines
+that boundary, its failure, crash and acknowledgment-loss behaviour and its
+interaction with coalescing into an existing job.
+
+A job's **permanent coalescing-admission closure** prevents later
+attachments to **that job**, but does not dispose of any later eligible
+event-route obligation. Closure arises from a first successful committed
+claim/start **or** a separately lawful terminal-before-first-claim
+transition **or** an applicable approved durable kind-policy closure
+(section 3.5). A cancelled never-claimed predecessor is no more attachable
+than a first-claimed predecessor. Every newly eligible, still-undispositioned
+obligation refused after closure preserves its unused `(event_id, route_key)`
+slot, original epoch/revision and route backlog with reason and oldest age;
+after a fresh durable reread it uses a different compatible genuinely
+admission-open successor or a distinct executable successor generation
+created atomically with its first disposition and input facts.
+The closed predecessor keeps its absolute idempotency reservation.
+
+An **already materialized** obligation retains its one immutable
+disposition and its original terminal predecessor linkage: cancellation
+does not make it an undispositioned route or authorize an automatic
+second disposition, job/route reparenting or provider resend. Any
+outstanding effect and safe authorized job-level replay/replacement
+or reconciliation is operational state under section 3.4, with
+unchanged canonical target-scoped fencing. Neither terminal job
+state nor key collision is evidence of effect success.
+
+Disposition uniqueness is per logical route, not per epoch or per revision:
+`(event_id, route_key)` is the complete uniqueness boundary across every epoch
+and every route-contract revision of that route. A disposition may record the
+epoch and revision through which the event became eligible, or the revision
+selected by an explicit historical enrollment, for audit and metrics, but those
+attributes are never part of the uniqueness key. Reactivating a route or moving
+it to another revision therefore cannot rematerialize, duplicate or reset a
+disposition that already exists for that route and event.
+
+A route may not be "fixed" by deleting its registration or any of its epochs or
+revisions. Deactivation, a revision transition and retirement affect only
+events at or after the closing boundary. Events already eligible through any
+earlier epoch remain owed, under that epoch's revision, after deactivation,
+after a newer revision becomes active and after retirement. If an eligible
+route can no longer be materialized safely, each affected event requires an
+explicit, authorized, audited terminal route disposition describing why it was
+not materialized and what reconciliation/backfill, if any, covers it. Each such
+disposition remains one durable `(event_id, route_key)` record even when an
+operator authorizes a bulk action, and records the actor/authority and reason.
+Where a staff/operator action creates that disposition, it uses ADR-0010's
+protected, audited staff-command seam; direct production SQL is not the normal
+route-disposition interface. This terminal non-materialized disposition exists
+only for an obligation proven ordinarily eligible from its immutable original
+epoch and still owed: the transaction that would commit it proves that
+eligibility, together with the required actor, authority, reason, covering
+reconciliation/backfill or expressly accepted divergence and audit, under the
+universal admission guard of "Original-epoch classification and first
+route-disposition admission" below. It is refused for an in-epoch contract
+mismatch, for an event outside every epoch of the route and for an event of a
+kind the epoch's revision does not consume, and a bulk authorization applies
+that guard to each `(event_id, route_key)` pair individually.
+
+A terminal disposition with no covering reconciliation/backfill is not normal
+successful routing. It records an explicit accepted divergence for the affected
+domain/effect target and raises durable operator attention; an operator cannot
+make required work disappear merely by supplying a reason. That accepted
+divergence of an ordinarily eligible obligation is a route disposition. It is
+distinct from the `RECONCILED/DIVERGED` terminal resolution of an in-epoch
+contract-mismatch anomaly (below), which is not a route disposition, creates
+none and has its own authorization; the two are recorded, reported and
+counted separately.
+
+The engine exposes route-level backlog independently of job-level queue
+metrics, because an undispositioned route obligation may not yet have any job.
+For every route key, and separately for each route-contract revision of that
+route, it must make queryable at least:
+
+- the route's lifecycle state (active, temporarily inactive or permanently
+  retired) and its activation-epoch and revision history;
+- per revision, the count of eligible events that still have no disposition and
+  the age of the oldest such event;
+- per revision and per accepted payload/schema version that can currently be
+  emitted or that has an undispositioned eligible event, whether a compatible
+  materializer (section 3.9) is deployed and eligible to perform the
+  materialization;
+- the count and oldest age of open in-epoch contract-mismatch anomalies, per
+  epoch and revision, counting only anomalies committed `OPEN`; an anomaly
+  created born-terminal `ENROLLED` by first historical enrollment (below) was
+  never open, is never counted or aged as open and remains queryable as
+  terminal history.
+
+Route-level totals may aggregate these values, but no aggregate may hide an
+undispositioned backlog, an open anomaly or an unavailable compatible
+materializer of an older revision behind a healthy current revision.
+Obligations from closed epochs, from older revisions and from retired routes
+remain in that backlog until dispositioned, each bound to the revision of the
+epoch that made it eligible.
+
+A route may not open any epoch - its first activation, a later reactivation or
+a transition to another revision - until deployment evidence establishes, for
+that epoch's exact revision, the event-emission floor and producer-version
+coverage below and compatible materialization for every accepted version that
+can actually be emitted. If compatible materialization later becomes
+unavailable for any revision or version with outstanding obligations, those
+obligations remain owed and the unavailable-materializer and route-backlog
+signals raise attention, whether the route is active, temporarily inactive or
+permanently retired. The same holds for an obligation refused after a
+coalescing admission closure while no eligible successor can be selected or admitted for
+it (section 3.5): until its materialized disposition commits, it stays in
+that backlog with its reason, age-visible and attention-raising. Once a
+successor and the obligation's disposition have committed together under
+"Atomic creation of a routed job" (section 3.5), the obligation is
+dispositioned and leaves the route backlog, even where that successor's
+execution is then held by target-scoped effect ambiguity or by the absence
+of a compatible worker; the held execution is job-level state, visible
+through the job's `WAITING`, `RECONCILIATION_REQUIRED`, blocked-successor
+and attention signals (sections 3.4 and 3.15), and no provider effect is
+claimed for it.
+
+Outstanding obligations are interpreted against the immutable revision of the
+epoch that made each event eligible. After a newer revision becomes active, an
+undispositioned event from an older epoch remains owed under its older revision
+and may be materialized only by a materializer that deterministic compatibility
+(section 3.9) admits for that exact revision and event version. A newer
+materializer never silently reinterprets an older obligation.
+
+A crash after some consumers are materialized therefore resumes from durable
+route records. A worker must never mark an event fully routed merely because it
+processed all routes known to its own binary. During a mixed-version deployment,
+if a worker encounters an eligible obligation whose revision and event version
+it is not compatible with, it leaves that obligation incomplete for a
+compatible worker rather than silently completing the event.
+
+### Route-contract revisions
+
+A route-contract revision is a durable, immutable record subordinate to one
+`route_key`. It binds everything needed to determine and execute the
+obligations of the epochs that reference it. Its **semantic signature** is the
+complete set of immutable fields that affect interpretation or executor
+compatibility, at minimum:
+
+- the `route_key`;
+- the consumed event kind;
+- the accepted-version set: an explicit, closed and immutable set of
+  payload/schema versions of the consumed event kind, held in one canonical
+  representation so that the order or repetition in which versions are
+  supplied cannot produce a different signature;
+- the route-to-materializer/job contract version that determines which
+  materializers are compatible;
+- the semantic consumer / owning-domain identity that shows the revision belongs
+  to the same logical route;
+- the identity and version of the immutable compatibility policy where the
+  revision declares one; the absence of a policy is itself part of the
+  signature.
+
+Exact table, column and encoding names are implementation-specification
+details.
+
+A revision may be prepared before any epoch references it. Once an epoch
+references it or a historical enrollment has selected it, no operation may
+rewrite any field of its semantic signature, and the revision is never deleted.
+The same immutable revision may be referenced again by a later epoch when
+rollback or recovery intentionally returns to that exact contract and the
+activation gates are re-established for it.
+
+Two revisions of one route with the same semantic signature are equivalent, and
+the engine must not hold ambiguous duplicate-equivalent revisions. Equivalence
+is decided by semantic content, never by revision identifier. Revision creation
+must converge atomically at the database: either a database-enforced
+uniqueness constraint over the route's canonical semantic signature, or over a
+deterministic canonical encoding of it, admits exactly one revision per
+signature; or revision creation for a route is serialized through that route's
+durable serialization mechanism with the equivalence check and the insert in the
+same transaction. Concurrent requests to create equivalent revisions therefore
+resolve to one canonical effective revision, and a request that does not create
+it receives that canonical revision instead of a competing identity. An
+application-level read-then-insert check without such a database-enforced
+uniqueness or serialization guarantee does not satisfy this rule. Revisions
+whose semantic signatures differ always remain distinct.
+
+A revision identifier is a storage/audit identity, not a compatibility key.
+Materializer compatibility derives from the revision's semantic content
+(section 3.9).
+
+Creating, selecting, withdrawing or otherwise changing the availability of a
+revision for activation or historical enrollment is a durable, audited control
+operation recording actor, authority and reason. Where staff/operators initiate
+it, it uses ADR-0010's protected, audited staff-command seam.
+
+Contract evolution remains under the same `route_key` only while the route is
+still the same semantic consumer and effect obligation and the existing
+`(event_id, route_key)` disposition identity remains correct:
+
+- the same semantic consumer/effect with an evolved compatible event or
+  materialization contract is a new revision under the same `route_key`;
+- the same consumer returning to an older compatible contract opens a later
+  epoch that references the existing immutable revision, after the normal
+  gates;
+- a change under which an event already dispositioned for the route could
+  legitimately require a second independent disposition or effect is not a
+  revision: it requires a new `route_key` or a separately approved architecture
+  decision.
+
+### In-epoch contract mismatch
+
+Producer-version coverage (below) prohibits an event from being emitted inside
+an open epoch in a version that the epoch's revision does not accept. The engine
+nevertheless fails safe if that invariant is violated.
+
+An event is an **in-epoch contract mismatch** for a route when its captured
+routing generation lies inside one of the route's epochs and its durable event
+kind is that epoch revision's consumed event kind, but its durable
+payload/schema version is not a member of the revision's accepted-version set,
+so that it fails the revision's immutable kind/version predicate. Such an event
+becomes a durable `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly, or an
+equivalently explicit durable routing anomaly whose exact representation is an
+implementation-specification detail. The anomaly comes into existence in only
+two ways, both governed by "Canonical mismatch-anomaly decision order" below:
+detection records it `OPEN`; or, where a compatible, explicitly authorized
+first historical enrollment linearizes before any detector has committed it,
+that enrollment's transaction records it born-terminal `ENROLLED`. The
+anomaly:
+
+- durably identifies the event, the `route_key`, the original epoch, the
+  expected immutable revision, and the actual durable event kind and
+  payload/schema version that failed matching, together with truthful
+  first-observer provenance: the detector that recorded it `OPEN`, or the
+  enrollment that created it born-terminal;
+- is durable, queryable and auditable whether it is open or terminal; while it
+  is `OPEN` it is counted and age-visible and raises durable operator
+  attention, and an anomaly created born-terminal `ENROLLED` is never counted
+  or aged as open;
+- is never classified as successful routing;
+- creates no route disposition and no job merely because it was detected, and
+  detection does not consume the `(event_id, route_key)` disposition
+  uniqueness slot;
+- is never reinterpreted automatically under a later revision or any "current"
+  contract.
+
+A detector-created anomaly remains `OPEN` until, under explicit authorization,
+either:
+
+1. historical enrollment (below) selects a revision of the same logical route
+   that is validated as compatible with the event and creates the one allowed
+   `(event_id, route_key)` disposition, with terminal outcome `ENROLLED`; or
+2. an explicitly approved reconciliation/divergence procedure records why no
+   route disposition will be created and what compensating state or effect
+   covers the event, with terminal outcome `RECONCILED/DIVERGED`.
+
+Where path 1 linearizes before any detector has committed the anomaly, the
+same enrollment transaction creates it born-terminal `ENROLLED`; it never
+commits, and never pretends to have observed, a prior `OPEN` state or a prior
+detector run. Path 2 resolves only an already committed `OPEN` anomaly and
+never creates one.
+
+Those two paths are mutually exclusive for one logical anomaly. Every in-epoch
+contract mismatch has one **canonical logical anomaly identity**, a pure
+function of the immutable mismatch facts of the event and the route: because
+an event's captured routing generation lies inside at most one epoch of a
+route, the event and the stable `route_key` determine the original epoch and
+its expected revision, which are recorded as immutable audit facts. The
+identity never depends on the detection, enrollment, backfill request,
+compatible revision selected for remediation or operator procedure that
+observes or resolves the anomaly, and its exact composition and storage are
+implementation-specification details; duplicate detection, a generic backfill
+request or a separately chosen resolution identifier can therefore never mint
+a parallel anomaly that reaches a second terminal outcome. Each logical
+anomaly reaches at most one effective **terminal resolution** - `ENROLLED`
+through path 1 or `RECONCILED/DIVERGED` through path 2 - arbitrated by one
+database-enforced canonical-anomaly decision order that detection, first
+historical enrollment and divergence share and that also arbitrates first
+creation of the anomaly when no anomaly row yet exists. An application-level
+"read unresolved, act, then append the outcome" or "check absent, then
+insert" sequence without that enforcement does not satisfy this rule.
+"Canonical mismatch-anomaly decision order", in "Historical enrollment,
+backfill and replay" below, defines the decision boundary and every commit
+order.
+
+Resolution is recorded as append-only, audited evidence linked to the one
+anomaly, including actor, authority, reason and the resulting disposition or
+divergence record. Resolving an anomaly never deletes it, its immutable
+mismatch evidence or its detection provenance, and a retry after terminal
+resolution reads and reports the same already-effective outcome rather than
+creating a second terminal decision.
+
+Detection records the facts above and raises attention; it need not calculate
+or persist which resolution paths are available, and any
+availability-dependent decision about the anomaly is taken from the durable
+state current when that decision is made. Detection that finds the canonical
+anomaly already committed, `OPEN` or terminal, converges on it without
+reopening, re-aging or duplicating it. Detection is never suppressed
+because a revision has been withdrawn. The ordering of anomaly creation
+against a concurrent revision withdrawal is defined in "Revision withdrawal
+and route retirement" below.
+
+Route health exposes open anomalies separately from, and alongside, the
+undispositioned eligible-event backlog. An in-epoch contract mismatch is
+therefore never an invisible fourth eligibility state, and a mismatched event
+is never counted in the eligible-event backlog. An anomaly's terminal
+`ENROLLED` outcome is a route decision; it is not evidence that a job
+executed or that a provider accepted an effect.
+
+### Original-epoch classification and first route-disposition admission
+
+For each logical route, every committed event has exactly one immutable
+**original-epoch classification**, derived only from facts this section
+already fixes - the event's committed durable kind, payload/schema version
+and captured routing generation, and the route's activation epochs with the
+immutable route-contract revision each references. It introduces no second
+epoch or eligibility definition:
+
+1. **ordinarily eligible** - the captured generation lies inside an epoch and
+   the event satisfies that epoch revision's kind/version predicate;
+2. **in-epoch contract mismatch** - the captured generation lies inside an
+   epoch, the event's kind is that revision's consumed event kind and its
+   version is outside the revision's accepted-version set (above);
+3. **outside every epoch** - the captured generation lies before the route's
+   first epoch, in an inactive inter-epoch gap, or after its most recent
+   closed epoch while no later epoch is open;
+4. **unrelated kind** - the captured generation lies inside an epoch whose
+   revision does not consume the event's kind.
+
+Because epochs are immutable and pairwise-disjoint and a revision referenced
+by an epoch is never rewritten, the classification never changes after the
+event commits: closing an epoch, opening a later epoch, a revision transition,
+revision withdrawal and route retirement leave it unchanged. It is never
+derived from a currently open epoch's revision, a current-contract projection,
+a revision selected for remediation, an operator's assertion or an earlier
+non-serialized application read.
+
+**Universal first route-disposition admission guard.** Every operation that
+can create the first durable disposition for an `(event_id, route_key)` pair
+derives this classification from the committed immutable facts and proves its
+own path-specific eligibility and authorization inside the
+database-consistent transaction that would consume that pair's uniqueness
+slot. A stale application observation, a stated staff reason or covering
+evidence is not a substitute for that proof, and an admission whose facts
+cannot be verified fails closed. The first-disposition writers this ADR
+already approves are, exhaustively:
+
+- ordinary routed materialization of an ordinarily eligible obligation under
+  its original epoch revision: creation of a new routed job, attachment to a
+  coalescing-admission-open job, and the post-closure successor path of section 3.5;
+- explicitly authorized historical enrollment of an event outside every epoch
+  of the route, under the selected-revision validation below;
+- compatible, explicitly authorized first historical enrollment of an
+  in-epoch contract mismatch, under the canonical mismatch-anomaly decision
+  order below;
+- the explicit, authorized and audited terminal non-materialized disposition
+  of an ordinarily eligible, still-owed obligation (above), through ADR-0010's
+  protected staff-command seam where staff act.
+
+An explicitly approved migration, reconciliation or disposition plan under
+"Revision withdrawal and route retirement" below creates a first disposition
+only through one of those writers, under that writer's guard and authority;
+such a plan grants no additional mutation authority. The writers do not share
+one permission: each keeps its own authorization.
+
+Admission by classification:
+
+- **ordinarily eligible** - ordinary materialization, or the explicit terminal
+  non-materialized disposition where the obligation is proven still owed and
+  the existing section-3.2 and ADR-0010 conditions hold. An idempotency
+  collision, an admission-closed job, an unavailable materializer or retry exhaustion
+  never qualifies the obligation for that disposition automatically. Historical
+  work for the obligation is handled under its original epoch revision and the
+  existing owed-route and materializer rules; an enrollment or mismatch command
+  cannot select a different revision for it, change its original
+  interpretation or bypass its disposition uniqueness.
+- **in-epoch contract mismatch** - **no disposition exists for an in-epoch
+  contract mismatch except the one created by compatible, explicitly
+  authorized first historical enrollment, atomically with its canonical
+  anomaly's terminal `ENROLLED` outcome** and with its indispensable newly
+  created routed job and input facts or eligible open-job attachment. The
+  terminal non-materialized disposition command and every other
+  disposition-creating path refuse. The anomaly's `RECONCILED/DIVERGED`
+  terminal outcome creates no disposition.
+- **outside every epoch** - only the existing explicitly authorized historical
+  enrollment/backfill path, subject to its own first-disposition and
+  compatibility controls. Staff authority or covering evidence does not make
+  such an event ordinarily eligible, and the terminal non-materialized
+  disposition command refuses.
+- **unrelated kind** - the event creates neither an obligation nor an anomaly
+  for the route; the terminal non-materialized disposition command and every
+  mismatch operation refuse.
+
+A refused admission creates no disposition, consumes no uniqueness slot and
+creates no job, canonical anomaly, terminal anomaly resolution or external
+effect; the refusal is audited under the refusing path's existing command
+semantics. An existing `OPEN` or terminal anomaly and its immutable evidence
+remain unchanged. Where no anomaly exists, the refused operation neither
+creates, suppresses nor resolves it, and independent detection remains able to
+record it `OPEN` later.
+
+Admission stays valid against concurrent detection, first enrollment,
+divergence, ordinary materialization, revision withdrawal and epoch lifecycle
+operations. Ordinary materialization and the terminal non-materialized
+disposition of an ordinarily eligible obligation compete through the existing
+absolute `(event_id, route_key)` uniqueness boundary, and a loser resolves its
+outcome from committed durable state; first mismatch enrollment additionally
+participates in the canonical mismatch-anomaly decision order, even when no
+anomaly row exists at its first read. A uniqueness conflict alone never means
+that work is complete and never permits the event to be reinterpreted. The
+guard introduces no new route key, epoch, replay or current-state job and no
+external-effect authority.
+
+### Historical enrollment, backfill and replay
+
+A route introduced by a later release, reactivated after an inactive gap or
+moved to another revision receives through ordinary routing only events that are
+eligible through its epochs. Historical events from before its first epoch,
+events from an inactive inter-epoch gap and events held as in-epoch
+contract-mismatch anomalies are processed only through explicitly authorized
+historical enrollment (backfill/replay) under the same stable `route_key` and
+the same `(event_id, route_key)` deduplication boundary.
+
+Historical enrollment explicitly selects, for each event, the immutable revision
+of the same logical route under which that event is interpreted; it never
+implicitly uses whichever revision is current. Enrollment spanning events from
+several epochs or revisions makes that selection per event and
+deterministically. Enrollment may select a revision that was not active at the
+event's routing generation, because enrollment is explicit and outside ordinary
+epoch eligibility, but only when that revision is validated as semantically
+compatible with the event.
+
+Before selecting a revision, enrollment classifies the event under
+"Original-epoch classification and first route-disposition admission" above,
+inside the transaction that would create its disposition. Enrollment applies
+only to an event outside every epoch
+of the route or to an in-epoch contract mismatch. A mismatch-enrollment or
+mismatch-divergence command for an ordinarily eligible, outside-epoch or
+unrelated-kind event is refused as a mismatch operation, with no anomaly, no
+terminal mismatch decision and no change to the event's route disposition or
+backlog; explicitly authorized outside-epoch enrollment and ordinary
+materialization keep their own semantics and are never relabelled as anomaly
+resolution.
+
+Before enrollment creates the first route disposition for an event, the selected
+revision is validated against the event's durable facts, field by field across
+its semantic signature:
+
+- `route_key`: the revision belongs to the logical route being enrolled; a
+  revision of another route is never selected;
+- consumed event kind: it equals the event's durable event kind;
+- accepted-version set: it contains the event's durable payload/schema version;
+- semantic consumer / owning-domain identity: it is the identity of the logical
+  route being enrolled;
+- route-to-materializer/job contract version: deterministic compatibility
+  (section 3.9) identifies at least one materializer compatible with that
+  contract version for the event's kind and version;
+- compatibility policy, where the revision declares one: the policy admits the
+  event's kind and version.
+
+The selected revision must also still be available for selection: it must not
+have been withdrawn from future selection. That availability is decided inside
+the database-atomic withdrawal/selection order of "Revision withdrawal and
+route retirement" below, in the same transaction that would create the
+disposition, never from an earlier separate read.
+
+If any check fails, or the revision has been withdrawn, the enrollment is
+refused before any route disposition or job is created. Where the enrollment
+is the first historical enrollment of an in-epoch contract mismatch - whether
+its canonical anomaly is committed `OPEN` or absent at the enrollment's first
+read - the immutable classification, these checks, the anomaly's current state
+and the terminal decision are made inside the canonical mismatch-anomaly
+decision order defined below. A refused enrollment leaves the
+`(event_id, route_key)` uniqueness slot unused, so a later enrollment under a
+compatible revision remains possible, and it neither creates nor terminally
+resolves a previously absent anomaly. The refused attempt and its reason are
+durably audited, and any existing anomaly, backlog or attention state for the
+event remains visible.
+
+Enrollment cannot bypass route deduplication and cannot create a second
+disposition for an event that already has one for that route, whichever revision
+either enrollment selects. Deliberately re-executing work for an
+already-dispositioned event is an explicit replay or current-state job under
+section 3.5, carrying replay/correlation metadata; it is not historical
+enrollment and not a second route disposition.
+
+A new logical route may enroll historical events that another route has already
+dispositioned. The authorization of that enrollment must state explicitly
+whether a second external/domain effect is intended. Where the new route can
+write the same canonical external effect target as the earlier route, the
+target-scoped idempotency, concurrency and applied-revision/fingerprint evidence
+rules of sections 3.3 and 3.5 remain mandatory, so historical enrollment cannot
+produce an unintended duplicate or regressive effect. A new route identity does
+not by itself grant permission to duplicate an external effect.
+
+### Canonical mismatch-anomaly decision order
+
+For one event and logical route classified as an in-epoch contract mismatch
+from immutable original-epoch facts (above), three kinds of operation compete:
+detection, which may create the canonical anomaly `OPEN`; compatible,
+explicitly authorized first historical enrollment, which creates the one
+allowed `(event_id, route_key)` disposition with terminal outcome `ENROLLED`;
+and an explicitly approved reconciliation/divergence procedure, which creates
+no disposition and may only resolve an already committed `OPEN` anomaly to
+`RECONCILED/DIVERGED`. Because divergence creates no disposition,
+`(event_id, route_key)` uniqueness alone cannot arbitrate between enrollment
+and divergence; and because the anomaly row may not exist when the contenders
+begin, uniqueness enforced only on a later anomaly insert cannot arbitrate
+between detection and enrollment either.
+
+All three therefore share one database-enforced, serially consistent
+**canonical mismatch-anomaly decision order** on the anomaly's canonical
+logical identity. The order covers first creation of the anomaly as well as
+its terminal resolution, including the case in which no anomaly row exists
+when several contenders take their first reads; an application-level "check
+absent, then act" or "read unresolved, act, then append the outcome"
+sequence, with uniqueness enforced only on a later insert, does not satisfy
+it. Every outcome is equivalent to one lawful serial order of the contenders.
+The mechanism - a claimed canonical identity, a terminal-outcome uniqueness
+constraint, an upsert, a canonical lock key, predicate or serializable
+conflict detection, or another equivalent database-enforced scheme - is
+selected by the implementation specification; the observable atomicity and
+order are mandatory. Each operation validates the immutable classification,
+its own authorization and its current conditions inside that order, in the
+transaction that makes its outcome durable, never from a stale earlier
+observation: for enrollment, the selected revision's field-by-field
+compatibility and its availability under the withdrawal/selection order of
+"Revision withdrawal and route retirement" below; for divergence, the
+committed `OPEN` state, the reconciliation authority, the approved reason and
+the covering or compensation evidence.
+
+The lawful orders are:
+
+- **detection first:** the first valid detection commits one canonical `OPEN`
+  anomaly with its immutable mismatch evidence and attention, and no route
+  disposition or job. A later compatible, authorized first enrollment changes
+  it to terminal `ENROLLED` in the transaction that also creates the one route
+  disposition and either a new routed job with its indispensable input or
+  membership facts under "Atomic creation of a routed job" (section 3.5) or an
+  eligible attachment to an existing coalescing-admission-open job under the
+  attachment/admission-closure boundary of section 3.5. A later authorized divergence may
+  instead change it to terminal `RECONCILED/DIVERGED`, persisting the approved
+  reason, authority and durable resolution or compensation reference, with no
+  route disposition and no job.
+- **enrollment first:** where a compatible, authorized first enrollment
+  linearizes before any detector has committed the anomaly, the same
+  transaction creates the canonical anomaly born-terminal `ENROLLED` - with the
+  immutable mismatch facts and the enrollment's actor and authority as its
+  provenance - together with the one route disposition and the indispensable
+  new routed job and input facts or eligible open-job attachment. These commit
+  together or none commits. The enrollment never commits its disposition first
+  and attaches anomaly evidence or resolution later, never commits a transient
+  `OPEN` state and never records a detector run that did not occur.
+- **later detection:** detection after either terminal outcome observes that
+  outcome and converges on the same canonical anomaly. It may deduplicate and
+  retain truthful detection provenance, but it never reopens or re-ages the
+  anomaly, never counts it as open, never creates a second anomaly, job or
+  disposition and never claims that an earlier detector transaction existed
+  where only enrollment established the first anomaly evidence.
+- **divergence requires a committed `OPEN` anomaly:** a divergence may commit
+  terminal `RECONCILED/DIVERGED` only by proving, inside the decision order,
+  that the event is an in-epoch contract mismatch under immutable
+  original-epoch facts, that its canonical anomaly is already committed and
+  `OPEN`, that the actor holds explicit reconciliation authority with an
+  approved reason and durable covering or compensation evidence under
+  ADR-0010 and this ADR, and that no competing terminal outcome has won. An
+  absent anomaly, an `ENROLLED` anomaly (born-terminal or resolved), a
+  `RECONCILED/DIVERGED` anomaly and a non-mismatch event each refuse it.
+  Divergence never creates the anomaly, even born-terminal, and never creates
+  a route disposition or job.
+- **divergence before detection:** a divergence that linearizes before a
+  concurrent detector's creation commits is refused, with no canonical
+  anomaly, terminal record, route disposition, job or external effect, even if
+  the detector commits immediately afterwards; request arrival and first-read
+  timing are not the linearization order. The detector may then commit `OPEN`.
+  The refusal is not authority for a later terminal decision: a new divergence
+  attempt is decided at its own linearization, revalidating explicit
+  authority, reason and evidence and the existing command-idempotency
+  semantics of ADR-0010 section 4.7 and the owning domain. Whether a
+  still-valid authorization may be re-presented is governed by that existing
+  policy; this ADR mandates no new command identity or approval kind.
+- **enrollment versus divergence on an `OPEN` anomaly:** the first committed
+  terminal outcome wins. Divergence first prevents any later first enrollment
+  from creating a disposition, job or effect, notwithstanding the unused route
+  slot, which is not available to the losing enrollment; enrollment first,
+  including a born-terminal `ENROLLED` anomaly, prevents any later accepted
+  no-disposition divergence. There is no born-terminal `RECONCILED/DIVERGED`
+  outcome.
+
+In every order the losing operation detects the effective durable decision
+before committing its own conflicting record or work, then aborts, re-reads
+or deterministically returns the already-effective outcome, and leaves
+accurate audit and attention state. No two contradictory terminal outcomes, no
+second anomaly and no second disposition can commit; no `ENROLLED` outcome
+can commit without its disposition and indispensable job or attachment facts;
+and a losing, refused or aborted path leaves no orphan or claimable job and no
+provider effect. A zero-row or phantom race, a stale absence read, a
+uniqueness collision or a lost lock never bypasses the order. A transaction
+that aborts or crashes before its decision commits leaves no partial result:
+the anomaly stays in its prior committed state - `OPEN`, or absent - and
+independent detection and a later authorized enrollment or divergence remain
+possible. After a decision commits, repeated requests, retries after
+acknowledgment loss and audit reads observe the same anomaly, terminal
+outcome, disposition and job or attachment, and create no second or
+contradictory result and no provider replay. A detector-created anomaly's open
+count, age and attention evidence transition from open to exactly one terminal
+outcome without erasing its detection facts; a born-terminal anomaly was never
+open.
+
+A refused first enrollment - wrong original classification, an invalid or
+withdrawn revision, missing explicit authority, an unavailable materializer,
+an unsafe admission closure or successor, a uniqueness or transaction failure, a lost
+terminal race or a crash before commit - does not itself create or terminally
+resolve a previously absent anomaly. An existing `OPEN` anomaly stays `OPEN`
+with truthful age and attention; otherwise independent detection from the
+immutable event and epoch facts can still record it `OPEN`. An audited
+refusal fabricates no anomaly, job or authority.
+
+Compliant first-disposition writers make a mismatch disposition without its
+canonical terminal `ENROLLED` anomaly and indispensable job or attachment
+facts impossible. Should contradictory durable state nevertheless be
+observed, for example a disposition for an in-epoch contract mismatch without
+that canonical outcome, the engine fails closed for that event and route: no
+operation treats it as healthy or successful routing, adopts the existing
+disposition as `ENROLLED`, records divergence or repairs it, and no new
+disposition, job or provider effect is justified by it; the mandatory
+immutable mismatch evidence and the contradictory durable records are
+preserved and made visible to engineering control rather than suppressed,
+hidden or normalized into success. The condition is a control HOLD pending a
+separately authorized incident-recovery design. This ADR defines no third
+anomaly lifecycle state, job hold, automatic adoption or repair, detector
+bypass, retroactive authority or provider effect for such state.
+
+Terminal `ENROLLED` completes the mismatch's routing/disposition decision
+only. It does not claim that a job executed, that a provider accepted an
+effect or that external state is current; the shared job lifecycle and
+target-scoped reconciliation continue to decide effect progress
+independently.
+
+The decision order composes with, and introduces no second order beside, the
+per-`route_key` epoch lifecycle and retirement serialization, the
+withdrawal/selection order and the withdrawal strand-safety decision of
+"Revision withdrawal and route retirement" below, `(event_id, route_key)`
+uniqueness, atomic routed-job creation, the coalescing attachment/admission closure
+boundary and the post-closure successor path of section 3.5. A terminal
+`ENROLLED` decision is atomic with the selected revision's availability and
+with its routed-job creation or attachment. A permanently admission-closed job never
+receives the mismatched input, so the mismatch reaches `ENROLLED` only
+together with a valid eligible open attachment or a newly created successor
+with its disposition and input facts, and otherwise stays unresolved -
+`OPEN` where detected, absent pending detection - with truthful attention. A
+new job or generation identity grants no duplicate external-effect authority.
+The combined locks, constraints and serializable retries follow one
+documented, deterministic and deadlock-safe order, or an equivalent
+deadlock-safe retry discipline, proven against the actual PostgreSQL design
+that the implementation specification selects; this ADR selects no lock
+order, SQL or schema.
+
+A generic backfill or replay request that targets the event and route of a
+resolved anomaly is, for that anomaly, a first historical enrollment governed
+by this rule: it cannot bypass a terminal divergence. A later deliberately
+authorized replay, recovery or new independent effect remains governed by its
+separate existing permissions, replay/correlation metadata and target-scoped
+idempotency rules (section 3.5); it does not retroactively replace the
+anomaly's terminal outcome, does not issue a second disposition for the same
+`(event_id, route_key)` and does not treat the other path's losing attempt as
+approved.
+
+A reconciliation/divergence procedure's external compensating action, where it
+has one, obeys the existing durable job, `EFFECT_STARTED`, at-least-once,
+ambiguity and reconciliation controls (sections 3.4 and 3.6) and the authority
+rules of sections 3.14 and 3.15: the terminal decision and its canonical
+durable intent and evidence are what this rule makes consistent, and
+PostgreSQL is never assumed to commit atomically with a third-party provider
+write or to grant new external-write authority. This anomaly-resolution
+divergence is distinct from the separately authorized terminal non-materialized
+route disposition of an ordinarily eligible obligation (section 3.2): under
+the mismatch semantics above it creates no disposition, and it is recorded and
+counted separately from that disposition's accepted divergence.
+
+### Revision withdrawal and route retirement
+
+A route-contract revision that an epoch references, or that an enrollment,
+disposition or anomaly uses, is immutable historical state: it is never deleted
+or rewritten.
+
+A revision may be marked **withdrawn from future selection** by an append-only,
+audited control operation. Withdrawal only prevents a new epoch from referencing
+the revision and prevents its selection for new historical enrollment. It does
+not remove or rewrite epoch references, does not change how any event is
+interpreted, does not remove the revision from materializing or reporting
+obligations already eligible through epochs that reference it, and does not hide
+backlog, anomaly or attention state.
+
+Withdrawal is refused, or held, while it would strand work: while any
+undispositioned obligation that depends on the revision would be left without a
+compatible materialization path, or while any unresolved in-epoch
+contract-mismatch anomaly would be left without an approved resolution path (a
+selectable compatible revision or an approved reconciliation/divergence
+procedure), unless an explicitly approved migration, reconciliation or
+disposition plan closes or transfers that work safely. Such a plan creates any
+first route disposition only through a writer this ADR already approves, under
+the universal admission guard of "Original-epoch classification and first
+route-disposition admission" above, and grants no additional mutation
+authority.
+
+That strand-prevention decision must be **database-consistent and stable
+through the withdrawal's linearization/commit point**: a withdrawal may commit
+only from a strand-safety evaluation that is still true of durable state when
+the withdrawal commits. Evaluating the predicate inside the withdrawal's own
+transaction is not by itself sufficient; a scan that decided "safe to
+withdraw", followed by a concurrent commit that changes the durable facts the
+decision relied on, followed by the withdrawal's commit, does not satisfy this
+rule. Every already-defined durable mutation that can change the
+strand-prevention predicate for a proposed withdrawal from "safe to withdraw"
+to "withdrawal would strand existing work" must therefore either participate
+in the same database-atomic serialization or constraint boundary as the
+withdrawal, or cause the withdrawal transaction to detect the concurrent
+change and re-evaluate or abort before it commits, through a database-enforced
+mechanism with equivalent effect. The covered mutations include, at minimum:
+
+- durable creation of a new unresolved `IN_EPOCH_CONTRACT_MISMATCH` anomaly
+  whose approved resolution options the proposed withdrawal affects. Such an
+  anomaly identifies the epoch's expected revision; it need not select or
+  reference the separate compatible revision whose availability for historical
+  enrollment makes it resolvable, so the withdrawal/selection order below does
+  not by itself order it against the withdrawal, and this rule does. Only
+  detection creates an unresolved (`OPEN`) anomaly: an anomaly that compatible
+  first historical enrollment creates born-terminal `ENROLLED` is not
+  unresolved and cannot be stranded by a withdrawal, while that enrollment's
+  revision selection participates in the withdrawal/selection order below;
+- any other already-defined durable operation that removes the last approved
+  resolution or materialization path - a selectable compatible revision, an
+  explicitly approved reconciliation/divergence procedure or an explicitly
+  approved migration, reconciliation or disposition plan - on which that
+  withdrawal's strand-safety decision relies.
+
+A durable change that can only make the predicate safer, such as completing
+or dispositioning existing work or adding a resolution path, need not be
+forced into that boundary for strand prevention, although an implementation
+may serialize it there to keep one coherent lock order. The mechanism is an
+implementation-specification detail: the per-route serialization boundary
+below extended to withdrawal, a row or advisory lock, a serializable or
+predicate-conflict mechanism, a commit-time generation or version check, or
+another database-enforced compare-and-recheck scheme with equivalent semantics
+all qualify; an application-level "scan, decide safe, commit" sequence without
+such enforcement does not. Whether a state transition that this ADR does not
+already define is strand-relevant is an architecture decision; implementation
+does not guess it and returns it for specification.
+
+Both orders of anomaly creation against withdrawal are defined:
+
+- anomaly first: when creation of the unresolved mismatch anomaly linearizes
+  before the withdrawal, the withdrawal's strand-safety decision includes
+  that anomaly; the withdrawal is refused or held if, after it, the anomaly
+  would have no selectable compatible revision and no approved
+  reconciliation/divergence path; the anomaly remains durable, visible and
+  attention-raising; detection creates no route disposition and no job; and
+  the `(event_id, route_key)` slot remains unused. A withdrawal transaction
+  whose scan preceded the anomaly's creation may not commit from that stale
+  scan. Where another valid approved resolution path remains after the
+  withdrawal, the anomaly's existence alone does not refuse it: the rule is
+  strand safety, not anomaly existence;
+- withdrawal first: when the withdrawal linearizes before the mismatch anomaly
+  exists, the later anomaly is still recorded durably under the fail-safe
+  mismatch semantics above; detection is never suppressed because a revision
+  has already been withdrawn; the anomaly transaction evaluates any
+  resolution availability it depends on from post-withdrawal durable state
+  and never treats the withdrawn revision as still selectable; no route
+  disposition or job is created and the `(event_id, route_key)` slot remains
+  unused merely because the anomaly was detected; and the anomaly remains
+  visible and attention-raising until a then-valid compatible historical
+  enrollment or an explicitly approved reconciliation/divergence procedure
+  resolves it. This order may leave a visible unresolved anomaly with no
+  immediately selectable compatible revision; the engine does not resolve it
+  automatically, does not record automatic divergence and does not delete it.
+
+Where the strand-safety decision relies on the continued existence of one or
+more selectable compatible revisions or another already-approved durable
+resolution or materialization path, concurrent withdrawal or control
+transactions must not be able to remove those paths through write skew while
+each independently observes the other path as still available. When two such
+transactions would together remove the last approved path for an existing
+unresolved anomaly or outstanding obligation, at most the safety-preserving
+one may commit without re-evaluation; the other detects the conflict and
+re-evaluates or aborts under the same database-enforced rule.
+
+This decision-stability rule is a property of the strand-prevention predicate
+and introduces no second withdrawal lifecycle: withdrawal remains append-only,
+audited and future-selection-only, the withdrawal/selection order below
+remains the one durable order between withdrawal and new selection, and the
+two rules share one coherent database ordering where practical. The rule
+closes the stale concurrent-withdrawal decision race only; it does not claim
+that a producer-contract violation occurring strictly after a completed
+withdrawal can never create a new unresolved anomaly, and such an anomaly is
+handled under the withdrawal-first order above.
+
+Withdrawal shares one database-atomic serialization or constraint boundary with
+every operation that creates a new durable selection of, or reference to, the
+revision, so that for any revision, withdrawal and new future selection have one
+durable total (linearized) order. The operations covered include, at minimum:
+the first activation of the route opening an epoch that references the revision;
+a reactivation opening a later epoch that references it; a revision transition
+opening a new epoch that references it; historical enrollment that would create
+the first route disposition for an event under the selected revision; and the
+withdrawal itself. Every other operation that would create a new durable
+selection of or reference to the revision is covered by the same rule, not only
+those enumerated. A UI or API preselection, a preview or any other non-durable
+choice is not a selection; the selection is the transaction that makes the new
+epoch, reference or enrollment effective.
+
+Both commit orders are defined:
+
+- selection first: when the epoch opening or the valid first historical
+  enrollment linearizes before the withdrawal, the new epoch reference or
+  enrollment is valid historical state. The later withdrawal does not rewrite,
+  invalidate or remove it; it prevents only subsequent selection, and every
+  strand-prevention rule above remains binding on that later withdrawal;
+- withdrawal first: when the withdrawal linearizes first, a later epoch opening
+  that would reference the revision is refused before the epoch is created, a
+  later first historical enrollment that selects the revision is refused before
+  any route disposition or job is created - and, for an in-epoch contract
+  mismatch, before any canonical anomaly creation or terminal `ENROLLED`
+  decision - the `(event_id, route_key)` uniqueness slot remains unused, and
+  existing audit, anomaly, backlog and attention state remains visible under
+  the rules above. Mismatch detection remains able to record or retain the
+  canonical anomaly after such a withdrawal.
+
+A transaction that loses that race may retry only after re-reading current
+durable state and selecting a revision that is still available, under the
+operation's normal authorization and validation; it never commits from a stale
+pre-withdrawal observation. An application-level check that the revision is not
+withdrawn, followed by a later insert or reference without database-enforced
+atomic ordering between the two, does not satisfy this rule.
+
+The implementation may provide that order by extending the per-`route_key`
+durable serialization boundary that already orders epoch opening, closing and
+permanent retirement so that revision withdrawal and revision selection
+participate in it, or by another database-enforced mechanism with equivalent
+atomic ordering; the exact table, row lock, advisory lock, uniqueness or
+exclusion constraint is an implementation-specification detail. Whichever
+mechanism is selected must compose with the serialized open, close, reactivate
+and retire lifecycle, with database-atomic equivalent-revision convergence, with
+historical-enrollment validation and `(event_id, route_key)` disposition
+uniqueness, with the canonical mismatch-anomaly decision order above, with the
+strand-prevention rule above and its decision-stability rule, with permanent
+route retirement and with the engine's normal deadlock and lock-ordering
+controls. No
+implementation may introduce a second route lifecycle order that contradicts the
+per-`route_key` order.
+
+Explicit replay or current-state work for an event that already has a route
+disposition is outside this first-selection rule: it remains governed by the
+replay semantics of section 3.5 and does not become a new route disposition
+merely because a revision has been withdrawn.
+
+Permanent retirement of a logical route does not retire, withdraw or erase its
+revisions. Its historical obligations and anomalies remain visible and
+interpretable under their revisions until they are resolved.
+
+### Event-emission floor and producer-version coverage
+
+For each consumed event kind in an environment, the **producer emission set**
+is the union of the payload/schema versions of that kind that may be emitted for
+the relevant business mutation by every currently serving producer binary and
+every binary retained as a supported production rollback target.
+
+A route may open an activation epoch - on its first activation, on every
+reactivation and on every transition to another revision - only after
+deployment evidence for that epoch's exact revision proves all of:
+
+1. **every running binary that can perform the relevant business mutation, and
+   every binary still retained as a supported production rollback target, emits
+   the revision's consumed event kind atomically with that mutation**;
+2. every version that any of those binaries may emit is a member of the
+   revision's accepted-version set;
+3. compatible materialization (section 3.9) exists for every accepted version
+   that can actually be emitted in that deployment state;
+4. the revision is not withdrawn from future selection, decided inside the
+   database-atomic withdrawal/selection order above, so that a withdrawal that
+   linearizes first refuses the epoch before it is created; and
+5. the route's lifecycle and retirement state permit the epoch.
+
+The event-emission floor and producer-version coverage are therefore
+established before every epoch opens. Opening an epoch while some
+serving/rollback binary can still perform the business mutation without
+emitting the consumed kind, or can emit a version outside the revision's
+accepted-version set, is prohibited. A route cannot open an epoch for a revision
+accepting only `v2` merely because binaries emit `v1`.
+
+Producer-version coverage is also a continuous deployment invariant, not only an
+activation check. For every route with an open epoch consuming an event kind:
+
+```text
+producer emission set  ⊆  accepted-version set of that epoch's revision
+```
+
+No deployment, rollback or producer configuration change may introduce a version
+outside the accepted-version set of any affected open epoch before each such
+route has been transitioned safely. Where several routes consume the same event
+kind with different accepted-version sets, the producer emission set may widen
+only when every affected open route already accepts the widened set: if route A
+accepts `{v1}` and route B accepts `{v1, v2}`, producers may not emit `v2` until
+route A has also moved to a revision accepting `v2` or its epoch is closed.
+Before a change makes an accepted version emittable that was not emittable
+before, compatible materialization for that version is verified for every
+affected open epoch's revision.
+
+A compatible version evolution such as `v1 -> v2` uses expand/contract:
+
+1. create or select an immutable revision accepting the transition set, for
+   example `{v1, v2}`;
+2. establish compatible materialization for every accepted version that can be
+   emitted;
+3. close the `{v1}` epoch and open the `{v1, v2}` epoch under the route's
+   serialized boundary, using adjacent generation boundaries - the new epoch's
+   activation generation equal to the closed epoch's deactivation generation -
+   where a zero-gap transition is intended;
+4. only then allow serving or supported rollback producer state to include
+   `v2`;
+5. once no serving or supported rollback producer can emit `v1`, a later epoch
+   may narrow to a `{v2}` revision after its own gates are satisfied.
+
+Obligations already eligible under an earlier revision remain owed and are
+interpreted under that revision throughout.
+
+If an affected route cannot satisfy coverage, its current epoch is closed before
+the incompatible producer writes occur, or a separately authorized exact-scope
+reconciliation/backfill plan covers the resulting gap. If coverage is
+nevertheless violated, the in-epoch contract-mismatch anomaly above is the
+fail-safe: an event outside the accepted-version set is never silently dropped.
+
+If production must roll back below the emission-capable floor, or to a producer
+set whose emission set an open epoch's revision does not accept, while that
+epoch is open, the route's current epoch is closed before the older binary can
+perform relevant writes, or the rollback is accompanied by an explicitly
+authorized current-state reconciliation/backfill that covers the precise gap.
+Silent loss of business changes is not an acceptable rollback behaviour.
+
+Closing the epoch makes the rollback interval an explicit inactive gap that
+remains visible in the route's epoch history. Forward or rollback recovery may
+open a new epoch under the same `route_key` only after these gates are
+re-established for the exact revision that epoch references. Reusing an older
+immutable revision is permitted only where its accepted-version set covers the
+then-current producer emission set, including supported rollback targets, and
+compatible materialization is available for every emittable accepted version.
+Opening that new epoch does not make gap events eligible; business changes made
+during the gap that the route must still reflect are covered only by an
+explicitly authorized current-state reconciliation/backfill through the same
+route identity.
+
+The binary emission floor does not exempt canonical writes performed outside
+those binaries. An authorized data migration, administrative repair or
+exceptional operator write that changes state consumed by an active route must
+either emit the same required event transactionally, in a version accepted by
+the revision of every affected open epoch, through an approved
+database/application mechanism, or be followed by an explicitly authorized
+current-state reconciliation/backfill covering the exact affected write set.
+Such writers are bound by producer-version coverage; they are not a bypass
+around it. Direct production SQL is not an event-emission mechanism by
+implication.
+
+The implementation may optimize discovery/scanning, but routing completeness
+must be proven from durable event/route/disposition/anomaly records. Any cursor
+or high-water optimization must prove that no lower/in-flight event can commit
+later and be skipped; absent such proof, it is not authoritative.
+
+### 3.3 Versioned contracts, payload minimization and revision semantics
+
+Every event and job kind has:
+
+- a stable kind identifier;
+- an explicit payload schema version;
+- deterministic validation;
+- an owning domain;
+- a defined compatibility policy.
+
+Workers must reject or HOLD unsupported payload versions rather than guessing.
+Changes that require old in-flight jobs to remain executable must preserve the
+required compatibility window or provide an explicit migration/reconciliation
+plan.
+
+For event routing, whether a route accepts an event payload/schema version is
+defined only by the immutable accepted-version set of the route-contract
+revision referenced by the relevant epoch or selected for historical enrollment
+(section 3.2). An event kind's general compatibility policy never widens,
+narrows or reinterprets that set once the revision is in use. An event version
+outside it is held as an in-epoch contract mismatch or refused for enrollment
+rather than guessed.
+
+Event/job payloads default to **canonical references**, not copied domain
+snapshots. A payload should normally contain only:
+
+- canonical entity/resource identifiers;
+- the source revision/version/fingerprint needed to bind the requested effect;
+- minimal routing/command parameters;
+- correlation/causation identifiers.
+
+Credentials, tokens and secrets are forbidden in event/job payloads.
+
+Personal data or immutable domain snapshots may be embedded only when a
+kind-specific approved specification proves that references are insufficient,
+bounds the data, and defines retention/erasure behaviour. The generic engine's
+immutability/retention rules must not make a data-erasure obligation impossible.
+
+Every job kind declares its **revision semantics**. The initial architectural
+modes are:
+
+```text
+CURRENT_STATE
+REVISION_BOUND
+```
+
+A `CURRENT_STATE` job means "make the external/derived target reflect the
+latest canonical state when this job executes". It reads canonical state at
+execution time and records the revision/fingerprint actually acted on. That
+fingerprint covers every canonical input that determines the intended external
+effect -- including artifact/content identity and relevant configuration where
+those affect the result -- rather than only the primary entity's metadata
+revision. The kind may coalesce older triggers under its explicit rule and may
+complete as a deterministic no-op only when target-scoped evidence proves that
+the same complete effect fingerprint is already applied.
+
+A `REVISION_BOUND` job means "process exactly this retained source
+revision/fingerprint". Before any external write, the handler must determine
+whether a newer revision for the same effect/concurrency target has already been
+applied. If so, the older job must not overwrite/regress that newer state: it
+records a deterministic superseded/no-effect disposition unless it is an
+explicitly authorized historical replay/rollback operation.
+
+Every effectful job kind also declares how it resolves one or more **canonical
+external effect target identities** owned by the relevant domain. The identity is
+defined at the granularity at which two mutations can conflict, is independent of
+job kind, and is the common ordering boundary for every kind that can mutate that
+same target. Exactly one owning domain defines that target-identity and ordering
+contract even when job kinds owned by several domains can mutate the same provider
+object; other domains consume that contract and must not invent a parallel target
+identity for the same effect.
+
+All job kinds that can mutate one canonical effect target use the same
+target-scoped concurrency namespace and consult the same durable target-scoped
+applied-revision/fingerprint evidence in Thoth. Kind-local history is not
+sufficient evidence that a newer effect has or has not been applied. Where the
+provider exposes no revision identifier, the owning domain still records durable
+local applied-revision/fingerprint and provider-correlation/reconciliation
+evidence sufficient to prevent an older effect from regressing a newer one; an
+ambiguous provider state requires reconciliation rather than an ordering guess.
+
+Applied-revision/fingerprint evidence for a target may be advanced only while the
+worker/reconciler holds that target's serialization boundary under the current
+valid claim token. The local evidence update is claim-token-fenced and committed
+atomically with the corresponding durable job/effect outcome. It is monotonic and
+must not move backwards except through an explicitly authorized historical
+replay/rollback operation. Reconciliation acquires the same target boundary and
+uses the same fencing before it can change target-scoped evidence.
+
+Each REVISION_BOUND kind defines its source revision ordering and how that revision
+maps to the canonical effect target, but "newer already applied" is established
+from the shared target-scoped evidence. Merely serializing execution by a
+concurrency key is not sufficient because an older retry may run after a newer
+job has completed.
+
+If canonical state changes the external target identity itself, the owning kind
+specification defines the transition explicitly. Pending work bound to the old
+identity must not silently retarget to the new one; the specification decides
+whether old-target work is superseded, cancelled, reconciled or requires an
+explicit withdrawal/cleanup effect. Creation/update/deletion/withdrawal operations
+that can conflict on the same external object share its target identity or an
+equivalently strong conflict-linked serialization contract.
+
+A batch or multi-target job normally decomposes effectful work to target-scoped
+jobs/effects. If a reviewed kind keeps one job across several effect targets, it
+must acquire the complete target set using a deterministic, deadlock-free
+all-or-nothing protocol: it may not wait while holding only a strict subset of
+required target keys. It records/checks applied-revision evidence independently
+for each target.
+
+Historical replay is permitted only when the referenced historical revision is
+actually retained and the replay/rollback is explicitly authorized. A stale
+embedded snapshot must never silently substitute for either current-state
+execution or an authorized historical replay.
+
+### 3.4 Job lifecycle, scheduling and claims
+
+The common job lifecycle must support at least the semantic states:
+
+```text
+PENDING
+RUNNING
+WAITING
+RETRY_SCHEDULED
+SUCCEEDED
+FAILED
+CANCELLED
+RECONCILIATION_REQUIRED
+```
+
+Exact enum spelling is implementation detail.
+
+`WAITING` and `RETRY_SCHEDULED` are semantically distinct:
+
+- `WAITING` means an effectful or asynchronous operation has durably
+  checkpointed and is waiting on an external/domain condition;
+- `RETRY_SCHEDULED` means a failed **pre-write** attempt is eligible for
+  another execution after `available_at`.
+
+Transitioning to `WAITING` atomically persists the durable checkpoint and
+releases the current claim and lease. A later resume is a new claim and a new
+attempt that reads the checkpoint. Waiting/polling attempts do **not** consume
+the pre-write retry budget; they are bounded by the kind's waiting deadline,
+poll/backoff policy and any separately defined reconciliation budget. They are
+not silently treated as fresh external submissions.
+
+Every job carries first-class scheduling attributes including `priority`,
+`available_at`, the owning kind and counters/deadlines appropriate to its
+lifecycle. Ready work is ordered by priority and availability within the
+scheduler's fairness/concurrency rules; priority must not permit one job kind to
+starve all other enabled kinds.
+
+Every job kind declares separately:
+
+- a bounded **pre-write retry budget**;
+- for asynchronous/post-write work, a bounded waiting/reconciliation deadline
+  or equivalent domain-specific completion horizon;
+- expected effect window/runner deadline;
+- maximum claim/attempt runtime.
+
+Exhausting the pre-write retry budget is terminal `FAILED`. Exhausting a
+waiting/post-write deadline after `EFFECT_STARTED` is never `FAILED` merely
+because time elapsed; it becomes `RECONCILIATION_REQUIRED` unless durable
+provider/domain evidence proves a stronger terminal outcome.
+
+Claims use database-enforced concurrency with leases, unforgeable claim tokens
+and `FOR UPDATE SKIP LOCKED`. Leases are renewable by heartbeat using the
+**current** claim token only. Renewal may extend only an unexpired current claim,
+has a bounded maximum runtime, and can never revive or extend a superseded
+claim. A stale worker cannot complete, fail, checkpoint, cancel, renew or
+reconcile a job after its claim is superseded.
+
+Every job kind declares whether execution is **read-only/non-effectful** or
+**externally effectful**. Every attempt durably records an execution phase at
+least equivalent to:
+
+```text
+PRE_WRITE
+EFFECT_STARTED
+EFFECT_CONFIRMED
+```
+
+An effectful attempt must not cross `EFFECT_STARTED` unless the remaining
+lease/runtime budget covers the kind's declared effect window. Long operations
+must checkpoint/yield before their maximum claim runtime rather than rely on an
+expired lease.
+
+A lease expiry while an attempt is provably `PRE_WRITE` may schedule another
+pre-write attempt when its retry budget permits. Lease expiry/crash/shutdown for
+an effectful attempt at or after `EFFECT_STARTED` transitions to
+`RECONCILIATION_REQUIRED`, never directly to `PENDING` or
+`RETRY_SCHEDULED`, unless a domain-specific durable checkpoint proves that
+resumption cannot repeat the external effect.
+
+`WAITING` and `RECONCILIATION_REQUIRED` retain exclusive ownership of their
+concurrency key by default. A kind may release it only under an explicit,
+reviewed rule proving that overlapping work cannot create conflicting external
+effects.
+
+Cancellation invalidates the current claim in the original
+database-enforced token/attempt-phase order. A kind-authorized
+pending or `PRE_WRITE` cancellation may produce `CANCELLED`
+**only** where the kind/domain policy allows the transition
+and the complete routed-obligation consequence requirement
+below is met. `RETRY_SCHEDULED` cancellation, other
+pre-effect transitions, and any terminal `FAILED` before
+first claim are allowed **if and only if** independently
+specified in the kind's legal transition table. Ordinary
+retry exhaustion after attempts have occurred does not
+authorize `PENDING -> FAILED` without a first claim.
+These examples grant **no new** terminal transitions
+or staff/handler authority.
+
+An at-or-after-`EFFECT_STARTED` attempt cannot be
+terminalized as bare `CANCELLED` or `FAILED`:
+it requires `RECONCILIATION_REQUIRED` unless the
+kind's current provider/domain evidence establishes
+a safe stronger outcome. Cancellation-first invalidates
+the current claim so a stale worker cannot durably
+cross `EFFECT_STARTED` or begin a new effect;
+`EFFECT_STARTED`-first requires evidence or
+reconciliation. A rolled-back cancellation neither
+invalidates a committed claim nor closes admission.
+First-claim-first cancellation during `PRE_WRITE`
+remains post-start, with the first-claim admission
+closure permanent.
+
+A reconciler or protected staff command may establish
+`SUCCEEDED`, `FAILED` or `CANCELLED` from
+`RECONCILIATION_REQUIRED` only under existing
+claimed/token-fenced kind authorization and the
+kind's permitted evidence, with truthful outcome
+of all attached obligations. `SUCCEEDED` requires
+normal effect/no-op evidence; an effect ambiguity
+never silently becomes no-effect. A later permitted
+`WAITING` checkpoint or effectful attempt retains
+the original target/idempotency/claim controls.
+
+**Mandatory truthful pre-effect terminal outcomes
+for ALL routed jobs.** Before **any** job with
+one or more committed materialized route dispositions
+- coalescing or non-coalescing - may commit **any**
+independently lawful terminal state before sufficiently
+proven intended effects, it must account for **every**
+attached immutable `(event_id, route_key)` obligation.
+This includes preclaim terminal `CANCELLED`,
+claim-first `PRE_WRITE` cancellation, cancellation
+from `RETRY_SCHEDULED` or another approved pre-effect
+state, genuine pre-write retry-exhaustion `FAILED`,
+evidence-based no-effect `CANCELLED`/`FAILED`
+from `RECONCILIATION_REQUIRED`, authorized kind
+retirement/drain, poison-job `FAILED` and
+approved supersession or accepted divergence.
+The enumeration creates **no** otherwise unlawful
+terminal or operator transition.
+
+Each attachment must have independently kind-approved,
+durable and auditable **truthful** consequence evidence:
+proven provider effect/no-op under target-scoped applied
+state; proven source/current-state supersession removing
+the duty; lawful terminal failure with visible attention;
+an expressly authorized and audited cancellation/accepted
+divergence with reason, authority and required follow-up;
+or **separately authorized** job-level replacement,
+replay, reconciliation or compensation that safely
+covers the still-required effect. One shared proof
+may cover several attachments only if it proves each.
+`CANCELLED`/`FAILED`, an operator reason, a permanent
+idempotency conflict or a promise to repair is NOT
+proof of provider success or permission to silently
+abandon an owed effect.
+
+**All-or-nothing terminalization order.** The
+terminal transition serializes against attachment
+and evaluates the **whole committed membership**
+at its decision point, atomically persisting legal
+job terminal state, current-claim fencing/phase
+where relevant, domain/operator authority and
+audit, and sufficient queryable per-disposition
+terminal consequence/failure/attention proof.
+Referenced earlier proof must remain valid in
+that same transaction. No best-effort later
+audit suffices. If even one attached obligation
+has no safe approved terminal treatment,
+the proposed terminal command **refuses/HOLD**:
+no terminal job state mutation commits,
+the original membership and route slots remain,
+and attention is explicit. HOLD is not
+a new job lifecycle state; coalescing
+mode OFF/HOLD is a distinct activation control.
+`RECONCILIATION_REQUIRED` is used only for its
+existing ambiguity predicate.
+
+An already attached obligation needing repair
+remains a **job-level** issue and never returns
+to route backlog. Its independently authorized
+replay/replacement is a new **correlated logical job**
+under ADR-0010 section 4.6 and this ADR's
+existing replay semantics, with **no** new
+route disposition or routed successor generation.
+The original immutable disposition is the
+historical route-materialization record; original
+target-scoped effect, `EFFECT_STARTED`,
+claim-token and provider safety remain binding.
+
+The full legal transition table, including claim-token requirements and attempt
+budget/deadline effects, is fixed by the shared-engine implementation
+specification and tested as a database/domain invariant.
+
+The engine must support horizontal scaling from one worker task to multiple
+tasks without changing these semantics.
+
+### 3.5 Idempotency, coalescing and concurrency
+
+Every logical job has a deterministic idempotency key. Database uniqueness of
+that key is absolute across job states, but the key identifies a **specific
+intended effect**, not merely a resource.
+
+A kind's key therefore incorporates the dimension that makes a later effect
+meaningfully new, for example:
+
+- `(event_id, route_key)` or an event-derived source revision;
+- a source revision/fingerprint;
+- a schedule slot;
+- an explicit command/request id;
+- an approved coalescing/debounce group or window together with the
+  executable generation that represents it, wherever successive generations
+  of one group may be needed ("Post-closure materialization and successor
+  generations" below).
+
+A completed Crossref sync, search-index update, invalidation or reconciliation
+must not suppress a later effect for a newer revision merely because both target
+the same DOI/work/hosting target.
+
+Retries create new attempts on the same logical job. Intentional replay,
+current-state execution and backfill create new logical jobs with new effect
+identity and explicit parent/replay/correlation metadata, following ADR-0010's
+distinction between retry, replay and current-state redistribution.
+
+Event routing identity and job idempotency are related but distinct. At most
+one durable disposition may exist for a given `(event_id, route_key)`, and an
+eligible route obligation eventually receives exactly one. A successfully
+materialized disposition points to exactly one materialized job, and a job
+newly created for a route obligation becomes durable only together with that
+disposition ("Atomic creation of a routed job" below). Several
+materialized route dispositions may point to one job only under an explicit
+durable kind coalescing contract and while that job is genuinely
+**coalescing-admission-open at the attachment commit**: executable/nonterminal,
+without a committed first claim, lawful preclaim terminal transition or
+kind-policy closure. A job lacking a first claim is **not** automatically
+admission-open (below). An explicit,
+authorized and audited terminal non-materialized disposition points to no job
+and records the actor, authority, reason and any covering
+reconciliation/backfill; it exists only for an ordinarily eligible, still-owed
+obligation under the universal first route-disposition admission guard of
+section 3.2, never for an in-epoch contract mismatch. Materialized and
+terminal non-materialized dispositions share the same `(event_id, route_key)`
+uniqueness boundary and cannot coexist for the same route/event pair.
+Coalescing therefore forms a
+many-route-to-one-job relationship only among materialized dispositions; it
+never erases the per-event route records needed for audit/completeness.
+
+An idempotency conflict never silently means "route satisfied", and it is
+never a reason to retry the same permanently unusable identity indefinitely.
+It either:
+
+1. attaches the route to an existing **coalescing-admission-open** job only
+   when its approved kind, current executable/nonterminal state, first-claim,
+   terminal and kind-policy facts permit it at the **database-atomic**
+   attachment commit below;
+2. for a coalescing kind whose existing job is permanently coalescing-admission-closed,
+   follows the ordinary post-closure materialization path below, which selects a
+   different eligible coalescing-admission-open successor or creates a distinct
+   legitimate routed successor after rereading durable state; or
+3. produces a deterministic routing/materialization error surfaced for
+   attention/recovery.
+
+The owning domain defines the canonical effect-target identity and its
+target-scoped concurrency namespace. Handlers resolve their intended effects to
+that identity, for example:
+
+```text
+work:<uuid>:algolia
+hosting:<target-id>
+crossref:<doi>
+```
+
+Jobs with unrelated target identities may execute in parallel. Every job across
+every job kind that can mutate the same canonical effect target must serialize on
+the same target-scoped key; a kind-specific key prefix must not partition two
+writers that can conflict. Multi-target jobs either decompose by target or acquire
+their complete target-key set in a deterministic order as defined above.
+
+The shared scheduler supports per-kind concurrency limits. Provider-specific
+rate limits remain owned by handlers, but a single failing or rate-limited job
+kind must not consume all worker capacity indefinitely.
+
+### Coalescing admission, closure and attachment races
+
+Use one canonical predicate: **`coalescing-admission-open`**
+is an **executable nonterminal** job eligible for new
+attachments under all approved kind-policy,
+route/epoch/revision/version, input and authority
+checks, **without** a committed first successful
+claim/start, independently lawful terminal
+pre-first-claim transition or durable
+kind-specific admission-closing fact.
+Once any of those permitted durable closing events
+commits, the job is **`coalescing-admission-closed`**.
+The historical A13 labels "coalescing-sealed",
+"sealed job" and "post-seal" meant first-claim
+closure only; their **operative** attachment
+and successor meaning in this corrected
+version is the canonical permanent closure
+predicate. First successful claim/start remains
+a separate **execution** fact; `EFFECT_STARTED`
+is a distinct later external-write boundary.
+
+**One composable database-atomic order** includes
+each coalescing attachment, first successful
+claim/start, any separately authorized terminal
+transition before first claim and **every**
+durable kind-policy/window fact that closes
+admission. A lock/CAS/constraint or equivalent
+database-serialization mechanism must
+prove admission is open at the attachment
+commit point and atomically close it
+on any permitted closing commit.
+It composes with the universal
+first route-disposition guard, the
+canonical mismatch-anomaly order,
+revision withdrawal/selection and
+strand safety, atomic routed-job/
+disposition/input creation, lease/
+claim tokens, target effect fencing
+and deadlock-safe lock order.
+A stale application-level `PENDING`
+or no-attempt precheck is insufficient.
+
+**Terminal preclaim first:** the
+job's terminal state and admission
+closure commit together with lawful
+audit and consequences for **every**
+already attached disposition. Any
+later attempted attachment refuses
+with no route slot, job input or
+membership. A historical mismatch
+first enrollment that loses the race
+rolls back **the entire** proposed
+born-terminal `ENROLLED` anomaly,
+slot and input set, retaining
+detectable/open anomaly as appropriate.
+The unused eligible new obligation
+stays owed and after durable reread
+may use only a genuinely distinct
+compatible executable successor.
+The predecessor's key remains reserved;
+a later first claim cannot start it.
+
+**Attachment first:** one valid
+materialized route disposition
+and indispensable membership/input
+facts commit before closure.
+A later attempted cancellation
+must see the complete set, including
+this attachment, and satisfy the
+independently approved section-3.4
+per-attached-obligation evidence.
+If any still-required effect lacks
+safe terminal treatment, cancellation
+refuses/HOLD and cannot discard,
+reparent or falsely finish it.
+
+**First claim/start first:** this
+commit permanently closes admission,
+then the handler reads all previously
+committed membership and effect inputs.
+A stale later attachment is refused
+without consuming the route slot;
+a new eligible undispositioned
+route follows the ordinary
+post-closure successor after fresh
+durable reread. Subsequent cancellation
+uses legal **post-start** `PRE_WRITE`
+versus `EFFECT_STARTED` semantics,
+claim-token fencing, reconciler
+and all-attachments truth, not
+preclaim terminal shortcuts.
+
+**Claim vs terminal, effect vs
+cancellation, rollback and crash:**
+terminal-first prevents new claim
+and external effects; claim-first
+retains permanent admission closure
+and applies only lawful post-start
+terminal rules. Cancellation-first
+invalidates the current worker
+claim; `EFFECT_STARTED`-first
+requires provider/domain proof or
+reconciliation. Rollbacks never
+commit phantom closure or
+membership. After a lost
+acknowledgment, the retry
+rereads the single committed
+job, disposition, generation,
+terminal outcome and authority
+without a second disposition,
+terminal effect or provider write.
+
+A first claim must genuinely
+represent **every** accepted
+preclaim attachment; a
+`CURRENT_STATE` kind may use
+canonical current-state/fingerprint
+semantics, another approved kind
+a durable membership/input set.
+A handler need not enumerate
+route dispositions, but cannot
+execute with an input snapshot
+that omits one whose attachment
+committed first. This same
+boundary governs historical
+enrollment, backfill, replay
+attachment and direct-created
+coalescible jobs where **already
+independently permitted**; it
+grants no new attachment,
+cancel or provider authority.
+
+**Single-generation admission
+proof before activation:**
+a kind may disclaim executable
+successor generations only
+where an approved durable,
+concurrency-stable domain/activation
+contract proves that no new
+eligible route may arrive
+**or be first historically
+enrolled after ANY kind-permitted
+permanent admission closure**.
+The proof includes first claim,
+lawful terminal preclaim
+transition, durable kind-policy
+window close, ordinary routing,
+prior epochs/revisions,
+event versions, direct-created
+attachments, activation/
+withdrawal/retirement and
+compatible backfill. A mutable
+current queue scan is not proof.
+If later eligible input is
+possible, the kind needs
+a deterministic, stable,
+database-arbitrated distinct
+executable successor generation
+**before activation**, or must
+independently forbid/refuse
+the conflicting terminal
+preclaim transition under
+its approved kind policy.
+A terminal command proves
+its kind-specific eligibility
+and successor exemption at
+the same commit point.
+Otherwise the coalescing
+mode stays **OFF/HOLD**;
+only an existing separately
+approved safe event-distinct
+non-coalesced contract may run.
+No new terminal state, route
+identity, automatic replay
+or provider effect is granted.
+
+### Post-closure materialization and successor generations
+
+A coalescing admission closure closes one logical job, not the route obligations that
+arrive after it. A **new, still-undispositioned** eligible event-route obligation whose attachment is
+refused because the logical job it would have joined is permanently
+coalescing-admission-closed - whether claim-first, lawful terminal-before-claim
+or a durable kind-policy closure committed first, or the obligation arrived
+after any such closure - remains undispositioned, owed and visible in the
+route backlog. It is never retroactively attached to the admission-closed job, never
+treated as complete because that job exists or has run, and never silently
+represented by that job's effect. The permanent idempotency-key collision
+with the admission-closed job is not proof of route completion and is not a reason to
+keep retrying that permanently unusable identity: because key uniqueness is
+absolute across job states and the admission closure never reopens, a reread that could
+resolve only to that identity would leave the obligation owed forever.
+
+Every job kind that permits many-route-to-one-job coalescing therefore has,
+as part of its approved coalescing contract, a deterministic **ordinary
+post-closure materialization contract** under which each such obligation
+eventually receives its one materialized disposition whenever compatible
+materialization is available and no genuine external reconciliation or
+authority blocker prevents progress. After re-reading canonical current
+durable state, the materializer takes exactly one of two normal paths, and
+the contract guarantees that at least one of them is always available:
+
+- it attaches the obligation to a **different eligible coalescing-admission-open
+  successor job** of the same group under the attachment/admission-closure boundary
+  above; a successor is eligible only where the kind's coalescing contract
+  admits it for the obligation's route, epoch, route-contract revision and
+  event version under the compatibility rules of sections 3.2 and 3.9, and an
+  ineligible open successor never prevents a compatible one from being
+  selected or created; or
+- it creates a **distinct legitimate routed successor job** that represents
+  the still-owed input, committing the job, its one `(event_id, route_key)`
+  disposition and its indispensable input or membership facts under "Atomic
+  creation of a routed job" below.
+
+The admission-closed job is not such a path. A previously attached
+obligation retains its original one disposition; its unmet work is
+job-level terminal consequence/replacement under section 3.4,
+not a new route-disposition or ordinary successor. A new generation is considered only after
+the reread confirms that the obligation is still owed and that no eligible
+open successor exists; an unchanged retry that merely encounters the same
+conflict manufactures no identity, and an obligation already represented by a
+committed disposition receives no successor on any retry.
+
+**Successor identity.** For any coalescing kind in which more than one
+executable generation of one group may be needed - the default for every
+coalescing kind, which can disclaim it only on the preceding
+approved proof that no eligible new obligation may arrive
+or first enroll after ANY permitted admission closure - the coalescing group or window
+identity and the individual executable logical-job effect/idempotency
+identity are distinguishable: an approved group or window never irreversibly
+reserves the only executable identity when later eligible events of that same
+group can arrive after the first job closes admission. A successor is a distinct logical
+job representing a previously unrepresented, still-owed event-route input,
+with its own deterministic idempotency key that is unique and stable for that
+intended successor effect across retries and terminal states - for example a
+durably selected successor generation of the group, or another explicitly
+approved event-derived identity. The admission-closed predecessor's idempotency key,
+admission closure, dispositions, attempts and effect history are unchanged: a retry, lease
+reclaim, WAITING resume or reconciliation of the predecessor remains work on
+the predecessor and never becomes successor creation, and a successor created
+for a new owed obligation is not a covert retry, replay or forced external
+resend of the predecessor. Independently authorized direct, replay or
+current-state jobs keep their own effect identity under this section and
+consume no successor generation of a routed coalescing group. The group
+correlation, the predecessor/successor relationship and every represented
+event-route input remain auditable; successor generations never erase or
+rewrite predecessor dispositions or job or effect history.
+
+**Database-arbitrated convergence.** Selection of an eligible open successor
+or creation of the next executable generation of a group is
+database-arbitrated, with a deterministic observation and recovery result
+after competing materializers, uniqueness losses, transaction rollback or
+acknowledgment loss. A valid attachment to an open successor, its first successful claim/start,
+any lawful preclaim terminal transition and any durable kind-policy
+admission-close fact share the same database-enforced order defined above,
+so an attachment after **any** admission closure is refused without consuming the route slot and the
+materializer rereads and follows this path again. Two simultaneous
+materializers for the same obligation cannot create two dispositions, two
+jobs representing the same required work or a phantom satisfied route:
+`(event_id, route_key)` uniqueness, the successor's identity uniqueness and
+the atomic creation boundary arbitrate them, and the loser rereads committed
+state. Concurrent different owed obligations may attach to the same eligible
+open successor under the kind's coalescing contract; when that successor
+closes admission first, later obligations follow the next valid generation or path.
+Because a new successor is created only together with the disposition it
+represents, every generation represents at least one obligation.
+Materializers converge on an existing eligible coalescing-admission-open successor
+whenever one exists, attaching under the approved coalescing rule rather
+than bypassing it to create another generation, and create a subsequent
+generation only when no eligible open successor can represent the
+obligation: because every earlier generation is admission-closed, or because an
+earlier generation that remains open is ineligible for the obligation's
+route, epoch, route-contract revision or event version under the kind's
+contract. An open ineligible generation therefore never blocks a compatible
+generation, and the same database arbitration, stable identity and
+atomic-creation rules apply to a generation created beside it. Repeated
+retries, worker restarts and acknowledgment loss recover from the durably
+committed route-disposition, job and generation state; after a creation
+commits but its acknowledgment is lost, the retry observes the same job and
+disposition and creates no further generation, disposition or effect. The
+group, generation and `(event_id, route_key)` uniqueness boundaries compose
+with the attachment/admission-closure boundary, the atomic creation boundary and the
+scheduler's lock-ordering controls without write skew or deadlock; the exact
+tables, constraints, sequences and locks are implementation-specification
+details.
+
+**Historical enrollment and anomaly resolution.** A first historical
+enrollment that uses this path obeys the same rules. Where the enrollment is
+the first historical enrollment of an in-epoch contract mismatch, the
+canonical-anomaly decision - resolving a committed `OPEN` anomaly to
+`ENROLLED`, or creating the anomaly born-terminal `ENROLLED` where none is
+committed - the enrollment disposition and the eligible open-successor
+attachment or newly created successor and its input facts commit within one
+transaction under the canonical mismatch-anomaly decision order of section
+3.2. A permanently admission-closed job never receives the mismatched input. An
+enrollment that loses a successor's admission closure race, or finds no eligible successor
+that can lawfully be selected or created, aborts or is refused as a whole,
+leaving the anomaly in its prior committed state - `OPEN` and retryable, or
+absent and still detectable - with truthful attention; it never creates the
+absent anomaly. Historical enrollment, the canonical anomaly decision order,
+revision selection and withdrawal and route retirement keep their existing
+orders.
+
+**Effect semantics, fencing and ambiguity.** A successor executes under the
+same canonical external effect-target identity, target-scoped concurrency
+namespace, applied-revision/fingerprint evidence, lease and claim-token
+fencing, `PRE_WRITE` / `EFFECT_STARTED` / `EFFECT_CONFIRMED` phases, bounded
+retries, `WAITING` and `RECONCILIATION_REQUIRED` semantics as every other job
+(sections 3.3, 3.4 and 3.6). Generations never partition conflicting target
+keys and never relax target-scoped applied-state ordering. A predecessor
+whose effect is ambiguous at or after `EFFECT_STARTED` cannot be bypassed by
+creating a successor with a different key and asserting a safe second write:
+the predecessor retains its target-scoped boundary until reconciled, the
+successor - already a dispositioned job whose obligation has left the route
+backlog - may exist durably and wait, visibly, in job-level `WAITING`,
+`RECONCILIATION_REQUIRED` or blocked-successor state while safe execution is
+blocked, and the kind's approved contract holds, serializes or reconciles
+before any conflicting successor effect. A `CURRENT_STATE` successor reads
+canonical current state, acts on the complete target effect fingerprint and
+completes as a deterministic no-op where target-scoped evidence proves that
+the same fingerprint is already applied; a `REVISION_BOUND` successor retains
+the source revision/fingerprint its route requires and never regresses newer
+confirmed target state or bypasses supersession and replay controls. A new
+job identity alone is never evidence that another external effect is needed,
+and nothing here claims exactly-once provider effects or atomicity between
+PostgreSQL and a third-party provider write.
+
+**Route identity unchanged.** No source revision, route-contract revision,
+activation epoch, epoch eligibility, producer-version constraint,
+`route_key`, effect-target identity or provider authorization is redefined by
+successor materialization. The late obligation remains the original eligible
+`(event_id, route_key)` obligation, bound to its original route, epoch and
+revision; a successor never permits a newer incompatible materializer and
+never invents a new route or source event. Successor generation is
+job-materialization state, not route history.
+
+**Liveness and operational admission.** Under finite owed inputs, a
+compatible and available materializer, fair progress capacity and no
+outstanding legitimate dependency, authority or effect-ambiguity blocker,
+this path converges on one durable disposition for every eligible obligation;
+the engine never indefinitely reselects a permanently admission-closed job or group
+identity, and that collision is not itself a legitimate blocker. Continuous
+input, rate limits and unavailable workers remain governed by the bounded
+scheduler and backpressure requirements of section 3.15, not by a promise of
+real-time completion. The two states are accounted for separately. While no
+eligible successor can presently be selected or admitted for an obligation,
+or no compatible materializer exists, the obligation remains undispositioned
+and its reason durable, age-visible and attention-raising in the route
+backlog without false success. Once a successor has committed together with
+the obligation's disposition, the obligation is dispositioned and no longer
+in the route backlog; if that successor's execution is then held because no
+compatible worker exists or external ambiguity blocks safe execution, the
+hold is job-level state visible through the job's `WAITING`,
+`RECONCILIATION_REQUIRED`, blocked-successor and attention signals (sections
+3.4 and 3.15), with no claim that an effect has executed. In both states,
+errors and retries are bounded and backed off, create no unbounded
+generations and never hot-loop on one conflict; recovery after the blocker
+clears follows the kind's approved contract.
+
+**Unsupported contracts fail closed.** Before activation, a coalescing kind
+documents how late obligations select or generate safe executable
+identities, how candidate-generation growth is bounded under contention, how
+predecessor ambiguity gates successor effects, how its `CURRENT_STATE` or
+`REVISION_BOUND` semantics prevent duplicate or regressive effects, and what
+operational evidence demonstrates outstanding obligations and safe
+completion. A kind that cannot define and demonstrate a safe successor
+contract may not enable that coalescing mode; it may instead use a separately
+approved event-distinct, non-coalesced routed job identity whose effect
+semantics are safe under this section, and where neither is safe its
+activation is held for a design or authority decision. A generic
+implementation never invents a domain's intended-effect identity, and the
+engine never promises ordinary forward progress from an unsatisfiable
+permanent-key collision.
+
+**Exceptional dispositions unchanged.** The explicit, authorized and audited
+terminal non-materialized disposition of section 3.2 remains available only
+under its existing section-3.2 and ADR-0010 controls, with real covering
+reconciliation or expressly accepted divergence, and only for an ordinarily
+eligible, still-owed obligation under the universal first route-disposition
+admission guard; it is refused for an in-epoch contract mismatch. An admission closure, an
+idempotency collision, retry exhaustion or an unavailable materializer never
+creates it automatically and is never success.
+
+This rule applies to admission closure from first claim **and**
+independently lawful terminal preclaim or kind-policy facts;
+it retains first claim as one closing trigger and all the
+composed attachment/claim/terminal/policy commit orders, the atomic
+creation boundary below, the mutually exclusive anomaly resolution, one
+`(event_id, route_key)` namespace across epochs and revisions, the
+withdrawal/selection and strand-safety orders, event and route immutability,
+the job-attempt lifecycle and target-scoped effect ordering. It creates no
+generic route retry bypass, no free-form external-effect authority, no hidden
+terminal non-materialized disposition, no second claim lifecycle, no
+reopening of admission-closed jobs, no duplicate route effects and no new `route_key`
+for another generation of the same logical route.
+
+### Atomic creation of a routed job
+
+A **routed job** is a logical job created to satisfy an event-route
+obligation: through ordinary event-route materialization, or through a first
+historical enrollment that creates a routed job. When a route materializer
+creates a brand-new routed job, the new logical job, the materialized
+`(event_id, route_key)` disposition that it represents and every durable
+job-input or membership fact indispensable for that disposition's effect
+semantics under the kind's input or coalescing contract become durable in one
+PostgreSQL transaction. The job and the disposition become visible together on
+commit; a failure, a uniqueness conflict or a crash before commit leaves
+neither durably created by that attempt. Where the routed job is created by
+the first historical enrollment of an in-epoch contract mismatch, the same
+transaction also carries that mismatch's canonical terminal `ENROLLED`
+decision under the canonical mismatch-anomaly decision order of section 3.2;
+if any indispensable insert fails, every newly created routed fact and the
+terminal selection roll back together, leaving the anomaly in its prior
+committed state, `OPEN` or absent. The exact tables, constraints and SQL
+are implementation-specification details; the all-or-nothing boundary is not.
+
+The scheduler and the workers must never be able to claim, start or produce
+an external effect from a partially created routed job before that commit: a
+routed job is claimable only once its disposition and indispensable input
+facts are durable with it. After commit the job is a valid executable
+representative of its committed disposition and its approved input semantics.
+
+If disposition insertion or validation fails, or loses the
+`(event_id, route_key)` uniqueness race, the new job and its input or
+membership facts roll back with it: no orphan or claimable routed job, no
+phantom "route satisfied" result, no consumed disposition slot and no
+unaccounted external effect remain, and the route obligation stays owed and
+visible in the route backlog until a valid disposition exists. An
+idempotency-key or disposition-uniqueness collision is reconciled with the
+transaction's outcome; a collision is never accepted on its own as proof that
+the obligation is satisfied.
+
+If the transaction commits but the router or materializer loses its
+acknowledgment, its retry and the reconciliation path observe the same durable
+job and disposition identity and create no second job, second disposition or
+duplicate effect.
+
+When a concurrent router wants to use an **existing** logical job for the
+obligation, the corrected coalescing-admission-open/closed boundary above and the
+kind's explicit coalescing semantics apply unchanged: an attachment to an
+open job commits a disposition under that boundary; an admission-closed job acquires no
+new disposition; a losing attempt leaves its obligation owed and follows the
+post-closure materialization path above, under which a successor created for
+that obligation is a brand-new routed job governed by this boundary. Two
+routes may share one
+eligible **coalescing-admission-open** job only under the approved kind rule,
+and the creation of a new routed job and a concurrent other-route attachment
+to it obey that one linearized order.
+
+This boundary applies to event-route materialization and to first historical
+enrollment that creates a routed job. An independently authorized scheduled,
+operator, reconciliation, replay or current-state job that is not created to
+satisfy a route disposition keeps its existing direct-job semantics; the rule
+invents no route disposition for such a job, and such a job may not serve as a **first** event-route materialization without
+the required atomic disposition/input boundary. A separately authorized job-level replay
+covering an **already dispositioned** obligation is a new linked
+logical job whose earlier immutable disposition supplies the
+historical route-materialization record; it creates no new route
+slot, consumes no ordinary successor generation and remains
+subject to original target/effect fencing.
+Whether a job is routed is decided by the obligation it is created to satisfy
+and the authority under which it is created, not by a label.
+
+### 3.6 Delivery semantics, checkpoints and ambiguous writes
+
+The engine guarantees durable at-least-once execution opportunities. It does
+**not** claim exactly-once external effects.
+
+A handler result distinguishes at least:
+
+- success;
+- retryable failure proven to occur before a relevant external write;
+- deterministic permanent failure;
+- waiting/checkpointed external work that must be revisited at or after a
+  specified time;
+- indeterminate/ambiguous external-write outcome requiring reconciliation.
+
+Before an effectful handler crosses the boundary at which an external write may
+have begun, it durably records `EFFECT_STARTED` under its current claim token.
+Where the provider returns a submission/correlation identifier, the handler
+persists that identifier before atomically yielding `WAITING` and releasing
+its claim/lease.
+
+A later WAITING resume is a new claimed attempt. With a durable provider
+identifier it polls or reconciles the existing provider operation; it does not
+submit a fresh write unless the domain contract has established that no previous
+effect can exist.
+
+If durable `EFFECT_CONFIRMED` evidence exists before a crash, a later claimed
+recovery may complete `SUCCEEDED` without repeating the effect, where the
+kind's contract defines that evidence as sufficient. `EFFECT_CONFIRMED` is
+execution evidence that rules out replay of that effect; it is **not** by itself
+ADR-0010 observed publication, acceptance or current external-state truth.
+
+An indeterminate provider write is never blindly replayed merely because the
+worker did not receive an acknowledgement. Lease expiry, process crash,
+shutdown, waiting-deadline exhaustion or cancellation after
+`EFFECT_STARTED` therefore fences the job into
+`RECONCILIATION_REQUIRED` unless a durable domain checkpoint proves a safe
+non-duplicating continuation.
+
+The owning handler/reconciler must establish provider state or require protected
+operator attention before another effectful attempt.
+
+### 3.7 Attempts, diagnostics and evidence retention
+
+Each execution attempt is append-only durable evidence containing enough
+sanitized information to reconstruct:
+
+- job and attempt identity;
+- claim identity;
+- worker/executor identity;
+- start/end times;
+- result classification;
+- bounded error code/detail;
+- provider request/correlation identifiers where safe;
+- retry/reconciliation disposition.
+
+Secrets, credentials and unbounded provider responses must not be written to
+attempt records or ordinary logs.
+
+Payload minimization and data-protection rules apply equally to attempt
+diagnostics and provider evidence. Personal data or provider response excerpts
+may be retained only where the kind-specific specification proves they are
+required, bounds/sanitizes them and defines retention/erasure behaviour.
+Append-only auditability does not override an applicable erasure obligation;
+where evidence must be redacted/tombstoned, the system retains the non-sensitive
+fact that evidence existed and why it was altered.
+
+### 3.8 Worker runtime and trust-separated pools
+
+The default always-on executor is a headless ECS/Fargate service using the
+ordinary Thoth release image with a dedicated command, conceptually:
+
+```text
+thoth start worker
+```
+
+The default **trusted** worker pool handles Thoth-owned jobs whose inputs do not
+cross a materially different trust boundary. Initial runtime shape:
+
+```text
+same ECS cluster
+same VPC/database
+no ALB
+no public hostname
+DesiredCount = 1 initially
+separate task definition/service
+dedicated trusted-worker task role
+```
+
+The existing generic infrastructure `service.yml` is web-service/ALB-oriented
+and must not be reused unchanged for the headless worker. The infrastructure
+implementation must either provide a bounded headless worker template or
+explicitly generalize load-balancer attachment under its own reviewed task.
+
+The worker polls/claims durable PostgreSQL jobs. PostgreSQL
+`LISTEN/NOTIFY` may be used as a wake-up optimization, but correctness must
+never depend on receiving a notification; periodic durable polling remains the
+fallback.
+
+### Untrusted-content pool
+
+A handler that parses or executes against publisher-controlled/untrusted file
+content is a separate **UNTRUSTED_CONTENT** risk class. It must not run in a task
+that also holds Hosting DNS, ACM or CloudFront tenant-management authority.
+
+Such handlers **must use the same canonical async engine/protocol** through a
+separate task/service or equivalent process-isolated worker pool with a minimal
+dedicated task role. This is a trust-separated executor pool, not a second queue
+architecture.
+
+An untrusted job executes in an isolation context that is not reused across
+untrusted jobs by default, including two jobs for the same publisher or different
+uploaders within one publisher. Disposable single-job execution is the default
+model; an alternative may be approved only when its own review proves equivalent
+job-to-job process/state isolation and reset semantics. No writable local
+process/filesystem/container/cache/sidecar state from one untrusted job may be
+carried into another untrusted job's execution.
+
+The untrusted-content pool:
+
+- may read only the input objects required by its authorized jobs;
+- writes transformed/generated output only to a job-scoped isolated
+  quarantine/staging location whose authority is issued/resolved by the trusted
+  side; any object-store write capability is minted for the current job/claim,
+  bound to the current claim token, bounded in lifetime, and never serialized into
+  the durable event/job payload or attempt diagnostics. It cannot read or overwrite
+  another publisher/job's staging output unless an explicit owning-domain relation
+  requires and authorizes that access;
+- never writes directly to publisher-served or Hosting production paths;
+- cannot choose or write the final publisher domain, served bucket, served key
+  or Hosting target;
+- cannot create arbitrary downstream events/jobs; it may report only the
+  declared bounded completion/evidence facts for its authorized job kinds;
+- receives no broad canonical-domain mutation authority.
+
+Untrusted completion payloads/results are themselves **untrusted data**.
+Before trusted validation starts, the untrusted job's write authority over the
+artifact selected for promotion must have ended. Claim completion/supersession
+revokes that capability where revocation exists; where a capability cannot be
+revoked, trusted validation waits until it has expired or uses an immutable
+provider/version boundary that the former writer cannot change.
+
+The untrusted stage hands off a **sealed artifact identity** in canonical trusted
+state. A trusted promotion/deployment job resolves that identity from canonical
+job/domain state, reads the staged artifact through trusted authority, and
+independently validates its bytes, cryptographic digest, size, media/type and other
+required evidence. An untrusted-reported object path, hash, size or media type is a
+claim to verify, not trusted integrity evidence.
+
+Promotion must publish the **exact bytes/version that passed trusted validation**.
+A mutable object key is not sufficient identity across validation and publication.
+The implementation may use an immutable provider version plus digest, a
+content-addressed immutable object, or have the trusted promoter publish the bytes
+it validated directly. If the source bytes/version change after validation,
+promotion refuses them and must revalidate the new immutable identity before any
+publication. The trusted job also resolves publisher identity, destination domain,
+bucket, key and Hosting/CDN target from canonical Thoth state. Trusted handlers
+must never take authority-bearing destination values from an untrusted result.
+
+The untrusted-content pool must not inherit the primary application database
+credential. It uses either:
+
+- the protected kind-scoped executor API; or
+- a separately reviewed database principal whose database enforcement limits it
+  to the exact async/file-processing rows and operations required by that pool.
+
+Table-level grants on shared async tables are not sufficient kind isolation.
+Direct database access therefore requires row/kind enforcement such as RLS,
+security-definer functions/procedures or an equivalently reviewed database
+boundary.
+
+Network reachability is part of the untrusted security boundary, not an
+assumption inherited from placement in a private subnet. The untrusted pool uses
+a dedicated security-group/network-policy boundary that enforces deny-by-default
+**egress as well as ingress**. It may reach only the selected executor control
+path (or the separately reviewed scoped database endpoint when direct DB access is
+selected), the job-scoped object-storage path and explicitly approved external
+dependencies. Object-storage access is constrained by VPC endpoint/resource policy
+or an equivalently strong control to the approved Thoth input/staging
+buckets/prefixes rather than arbitrary provider storage. Other external egress is
+explicitly allowlisted; DNS resolution alone never authorizes reachability to a
+private service. The pool must have no network path to shared Redis, EFS, unrelated
+RDS/database endpoints or other internal services merely because those services
+accept traffic from the application's private CIDRs.
+
+Its AWS/provider role likewise excludes Hosting DNS, ACM and CloudFront
+tenant-management authority and direct write access to publisher-served
+locations unless an explicit CTO risk acceptance identifies the concrete need
+and blast radius.
+
+A handler may cross that boundary only through explicit CTO risk acceptance
+that identifies the concrete parser/runtime, AWS/provider authority, database
+authority, served-content authority and blast radius. This is a trust-boundary
+exception to the single routine role, not a return to one IAM role per ordinary
+handler.
+
+### Shutdown/recovery for every pool
+
+Graceful shutdown rules apply to every worker pool. A pool stops new claims
+first. A pre-write attempt may report a retryable pre-write outcome or
+release/yield according to the shared transition contract. An effectful attempt
+after `EFFECT_STARTED` must persist a safe checkpoint and yield `WAITING`, or
+enter `RECONCILIATION_REQUIRED`; shutdown must never intentionally abandon it
+to ordinary lease-expiry retry.
+
+Every pool must prove clean recovery after abrupt termination as well as
+graceful shutdown.
+
+### 3.9 Handler registry, capabilities, risk class and revision mode
+
+Each worker pool has a typed registry of supported job kinds. Each handler
+declares:
+
+- job kind and supported payload version(s);
+- owning domain;
+- required runtime capability/configuration;
+- trust/risk class, including whether it handles untrusted content;
+- revision semantics: `CURRENT_STATE` or `REVISION_BOUND`;
+- canonical external effect-target resolution, its owning domain, target-identity
+  transition rules and the shared target-scoped concurrency/applied-revision
+  evidence namespace for effectful kinds;
+- effect classification and expected effect window;
+- timeout/lease/waiting-deadline requirements;
+- retry/reconciliation policy;
+- idempotency/coalescing/concurrency rules, including safe successor
+  generation or no-later-obligation proof for every kind-permitted closure;
+- per-attached-route truthful, authorized pre-effect terminal-consequence
+  policy for **every routed kind**, coalescing or not; without approved
+  safe cancellation, an attempted cancellation is refused/HOLD;
+- kind-retirement compatibility for outstanding jobs, including WAITING and
+  RECONCILIATION_REQUIRED work;
+- for high-volume families, retention/coalescing/admission/backpressure rules
+  required before activation.
+
+A worker only claims job kinds whose required capabilities, revision mode and
+risk class are configured for that pool. Capability declarations are
+runtime/configuration boundaries and scheduling primitives; they do not imply
+one IAM role per ordinary handler.
+
+The registry also carries, for every route materializer a worker provides, an
+explicit capability declaration that is immutable for that worker version and
+covers at least:
+
+- the route-to-materializer/job contract versions it implements;
+- the consumed event kind and the payload/schema versions it can interpret;
+- any forward or backward compatibility it declares, and the
+  compatibility-policy identities/versions it honours;
+- the domain, trust/risk-class and capability constraints already required by
+  this ADR.
+
+Whether a materializer is compatible with a route obligation is derived
+deterministically from the immutable contents of the obligation's
+route-contract revision - its route-to-materializer/job contract version,
+consumed event kind, accepted-version set and compatibility policy - together
+with those declarations and the obligation's actual event version. It is never
+inferred from equality with a revision identifier, and matching job
+kind/version alone does not establish compatibility when event or
+materialization contracts differ. A newer materializer may handle an older
+revision, and an older materializer a newer revision, only where its
+declarations explicitly state that backward or forward compatibility and the
+revision's contract and policy make it semantically valid. For a revision whose
+accepted-version set has several versions, compatibility is decided separately
+for each version. During a mixed-version deployment each worker materializes
+only obligations that its own declarations make compatible and leaves every
+other obligation incomplete for a compatible worker. Mutable worker registry or
+deployment state may change which compatible materializers are **available**; it
+never changes what a revision means or which events it made eligible.
+
+A job kind/version cannot be removed from every compatible executor while
+non-terminal durable jobs of that kind/version remain. Retirement first stops new
+admission, then drains, migrates, reconciles or explicitly dispositions existing
+PENDING/RUNNING/WAITING/RETRY_SCHEDULED/RECONCILIATION_REQUIRED work under its
+approved domain rules. Retirement/drain terminalization of a job with routed dispositions
+obeys the section-3.4 all-attached-obligation evidence and
+section-3.5 closure order, never silent abandonment or false success.
+A compatible executor remains available until that
+obligation is closed; retirement must not orphan a retained concurrency key or
+make a durable job uninterpretable. Likewise, compatible materialization for a
+route-contract revision and event version cannot be removed from every worker
+while undispositioned obligations depend on it, unless those obligations are
+explicitly migrated, reconciled or dispositioned under an approved rule; if it
+nevertheless becomes unavailable, the obligations remain owed and visible
+(section 3.2).
+
+External/domain executors use the same kind scoping: their authorization permits
+only the job kinds assigned to that domain executor. A dissemination executor
+cannot claim/checkpoint/complete/reconcile a Hosting, Metrics, file-processing
+or indexing job merely because those jobs share the same database.
+
+### 3.10 AWS credentials and task roles
+
+The default trusted `thoth-worker` pool uses one dedicated least-privilege ECS
+task role containing the union of its **approved routine trusted capabilities**.
+
+AWS authority for each worker pool comes **exclusively** from that pool's ECS
+task role. Worker tasks must not receive static `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, session-token credentials or equivalent long-lived
+AWS credentials through environment variables, committed configuration or any
+other deployment mechanism.
+
+Do not introduce one assumable IAM role per ordinary handler merely to mirror
+code boundaries when the same trusted process could assume all of them anyway.
+
+The trusted-worker role may eventually include bounded capabilities such as:
+
+- approved Hosting tenant lifecycle;
+- ACM operations needed by Hosting;
+- writes to Thoth-controlled Hosting DNS;
+- approved CDN invalidation;
+- bounded S3 object access required by trusted handlers.
+
+Handlers in the `UNTRUSTED_CONTENT` risk class use a **separate** worker
+pool/task role that excludes Hosting DNS, ACM and CloudFront tenant-management
+authority unless explicitly risk-accepted by the CTO. This separation exists
+because compromise of an untrusted parser is a materially different blast-radius
+case, not because handler boundaries should mechanically map to IAM roles.
+
+The exact permission matrices remain implementation/IAM tasks and must retain
+negative tests and resource scoping. Standing permissions that materially
+increase blast radius and are not required for that worker pool remain excluded.
+
+The infrastructure implementation therefore intentionally departs from the
+current shared `ECSTaskRole`/static-key pattern for existing Thoth web
+services: it must create dedicated worker-pool task roles and ensure no static
+AWS keys are injected into worker tasks. Remediation/rotation of any
+pre-existing static AWS credentials used by other services is separate security
+work and is not authorized or performed by this ADR.
+
+### 3.11 No automated legacy-CDN migration
+
+The shared worker does not implement legacy CDN migration.
+
+An existing publisher moving to the new Hosting model is provisioned as a new
+Hosting target using the ordinary greenfield Hosting lifecycle. Content
+migration and any legacy domain/file cutover are operator procedures under their
+own runbook and authorization.
+
+Therefore the worker architecture does not require:
+
+- standing `cloudfront:UpdateDistribution`;
+- `cloudfront:UpdateDomainAssociation`;
+- a special Hosting MigrationRole;
+- automated migration rollback state.
+
+The R1C migration evidence remains useful operational evidence, but migration is
+not a worker job family under this ADR.
+
+### 3.12 External-service credentials
+
+Non-AWS integration credentials such as Crossref or Algolia credentials are
+provided to the relevant runtime through deployment environment variables.
+
+This ADR does not require Secrets Manager.
+
+Requirements:
+
+- credential **values** are never committed to source, infrastructure templates,
+  task specifications or GitHub records;
+- deployment injects environment values from non-committed environment/provider
+  configuration or deploy-time parameters; the infrastructure task chooses the
+  concrete mechanism without changing the env-var application contract;
+- application logs and durable job diagnostics must never dump the process
+  environment;
+- handlers fail closed when required credentials are absent;
+- providers use distinct credentials where operationally available;
+- rotation is performed by updating deployment configuration and replacing the
+  affected task/runtime.
+
+Environment variables are an operational delivery mechanism, not a security
+isolation boundary between handlers in the same process.
+
+This section does not apply to AWS credentials for `thoth-worker`; section
+3.10 requires ECS task-role credentials exclusively.
+
+### 3.13 Domain ownership and cross-repository executors
+
+The shared engine standardizes **durability and execution protocol**, not every
+domain implementation.
+
+Handlers whose business logic is owned by `thoth` execute in
+`thoth-worker`.
+
+Where another repository owns the domain implementation, that repository may
+consume the same shared job protocol using a domain-specific executor identity.
+In particular, `thoth-dissemination` continues to own dissemination/provider
+logic and may claim only dissemination job kinds allowed by its own authorization
+matrix.
+
+This does not create a second canonical queue. A downstream domain executor may
+be persistent, scheduled or on-demand as its own approved implementation
+specifies, but all authoritative job lifecycle state remains in `thoth`.
+
+For external/domain executors the shared claim/report protocol is a protected,
+versioned, kind-scoped Thoth API contract. Its implementation may be GraphQL in
+the current architecture, but downstream repositories must pin the exact merged
+contract and must not guess an unmerged schema.
+
+The protocol must allow a domain executor to:
+
+- claim only explicitly authorized job kinds;
+- receive a versioned payload and claim/lease identity;
+- heartbeat/checkpoint only the current claim where its kind permits it;
+- report success/failure/waiting/reconciliation outcomes with the current claim
+  token;
+- leave all durable lifecycle and attempt state in `thoth`.
+
+`thoth-dissemination` may continue to use a scheduled executor/runtime if that
+is operationally appropriate; scheduling frequency is not job durability and
+does not make GitHub Actions or another runner the system of record.
+
+### 3.14 Application authorization
+
+ADR-0008's machine-role decision remains binding.
+
+This ADR creates no generic ZITADEL role named `WORKER`, `SERVICE`,
+`MACHINE` or equivalent.
+
+A domain executor that reaches protected Thoth API operations uses a
+domain-specific, least-privilege authorization matrix. `DISSEMINATION_WORKER`
+may be adapted to the generic job protocol for dissemination only; it does not
+become authority for Hosting, Metrics, files, indexing or other job families.
+
+The in-process `thoth-worker` does not need to call its own public GraphQL API
+to perform internal domain operations merely to impersonate a machine role;
+internal authorization/execution boundaries must instead be specified explicitly
+by the owning implementation.
+
+Staff and reconciliation authority used by section 3.2 - for explicit
+historical enrollment, mismatch-anomaly divergence, the terminal
+non-materialized route disposition and other route or anomaly control
+operations - remains ADR-0010's protected, audited staff-command authority
+(ADR-0010 sections 4.7 and 4.8) or another explicitly approved domain
+authority. This ADR creates no new staff, reconciliation, worker or machine
+permission for those operations. Correct original-epoch classification, a
+stated reason or a generic command that claims staff or reconciliation
+authority never grants permission by itself, and each such operation
+revalidates its actual authority and the existing command-idempotency
+semantics at its own decision boundary.
+
+### 3.15 Operability, fairness and operator controls
+
+The shared engine must expose durable/queryable operational signals at least by
+job kind:
+
+- ready queue depth;
+- age of the oldest ready job;
+- running jobs beyond their expected lease/runtime;
+- retry-scheduled count;
+- `RECONCILIATION_REQUIRED` count and age;
+- terminal failure count/rate;
+- execution latency/attempt distribution;
+- worker liveness and last successful claim/heartbeat activity;
+- **per job kind and route key/revision**, queryable count and oldest age
+  of previously materialized route dispositions whose job reached a
+  terminal pre-effect outcome, grouped by truthful consequence
+  (source supersession/no-op, lawful failure, accepted divergence,
+  pending authorized replacement or other approved class). These
+  job-level signals and evidence/attention are separate from
+  undispositioned route backlog, terminal non-materialized route
+  dispositions and `RECONCILED/DIVERGED` anomaly resolutions;
+  do not double-count or conceal older unhealthy route revisions.
+
+It also exposes route-materialization health at least by route key and by
+route-contract revision, without relying on job metrics for obligations that
+have no job yet:
+
+- lifecycle state - active, temporarily inactive or permanently retired - and
+  the route's activation-epoch and revision history;
+- per revision, the count of events eligible through any epoch with no durable
+  route disposition, and the age of the oldest such event;
+- per revision and per accepted version that can be emitted or has outstanding
+  obligations, whether a compatible deployed/eligible materializer exists, for
+  active routes and for temporarily inactive or permanently retired routes with
+  outstanding obligations;
+- the count and oldest age of open in-epoch contract-mismatch anomalies,
+  counting only anomalies committed `OPEN`: an anomaly created born-terminal
+  `ENROLLED` by first historical enrollment is never counted or aged as open,
+  and terminal anomalies remain queryable with their original mismatch facts,
+  provenance, terminal outcome and authority;
+- terminal non-materialized route dispositions of ordinarily eligible
+  obligations that represent accepted divergence rather than covered
+  reconciliation/backfill, reported separately from `RECONCILED/DIVERGED`
+  terminal resolutions of mismatch anomalies, which are not route
+  dispositions.
+
+An aggregate route view never hides an unhealthy older revision behind a
+healthy current revision. A mismatched event is never counted in the
+eligible-event backlog, and a committed but held successor or routed job is
+reported through job-level signals, not as an open anomaly or an
+undispositioned obligation; no metric double-counts or hides one event.
+
+Each job kind defines bounded attempts, backoff and concurrency limits. Backoff
+must prevent tight retry loops; exact algorithms and jitter are implementation
+details. The scheduler must provide bounded fairness so one enabled kind cannot
+indefinitely starve another. Provider-specific rate limiting remains the owning
+handler's responsibility on top of engine-level concurrency limits.
+
+A poison job terminates as `FAILED` or `RECONCILIATION_REQUIRED` according to
+whether an external effect may be ambiguous; it is surfaced as attention rather
+than retried forever. With materialized routes its lawful `FAILED` outcome
+preserves each attached obligation's failure/attention proof and
+never recasts an ambiguous effect as cancelled/no-effect. The architecture does not require a second dead-letter
+queue.
+
+Operator controls such as cancel, safe manual retry, replay and mark/reconcile
+outcome are protected, audited operations through ADR-0010's staff operational
+seam where staff control is applicable. They record authenticated actor, reason
+and correlation to the underlying async job. Direct production SQL is not the
+normal operator interface.
+
+Manual retry is allowed only from a state whose domain contract proves replay is
+safe. `RECONCILIATION_REQUIRED` cannot be converted to ordinary retry by a
+generic "retry" button.
+
+Job and attempt history is immutable while retained. Retention/archival/deletion
+policy requires a separately reviewed specification; the initial engine must not
+silently delete historical attempts.
+
+Coalescing/debouncing may be defined by individual job kinds, but it must be
+durable and auditable: it may reduce executable jobs only under an explicit
+domain rule and must retain enough correlation to explain which events or
+requests were represented by the surviving job. A surviving job accepts attachments only while genuinely
+**coalescing-admission-open** under section 3.5's database-atomic boundary.
+Its first successful claim/start must represent all previously committed
+attachments; independently lawful terminal preclaim or durable kind-policy
+closure equally refuses later attachments, without treating earlier ones as
+executed. A newly owed undispositioned route refused after closure follows
+the post-closure successor path and remains age-visible in the route backlog
+until lawfully dispositioned. Previously attached obligations keep their
+original job/route linkage and truthful job-level terminal consequences.
+
+
+---
+
+## 4. BE-04 supersession and expand-migrate-contract transition
+
+Once ADR-0012 is approved and repository-authoritative, the shared async engine
+supersedes the ADR-0008/ADR-0010 assumptions identified in the header and
+section 1.3. It does **not** supersede ADR-0008's machine-role/least-privilege
+rules or ADR-0010's staff operational/audit architecture.
+
+BE-04 is already part of released Thoth code and is consumed by more than the
+dissemination worker. The transition therefore uses **expand -> migrate
+consumers -> retire legacy API -> contract storage**. It does not translate the
+new lifecycle through the old five-state GraphQL enum.
+
+### 4.1 Release N - expand without contracting legacy BE-04
+
+A separately authorized Release N introduces:
+
+- the generic async schema/domain/API;
+- event/route/job/attempt primitives;
+- the new kind-scoped claim/checkpoint/complete/reconcile contract;
+- generic job creation for newly specified consumers.
+
+Release N **retains unchanged legacy BE-04 storage and released GraphQL
+contract**. It does not drop:
+
+- `distribution_job`;
+- `distribution_job_target`;
+- `distribution_job_attempt`;
+- the four BE-04-only queue enum types;
+- BE-04 lifecycle/query GraphQL fields/types.
+
+The existing BE-04 automatic job-creation path/toggle remains OFF/inactive while
+legacy consumers are migrated. No state-translating compatibility facade is
+introduced.
+
+Historical `20260814_v1.7.0` remains immutable.
+
+### 4.2 Known released consumers that must migrate
+
+At ADR authoring time, the known released consumers include at least:
+
+1. **`thoth-pub/thoth-dissemination`**
+   - BE-04 claim/complete/fail lifecycle operations;
+   - current DIS-02 semantics and worker authorization.
+
+2. **`thoth-pub/thoth-app`**
+   - `PublisherServiceConfigurationSummary.latestBackCatalogueJob`;
+   - service-configuration list/count filters including `jobStatuses`;
+   - `withoutBackCatalogueJob`;
+   - generated `DistributionJobStatus` and related GraphQL client contract.
+
+The implementation programme must inspect all repository-authoritative contract
+consumers again immediately before retirement; this list is not permission to
+assume no additional consumer exists.
+
+`thoth-app` and `thoth-dissemination` each receive their own repository-local
+bounded migration task/branch/PR and must consume an exact merged generic
+contract. No downstream repository guesses the new schema.
+
+### 4.3 Consumer migration
+
+After Release N is the deployed/rollback-safe Thoth version:
+
+- `thoth-dissemination` migrates to the generic kind-scoped
+  claim/checkpoint/complete/reconcile contract;
+- `thoth-app` migrates its back-catalogue job reads/filters/status presentation
+  to the new operational contract selected by its approved task;
+- generated SDL/client surfaces are refreshed from the merged Thoth contract;
+- each downstream deployment is independently verified.
+
+Until both known consumers (and any newly discovered consumers) are verified on
+the generic contract, legacy BE-04 API/storage remains present and unchanged.
+
+### 4.4 Legacy API and runtime retirement
+
+Only after all downstream consumers are verified migrated may a later
+separately approved Thoth release retire the legacy BE-04 contract.
+
+Retirement covers **every runtime path that can read or write
+`distribution_job*`**, not merely the named GraphQL job fields/types/filters.
+Before this release is approved, a repository-wide source audit must identify
+and disposition all runtime legacy-table access.
+
+At the current architecture baseline this includes at least:
+
+- legacy BE-04 claim/complete/fail/cancel/query/filter GraphQL surfaces;
+- `PublisherServiceConfigurationSummary` legacy job reads;
+- `replacePublisherServiceConfiguration` automatic back-catalogue creation;
+- its fail-closed `AUTOMATIC_PUSH` activation guard;
+- assignment-disable cancellation through
+  `cancel_pending_jobs_for_disabled_group_on`.
+
+The Publisher Services desired-state mutation retains its atomic/fail-closed
+invariant throughout retirement:
+
+- if an activation requires asynchronous onboarding work and the approved
+  generic creation path is active, the desired-state change and caused generic
+  event/job intent commit atomically;
+- if that generic path is not active/available, the activation remains rejected
+  rather than committing without its required work;
+- assignment disable/cancellation/supersession is redirected to the generic
+  lifecycle or remains conservatively blocked; it does not query a legacy table
+  that a later release may remove.
+
+The legacy creation toggle/guard is therefore replaced by the generic rule or
+retained as a fail-closed gate until replacement is available; it is never
+simply deleted while allowing jobless activations.
+
+This retirement release follows the repository's approved deprecation path and
+updates generated SDL/client evidence. It does not collapse
+`WAITING`/`RECONCILIATION_REQUIRED` into the old five-value
+`DistributionJobStatus`.
+
+A retirement gate must prove, by repository-wide runtime-reference search and
+tests, that the deployed/rollback-safe Phase-C binary performs **zero runtime
+queries or writes against the legacy job tables**. Compile-time/inert schema or
+type declarations may remain temporarily for the later contraction task, but no
+request, background path or feature toggle may touch those relations.
+
+Only after that zero-runtime-access release is deployed and its rollback window
+is closed may storage contraction proceed.
+
+### 4.5 Later storage contraction
+
+Legacy storage is removed only in a **later destructive migration** after:
+
+1. the generic schema/API release is the sole running production version;
+2. the legacy API/runtime retirement release is deployed and repository evidence
+   proves zero runtime legacy-table access;
+3. all known downstream consumers are on the generic contract;
+4. the previous deployment rollback target is the zero-runtime-access Phase-C
+   binary and therefore no supported rollback binary requires the legacy
+   relations;
+5. no executor can claim/write the legacy contract;
+6. the destructive migration obtains locks that prevent a concurrent legacy
+   write, verifies all three legacy tables exist as expected and contain zero
+   rows, and performs the DROP under the same fail-closed migration transaction.
+
+If any legacy row exists, required relation is unexpected, or the final locked
+emptiness assertion cannot be established, the migration aborts and production
+deployment is HOLD. An earlier read-only preflight is useful evidence but is not
+sufficient by itself.
+
+The contraction removes:
+
+- `distribution_job`;
+- `distribution_job_target`;
+- `distribution_job_attempt`;
+- their dedicated indexes;
+- `distribution_job_kind`;
+- `distribution_job_status`;
+- `distribution_job_attempt_result`;
+- `distribution_job_cancellation_reason`.
+
+It **retains** `distribution_platform`, which remains Publisher Services domain
+state.
+
+Because all runtime legacy access was already removed in Phase C, the Phase-D
+source/migration change removes only remaining inert legacy declarations such as
+Diesel `schema.rs` table/type definitions and obsolete model/type declarations,
+atomically with the DROP as required by ADR-0003 and repository doctrine. An
+older Phase-C task may coexist during the rolling Phase-D deployment because it
+contains no runtime access to the relations being removed.
+
+### 4.6 Preserve proven BE-04 safety work
+
+Superseding BE-04 storage does not discard its safety evidence. The generic
+engine and dissemination adapter must preserve or improve:
+
+- database claim fencing and stale-token refusal;
+- effect-scoped deterministic deduplication;
+- bounded pre-write retries;
+- runner/effect-window checks before starting an external write;
+- conservative classification of post-write ambiguity;
+- no automatic replay of an abandoned predecessor when a provider write may
+  already have happened;
+- bounded/sanitized durable diagnostics.
+
+Existing BE-04/DIS-02 source remains historical implementation evidence and may
+be reused only where new bounded specifications explicitly adopt and retest it
+against the generic contract.
+
+### 4.7 Development and fresh-database migration path
+
+Repository migrations still execute in order. An environment currently before
+v1.7.0, including dev as recorded at this decision, first applies v1.7.0, then
+Release N's additive generic schema migration, and only later the separately
+authorized contraction migration after the consumer/API retirement gates are
+satisfied.
+
+A fresh database follows the same ordered history. Tests must therefore cover:
+
+- production-like upgrade from v1.7.0 with legacy relations present;
+- pre-v1.7 upgrade through v1.7.0 and the additive generic migration;
+- full empty-database migration chain;
+- the later contraction migration with zero legacy rows;
+- fail-closed contraction when any legacy row exists.
+
+No environment is allowed to skip or rewrite the historical v1.7.0 migration.
+
+## 5. Initial job families
+
+These are architectural examples/initial consumers, not implementation
+authorization and not a promise that all ship in the first implementation.
+
+```text
+HOSTING_PROVISION
+HOSTING_VERIFY_DOMAIN
+HOSTING_RECONCILE
+
+DISTRIBUTION / CROSSREF_SYNC
+
+VALIDATE_FILE
+DEPLOY_EPUB_READER
+INVALIDATE_CDN
+
+ALGOLIA_INDEX_WORK
+WEBSITE_REVALIDATE
+```
+
+The implementation should prove the framework first with a bounded set of
+representative handlers rather than enabling every possible integration in one
+release.
+
+---
+
+## 6. Rejected alternatives
+
+### A. Hosting-specific worker and queue
+
+Rejected because it would create a second durable-job architecture immediately
+before distribution, file-processing and indexing workloads need the same
+primitives.
+
+### B. Reuse BE-04 `distribution_job*` as the generic schema unchanged
+
+Rejected because those tables and APIs were designed around Publisher Services
+semantics. Renaming their interpretation by analogy would preserve programme
+coupling and bypass the explicit ADR gate ADR-0008 established.
+
+### C. SQS/Kafka/EventBridge as canonical queue now
+
+Rejected for the initial architecture. PostgreSQL already provides transactional
+co-location with Thoth business writes, durable state, row locking and sufficient
+expected throughput. A later scale-driven ADR may add a delivery bus, but it
+must not become the sole authoritative owner of job lifecycle state without a
+new decision.
+
+### D. One IAM role per handler
+
+Rejected as the default because one trusted process able to assume every
+ordinary handler role does not materially isolate compromise of that process and
+adds substantial operational complexity.
+
+This rejection does **not** apply across materially different trust boundaries.
+Publisher-controlled untrusted-content parsing is explicitly separated into a
+different worker pool/task role because a parser exploit gaining Hosting
+DNS/ACM/tenant authority is a concrete blast-radius increase.
+
+### E. One generic catch-all application machine role
+
+Rejected and still prohibited by ADR-0008. Shared queue mechanics do not imply
+shared application authority.
+
+### F. Put dissemination business logic into `thoth`
+
+Rejected. Queue standardization is not repository-ownership transfer.
+`thoth-dissemination` remains the owner of platform-specific dissemination
+execution until a separate approved architecture decision says otherwise.
+
+---
+
+## 7. Invariants
+
+1. PostgreSQL remains canonical for event/job lifecycle.
+2. Business mutation plus caused event is atomic where both are PostgreSQL-owned.
+3. A logical route keeps one stable `route_key` across an append-only history of
+   activation epochs; its registration, epochs and lifecycle state are durable
+   database state. Epochs are pairwise-disjoint half-open routing-generation
+   intervals `[activation_generation, deactivation_generation)`, totally ordered
+   by activation generation, with at most one open epoch. An epoch's identity
+   and activation boundary are immutable and its close is a write-once durable
+   fact, so a closed epoch's boundary never changes and the epoch never reopens.
+   Opening, closing and permanent retirement for one route are serialized
+   through the same durable database mechanism and resolve into one total order.
+   Every epoch references exactly one immutable route-contract revision, fixed
+   when it opens; a revision that an epoch references or an enrollment has
+   selected is never rewritten or deleted, and the route has no mutable
+   route-level contract. Eligibility is membership in any epoch, open or
+   closed, together with a match to that epoch's revision; closing an epoch or
+   activating a newer revision never rewrites eligibility or its
+   interpretation, and inactive-gap events are not eligible. Any epoch or
+   revision identifier is subordinate to `route_key`. Permanent retirement is
+   terminal and prohibits any later epoch for that route identity.
+4. Every epoch - first activation, reactivation or revision transition - opens
+   only after all serving and supported rollback binaries that can perform the
+   relevant business mutation emit the revision's consumed event kind
+   atomically, every version they may emit is in the revision's
+   accepted-version set, compatible materialization exists for every emittable
+   accepted version and the revision is not withdrawn. While an epoch is open,
+   the producer emission set remains a subset of its revision's
+   accepted-version set, for every route consuming that event kind; producers
+   widen only after every affected open route accepts the widened set.
+5. Deactivation, revision transitions and retirement never erase previously
+   eligible work: events eligible through any epoch remain owed, under that
+   epoch's revision, until materialized or given an explicit authorized/audited
+   route disposition. Every in-epoch contract mismatch is recorded as a
+   durable, visible anomaly. A detector-created anomaly remains `OPEN` and
+   visible until resolved through compatible enrollment or an approved
+   reconciliation/divergence, recorded append-only; an anomaly that compatible
+   first historical enrollment creates born-terminal `ENROLLED` was never
+   open, is not required to have been, and keeps its mismatch evidence
+   durable and queryable.
+6. A newly opened epoch, whether a first activation, a reactivation or a
+   revision transition, does not consume events from before its activation
+   boundary, including inactive-gap events, without explicitly authorized
+   historical enrollment (backfill/replay) under the same `route_key` and
+   `(event_id, route_key)` deduplication boundary. Enrollment explicitly selects
+   an immutable revision of the same logical route and validates the event
+   against every field of its semantic signature before creating a disposition;
+   a refused enrollment creates no disposition or job and leaves
+   `(event_id, route_key)` unused.
+7. Job idempotency identifies a specific intended effect; a resource-only key
+   must not suppress later revisions/schedule slots/commands.
+8. Exactly one durable `(event_id, route_key)` disposition
+   may exist across all epochs/revisions, and eligible
+   obligations remain owed until lawfully dispositioned.
+   Materialized dispositions each reference one job;
+   several may share only a **genuinely coalescing-admission-open**
+   job under kind rules and invariant 42. A never-claimed
+   but lawfully terminal job is never admission-open.
+   The explicit authorized and audited terminal
+   non-materialized disposition references no job
+   and may cover only a still-owed, **ordinarily eligible**
+   original-epoch obligation with actor/authority,
+   reason and lawful reconciliation or accepted-divergence
+   evidence. It occupies the same unique slot and
+   is barred for contract mismatches, out-of-epoch
+   events and unrelated kinds. Mismatched first
+   disposition arises solely from compatible
+   authorized historical enrollment with its
+   canonical terminal `ENROLLED` anomaly.
+   No job cancellation, replay, reactivation
+   or route revision resets this uniqueness.
+
+9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
+   A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
+   A REVISION_BOUND effect must not regress a newer already-applied revision
+   except through explicit historical replay/rollback authorization. All job
+   kinds capable of mutating the same canonical external effect target share one
+   owning-domain target identity, concurrency namespace and durable
+   claim-token-fenced, monotonic applied-revision/fingerprint evidence.
+10. No stale/superseded claim can finalize, checkpoint, cancel, renew or
+    reconcile a job.
+11. WAITING atomically checkpoints and releases claim/lease; resume is a new
+    claimed attempt.
+12. Effectful attempts durably fence `EFFECT_STARTED` before crossing the
+    external-write boundary and start only when the remaining effect window fits
+    within the current lease/runtime.
+13. Lease expiry/shutdown/cancellation/deadline exhaustion after an ambiguous
+    effect cannot return the job to ordinary retry or terminal FAILED; it
+    requires reconciliation unless durable evidence proves a stronger outcome.
+14. `EFFECT_CONFIRMED` prevents duplicate replay where defined; it is not by
+    itself ADR-0010 observed-state/publication/acceptance truth.
+15. WAITING and RECONCILIATION_REQUIRED retain concurrency-key exclusion by
+    default, and blocked successors are operationally visible.
+16. Reconciliation is itself kind-authorized, claim-token-fenced and recorded as
+    an attempt.
+17. No job handler may claim exactly-once external effects.
+18. Priority, delayed availability, bounded pre-write attempts,
+    post-write/waiting deadlines, per-kind concurrency and fairness are
+    first-class shared-engine concerns.
+19. `async_job`/`async_job_attempt` are canonical execution truth;
+    `ServiceOperation` is the ADR-0010 staff operational/audit seam where
+    applicable, not a second attempt ledger.
+20. Event/job payloads default to canonical references plus revision/fingerprint
+    and minimal parameters; credentials are forbidden and personal/snapshot data
+    requires explicit retention/erasure justification. The same rule applies to
+    attempt diagnostics/provider evidence.
+21. Domain ownership is explicit and preserved.
+22. Generic execution does not create generic application authorization.
+23. Historical migrations are never rewritten after deployment.
+24. Trusted-worker AWS authority comes exclusively from its dedicated ECS task
+    role.
+25. UNTRUSTED_CONTENT jobs use the same canonical engine but a separate
+    minimal-authority, job-to-job-isolated execution and deny-by-default egress/
+    ingress boundary; they write only through current-claim-scoped authority to
+    their job-scoped quarantine/staging output, cannot carry writable execution
+    state across jobs, cannot reach unrelated private/provider services, and
+    cannot choose or write served/Hosting destinations.
+26. Trusted promotion starts only after untrusted write authority over the sealed
+    artifact identity has ended, independently validates that immutable identity,
+    publishes only the exact validated bytes/version, resolves authority-bearing
+    destinations from canonical state and treats untrusted results as untrusted
+    data.
+27. No worker receives static AWS access keys.
+28. Non-AWS credential values are not committed or emitted in logs/durable
+    diagnostics.
+29. A worker/executor may claim only supported job versions/kinds and configured
+    capabilities/risk classes.
+30. High-volume job kinds define retention/coalescing/admission/backpressure
+    rules before activation.
+31. Protected operator retry/reconcile controls are audited and may not bypass
+    reconciliation safety.
+32. BE-04 retirement follows expand -> migrate consumers -> remove every runtime
+    legacy-table dependency -> close rollback window -> contract storage.
+33. Legacy storage is never dropped while a supported running/rollback binary
+    can query or write it.
+34. Merge, migration, deployment, handler activation, provider access and
+    production activation remain separate gates.
+35. An event of an epoch revision's consumed event kind, captured inside that
+    epoch, whose version is outside the revision's accepted-version set is an
+    in-epoch contract mismatch, classified solely from immutable event, epoch
+    and revision kind/version facts, and is recorded as one durable, queryable
+    `IN_EPOCH_CONTRACT_MISMATCH` routing anomaly that is never successful
+    routing and is never reinterpreted under a later contract. A pure
+    detection transaction creates or observes that one canonical anomaly -
+    created `OPEN`, counted, age-visible and attention-raising - with no route
+    disposition or job and without consuming the `(event_id, route_key)`
+    slot. Separately authorized successful first historical enrollment may
+    create or observe the same anomaly born-terminal `ENROLLED` only in its
+    all-in-one anomaly, resolution, disposition and job transaction
+    (invariant 47); that is enrollment, not a detector creating a
+    disposition. Divergence never creates the anomaly, a route disposition or
+    a job. Durable attention and audit history are preserved.
+36. Route-contract revisions with the same canonical semantic signature
+    converge atomically to one canonical revision through database-enforced
+    uniqueness or serialization, never an application-level check-then-insert;
+    revisions with different signatures remain distinct, and a revision
+    identifier is not a compatibility key.
+37. Materializer compatibility is derived deterministically from immutable
+    revision content and policy plus explicit materializer capability
+    declarations; matching job kind/version alone is insufficient, and mutable
+    registry state changes availability only, never historical meaning.
+38. Route health exposes, independently of job metrics and per revision, the
+    undispositioned eligible-event count and oldest age, compatible-materializer
+    availability for every emittable or outstanding accepted version, and open
+    contract-mismatch anomaly count and oldest age; no aggregate hides an
+    unhealthy older revision behind a healthy current one.
+39. Revision withdrawal is append-only and audited, affects only future
+    selection and is refused or held while it would strand undispositioned
+    obligations or unresolved contract-mismatch anomalies; permanent route
+    retirement never erases revisions, obligations or anomalies.
+40. Semantic evolution under which an already-dispositioned event could
+    require a second independent disposition or effect uses a new `route_key`,
+    not a revision. A new route identity grants no permission to duplicate or
+    regress an external effect: its historical enrollment states whether a
+    second effect is intended and obeys target-scoped idempotency, concurrency
+    and applied-revision evidence.
+41. For one route, revision withdrawal and every operation that creates a new
+    durable selection of or reference to a route-contract revision - at minimum
+    first activation, reactivation and revision-transition epoch opening and
+    first historical enrollment - share one database-atomic serialization or
+    constraint boundary that gives withdrawal and new future selection one
+    durable linearized order. A selection that linearizes first remains valid
+    historical state that the later withdrawal does not rewrite; after
+    withdrawal linearizes, no later epoch opening or first historical
+    enrollment may commit a selection of that revision: epoch opening is
+    refused before the epoch exists, enrollment before any disposition or job
+    exists, and the `(event_id, route_key)` slot stays unused. A losing
+    transaction re-reads durable state before any retry and never commits from
+    a stale pre-withdrawal observation; an application-level check-then-insert
+    without database-enforced ordering does not satisfy this. The mechanism
+    composes with the per-`route_key` lifecycle serialization and introduces
+    no second contradictory lifecycle order.
+42. One logical job is **coalescing-admission-open**
+    only while executable/nonterminal, without any
+    committed first successful claim/start, independently
+    lawful terminal-before-first-claim outcome or
+    approved durable kind-policy admission-close fact,
+    and while all compatible admission/authorization
+    conditions hold. A successful first claim/start
+    **or** lawful terminal preclaim commit permanently
+    closes admission, with policy closure also
+    forbidding later attachment. Attachment, first
+    claim, every lawful preclaim terminal transition
+    and policy close share **one** database-enforced,
+    deadlock-safe serialization, composing with route
+    and canonical anomaly order. Attachment-first
+    commits immutable disposition and complete inputs,
+    which later execution must genuinely represent.
+    Terminal-first prevents a later claim and refuses
+    attachment without route slot or born-terminal
+    anomaly. Claim-first refuses attachment and any
+    later cancellation must obey the post-start effect
+    phase and all-attached-obligation invariant 48.
+    Rolled-back claims/cancellations do not close
+    admission, and retry/lease/recovery cannot
+    reopen committed closure. A stale app-level
+    precheck is insufficient. First claim remains
+    distinct from `EFFECT_STARTED`. Historical
+    enrollment/direct-created coalescing attachment
+    has the same order; no new route, job-state
+    or cancellation authority is inferred.
+
+43. A revision withdrawal commits only from a database-consistent
+    strand-safety decision that remains valid through the withdrawal's
+    linearization/commit point. Every already-defined durable mutation that
+    can change that strand-prevention predicate from safe to unsafe - at
+    minimum, creation of an unresolved `IN_EPOCH_CONTRACT_MISMATCH` anomaly
+    whose approved resolution options the withdrawal affects, even where the
+    anomaly references only the epoch's expected revision and not the
+    compatible revision being withdrawn, and removal of the last approved
+    resolution or materialization path on which the decision relies - shares
+    one database-atomic serialization or constraint boundary with the
+    withdrawal or forces the withdrawal to detect the change and re-evaluate
+    or abort before commit; a stale application-level scan, even inside the
+    withdrawal transaction, does not satisfy this. Anomaly-first, the
+    withdrawal includes the anomaly and is refused or held where it would
+    leave no selectable compatible revision and no approved
+    reconciliation/divergence path; withdrawal-first, mismatch detection is
+    never suppressed and always records the anomaly durably and visibly,
+    creating no disposition, job or route slot and without being conditioned
+    on computing or persisting resolution-path availability; any
+    availability-dependent computation or decision, if performed during or
+    after detection, uses current post-withdrawal durable state and never
+    treats the withdrawn revision as selectable.
+    Concurrent removals of alternative resolution paths cannot write-skew into
+    stranded work. The rule composes with invariant 41's withdrawal/selection
+    order as one coherent database order, introduces no second withdrawal
+    lifecycle, invents no new revocability, reconciliation, compatibility or
+    availability semantics, and leaves the mechanism to the implementation
+    specification.
+44. A new logical job created to satisfy an event-route obligation - through
+    event-route materialization or a first historical enrollment that creates
+    a routed job - becomes durable only together with its materialized
+    `(event_id, route_key)` disposition and every indispensable durable
+    job-input or membership fact, in one PostgreSQL transaction: both are
+    visible together on commit, and a failure, uniqueness conflict or crash
+    before commit leaves neither. A routed job is never claimable or
+    effectful before that commit; a disposition insertion failure or lost
+    uniqueness race rolls the job back, leaving no orphan job, no phantom
+    satisfaction, no consumed slot and the obligation owed and visible; an
+    idempotency or disposition collision is reconciled with the transaction,
+    never accepted alone as satisfaction; and a committed transaction whose
+    acknowledgment is lost is observed by retry and reconciliation as the
+    same job and disposition, with no duplicate job, disposition or effect.
+    Attachment to an existing job remains governed by invariant 42;
+    independently authorized direct jobs keep their own semantics and cannot
+    be used to disguise a routed job.
+45. Exactly one canonical in-epoch contract-mismatch anomaly, whose canonical
+    logical identity is a pure function of immutable mismatch facts, and at
+    most one effective terminal resolution - compatible historical enrollment
+    (`ENROLLED`) or approved reconciliation/divergence
+    (`RECONCILED/DIVERGED`) - exist for one logical event/route mismatch. One
+    database-enforced canonical-anomaly decision order covers both first
+    creation when the anomaly is absent and resolution when it is `OPEN`;
+    each path validates its authorization, the immutable classification, the
+    anomaly's state and its current compatibility, availability or
+    reconciliation conditions inside that order, never from a stale
+    observation. Authorized enrollment with a valid original classification
+    and a selected compatible revision may create the canonical anomaly
+    born-terminal `ENROLLED` or resolve an existing `OPEN` anomaly to
+    `ENROLLED`, atomically with its one disposition and indispensable new
+    routed job and input facts or eligible attachment, and excludes a later
+    accepted divergence. Authorized divergence may resolve only an already
+    committed `OPEN` anomaly, with immutable mismatch reclassification and
+    valid authority, reason and covering evidence; it commits the approved
+    reason, authority and resolution reference, creates no anomaly,
+    disposition or job, leaves the `(event_id, route_key)` slot unused and
+    refuses the losing enrollment for that anomaly before any disposition,
+    job or effect. Divergence while the anomaly is absent refuses and does
+    not preclude a later detector-created `OPEN` anomaly followed by
+    separately authorized resolution. The loser detects the effective
+    decision before committing, aborts or deterministically refuses and
+    preserves audit and attention state; abort or crash before commit leaves
+    the anomaly in its prior state, `OPEN` or absent, and retryable; retries
+    after commit, including after acknowledgment loss, observe one outcome
+    and create no competing terminal result or job. Detection, mismatch and
+    resolution evidence remain append-only; a generic backfill cannot bypass
+    a terminal divergence; separately authorized replay is governed by its
+    own rules and replaces no terminal outcome; and external compensation
+    remains fenced by the existing effect, ambiguity and reconciliation
+    controls.
+46. Permanent coalescing-admission closure from first
+    committed claim/start, independently lawful terminal
+    preclaim outcome or approved durable policy fact
+    closes **one job**, never the eligible **new**
+    event-route obligations arriving later. A new
+    still-undispositioned obligation keeps its slot
+    unused, remains owed/backlogged/age-visible and
+    after fresh durable reread follows one approved
+    compatible **different** admission-open successor
+    or new deterministic executable successor
+    generation committed atomically with its
+    one disposition and inputs (invariant 44).
+    The closed predecessor and reserved idempotency
+    key are never execution evidence; collisions
+    cannot hot-loop or invent extra generations.
+    A kind may use one generation only on durable
+    preactivation proof that no new eligible
+    obligation can arrive or first enroll after
+    **ANY** permitted closure; otherwise it
+    must provide a valid distinct successor
+    or forbid the conflicting terminal transition,
+    else coalescing activation remains OFF/HOLD.
+    A previously attached obligation keeps
+    its original immutable disposition and
+    needs invariant 48's truthful job-level
+    terminal consequence and separately
+    authorized replacement, never another
+    route disposition. Target-scoped
+    effect/claim fencing, ambiguity,
+    `CURRENT_STATE`/`REVISION_BOUND`,
+    original epoch/revision and immutable
+    route key remain authoritative,
+    with no unsafe second provider write.
+
+47. Every operation that can create the first durable disposition for an
+    `(event_id, route_key)` pair - ordinary routed materialization, explicitly
+    authorized historical enrollment and the authorized terminal
+    non-materialized disposition, including when an approved migration,
+    reconciliation or disposition plan acts through them - classifies the
+    event from committed immutable original-epoch facts and proves its own
+    path-specific eligibility and authorization inside the
+    database-consistent transaction that would consume that slot, failing
+    closed when those facts cannot be verified. No disposition exists for an
+    in-epoch contract mismatch except the one created by compatible,
+    explicitly authorized first historical enrollment together with its exact
+    canonical terminal `ENROLLED` anomaly; detection and the
+    eligible-obligation terminal non-materialized disposition can neither
+    bypass canonical anomaly identity nor consume a mismatched route slot. For
+    an event and route classified as an in-epoch contract mismatch, detection
+    and compatible first historical enrollment share one database-enforced
+    canonical-anomaly creation and decision order even when no anomaly exists
+    at either transaction's first read, and authorized divergence shares that
+    order only as the resolution of a previously committed `OPEN` anomaly and
+    never creates one. Successful first enrollment atomically creates or
+    observes the canonical anomaly and commits terminal `ENROLLED`, exactly
+    one `(event_id, route_key)` disposition and every indispensable new-job or
+    eligible-attachment input fact; detection first may create only `OPEN`,
+    with no disposition or job; later detection converges with any already
+    effective terminal state without reopening, re-aging or double-counting it
+    and without fabricating earlier detection provenance. Divergence before
+    the anomaly exists refuses, and mismatch divergence and mismatch
+    enrollment refuse for a non-mismatch event. All contenders use immutable
+    original-epoch classification, preserve authorization and the revision
+    withdrawal/selection and strand-safety orders, allow at most one terminal
+    resolution and never create an orphan job, a duplicate route disposition,
+    a falsely successful route, an unauthorized provider effect or a hidden
+    open-anomaly obligation. A refused or failed enrollment neither creates
+    nor resolves a previously absent anomaly. Terminal `ENROLLED` is a route
+    decision, not evidence of handler or provider success. Contradictory
+    durable state outside these compliant transactions fails closed, with its
+    mismatch evidence preserved and visible to engineering control, and
+    requires separately approved incident recovery rather than an automatic
+    third anomaly state, job hold, adoption or repair.
+
+48. **All-routed-jobs terminal consequence.**
+    Any independently lawful terminal pre-effect
+    outcome of a job with materialized route
+    dispositions, **coalescing or not**,
+    must atomically evaluate its entire
+    committed attached set and durably
+    account for each immutable route disposition
+    with authorized effect/no-op, supersession,
+    lawful failure/attention, accepted divergence
+    or separately approved job-level
+    replay/reconciliation/compensation evidence.
+    Bare `CANCELLED`/`FAILED`, operator reason
+    or job-key collision is not proof of
+    provider delivery. An unsupported
+    terminal transition or one without
+    complete lawful proof refuses/HOLD
+    without terminal mutation; neither
+    route reparenting, duplicate disposition,
+    automatic effect replay nor effect-phase
+    ambiguity bypass is permitted.
+    Queryable per-kind and per-route/revision
+    terminalized-obligation counts, truthful
+    consequence classes, oldest age and
+    attention remain separate from
+    undispositioned route backlog,
+    terminal non-materialized dispositions
+    and mismatch-anomaly resolution.
+    Durable kind-policy admission-close
+    facts share invariant 42's atomic order.
+
+## 8. Implementation impact and decomposition
+
+Approval of this ADR should lead to separate bounded tasks, at minimum:
+
+1. **Release N shared schema/engine/API in `thoth`**
+   - additive generic async migration;
+   - durable logical-route registration, append-only activation-epoch,
+     immutable route-contract-revision, retirement and materialization model,
+     including producer-version coverage evidence, in-epoch contract-mismatch
+     anomalies, revision-validated historical enrollment, atomic revision
+     equivalence, database-atomic ordering of revision withdrawal against new
+     revision selection, database-consistent strand-safety decisions for
+     revision withdrawal and deterministic materializer compatibility;
+   - job/attempt/checkpoint lifecycle;
+   - claim/renewal/wait/reconciliation primitives;
+   - effect-scoped idempotency and explicit coalescing, with the
+     database-atomic coalescing-admission-open/closed boundary among
+     attachment, first claim/start, every lawful preclaim terminal
+     transition and every approved durable kind-policy closure fact;
+   - atomic creation of a routed job with its materialized disposition and
+     indispensable input facts, and the database-enforced mutually exclusive
+     terminal resolution of a mismatch anomaly;
+   - the canonical mismatch-anomaly decision order between detection, first
+     historical enrollment (including a born-terminal `ENROLLED` anomaly) and
+     divergence of an already `OPEN` anomaly, and the universal
+     original-epoch first route-disposition admission guard for every
+     first-disposition writer;
+   - post-closure materialization of obligations refused after a coalescing admission closure
+     through eligible open successors or distinct successor generations, with
+     database-arbitrated convergence;
+   - revision semantics plus domain-owned canonical effect-target identity and
+     target-scoped ordering/evidence contract;
+   - new kind-scoped executor API;
+   - generic operational/read contract required by downstream consumers;
+   - upstream-owned Publisher Services generic creation/cancellation/
+     activation-guard contract in `thoth`, preserving atomic fail-closed desired
+     state before any BE-04 retirement;
+   - legacy BE-04 schema/API left intact and inactive;
+   - real PostgreSQL concurrency/mixed-version/out-of-order-commit tests.
+
+2. **Trusted default `thoth-worker` runtime in `thoth`**
+   - worker command;
+   - handler registry;
+   - graceful shutdown/checkpointing;
+   - metrics/health/operational reporting;
+   - capability/kind/revision-mode filtering.
+
+3. **Infrastructure - trusted worker**
+   - headless Fargate service not bound to the ALB;
+   - dedicated trusted-worker task role;
+   - no static AWS credentials;
+   - non-committed deploy-time injection of non-AWS env-var credential values;
+   - environment/network configuration.
+
+4. **Infrastructure/runtime - untrusted-content pool**
+   - separate process/task/service boundary for publisher-controlled parsers and
+     job-to-job execution/state isolation, including jobs of the same publisher;
+   - minimal task role with no Hosting DNS/ACM/CloudFront tenant authority;
+   - current-claim-scoped, bounded-lifetime per-job quarantine/staging writes;
+   - protected executor API or row/kind-enforced minimal database principal;
+   - deny-by-default ingress/egress boundary excluding Redis, EFS and unrelated
+     private database/internal-service reachability, with object-storage access
+     constrained to approved Thoth input/staging buckets/prefixes;
+   - explicit job-kind/risk-class filtering;
+   - trusted promotion path that starts only after staging-write authority closes
+     and independently pins, validates and publishes the same immutable bytes;
+   - dedicated negative IAM, staging-scope, cross-job, TOCTOU and network tests;
+   - deployment only when an approved untrusted-content handler is ready.
+
+5. **`thoth-dissemination` consumer migration**
+   - move from legacy BE-04 operations to generic kind-scoped
+     claim/checkpoint/complete/reconcile;
+   - consume the exact merged upstream generic Publisher Services job-creation
+     and executor contracts;
+   - preserve dissemination domain logic and external-write safety;
+   - independently review retry/reconciliation/revision behaviour.
+
+6. **`thoth-app` consumer migration**
+   - migrate `latestBackCatalogueJob`, `jobStatuses`,
+     `withoutBackCatalogueJob` and related presentation/filter semantics to
+     the exact merged generic operational/read contract;
+   - regenerate/update GraphQL client surfaces;
+   - independently verify staff UX semantics.
+
+7. **Legacy BE-04 API/runtime retirement in `thoth`**
+   - only after all consumers are deployed on generic contracts;
+   - remove legacy lifecycle/read/filter fields/types/toggle;
+   - redirect/remove Publisher Services runtime creation/cancellation/guard paths
+     so no code accesses `distribution_job*`;
+   - preserve fail-closed AUTOMATIC_PUSH activation through the generic rule;
+   - repository-wide source audit proving zero runtime legacy-table access;
+   - update generated SDL/client compatibility evidence.
+
+8. **Later BE-04 storage contraction in `thoth`**
+   - only after the zero-runtime-access retirement release is deployed and its
+     older rollback window is closed;
+   - migration-local lock + zero-row assertion;
+   - remove three legacy tables/indexes/four queue-only enums;
+   - retain `distribution_platform`;
+   - remove only remaining inert schema/model declarations atomically with DROP.
+
+9. **Hosting**
+   - adopt generic jobs for greenfield provisioning/reconciliation;
+   - no automated legacy CDN migration.
+
+10. **Existing AWS static-credential security debt**
+   - inspect/remediate any existing service static AWS credential pattern under a
+     separate security task and explicit provider/write authorization;
+   - this is not silently folded into worker deployment.
+
+11. **Approval-state ADR reconciliation**
+   - update ADR-0008/ADR-0010 metadata/register under a separate authorized write
+     budget after exact-content CTO approval;
+   - this documentation/control step is not implementation authorization.
+
+Each repository receives its own branch/PR and independent review. No downstream
+repository guesses an unmerged upstream contract.
+
+## 9. Migration and rollout
+
+Architecture approval does not authorize migration execution.
+
+The production transition is deliberately non-atomic across releases/repos.
+
+### Phase A - expand and establish event-emission floor
+
+Release N adds the generic async schema/API and may deploy the inert trusted
+worker runtime. Legacy BE-04 schema/API remains present and unchanged, with
+legacy automatic job creation/activation OFF.
+
+Any new event route remains INACTIVE until every serving binary and supported
+rollback target capable of the relevant business mutation emits the consumed
+event kind atomically, in versions within the accepted-version set of the
+route-contract revision the epoch will reference. Route activation, including
+every later reactivation or revision-transition epoch, is a separate authorized
+operation after deployment evidence establishes that emission floor and
+producer-version coverage, and compatible materialization for every emittable
+accepted version of that exact revision.
+
+Release N must be fully deployed and become a valid rollback target before any
+downstream consumer migration starts.
+
+### Phase B - migrate consumers
+
+`thoth-dissemination` and `thoth-app` migrate independently to the exact
+merged generic contracts. Any newly discovered consumer is added to the same
+gate.
+
+No legacy GraphQL field/type is removed until every consumer is verified
+deployed on the generic contract.
+
+### Phase C - retire legacy API and all runtime table access
+
+A later Thoth release removes the legacy BE-04
+lifecycle/read/filter/toggle contract **and every other runtime dependency on
+`distribution_job*`**, including Publisher Services creation/cancellation and
+activation-guard paths. The zero-runtime-access inventory explicitly includes
+`thoth-api/src/model/publisher_service_configuration/migration_backfill.rs`
+preflight/runtime reads and every command/startup toggle or administrative path
+that can still query those tables.
+
+Released queue-specific GraphQL error semantics are part of the compatibility
+surface too. They require an explicit generic mapping/deprecation/removal
+decision, including `DISTRIBUTION_JOB_CREATION_DISABLED`; deleting the legacy
+tables or toggle must not silently change a released error contract.
+
+Publisher-service activation either atomically creates its required generic
+event/job intent under the separately activated generic rule or remains
+fail-closed. It must not become a jobless activation merely because the legacy
+toggle disappears.
+
+A repository-wide source audit and runtime tests must prove the Phase-C binary
+does not query/write legacy job tables.
+
+That release is deployed and observed until all supported production rollback
+targets are also zero-runtime-access binaries.
+
+### Phase D - contract legacy storage
+
+Only a still-later destructive migration removes `distribution_job*` storage
+and queue-only enum types. The migration obtains locks preventing concurrent
+legacy writes, performs the final zero-row assertion and DROP under the same
+fail-closed transaction, and aborts on any unexpected row/state.
+
+Because the current production GraphQL image runs the default `thoth init`
+path, which performs migrations before serving, this separation is mandatory:
+the first task in a rolling deploy must never drop relations still needed by old
+tasks or by automatic rollback.
+
+The contraction migration is a one-way operational boundary, not an automatic
+return to BE-04 execution. Its separately reviewed revert strategy must fail
+closed or explicitly document any schema-only recreation as insufficient to
+restore legacy lifecycle state. Recreating empty legacy tables must never be
+presented as a safe application rollback. Restoring operational BE-04 storage or
+data after contraction requires a separately authorized forward-repair/data
+recovery migration and compatible binary.
+
+The development environment's currently unapplied v1.7.0 state is handled by
+ordered migrations: v1.7.0 applies first, followed by additive generic schema,
+and only later the separately authorized contraction migration after the same
+consumer/runtime retirement gates.
+
+The migration test matrix must include:
+
+- production-like schema with v1.7.0 already applied;
+- pre-v1.7 upgrade applying v1.7.0 plus additive generic schema;
+- full empty-database migration chain;
+- rolling deploy with mixed old/new application versions during Phase A;
+- event-route activation, and every reactivation or revision-transition epoch,
+  only after the emission-capable deployment/rollback floor and
+  producer-version coverage for that epoch's exact revision;
+- producer deployments and rollbacks that keep the producer emission set within
+  the accepted-version set of every affected open epoch, including the
+  `{v1} -> {v1, v2} -> {v2}` expand/contract transition;
+- closing the current activation epoch before rollback below an event-emission
+  floor or to an uncovered producer version, and opening a new epoch only after
+  recovery re-establishes the activation gates;
+- current-state reconciliation/backfill covering an authorized emission gap;
+- later API/runtime-retirement rollback window;
+- proof Phase-C binaries have zero runtime legacy-table access;
+- contraction with final locks and zero legacy rows;
+- contraction abort with any legacy row present.
+
+Initial worker deployment is inert until job creation/route/handler activation is
+separately authorized. Effectful handler activation is prohibited until its
+`RECONCILIATION_REQUIRED` exit path is itself available and approved.
+
+High-volume handlers such as indexing/revalidation additionally require
+kind-specific retention, coalescing and admission/backpressure limits before
+activation; any coalescing mode additionally requires the documented and
+demonstrated post-closure successor contract of section 3.5, failing closed
+without it.
+
+Rollout should prove in order:
+
+1. schema/event-route/job concurrency without external writes;
+2. mixed-version route completeness and out-of-order transaction commits;
+3. activation, deactivation, reactivation-epoch, route-contract-revision
+   transition, retirement, event-emission-floor and producer-version-coverage
+   behaviour, including in-epoch contract-mismatch detection, the ordering
+   of revision withdrawal against epoch opening and first enrollment, and the
+   stability of withdrawal's strand-safety decision against concurrent
+   anomaly creation and resolution-path removal, and the mutually exclusive
+   terminal resolution of a mismatch anomaly in both commit orders, the
+   canonical mismatch-anomaly decision order between detection, first
+   enrollment and divergence, including the absent-anomaly orders, and the
+   universal first route-disposition admission guard;
+4. crash/lease renewal/WAITING/reconciliation recovery;
+5. effect-scoped idempotency, revision ordering and coalescing, including the
+   ordering of coalescing attachment against first claim/start, lawful
+   terminal preclaim transitions and durable kind-policy admission closure,
+   and the atomic creation of a routed job with its disposition and the post-closure
+   materialization of an obligation refused after a coalescing admission closure through
+   successor generations;
+6. priority/fairness/per-kind concurrency and bounded retry/wait deadlines;
+7. one or more non-destructive representative handlers;
+8. protected operator controls and reconciliation exit path;
+9. one effectful handler with durable `EFFECT_STARTED`, provider checkpoint and
+   reconciliation evidence;
+10. quarantine-to-trusted-promotion flow for one untrusted-content handler;
+11. only then broader handler activation.
+
+Handler activation is independent: enabling Hosting must not automatically
+enable Crossref, Algolia, file processing or another family merely because they
+share the engine.
+
+## 10. Rollback
+
+Architecture rollback before implementation is ordinary documentation revert.
+
+Once implemented, rollback must distinguish:
+
+- stopping new event/job creation;
+- closing each affected route's current activation epoch before rolling below
+  its event-emission floor or to a producer set that can emit a version outside
+  that epoch revision's accepted-version set;
+- stopping worker claiming;
+- preserving durable event/route/job/attempt/checkpoint records;
+- rolling back individual handler activation;
+- rolling back application binaries while preserving schema compatibility;
+- schema rollback, which may be impossible after live async data exists and
+  therefore requires its own forward-repair/migration plan.
+
+During the expand/migrate phases, rollback to a previous Thoth image is permitted
+only while all schema/API that image needs remains present **and** route
+activation remains compatible with that image's event-emission behaviour: the
+image emits each consumed event kind, and every version it may emit is in the
+accepted-version set of every affected open epoch's revision.
+
+If rollback below an already-active route's emission floor, or to a producer
+version its open epoch's revision does not accept, is unavoidable, the route's
+current epoch is closed before old writers resume or a specifically authorized
+current-state reconciliation/backfill covers the exact gap. Existing
+obligations from every epoch, including the one being closed, remain durable
+and bound to their epochs' revisions; closing an epoch does not delete them.
+Recovery may open a new epoch under the same `route_key`, referencing a new
+revision or reusing an older immutable revision, only after the activation
+gates are re-established for that exact revision; it does not make
+inactive-gap events eligible.
+
+Legacy BE-04 storage contraction cannot occur until every supported rollback
+binary has zero runtime legacy-table access. After that contraction, an older
+binary requiring the deleted relations is no longer a supported rollback target;
+schema-only recreation of empty legacy tables does not make it one.
+
+After generic async data exists, rolling the runtime back does not authorize
+dropping/rewriting that data. A rollback plan must either run a binary that
+understands the generic schema or stop job production/claiming and preserve the
+durable queue for forward recovery.
+
+Do not treat disabling a worker or deactivating a route as equivalent to deleting
+durable jobs/events/route obligations.
+
+## 11. Validation requirements
+
+Before shared implementation can be approved, evidence must include:
+
+- real PostgreSQL concurrent claim tests with multiple workers;
+- durable logical-route registration and activation-epoch tests covering
+  activate -> deactivate -> reactivate and repeated activation cycles under one
+  stable `route_key`;
+- event creation on both sides of every epoch boundary - each activation and
+  each deactivation, concurrently with the boundary transition - under the
+  routing-generation mechanism;
+- concurrent epoch-transition tests, including simultaneous activate and
+  deactivate requests, proving one durable total order, at most one open epoch
+  and pairwise-disjoint half-open epoch intervals totally ordered by activation
+  generation;
+- closed-epoch immutability tests proving an epoch's identity and activation
+  boundary never change, its write-once close fact cannot be rewritten and a
+  closed epoch cannot be reopened;
+- historical eligibility tests proving that an event inside any epoch, open or
+  closed, that matches that epoch's revision remains eligible, under that
+  revision, after that epoch closes, after later epochs and revisions open and
+  after retirement;
+- inactive-gap exclusion tests proving events captured before the first epoch or
+  between epochs are not eligible and are processed only through explicitly
+  authorized backfill/replay;
+- proof that events eligible through any epoch remain owed after deactivation
+  and after permanent retirement;
+- retirement-versus-reactivation tests in both serialization orders, proving
+  that retirement after a reactivation closes the open epoch and that
+  reactivation after retirement is rejected, and that a retired route can never
+  open another epoch;
+- tests proving any epoch identifier is excluded from the `(event_id,
+  route_key)` disposition uniqueness key;
+- explicit authorized terminal route-disposition tests when an eligible route
+  can no longer be materialized, including per-event actor/authority/reason and
+  ADR-0010 protected staff-command authorization/audit where staff acts;
+- accepted-divergence attention when a terminal disposition has no covering
+  reconciliation/backfill;
+- queryable per-route and per-revision undisposed-event count/oldest-age across
+  every epoch and revision, active / temporarily inactive / permanently retired
+  state and per-revision, per-version unavailable compatible-materializer
+  signals, including for obligations that have no job yet;
+- activation, reactivation and revision-transition refusal until the
+  event-emission floor, producer-version coverage and compatible
+  materialization for every emittable accepted version are established for that
+  epoch's exact revision, and refusal for a revision withdrawn from future
+  selection;
+- event-emission-floor tests proving a route cannot activate while any serving
+  or supported rollback binary can perform the mutation without emitting its
+  consumed event kind, or can emit a version outside the revision's
+  accepted-version set;
+- rollback-below-emission-floor tests requiring the current epoch to be closed
+  first or explicit current-state reconciliation/backfill, and forward recovery
+  opening a new epoch only after the activation gates are re-established;
+- migration/administrative-write tests proving non-emitting canonical writes,
+  and exceptional writes that would emit a version outside an affected open
+  epoch's accepted-version set, are paired with transactional emission of an
+  accepted version or exact-scope reconciliation/backfill;
+- mixed worker-version routing where an older worker cannot silently complete an
+  unknown eligible route;
+- out-of-order transaction commit tests proving no event can be skipped by a
+  sequence/cursor optimization;
+- crash during partial fan-out with exact resume and no duplicate route record;
+- explicit historical backfill through the same `(event_id, route_key)`
+  materialization identity, including across epochs, revisions and inactive
+  gaps, proving that neither reactivation, a revision transition nor
+  backfill/replay rematerializes an already-dispositioned event;
+- `v1` epoch -> close -> `v2` epoch under one stable `route_key`, proving that
+  outstanding `v1` obligations survive `v2` activation, still require a
+  `v1`-compatible materializer, and are refused or left unclaimed by a
+  `v2`-only materializer;
+- the `{v1} -> {v1, v2} -> {v2}` expand/contract transition under one stable
+  `route_key`, proving that at every step, including supported rollback
+  targets, the producer emission set stays a subset of every affected open
+  epoch's accepted-version set;
+- refusal or blocking of a producer deployment, rollback or configuration change
+  that would emit `v2` while only a `{v1}` epoch is open;
+- cross-route fan-out tests in which several routes consume one event kind with
+  different accepted-version sets, proving producers cannot widen the emission
+  set until every affected open route accepts the widened set;
+- zero-gap revision transitions using adjacent epoch boundaries where the
+  serialized generation mechanism permits them, with events on both sides of
+  the boundary interpreted under the correct revision;
+- concurrent close / new-revision / open operations preserving one durable
+  total order and at most one open epoch;
+- eligibility tests requiring both epoch-generation membership and a match to
+  the epoch revision's consumed event kind and accepted-version set;
+- immutable closed-epoch revision bindings, and refusal of any in-place
+  mutation of a revision referenced by an epoch or selected by an enrollment;
+- reuse of the same immutable revision by a later epoch after rollback, only
+  after the exact accepted-set producer and materializer gates are
+  re-established for it;
+- multi-version accepted-set tests proving every accepted version is eligible,
+  materializer compatibility is decided per version, and versions outside the
+  closed set are never eligible;
+- materializer-coverage tests proving an accepted version that becomes newly
+  emittable is verified as compatibly materializable for every affected open
+  epoch's revision before producers may emit it;
+- durable in-epoch contract-mismatch detection for an event of the consumed
+  kind with an unaccepted version, recording the event, route, epoch, expected
+  revision and actual kind/version, and proving the anomaly is queryable,
+  counted, age-visible and attention-raising;
+- proof that detecting a mismatch creates no route disposition or job, does not
+  consume the `(event_id, route_key)` slot, is never counted as successful
+  routing and is never reinterpreted under a later revision or current-contract
+  projection;
+- mismatch resolution by compatible authorized enrollment that creates the one
+  allowed disposition - resolving a committed `OPEN` anomaly or, enrollment
+  first, creating it born-terminal `ENROLLED` - and by approved
+  reconciliation/divergence of an already committed `OPEN` anomaly that
+  creates none, each recorded append-only without deleting the anomaly, its
+  immutable mismatch evidence or its detection provenance;
+- aggregate route backlog/health tests proving that neither a mismatch anomaly
+  nor an older revision's backlog or unavailable materializer is hidden behind a
+  healthy current revision;
+- concurrent creation of semantically equivalent revisions converging, through
+  the database-enforced uniqueness or serialization property, to one canonical
+  revision, including concurrent requests that both pass any application-level
+  pre-check;
+- canonical accepted-version-set tests proving that different orderings or
+  repetitions of the same versions produce the same semantic signature;
+- distinct-signature tests proving revisions that differ in any signature field,
+  including the presence or absence of a compatibility policy, remain distinct;
+- revision-withdrawal tests proving withdrawal is append-only and audited,
+  affects only future selection, leaves historical interpretation, epoch
+  references, backlog and anomalies unchanged, and is refused or held while it
+  would strand undispositioned obligations or unresolved mismatch anomalies;
+- deterministic concurrency tests of revision withdrawal racing a first
+  activation, in the selection-first order and in the withdrawal-first order;
+- deterministic concurrency tests of revision withdrawal racing a reactivation
+  epoch opening and racing a revision-transition epoch opening, each in both
+  orders;
+- deterministic concurrency tests of revision withdrawal racing a first
+  historical enrollment, in both orders;
+- proof that a withdrawal-first enrollment refusal creates no route
+  disposition and no job and leaves the `(event_id, route_key)` slot unused,
+  and that a withdrawal-first epoch opening is refused before any epoch is
+  created;
+- proof that a selection-first epoch reference or enrollment remains valid
+  historical state after the later withdrawal, which prevents only subsequent
+  selection;
+- proof that no transaction holding a stale pre-withdrawal observation can
+  commit a new selection of the revision after the withdrawal linearizes, and
+  that a losing transaction re-reads durable state before any retry;
+- proof that withdrawal is still refused or held where undispositioned
+  obligations or unresolved in-epoch contract-mismatch anomalies would be
+  stranded, including obligations that became eligible through an epoch whose
+  opening linearized before the withdrawal;
+- proof that the selected locking or constraint order for withdrawal and
+  selection composes with the existing per-`route_key` open, close, reactivate
+  and retire serialization, with equivalent-revision convergence where it
+  shares that mechanism, with enrollment validation and disposition uniqueness
+  and with permanent route retirement, without deadlock and without a split or
+  contradictory lifecycle order;
+- deterministic concurrency tests of unresolved in-epoch contract-mismatch
+  anomaly creation racing withdrawal of the compatible revision on which that
+  anomaly's approved resolution depends, in the anomaly-first order, with the
+  anomaly referencing only the epoch's expected revision;
+- the same anomaly-creation/withdrawal race in the withdrawal-first order;
+- proof that a withdrawal transaction whose strand-safety scan ran before the
+  anomaly's creation cannot commit from that stale view after the anomaly
+  linearizes, including when the scan ran inside the withdrawal transaction;
+- proof that, anomaly-first, a withdrawal that would leave the anomaly with
+  no selectable compatible revision and no approved reconciliation/divergence
+  path is refused or held, with the anomaly still durable, visible and
+  attention-raising and no disposition, job or `(event_id, route_key)` slot
+  created;
+- proof that, anomaly-first, a withdrawal may be permitted where another
+  valid approved resolution path remains for the anomaly, showing that the
+  rule is strand safety rather than anomaly existence alone;
+- proof that, withdrawal-first, mismatch detection still records the anomaly
+  durably, creates no route disposition or job, consumes no
+  `(event_id, route_key)` slot, and evaluates any resolution availability it
+  depends on from post-withdrawal durable state rather than from a stale
+  pre-withdrawal observation, never treating the withdrawn revision as
+  selectable;
+- proof that concurrent withdrawals or removals of alternative resolution
+  paths cannot write-skew into a state in which an existing unresolved
+  anomaly or outstanding obligation has no approved path while each
+  transaction independently passed the strand check;
+- proof that the selected strand-safety boundary composes with the
+  withdrawal/selection order above, the per-`route_key` lifecycle
+  serialization, equivalent-revision convergence, enrollment validation,
+  `(event_id, route_key)` disposition uniqueness and permanent route
+  retirement without deadlock and without a split or contradictory order;
+- proof that existing mismatch/anomaly health, count, age and attention
+  evidence remains visible through both anomaly-creation/withdrawal orders;
+- a backward-compatible materializer handling an older revision only where
+  explicitly declared, and a forward-compatible materializer handling a newer
+  revision only where explicitly declared and semantically valid;
+- refusal of an incompatible materializer despite a matching job kind/version;
+- proof that compatibility is derived from immutable revision content and
+  policy plus capability declarations rather than revision identifiers, and that
+  changing mutable registry state changes only availability;
+- mixed materializer-version tests proving no worker silently reinterprets an
+  old revision;
+- loss of every compatible materializer for a revision leaving its obligations
+  visible and raising attention;
+- valid historical-enrollment revision selection creating exactly one
+  disposition;
+- enrollment refusal before disposition creation for each signature-field
+  mismatch: event kind, payload/schema version, a revision of another route,
+  semantic consumer/owning-domain identity, an incompatible
+  route-to-materializer/job contract version and a compatibility-policy
+  rejection;
+- proof that a refused enrollment creates no disposition or job, leaves
+  `(event_id, route_key)` unused for a later compatible enrollment, and records
+  a durable audit while existing attention remains visible;
+- enrollment spanning several epochs and revisions selecting each event's
+  revision explicitly and deterministically, and undispositioned scans across
+  several closed and open revisions preserving each obligation's revision
+  binding;
+- in-epoch mismatch recovery through explicit compatible revision selection;
+- same-route replay creating no second disposition;
+- new-route historical enrollment that states explicitly whether a second effect
+  is intended, and that obeys target-scoped idempotency, concurrency and
+  applied-revision evidence when it shares an external effect target with an
+  older route;
+- a new route identity required where semantic evolution would require a second
+  independent disposition or effect for an already-dispositioned event;
+- old-revision obligations and anomalies remaining visible and executable after
+  newer revisions and after permanent route retirement, with retirement neither
+  deleting nor withdrawing historical revisions;
+- effect-scoped idempotency tests across newer source revisions/schedule slots;
+- CURRENT_STATE tests that read canonical latest state and prove the effect
+  fingerprint covers every canonical input affecting the external result before
+  any no-op/coalescing decision;
+- REVISION_BOUND tests proving an older retried revision cannot overwrite a newer
+  already-applied revision without explicit historical replay authorization;
+- cross-kind tests proving every writer of one canonical external effect target
+  shares the same owning-domain identity, target-scoped serialization and
+  applied-revision evidence;
+- stale-claim and normal-vs-reconciler races proving target evidence advances only
+  under the current claim while holding the target boundary and never moves
+  backwards without authorized historical replay;
+- provider-without-revision-id tests proving local target evidence prevents stale
+  regression or forces reconciliation when state is ambiguous;
+- target-identity-change tests proving pending old-identity work is explicitly
+  superseded/cancelled/reconciled/cleaned up rather than silently retargeted;
+- multi-target tests proving decomposition or deterministic all-or-nothing complete
+  target-lock acquisition with no wait while holding a strict subset, plus
+  per-target revision evidence;
+- allowed many-route-to-one-job coalescing tests and deterministic conflict
+  attention when coalescing is not permitted;
+- deterministic concurrency tests of a coalescing attachment racing the first
+  successful claim/start of the same logical job, in the attachment-first
+  order and in the claim/start-first order, with the router/materializer and
+  the worker running as separate concurrent instances;
+- proof that after an attachment-first order the worker's execution genuinely
+  represents the newly attached disposition and input under the kind's
+  coalescing contract, shown for a `CURRENT_STATE` kind through its
+  current-state and effect-fingerprint semantics and, for a kind that uses a
+  retained input set or another durable representation, through that
+  representation;
+- proof that after a claim/start-first order no new route disposition is
+  committed, the `(event_id, route_key)` slot remains unused, the eligible
+  route obligation remains owed and visible in the route backlog, and the
+  deterministic routing/materialization error and attention/recovery path is
+  taken, including when the attachment attempt arrives through the
+  idempotency-conflict path;
+- proof that a stale pre-claim observation cannot commit an attachment after
+  the closing admission transition linearizes;
+- proof that several concurrent attachments from several router or
+  materializer instances racing the first claim/start produce one total
+  order, every attachment that linearized before the admission closure being accepted and
+  represented and every attachment after it refused;
+- proof that a first claim/start transaction that rolls back before its
+  closing admission transition commits does not durably close admission for the job, and that a later
+  attachment may still succeed when every ordinary coalescing, idempotency
+  and materialization condition holds;
+- proof that once first claim/start **or any independently lawful permanent
+  preclaim terminal/policy closure** has committed, retry scheduling, lease
+  expiry and reclaim, WAITING and resume, RECONCILIATION_REQUIRED and
+  reconciliation, cancellation and recovery transitions and later claims never
+  reopen coalescing, and that the admission closure persists across worker crash and
+  restart;
+- proof that the selected locking or compare-and-set order for attachment and
+  first claim/start composes with `(event_id, route_key)` disposition
+  uniqueness, idempotency-key uniqueness, worker claim locking and
+  target-scoped concurrency without deadlock or split ordering;
+- proof that a new routed job and its one materialized disposition commit
+  together, with the required durable initial membership/input facts, and
+  that workers can claim the job only after that commit;
+- proof that a crash or failure after the job insert but before the
+  disposition insert or transaction commit leaves no committed or claimable
+  routed job, no disposition, no input membership and an unused route slot,
+  with the route obligation still owed and visible and a retry recovering it;
+- proof that a crash or lost acknowledgment after both have committed permits
+  exact state recovery and replay-safe idempotent observation, with no
+  duplicate job, disposition or external effect;
+- proof that duplicate same-event/same-route materializations and
+  disposition-uniqueness races leave exactly one successful commit, no orphan
+  job and no false route completion;
+- proof that a disposition-insert error or constraint failure rolls back the
+  new job, that a job-idempotency collision with an existing coalescing-admission-open
+  job uses only the approved coalescing path, and that an existing admission-closed job
+  rejects attachment without consuming the losing event's slot;
+- proof that concurrent first-claim and coalescing attempts, including a
+  simultaneously created initial routed job and an other-route attachment to
+  it, obey the atomic attachment/first-claim order above and represent every
+  accepted pre-admission closure input;
+- deterministic concurrency tests of simultaneous authorized compatible
+  enrollment and approved divergence of one committed `OPEN` mismatch
+  anomaly, enrollment first: one terminal enrollment resolution, one allowed
+  disposition and job
+  where materialized, and no accepted divergence;
+- the same anomaly-resolution race, divergence first: one terminal
+  divergence with append-only authority and evidence, no disposition or job
+  from the losing enrollment and no external effect authorized by it;
+- proof that a stale "anomaly still open" observation in either competing
+  path cannot bypass the database-enforced winning resolution at commit;
+- proof that a transaction abort or crash before the resolution commits
+  leaves the anomaly in its prior committed state, `OPEN` or absent, and
+  independently retryable, and that after commit repeated requests and audit
+  retries create no second or contradictory terminal result;
+- proof that a terminal divergence leaves the `(event_id, route_key)` slot
+  unused without permitting the losing enrollment for that same resolved
+  anomaly to spend it, while a later deliberately authorized independent
+  replay remains separately governed;
+- proof that the anomaly count, open age, attention and append-only audit and
+  evidence transition accurately from open to exactly one terminal outcome
+  for a detector-created anomaly, that a born-terminal `ENROLLED` anomaly is
+  never counted or aged as open, and that neither erases the mismatch facts
+  or their provenance;
+- proof that the atomic enrollment/job creation and the terminal-outcome
+  selection commit as one coherent database decision where enrollment creates
+  a new routed job;
+- composition tests of the routed-job and terminal-resolution boundaries with
+  the revision-withdrawal/selection races above, the anomaly-creation/
+  withdrawal strand-safety and last-resolution-path-removal cases above, the
+  claim/attachment races above, uniqueness and idempotency constraints and
+  deterministic lock and deadlock handling, proving no split ordering, no
+  stale strand decision and no permitted effect after a losing terminal path;
+- deterministic post-closure baseline tests in which an original coalescing job
+  `J0` closes admission before an eligible `E2` can attach, proving `E2` remains owed and
+  visible, its `(event_id, route_key)` slot unused, and that it is never
+  retroactively attached to `J0`;
+- proof that the same `E2` is materialized through one different eligible
+  coalescing-admission-open successor or one newly created successor `J1` with a
+  genuinely distinct approved effect identity, and that eventually exactly one
+  `(E2, route_key)` disposition exists;
+- proof that retries encountering the same admission-closed `J0` idempotency key
+  neither loop indefinitely nor declare success, and that the supported
+  successor-selection path advances;
+- deterministic concurrency tests of two materializers racing the same owed
+  `E2` after the admission closure, proving one disposition, no duplicate successor or
+  external effect for the obligation, and deterministic loser recovery from
+  committed state;
+- deterministic concurrency tests of different owed obligations `E2` and `E3`
+  racing after `J0` closes admission, proving they converge on an eligible `J1` while it
+  is open or, when it closes admission first, follow correctly ordered later
+  generations, and that where `J1` is open but ineligible for `E3`, `E3`
+  proceeds to a compatible generation while `J1` remains open, with no
+  obligation dropped or represented by a job whose input omits it;
+- deterministic concurrency tests of an attachment to successor `J1` racing
+  its first claim/start in both orders, proving one durable order and that
+  claim/start-first leaves the refused obligation owed and safely eligible for
+  a later successor, never stale-attached;
+- successive-admission closure tests in which `J0`, `J1` and `J2` are needed within one
+  approved group or window, including a generation created while an earlier
+  ineligible generation is still open, proving distinct stable identities, no
+  permanently stuck eligible obligation and no false route completion;
+- precommit-crash tests proving that a crash after allocating or starting
+  creation of `J1` but before its disposition and input commit leaves no
+  durable orphan or claimable job, no consumed route slot and no false
+  materialization;
+- postcommit acknowledgment-loss tests proving that after the successor job,
+  disposition and input transaction commits, a retry observes that exact
+  state and creates no `J2`, second disposition or effect;
+- uniqueness and rollback race tests proving that generation arbitration,
+  original-group job-key collisions and `(event_id, route_key)` uniqueness
+  races - including a concurrent attachment to an open eligible successor
+  and the creation of a compatible generation beside an open ineligible one -
+  abort or recover safely under one database ordering, with no write skew,
+  deadlock, phantom job, missing input or duplicate route;
+- predecessor tests proving that a pre-write retry, lease expiry and reclaim,
+  WAITING resume and reconciliation of `J0` never reopen it and never silently
+  absorb an owed `E2`, and that successor semantics alter no predecessor
+  attempt;
+- ambiguous-predecessor tests in which `J0` holds an unresolved
+  `EFFECT_STARTED` outcome, proving `J1` may be tracked durably as a
+  dispositioned job - its `(E2, route_key)` obligation absent from the route
+  backlog and its held execution visible through job-level waiting,
+  reconciliation or blocked-successor state - but performs no unsafe
+  overlapping or duplicate effect before the required target-scoped fencing
+  and reconciliation evidence;
+- `CURRENT_STATE` successor tests proving `J1` acts on the current canonical
+  complete effect fingerprint, no-ops safely where that fingerprint is
+  already applied, and never reapplies an identical provider effect merely
+  because its key differs;
+- `REVISION_BOUND` successor tests proving older and newer revisions under one
+  target stay ordered and a later successor cannot regress newer applied
+  evidence or bypass supersession and replay controls;
+- historical-enrollment and anomaly tests proving that a compatible first
+  enrollment into a safe successor composes with revision-withdrawal
+  availability and the one terminal anomaly resolution: divergence-first on
+  an `OPEN` anomaly creates no successor or disposition, and
+  enrollment-first - resolving an `OPEN` anomaly or creating it
+  born-terminal `ENROLLED` - commits its allowed terminal resolution and
+  routed facts atomically;
+- blocked-admission tests with an unavailable or incompatible materializer,
+  proving accurate backlog count and oldest age that count only obligations
+  without a committed disposition, with committed but held successors
+  reported through job-level signals rather than the route backlog, bounded
+  retry and backoff, no fabricated success, no uncontrolled successor growth,
+  and resumed safe progress when an authorized compatible path returns;
+- escape-path negative tests proving that no staff exception is synthesized
+  from an ordinary admission-closed-key collision, that direct-job or replay identities
+  cannot evade a route obligation, and that no new route key or epoch is
+  invented as a fallback;
+- cross-target and cross-kind ordering tests proving that multiple generation
+  keys still serialize conflicting provider writes under one canonical target
+  lock and evidence namespace, including ambiguous provider outcomes and
+  multiple workers;
+- finite-workload liveness tests under an adversarial deterministic schedule
+  of late obligations and successively closing admission jobs with a healthy compatible
+  materializer and no legitimate blocker, proving one disposition for every
+  eligible event-route pair within bounded fair recovery rather than an
+  indefinitely repeating permanent collision;
+- non-coalesced alternative tests proving a kind without a safe successor
+  contract cannot activate that coalescing mode, and that an explicitly
+  approved event-distinct non-coalesced mode keeps stable idempotency keys,
+  atomic job and disposition creation and no duplicate or regressive external
+  effects;
+- current-token lease renewal and refusal to renew superseded/expired claims;
+- stale-token refusal for completion, failure, cancellation, checkpointing and
+  reconciliation;
+- WAITING transition atomically persisting checkpoint and releasing claim/lease;
+- resume from WAITING as a new claim/attempt that polls/reconciles rather than
+  resubmits;
+- pre-write retry-budget exhaustion producing FAILED;
+- post-write waiting/deadline exhaustion producing
+  RECONCILIATION_REQUIRED rather than FAILED;
+- concurrency-key retention across WAITING/RECONCILIATION_REQUIRED unless an
+  explicit safe-release rule exists;
+- operational signal for jobs blocked behind a retained concurrency key;
+- effect-window test proving an effectful runner is not started without enough
+  remaining lease/runtime;
+- crash before and after `EFFECT_STARTED`;
+- durable `EFFECT_CONFIRMED` recovery where supported by the kind, plus proof
+  that this evidence is not conflated with ADR-0010 observed-state truth;
+- cancellation before write and cancellation after effect-start tests;
+- `INDETERMINATE` external-write reconciliation tests;
+- claimed/token-fenced/kind-authorized reconciliation race tests;
+- priority, `available_at`, bounded attempt and scheduler fairness tests;
+- retry/backoff and poison-job exhaustion tests;
+- unsupported payload-version refusal;
+- payload tests proving credentials are rejected and personal/snapshot data is
+  absent unless explicitly allowed by the kind contract;
+- diagnostics/provider-evidence retention and erasure tests;
+- current-state execution reading canonical state/revision rather than stale
+  embedded snapshots;
+- graceful shutdown and abrupt restart recovery for every worker pool;
+- worker capability/kind/risk-class/revision-mode filtering;
+- job-kind/version retirement tests proving non-terminal WAITING/retry/
+  reconciliation work remains interpretable and retains a compatible executor;
+- authorization negative tests proving domain executors cannot mutate another
+  domain's jobs;
+- protected/audited operator cancel/retry/reconcile tests;
+- queryable queue-depth, oldest-ready-age, expired-lease,
+  `RECONCILIATION_REQUIRED`, failure, blocked-successor and worker-liveness
+  signals;
+- proof that logs and durable diagnostics do not contain configured credentials;
+- proof that trusted/untrusted worker tasks receive no static AWS access keys;
+- proof that untrusted-content worker roles exclude Hosting DNS/ACM/CloudFront
+  tenant authority and served-content write paths;
+- job-to-job execution-isolation tests proving writable process/filesystem/
+  container/cache/sidecar state from one untrusted job cannot affect any later
+  untrusted job, including another job for the same publisher;
+- job-scoped quarantine/staging tests proving an untrusted job cannot read or
+  overwrite another publisher/job's staging output and cannot directly create
+  publisher-served content;
+- staging-capability tests proving write authority is current-claim-scoped, bounded
+  in lifetime, absent from durable payload/attempt records and ended before trusted
+  validation of the artifact selected for promotion;
+- network-denial tests proving outbound as well as inbound controls prevent access
+  to Redis, EFS, unrelated RDS/database endpoints, arbitrary provider object
+  storage or other unapproved private/external services;
+- trusted-promotion tests proving staging identity and integrity are independently
+  resolved/verified by the trusted side and publisher/domain/bucket/key/target are
+  resolved from canonical state rather than untrusted result fields;
+- adversarial TOCTOU tests that replace/mutate the staged key after validation and
+  prove promotion refuses it, plus positive proof that only the exact immutable
+  bytes/version that passed trusted validation can be published;
+- negative tests proving an untrusted worker cannot create arbitrary follow-on
+  jobs/events;
+- if direct DB access is used by an untrusted pool, proof of row/kind enforcement
+  through RLS/security-definer functions or an equivalent database boundary;
+- Phase-A migration tests retaining legacy BE-04 storage/API;
+- `thoth-dissemination` generic-contract compatibility tests;
+- `thoth-app` migration tests for latest job/status/filter semantics;
+- generated SDL/client contract checks;
+- Phase-C repository-wide source/runtime tests proving zero
+  `distribution_job*` runtime access, including service-configuration
+  activation/disable paths and the migration-backfill preflight/runtime path;
+- released queue-specific GraphQL error-contract compatibility tests, including
+  `DISTRIBUTION_JOB_CREATION_DISABLED` disposition;
+- proof AUTOMATIC_PUSH remains fail closed unless generic job/event creation is
+  atomically available;
+- rolling deployment/rollback tests proving old tasks remain valid during Phase
+  A/B and Phase-C rollback targets need no legacy relations;
+- contraction migration tests from production v1.7.0 state;
+- contraction lock + zero-row assertion in the same fail-closed migration
+  transaction;
+- contraction abort when any legacy row exists;
+- contraction-revert tests proving schema-only recreation cannot be mistaken for
+  operational BE-04 rollback and any data/state restoration is separately
+  authorized forward repair;
+- full empty-database migration-chain tests;
+- per-kind retention/coalescing/admission tests before high-volume family
+  activation;
+- deployment tests with more than one compatible worker task even if production
+  initially runs one.
+
+The canonical mismatch-anomaly decision order and the universal first
+route-disposition admission guard of section 3.2 additionally require the
+thirty active cases below, identified `A13-T01` to `A13-T24` and `A13-T26` to
+`A13-T31` for traceability to the specification that introduced them. They
+supplement, and replace none of, the cases above, including the twenty
+post-closure materialization cases. Each case is individually falsifiable. Every
+concurrency case uses real PostgreSQL transactions in distinct sessions or
+processes, driven by deterministic barriers and fault injection, or
+equivalently falsifiable transactional instrumentation, and exercises loser
+conflict, winner commit and winner rollback, serializable or uniqueness
+failure, deadlock handling and retry, and lost acknowledgment where relevant;
+a mock or harness that serializes the contenders in advance, or that removes
+the absent-anomaly race, does not satisfy it. Each case asserts, as
+applicable: the original-epoch classification and epoch/revision identity;
+one canonical anomaly identity; the correct `OPEN`, born-terminal or terminal
+state; zero or one effective terminal resolution and zero or one route
+disposition, as required; committed job-input or membership atomicity and
+claimability; actor, authority, reason and provenance fidelity; immutable
+retry identity; accurate open-anomaly count and oldest age, eligible-route
+backlog and job-level waiting and attention signals; and no hidden terminal
+success and no unauthorized provider write. These are acceptance requirements
+for the later implementation; no documentation change executes them.
+
+- **A13-T01 - detection first:** an original-epoch mismatched event is
+  detected and one canonical `OPEN` anomaly is recorded; a later valid,
+  authorized enrollment of a compatible selected revision commits exactly one
+  terminal `ENROLLED` outcome atomically with one disposition and all job
+  inputs or one valid attachment, with one canonical identity and accurate
+  open and terminal counts.
+- **A13-T02 - enrollment first with no anomaly row:** enrollment commits the
+  single canonical anomaly born-terminal `ENROLLED`, its disposition and all
+  job inputs atomically; the first later detector reports the unchanged
+  terminal state, deduplicates the original mismatch provenance, creates no
+  second or `OPEN` anomaly and records no fictitious prior detector run; the
+  born-terminal anomaly stays historically queryable and is reported through
+  terminal, not open, signals.
+- **A13-T03 - absent-anomaly race:** in distinct sessions or processes, a
+  detector and an enroller both initially find no anomaly, and the loser's
+  first conflicting write is blocked by, or aborted against, the winner's
+  uncommitted canonical-identity claim (a row, unique-key, predicate or
+  serializable conflict, as the selected mechanism dictates). The schedule
+  covers both commit orders, winner commit and winner rollback with loser
+  wake-up and retry, and at least one explicit serializable-failure-and-retry
+  schedule, with deterministic loser reconciliation. Every order converges on
+  the same unique canonical outcome; none splits terminal `ENROLLED` from its
+  job and disposition, leaves a half-committed job or leaves a phantom `OPEN`
+  anomaly after a terminal outcome.
+- **A13-T04 - duplicate detectors:** several independent detectors race
+  before, during and after enrollment-first and detection-first outcomes; one
+  canonical anomaly and idempotent evidence result, a terminal outcome is
+  never reopened or re-aged, no second `OPEN` anomaly appears, detection
+  provenance is neither duplicated nor fabricated, and a born-terminal anomaly
+  remains historically queryable and separate from open signals.
+- **A13-T05 - duplicate identical enrollments:** two authorized enrollments
+  selecting the same revision race; exactly one terminal decision, one route
+  disposition and one valid job or attachment survive, the retry result is
+  stable and the loser leaves deterministic evidence.
+- **A13-T06 - competing compatible revisions:** concurrent authorized
+  enrollments select different, individually compatible revisions; one
+  selection wins under the revision-availability order and the canonical
+  anomaly order, and the loser creates no second terminal outcome,
+  disposition or effect and leaves deterministic evidence. A three-way
+  absent-anomaly race with two compatible revisions is optional additional
+  coverage and substitutes for no mandatory case.
+- **A13-T07 - divergence first:** an approved divergence of an already
+  committed `OPEN` anomaly commits terminal `RECONCILED/DIVERGED` with no
+  disposition, job or provider effect; a later enrollment is refused despite
+  the unused route slot. The case does not establish that divergence may
+  create an anomaly.
+- **A13-T08 - enrollment first versus divergence:** a compatible enrollment
+  commits terminal `ENROLLED` with its disposition and job; a later or
+  concurrent divergence is refused with no contradictory accepted
+  no-disposition evidence, including against a born-terminal `ENROLLED`
+  anomaly where the divergence read the anomaly as absent before it
+  committed.
+- **A13-T09 - detection after divergence:** a delayed or repeated detector
+  records or observes the original mismatch facts while the terminal
+  `RECONCILED/DIVERGED` outcome is retained, never reopened, and no job or
+  disposition arises from the divergence.
+- **A13-T10 - incompatible enrollment:** refusal for each semantic-signature
+  field - wrong route, consumed kind, accepted version, owning domain,
+  materializer contract and compatibility policy - and for an unavailable
+  materializer and a wrong original classification; no `ENROLLED` outcome,
+  disposition or job results, mismatch evidence and attention are preserved,
+  and a refused first enrollment with no anomaly row leaves the anomaly absent
+  until a detector independently records it `OPEN`.
+- **A13-T11 - unauthorized enrollment or divergence:** missing staff or
+  reconciliation authority cannot mint a terminal decision, disposition, job
+  or provider effect, including when the anomaly row is absent; a refused
+  enrollment creates no anomaly.
+- **A13-T12 - outside every epoch:** before-first-epoch and inactive-gap
+  events keep the existing explicitly authorized historical enrollment
+  without an invented mismatch anomaly, stay outside mismatch semantics, and
+  repeated attempts remain deduplicated.
+- **A13-T13 - ordinarily eligible:** an event whose original epoch revision
+  accepts its kind and version keeps its ordinary obligation, its original
+  epoch revision, its backlog accounting and one original-epoch disposition;
+  a selected historical revision cannot relabel it as mismatched or enrolled,
+  re-enroll it under another revision or duplicate its disposition.
+- **A13-T14 - unrelated event kind:** an event of a kind the epoch's revision
+  does not consume is not an in-epoch contract mismatch for that route and
+  obtains no mismatch anomaly, anomalous job or attention.
+- **A13-T15 - withdrawal first:** the compatible revision's withdrawal
+  linearizes before the enrollment's selection; no terminal `ENROLLED`
+  outcome, disposition, job or enrollment-created anomaly results, and a
+  detector run after the withdrawal records the mismatch durably and visibly
+  under the existing withdrawal-first rule.
+- **A13-T16 - enrollment before withdrawal:** the terminal admission commits
+  first; the later withdrawal observes that history rather than revoking it
+  and continues to protect remaining unresolved work, and a born-terminal
+  `ENROLLED` anomaly is not unresolved work for strand safety.
+- **A13-T17 - detection versus withdrawal:** anomaly-first and withdrawal-first
+  races against withdrawal of the last compatible revision preserve strand
+  safety, permit no stale strand scan and never suppress anomaly creation
+  because a withdrawal already committed.
+- **A13-T18 - concurrent last-path removals:** two operations racing to remove
+  distinct last compatible or approved resolution paths cannot strand a
+  pre-existing `OPEN` anomaly through write skew; only a safety-preserving
+  serial result is admitted.
+- **A13-T19 - epoch lifecycle and delayed routing:** detection and enrollment
+  race epoch closure, reactivation, retirement and mixed-version routing; the
+  event's captured generation and immutable original-epoch classification
+  never change.
+- **A13-T20 - new-job atomic failure:** forcing a missing input, a job
+  uniqueness or disposition failure, a post-allocation precommit crash and a
+  fault injected after each constituent write of the enrollment transaction
+  leaves no committed `ENROLLED` outcome without its valid disposition, job
+  and inputs, no orphan or claimable job, and mismatch facts that remain
+  recoverable.
+- **A13-T21 - coalescing attachment versus first claim:** with an
+  already-open eligible shared job, attachment-first attaches and commits
+  `ENROLLED` atomically before the admission closure; claim/start-first refuses the
+  attachment without falsely resolving the anomaly or consuming the
+  disposition slot.
+- **A13-T22 - post-closure successor:** a legitimate approved successor admits
+  and atomically dispositions a previously unrepresented mismatched input,
+  while an ineligible or unavailable successor cannot falsely resolve it, even
+  where an earlier generation is admission-closed.
+- **A13-T23 - ambiguous predecessor or effect:** a successor whose predecessor
+  holds unresolved `EFFECT_STARTED` evidence may carry a committed terminal
+  `ENROLLED` route decision but performs no unsafe provider effect, and
+  job-level blocked and reconciliation visibility remains accurate.
+- **A13-T24 - loss and retry:** an abort or crash before commit, including a
+  fault after each constituent write, leaves no terminal outcome, job or
+  disposition and remains retryable; a lost acknowledgment after commit makes
+  the retry observe exactly the committed anomaly, resolution, disposition and
+  job, with no duplication or provider replay.
+- **A13-T26 - coverage and observability:** across detection-first,
+  born-terminal enrollment-first, failed enrollment with no anomaly,
+  divergence only from a committed `OPEN` anomaly, terminal history and a
+  committed but held successor, the open-anomaly count and oldest age,
+  terminal anomaly history, the distinct eligible-route backlog and job-level
+  blocked indicators never hide or double-count an obligation; a born-terminal
+  anomaly is never counted as subsequently open and remains historically
+  queryable; and accepted-divergence terminal non-materialized dispositions
+  are reported separately from `RECONCILED/DIVERGED` anomaly resolutions.
+- **A13-T27 - divergence first when no anomaly exists:** an authorized
+  divergence for an immutable mismatched event linearizes before any detector
+  or anomaly transaction and is refused with no canonical anomaly, terminal
+  resolution, disposition, new job or external effect. A later independent
+  detector creates exactly one `OPEN` anomaly, which only a new, valid,
+  authorized terminal request can resolve.
+- **A13-T28 - detector versus divergence in both orders:** in distinct
+  sessions or processes with real transaction barriers, including the
+  detector's uncommitted canonical insert and the diverger's stale absence
+  read: (i) the divergence linearizes before the detector commits and is
+  refused, and the detector then commits `OPEN`; (ii) the detector commits
+  `OPEN` before the divergence decision, and the authorized divergence commits
+  exactly one terminal `RECONCILED/DIVERGED` outcome with no disposition or
+  job, which a repeated later detector never reopens. The case establishes
+  database linearization, not wall-clock request arrival.
+- **A13-T29 - divergence of a non-mismatch event:** for (i) an ordinarily
+  eligible event, including one with a still-owed obligation, (ii) an
+  inactive-gap or before-first-epoch event, (iii) an unrelated kind within an
+  epoch and (iv) a claimed incompatible or current-only revision, every
+  mismatch-divergence request is refused without an anomaly, terminal
+  resolution, route-slot consumption, change to lawful backlog, direct job or
+  provider effect. A valid, independently authorized terminal
+  non-materialized disposition of an eligible obligation remains a different
+  command.
+- **A13-T30 - refused first enrollment followed by detection:** with no
+  anomaly initially, refusals for an invalid signature or authorization, a
+  withdrawn revision, an unavailable materializer and an unsafe coalescing
+  successor, including under concurrent detector scheduling, create no
+  anomaly, terminal resolution, disposition or new job. An independently
+  committed detector then creates or observes exactly one canonical `OPEN`
+  anomaly from the original facts, and a later authorized enrollment or
+  divergence may resolve it under the decision order; a failed attempt
+  neither consumes the route slot nor disguises an effect.
+- **A13-T31 - exceptional terminal non-materialized disposition versus
+  mismatch classification and concurrent detection:** an event inside route
+  R's epoch matches the consumed kind with a version outside the original
+  revision's accepted set; the staff actor otherwise holds valid explicit
+  authorization, a plausible reason and covering evidence, so each refusal
+  proves immutable-eligibility refusal rather than a missing staff privilege.
+  (A) Anomaly absent: the staff command linearizes before mismatch detection
+  and is refused with no new anomaly, terminal outcome, disposition, route-slot
+  consumption, job or provider effect; a later independent detector records
+  one canonical `OPEN` anomaly with the original facts. (B) Concurrent
+  detector: in distinct sessions or processes, the command and a detector
+  begin before either observes the other's committed anomaly; both
+  serialization orders, including conflicting and stale first reads, refuse
+  the command, and detection produces or retains one `OPEN` canonical anomaly
+  unless a separate, independently authorized first mismatch enrollment has
+  lawfully resolved it, with no false terminal outcome or consumed mismatch
+  slot. (C) Existing `OPEN`: the command is refused, and the anomaly keeps its
+  immutable evidence, age and attention; a separate valid historical
+  enrollment can then resolve it `ENROLLED` with the sole disposition and
+  job, or a separately authorized anomaly divergence can resolve it with no
+  disposition. (D) Existing terminal: with the canonical anomaly already
+  `ENROLLED`, and separately already `RECONCILED/DIVERGED`, the command is
+  refused without reopening, consuming another slot or creating an effect.
+  (E) Eligible positive control: for a genuinely ordinarily eligible,
+  still-owed event that meets the existing exceptional non-materialization
+  requirements, the authorized and audited command commits one unique no-job
+  disposition with its covering evidence; raced against lawful ordinary
+  routed materialization, including a coalescing attachment, exactly one
+  disposition wins the slot, the loser observes the durable outcome, and a
+  postcommit lost-acknowledgment retry creates no phantom completion,
+  duplicate job or effect. (F) Outside-epoch and unrelated kind: the command
+  is refused for a before-first-epoch or inactive-gap event and for an
+  unrelated event kind, with no anomaly, job, slot or provider effect, while
+  explicitly authorized outside-epoch historical enrollment keeps working
+  under its existing semantics. A mixed bulk staff command over eligible,
+  mismatched, outside-epoch and unrelated-kind events applies the refusal per
+  event.
+
+`A13-T25` is retired and is not an active case. It would have tested a
+speculative automatic repair or adoption of a pre-existing mismatch
+disposition without its canonical anomaly, which this decision does not
+adopt; the identifier is not renumbered or reused, and contradictory existing
+state is handled only by the fail-closed control HOLD of "Canonical
+mismatch-anomaly decision order" (section 3.2).
+
+### Amendment 14 + Revision 1: mandatory future falsification vectors
+
+The sixteen original A14 cases and twelve Revision-1 cases are
+retained below; Revision 1 governs conflicts. A14-T29–T34
+implement independent review F-07's six additional requirements.
+**All 30 active A13 cases** (A13-T25 remains retired), earlier
+post-closure cases and their original safety predicates remain
+binding. A13-T21/T22/T30 and predecessor/successor tests additionally
+cover **both** first-claim closure and lawful preclaim terminal closure.
+No A14 tests are claimed executed by documenting them.
+
+| Test | Scenario | Required durable outcome |
+| --- | --- | --- |
+| A14-T01 | Pending coalescing job, no prior first claim; pre-start cancel commits then new eligible route arrives | Terminal predecessor rejects attachment, leaves slot unused; distinct eligible open/new-generation successor handles owed route under existing atomic boundary |
+| A14-T02 | Router reads open job; cancellation commits; router attempts stale attachment | Atomic refusal; no ghost disposition/input; backlog remains owed and observed |
+| A14-T03 | New valid attachment commits before cancellation | Cancellation sees newly committed disposition and applies approved domain treatment or HOLD; does not lose or reparent it |
+| A14-T04 | Cancellation race with first claim; cancellation-first | Claim refused; no execution from terminal job |
+| A14-T05 | First claim race with cancellation; claim-first | First-claim seal retained; cancellation uses post-start/pre-write-or-effect-start rules, not pre-start terminal shortcut |
+| A14-T06 | Cancel transaction rolls back while attachment waits | No durable closure; ordinary valid attachment remains possible |
+| A14-T07 | Two routers after cancelled predecessor compete for new generation | Exactly one disposition per event-route; deterministic generation/idempotency convergence; no duplicate effect |
+| A14-T08 | Cancelled predecessor retains absolute idempotency key | Repeated materialization cannot loop or attach to it; successor has different legitimate executable identity |
+| A14-T09 | Pre-start `FAILED` or other enabled terminal transition without prior claim | Same permanent admission closure and safe successor eligibility; unsupported transitions fail closed |
+| A14-T10 | Cancellation would abandon an already attached still-required effect | Cancel refused/HOLD unless an independently approved safe domain treatment exists; no false success or silent loss |
+| A14-T11 | Authorized current-state supersession cancels pending coalesced job with several attached obligations | Each attached obligation remains auditable with correct domain-approved cancellation evidence, no provider-success assertion and no duplicate route slot |
+| A14-T12 | Historical mismatch enrollment races cancellation/terminal closure | No partial born-terminal `ENROLLED` anomaly, disposition or job input on failed attachment; successful alternative successor path commits its full canonical decision atomically |
+| A14-T13 | First claim after terminal before external write; repeated cancellation; crash/ack loss | No post-terminal start or resurrection; repeat operations recover the committed result, not an extra effect/job |
+| A14-T14 | Cancellation and successor execution at same canonical target with ambiguous predecessor effect | Target-scoped fence/reconciliation remains binding; a new generation does not license an unsafe write |
+| A14-T15 | Direct-created not-yet-started coalescible job is terminalized before later route attachment | Later attachment rejected; same explicit coalescing and route disposition rules as routed predecessor |
+| A14-T16 | Attachment, claim, and cancellation concurrently across separate database clients | One composable commit order, bounded retries and deadlock-safe lock acquisition; every durable outcome matches A14-R02/R03 |
+| `A14-T17` | Kind disclaims multi-generation identity because no arrivals can follow *first claim*; pre-first-claim cancel attempted; later ordinary eligible obligation possible | Cancellation refused/HOLD unless the kind has an independently approved distinct successor contract; no terminal reserved-key dead end |
+| `A14-T18` | Legitimate one-generation kind proves no new obligations after *any permitted closure* including authorized pre-claim cancellation, across historical enrollment and route lifecycles | Exemption admitted only with durable/approved proof; terminal closure cannot strand eligible route input |
+| `A14-T19` | `J0` has two materialized dispositions, first claim commits, attempt still `PRE_WRITE`; cancellation requested while both effects still required | No silent terminal `CANCELLED`; reject/HOLD unless authorized per-attachment coverage is established, with immutable slots and accurate job-level attention |
+| `A14-T20` | Claim-first `PRE_WRITE` cancellation, all attached `CURRENT_STATE` obligations proven superseded under an approved kind policy | Lawful terminalization only when every obligation has durable correlated evidence; no false provider success and no second route slot |
+| `A14-T21` | Mixed attached set: one proven superseded, one still required with no approved cancellation coverage | All-or-nothing refusal/HOLD of terminal cancellation; cannot terminalize using evidence for only a subset; no partial/late audit |
+| `A14-T22` | Unclaimed `PENDING` job receives direct terminal `FAILED` command with no approved first-claim-free failure transition | Command rejected; no automatic consumption of retry budget, invented failure, claim or route disposition |
+| `A14-T23` | Kind explicitly permits a terminal transition before first claim, with committed existing dispositions | Terminal admission closes atomically; every represented input gets truthful durable authorized outcome or the transition aborts; late attachments fail and remain owed |
+| `A14-T24` | First claim commits, worker begins `PRE_WRITE`; cancellation and `EFFECT_STARTED` race with current/stale claim token | Cancellation-first fences later effect start; `EFFECT_STARTED`-first requires reconciliation or evidence-backed stronger outcome; no `CANCELLED` used as ambiguity bypass |
+| `A14-T25` | Terminal `FAILED` after genuine pre-write retry exhaustion with two attached routes and no provider effect | Failure remains visible with truthful per-attachment failure/attention (not provider success); no phantom post-closure rerouting; no unapproved cancellation-policy shortcut |
+| `A14-T26` | Terminal outcome committed with audit/coverage record but worker/router loses acknowledgment, then replayed transition and fresh routing occur | Single terminalization, stable immutable audit/route linkage, no resurrection or duplicate effect; fresh eligible undispositioned obligation follows authorized successor only |
+| `A14-T27` | First compatible historical mismatch enrollment races a pending-job terminal transition and loses attachment; predecessor's key remains reserved | No partial born-terminal `ENROLLED` anomaly, slot or input; after reread, only an approved distinct eligible successor can receive first disposition under canonical anomaly order |
+| `A14-T28` | Per-attachment proof/audit insert fails during terminalization while a competing router attempts attachment | Whole terminal transaction rolls back, admission remains open if not otherwise sealed; router/worker state converges in one order, with no falsely terminal job or missing route membership |
+| `A14-T29` | Reconciler establishes legal no-effect `CANCELLED`/`FAILED` from `RECONCILIATION_REQUIRED` with attached obligations | Token-fenced valid per-obligation proof/attention or whole terminal command aborts |
+| `A14-T30` | `RETRY_SCHEDULED` and other pre-effect cancellation allowed/forbidden by kind | Only legal transitions commit; closure and complete attachment evidence cannot be skipped |
+| `A14-T31` | Terminal close races first historical mismatch enrollment, revision withdrawal/selection, strand safety and kind retirement/drain | One canonical atomic ordering, no ghost born-terminal anomaly or abandoned older attachment |
+| `A14-T32` | Mixed superseded, lawful failure, accepted-divergence and pending replacement for coalescing/non-coalescing terminalized jobs | Per-kind/per-route/revision consequence counts/oldest ages, separately from backlog/anomaly, without hidden or double-counted attached work |
+| `A14-T33` | Two cancellation commands race; duplicate arrives after postcommit lost acknowledgment | Exactly one lawful terminal status/audit/effect consequence; no duplicate provider effect or route slot |
+| `A14-T34` | Durable kind-policy window-close fact races attachment, claim, cancellation and rollback | Same database admission order, stale late attachment refused, accepted membership accounted and rolled-back close not durable |
+
+Implementation must use real distinct PostgreSQL sessions/processes,
+deterministic concurrency barriers and fault injection, including
+both commit orders, stale attachment, claim-first and cancellation-first,
+EFFECT_STARTED-first, rollback/deadlock, crash/restart,
+lost acknowledgment and durable kind-policy closure. Each case
+asserts one route slot, no phantom born-terminal anomaly, truthful
+per-attached-obligation consequence/attention, kind authorization,
+target-scoped effect safety and age/count observability.
+
+Provider-specific handlers owe their own acceptance evidence in addition to the
+shared-engine tests.
+
+## 12. Approval and authority
+
+Current decision state: **PROPOSED - Amendment 14 + Revision 1
+Route-B material correction candidate**. CTO approval of
+the **exact effective original A14 + Revision-1 specification**,
+including F-01–F-08 mandatory candidate acceptance and
+per-attached-obligation safeguards for **ALL routed jobs**,
+is **SPECIFICATION ONLY**. The corrected ADR source bytes,
+candidate Git blob/head and later exact final blob have
+**not** yet received their separate CTO approvals.
+
+The historical **Amendment-13** version was `APPROVED`
+by Javi, CTO on 2026-10-20 as ADR-0012 Git blob
+`69f9ec9017ffe39d865bbe3ae67522c6917dc857`,
+with its historical exact-head review. Its content/blob
+approval is **not** approval of A14 source. Earlier
+exact versions were approved on 2026-09-30,
+2026-10-05, 2026-10-06, 2026-10-07,
+2026-10-08, 2026-10-09, 2026-10-12 and
+2026-10-15; each approval/review remains
+historical for its exact old blob/head only.
+The owning GitHub issue and PR retain
+complete earlier approvals and evidence.
+
+This A14 correction is **material**, eligible for
+in-place ADR-0012 amendment under
+`docs/engineering/decisions/README.md`
+only while **no previously approved version
+has ever been repository-authoritative**.
+It replaces first-claim-only coalescing admission
+with first claim **or** independently lawful
+terminal preclaim and approved durable kind-policy
+admission closure; attachment/claim/terminal/
+policy facts share one database order.
+It strengthens executable successor proof
+and adds truthful all-routed-jobs terminal
+consequences and per-kind/route/revision
+operational visibility. Original route/
+epoch/revision classification, unique
+disposition and canonical mismatch anomaly
+order, claim and target-effect fencing,
+ADR-0010 staff authority and ADR-0013
+pinned reliance remain binding. Original
+invariants 1–47 and thirty active A13
+cases remain, with conformed 8/42/46,
+new invariant 48 and additional
+A14-T01–T34 future acceptance vectors.
+
+Under **Route B**, the CTO must separately
+approve the exact candidate PROPOSED ADR
+blob/head's architecture content; only then
+can a separately authorized single direct-child
+approval-state commit mark the new version
+`APPROVED` with fresh approver/date.
+The CTO must next approve the exact final
+ADR Git blob, and a fresh independent
+final-head source review and distinct
+SHA-bound CTO merge authorization
+must precede guarded merge.
+Repository authority requires that exact
+independently reviewed `APPROVED` version
+to be reachable from `develop`;
+programme-local ADR-0013 version
+reliance is narrower, separately opted-in
+and does not grant repository authority.
+A new commit invalidates exact-head
+reviews and affected SHA/blob permissions.
+
+ADR-0008 and ADR-0010 are superseded
+only to the exact boundaries in this
+ADR's header; unaffected machine-role,
+least-privilege, Staff Operations and
+staff-command controls remain binding.
+This proposed architecture candidate
+authorizes no runtime implementation,
+SQL/data migration, provider/IAM action,
+external writes, worker deployment,
+BE-04/DIS-02 or Hosting activation,
+release, merge, production activation
+or deployment. Live lifecycle,
+CI, review, authorization and merge
+evidence belongs to GitHub.
