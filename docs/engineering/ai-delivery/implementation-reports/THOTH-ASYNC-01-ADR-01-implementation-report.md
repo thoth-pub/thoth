@@ -38,20 +38,154 @@ Route-B candidate stage of the canonical mismatch-anomaly decision order
 and universal first route-disposition admission correction specified by
 Specification Amendment 13 with its Revisions 1 and 2 after the configured
 final-head automated review of that Amendment-12 approval-state head, and
-the Route-B approval-state stage of that Amendment-13 candidate.
+the Route-B approval-state stage of that Amendment-13 candidate, and the
+Route-B PROPOSED candidate stage of Amendment 14 + Revision 1.
 It records
 durable task evidence only. Live head, CI, review, authorization and
 merge state is GitHub-owned lifecycle evidence under `ADR-0005` and is not
 copied here.
 
-Sections 1-15 follow the repository implementation-report template for the
-Route-B correction stages, with the Amendment-13 Route-B approval-state
-commit as the current stage and every earlier candidate, approval-state,
+Sections 1-15 preserve the earlier Amendment-13 approval-state and prior
+historical Route-B evidence; the current Amendment-14 stage is recorded
+below. Those historical candidate, approval-state,
 recovery,
 report-only correction and clarification stage recorded as history. Appendix A
 preserves the earlier authoring, review, approval-state, reconciliation and
 validation record. Appendix B records the
 durable control conditions.
+
+## Amendment 14 + Revision 1 — current PROPOSED candidate stage
+
+**Identity:** `THOTH-ASYNC-01-ADR-01`,
+`thoth-pub/thoth#958` / parent `#957`, CRITICAL.
+**Implementer:** OpenAI ChatGPT GPT-6,
+not independent specification reviewer
+Claude Fable 5.1; the implementer cannot
+independently approve its own source.
+Programme-integration task uses the
+existing transitional `feature/async/adr-0012`
+branch and PR #960 targeting `feature/worker`.
+
+**Authorized source:** historical A13 head
+`2d01255c24f68cd03666cfa05518bb9f4ae76667`,
+exact base `feature/worker` and `develop`
+`b44303c214498baf76c9d9a0a7cab374377f9cbe`
+at preflight. One new additive single-parent
+A14 candidate commit, one guarded non-force
+fast-forward push. The final candidate
+SHA, tree and this report blob remain in
+GitHub lifecycle evidence and are not
+self-pinned inside the committing report.
+
+**Authority:** the CTO approved the exact
+Amendment 14 original plus Revision 1
+SPECIFICATION, including F-01–F-08 and
+application to **all** routed jobs, but
+has NOT yet approved this candidate ADR
+blob or head. ADR-0012 and the register
+are `PROPOSED`. The CTO-approved 2026-10-20
+Amendment-13 ADR blob
+`69f9ec9017ffe39d865bbe3ae67522c6917dc857`
+and all earlier source reviews/approvals
+remain **historical only**.
+
+**Write budget — EXACT four existing paths:**
+- `docs/engineering/decisions/ADR-0012-shared-asynchronous-event-and-job-execution.md`
+- `docs/engineering/decisions/decision-register.md`
+- `CHANGELOG.md`
+- `docs/engineering/ai-delivery/implementation-reports/THOTH-ASYNC-01-ADR-01-implementation-report.md`
+
+No new/deleted/renamed files. The pre-existing
+PR cumulative diff includes earlier ADR-0008
+and ADR-0010 changes, but this A14 stage
+changes neither. Other ADRs, runtime source,
+migration, generated contracts, CI workflow,
+policy, infrastructure and repositories stay
+byte-unchanged.
+
+**Source correction and F-01–F-08:**
+one `coalescing-admission-closed` predicate
+covers first committed claim/start, lawful
+preclaim terminal and applicable durable
+kind-policy closure, with a single
+composable atomic order. Only a **new
+undispositioned** obligation may use a
+safe deterministic successor; already
+materialized dispositions remain tied
+to the terminal predecessor with
+authorized job-level remediation.
+All routed kinds must truthfully account
+for each pre-effect attached obligation
+across cancellation, retry exhaustion,
+reconciliation, kind retirement/drain,
+poison jobs and non-coalesced jobs.
+F-01 terminology; F-02 legal pathways;
+F-03 queryable terminalized-obligation
+count/oldest-age; F-04 all routed jobs;
+F-05 HOLD/refusal semantics; F-06
+job-level replay; F-07 six additional
+cases; and F-08 durable kind-policy
+closure are included. All earlier
+47 invariants and thirty active
+A13 cases remain, with amended 8,
+42, 46, new 48 and A14-T01–T34.
+
+**Validation:** connector-driven
+documentation assertions verify
+candidate status, all four changed paths,
+48 consecutive invariants, unique
+A14-T01–T34 case identifiers, retention
+of active A13 case identifiers, Markdown
+whitespace, no conflict markers and
+documentation-only full-PR changed-path
+classification. The actual local
+`git diff --check` is **not claimed**
+without a checked-out repository;
+linewise whitespace checks are an
+explicitly reported substitute,
+not a misleading test-pass claim.
+No actual Rust, database concurrency,
+migration, auth or provider tests are
+performed by this architecture-only task.
+Exact CI outcomes belong to GitHub.
+A documentation-only push ordinarily
+skips migration and staging GHCR
+publication; any unexpected image
+publication or heavy classified CI
+is a STOP/report exception, not
+release authorization.
+
+**Compatibility/operations/rollback:**
+documentation-only, no runtime,
+schema/data, GraphQL, auth, provider
+or deployment effect. Future owning
+repositories/consumers include
+`thoth`, `thoth-dissemination`,
+`thoth-app`, `infrastructure` and
+Hosting. Their bounded tasks and
+pinned upstream contracts remain
+separately gated; no cross-repo
+implementation is authorized.
+Rollback or a second source commit
+requires a **new** authorization
+and no force push.
+
+**Next independent gates:** exact
+PROPOSED candidate CRITICAL source
+review of F-01–F-08; separate CTO
+candidate architecture-content approval;
+one separately authorized direct-child
+APPROVED-state commit; CTO exact-final-blob
+approval; fresh independent exact-final-head
+review; configured GitHub review and
+actual Codex P1 source correction/
+thread adjudication; exact-head CTO
+merge authorization, merge,
+programme integration and independent
+runtime/activation controls.
+The implementer does not self-approve.
+
+### Preserved historical task-stage record
 
 ## 1. Repository state
 
