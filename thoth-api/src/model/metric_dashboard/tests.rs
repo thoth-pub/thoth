@@ -24,7 +24,8 @@
 //! `cargo test -p thoth-api --features backend -- --ignored --nocapture
 //! metric_dashboard_query_plan_and_latency_evidence`.
 
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration as StdDuration, Instant};
 
 use chrono::NaiveDate;
@@ -37,9 +38,13 @@ use super::*;
 use crate::db::PgPool;
 use crate::model::metric_platform::tests::{insert_platform_row, scalar_i64, setup_registry_db};
 use crate::model::metric_rollup_delta::crud::{
-    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_month_projections,
+    claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
+    rebuild_month_projections, REBUILD_TRUNCATE_SQL,
 };
 use crate::model::metric_rollup_delta::tests::{deltas, projection, state};
+use crate::model::metric_rollup_delta::verification::{
+    verify_metric_rollup_months, VERIFICATION_LOCK_SQL,
+};
 use crate::model::tests::db::{failing_pool, test_db_url, TestDbGuard};
 
 // ==========================================================================
@@ -3250,16 +3255,30 @@ fn the_whole_response_is_read_from_one_repeatable_read_snapshot() {
 #[test]
 fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     let source = include_str!("mod.rs");
-    let entry = source
+    // The public entry point only names the production timeout.
+    let public_entry = source
         .split_once("pub(crate) fn metric_dashboard(")
         .expect("the entry point")
         .1
         .split_once("\n}\n")
         .expect("the entry point body")
         .0;
+    let public_chain: String = public_entry.split_whitespace().collect();
+    assert!(
+        public_chain
+            .ends_with("{metric_dashboard_with_statement_timeout(db,input,STATEMENT_TIMEOUT_SQL)"),
+        "the entry point must delegate with the production timeout: {public_chain}"
+    );
+    let entry = source
+        .split_once("fn metric_dashboard_with_statement_timeout(")
+        .expect("the timeout-parameterized entry point")
+        .1
+        .split_once("\n}\n")
+        .expect("the entry point body")
+        .0;
     let chain: String = entry.split_whitespace().collect();
     assert!(
-        chain.contains(".build_transaction().read_only().repeatable_read().run(|connection|evaluate(connection,&request))"),
+        chain.contains(".build_transaction().read_only().repeatable_read().run(|connection|evaluate(connection,&request,statement_timeout_sql))"),
         "every statement must run inside one read-only repeatable-read transaction: {chain}"
     );
     assert_eq!(
@@ -3268,12 +3287,16 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
         "exactly one connection"
     );
 
-    // The one non-query statement only sets a planner option for this
-    // transaction.
+    // The three non-query statements only set a planner option and a
+    // per-statement timeout for this transaction and take the six-table read
+    // lock; nothing writes.
     assert_eq!(
         CUSTOM_PLANS_SQL,
         "SET LOCAL plan_cache_mode = force_custom_plan"
     );
+    assert_eq!(STATEMENT_TIMEOUT_SQL, "SET LOCAL statement_timeout = '30s'");
+    assert!(PROJECTION_LOCK_SQL.starts_with("LOCK TABLE "));
+    assert!(PROJECTION_LOCK_SQL.ends_with(" IN ACCESS SHARE MODE"));
     for (name, statement) in READ_STATEMENTS {
         let upper = statement.to_uppercase();
         assert!(
@@ -3299,9 +3322,66 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     }
     assert_eq!(
         source.matches("diesel::sql_query(").count(),
-        READ_STATEMENTS.len() + 1,
+        READ_STATEMENTS.len() + 3,
         "every statement the read executes is one of the named constants"
     );
+
+    // Inside `evaluate`, the planner setting, the timeout and the lock run in
+    // that order before the first query, which is the one that freezes the
+    // snapshot; no query precedes the lock.
+    let body = source.split_once("fn evaluate(").expect("the evaluation").1;
+    let position = |needle: &str| {
+        body.find(needle)
+            .unwrap_or_else(|| panic!("`{needle}` must appear after `fn evaluate(`"))
+    };
+    let planner = position("diesel::sql_query(CUSTOM_PLANS_SQL)");
+    let timeout = position("diesel::sql_query(statement_timeout_sql)");
+    let lock = position("diesel::sql_query(PROJECTION_LOCK_SQL)");
+    let first_query = position("diesel::sql_query(PUBLISHERS_SQL)");
+    assert!(
+        planner < timeout && timeout < lock && lock < first_query,
+        "the planner setting, the timeout and the lock must precede the first query"
+    );
+    for (name, _) in READ_STATEMENTS {
+        assert!(
+            position(&format!("diesel::sql_query({name})")) >= first_query,
+            "{name} must not run before the projection lock"
+        );
+    }
+}
+
+#[test]
+fn the_pre_snapshot_lock_names_exactly_the_six_truncated_tables_in_the_verifier_order() {
+    // The same statement the rollup verifier takes before its own snapshot.
+    assert_eq!(PROJECTION_LOCK_SQL, VERIFICATION_LOCK_SQL);
+    let locked: Vec<&str> = PROJECTION_LOCK_SQL
+        .trim_start_matches("LOCK TABLE")
+        .trim_end_matches("IN ACCESS SHARE MODE")
+        .split(',')
+        .map(str::trim)
+        .collect();
+    let truncated: Vec<&str> = REBUILD_TRUNCATE_SQL
+        .trim_start_matches("TRUNCATE TABLE")
+        .split(',')
+        .map(str::trim)
+        .collect();
+    assert_eq!(
+        locked,
+        [
+            "public.metric_rollup_work_month",
+            "public.metric_rollup_work_country_month",
+            "public.metric_rollup_work_institution_month",
+            "public.metric_rollup_work_month_ambiguity",
+            "public.metric_rollup_work_country_year",
+            "public.metric_rollup_work_institution_year",
+        ]
+    );
+    assert_eq!(
+        locked, truncated,
+        "exactly the tables the exceptional rebuild truncates, in its order"
+    );
+    assert!(!PROJECTION_LOCK_SQL.contains("EXCLUSIVE"));
+    assert!(!PROJECTION_LOCK_SQL.contains("FOR "));
 }
 
 /// Every query the read may execute, by name.
@@ -3994,12 +4074,11 @@ impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for CaptureStatement
     }
 }
 
-/// Every statement one read sends to PostgreSQL, transaction control
-/// included, in order, on a fresh connection whose establishment is not
-/// counted.
-fn captured_statements(
-    input: &MetricDashboardInput,
-) -> (Result<MetricDashboard, MetricReadError>, Vec<String>) {
+/// A one-connection pool whose statements are captured, with the
+/// establishment-time statements of its connection discarded so that the
+/// log holds exactly what the next read sends, the pool's own checkout check
+/// included.
+pub(crate) fn capturing_pool() -> (PgPool, Arc<Mutex<Vec<String>>>) {
     let log = Arc::new(Mutex::new(Vec::new()));
     let pool = diesel::r2d2::Pool::builder()
         .max_size(1)
@@ -4008,6 +4087,16 @@ fn captured_statements(
         .expect("a capturing pool");
     drop(pool.get().expect("a capturing connection"));
     log.lock().expect("the statement log").clear();
+    (pool, log)
+}
+
+/// Every statement one read sends to PostgreSQL, transaction control
+/// included, in order, on a fresh connection whose establishment is not
+/// counted.
+fn captured_statements(
+    input: &MetricDashboardInput,
+) -> (Result<MetricDashboard, MetricReadError>, Vec<String>) {
+    let (pool, log) = capturing_pool();
     let result = metric_dashboard(&pool, input);
     let statements = log.lock().expect("the statement log").clone();
     (result, statements)
@@ -4019,9 +4108,15 @@ fn counted_statements(input: &MetricDashboardInput) -> usize {
     statements.len()
 }
 
+/// The SQL text of one captured statement, without the ` -- binds: [...]`
+/// suffix Diesel's debug rendering appends.
+pub(crate) fn statement_text(statement: &str) -> &str {
+    statement.split(" -- binds:").next().unwrap_or(statement)
+}
+
 /// The name of each captured statement: a named constant, or the
 /// transaction control Diesel issues.
-fn statement_names(statements: &[String]) -> Vec<&'static str> {
+pub(crate) fn statement_names(statements: &[String]) -> Vec<&'static str> {
     statements
         .iter()
         .map(|statement| {
@@ -4041,6 +4136,15 @@ fn statement_names(statements: &[String]) -> Vec<&'static str> {
             }
             if statement.starts_with(CUSTOM_PLANS_SQL) {
                 return "CUSTOM_PLANS_SQL";
+            }
+            // The production timeout, or the shorter one a test injects.
+            if statement.starts_with(STATEMENT_TIMEOUT_SQL)
+                || statement.starts_with("SET LOCAL statement_timeout = '")
+            {
+                return "STATEMENT_TIMEOUT_SQL";
+            }
+            if statement.starts_with(PROJECTION_LOCK_SQL) {
+                return "PROJECTION_LOCK_SQL";
             }
             READ_STATEMENTS
                 .iter()
@@ -4118,11 +4222,11 @@ fn the_statement_count_does_not_grow_with_works_days_or_rows() {
     wide.end_date = d1() + Duration::days(366);
     let wide = counted_statements(&wide);
 
-    // The pool's checkout check, transaction control, custom plans,
-    // publishers and frontier, works, registry, represented scope, accounts,
-    // canonical state, day values, edge sections, coverage and identifier
-    // quality: a fixed set.
-    assert_eq!(small, 14, "{small} statements");
+    // The pool's checkout check, transaction control, custom plans, the
+    // statement timeout, the projection lock, publishers and frontier, works,
+    // registry, represented scope, accounts, canonical state, day values,
+    // edge sections, coverage and identifier quality: a fixed set.
+    assert_eq!(small, 16, "{small} statements");
     assert_eq!(
         large,
         small + 1,
@@ -4132,7 +4236,7 @@ fn the_statement_count_does_not_grow_with_works_days_or_rows() {
     );
     // A year adds only the one monthly statement for its complete months.
     assert_eq!(wide, large + 1);
-    assert!(wide <= 16);
+    assert!(wide <= 18);
 
     // Many more dimensional rows and many more mixed groups add no statement.
     for work_id in &many {
@@ -6894,6 +6998,8 @@ fn the_statement_sequence_is_fixed_bounded_and_planned_for_its_arguments() {
         "CHECKOUT_CHECK",
         "BEGIN",
         "CUSTOM_PLANS_SQL",
+        "STATEMENT_TIMEOUT_SQL",
+        "PROJECTION_LOCK_SQL",
         "PUBLISHERS_SQL",
         "WORKS_SQL",
         "KNOWN_SQL",
@@ -6913,10 +7019,15 @@ fn the_statement_sequence_is_fixed_bounded_and_planned_for_its_arguments() {
         expected,
         "every statement of the longest path, each at most once"
     );
-    // #946 Amendment 2 section 10: the pool check, transaction control, the
-    // planner setting and the identifier-quality statement all count, and
-    // the longest path is exactly the permitted sixteen.
-    assert_eq!(statements.len(), 16);
+    // #946 Amendment 2 section 10 as amended by MET-WP11-B-CORR-H1 (#987):
+    // the pool check, transaction control, the planner setting, the
+    // statement timeout, the projection lock and the identifier-quality
+    // statement all count, and the longest path is exactly the permitted
+    // eighteen including the pool's checkout check, seventeen without it.
+    assert_eq!(statements.len(), 18);
+    assert_eq!(statement_text(&statements[2]), CUSTOM_PLANS_SQL);
+    assert_eq!(statement_text(&statements[3]), STATEMENT_TIMEOUT_SQL);
+    assert_eq!(statement_text(&statements[4]), PROJECTION_LOCK_SQL);
 
     // Many more works, publishers' works, days and rows run the same
     // statements: nothing is issued per work, day, month or institution.
@@ -7018,8 +7129,640 @@ fn the_statement_sequence_is_fixed_bounded_and_planned_for_its_arguments() {
         .expect("a read-only transaction");
     assert_eq!(inside, "force_custom_plan");
     assert_eq!(setting(&mut connection), "auto");
+    // The statement timeout is likewise set inside the transaction only.
+    #[derive(diesel::QueryableByName)]
+    struct Timeout {
+        #[diesel(sql_type = Text)]
+        statement_timeout: String,
+    }
+    let timeout = |connection: &mut PgConnection| {
+        sql_query("SHOW statement_timeout")
+            .get_result::<Timeout>(connection)
+            .expect("the statement timeout")
+            .statement_timeout
+    };
+    let inside = connection
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            sql_query(STATEMENT_TIMEOUT_SQL).execute(connection)?;
+            Ok::<_, diesel::result::Error>(timeout(connection))
+        })
+        .expect("a read-only transaction");
+    assert_eq!(inside, "30s");
+    assert_ne!(timeout(&mut connection), "30s");
     // The per-publisher assertion day series is materialized.
     assert!(ASSERTIONS_SQL.contains("WITH d AS MATERIALIZED"));
+}
+
+// ==========================================================================
+// MET-WP11-B-CORR-H1: snapshot protection against the exceptional rebuild
+// ==========================================================================
+
+/// The longest any bounded synchronization below may wait before the test
+/// fails instead of hanging.
+const SYNC_DEADLINE: StdDuration = StdDuration::from_secs(60);
+
+/// One synchronization point inside an instrumented connection's statement
+/// stream: the connection announces that it has arrived, then waits —
+/// bounded — until the test releases it.
+#[derive(Debug, Default)]
+struct Pause {
+    /// `(arrived, released)`.
+    state: Mutex<(bool, bool)>,
+    changed: Condvar,
+}
+
+impl Pause {
+    /// On the instrumented connection: announce arrival, then block until
+    /// released or the deadline passes.
+    fn arrive(&self) {
+        let deadline = Instant::now() + SYNC_DEADLINE;
+        let mut state = self.state.lock().expect("the pause state");
+        state.0 = true;
+        self.changed.notify_all();
+        while !state.1 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .expect("the pause state")
+                .0;
+        }
+    }
+
+    /// On the test thread: wait, bounded, until the connection has arrived.
+    fn wait_arrived(&self) {
+        let deadline = Instant::now() + SYNC_DEADLINE;
+        let mut state = self.state.lock().expect("the pause state");
+        while !state.0 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(!remaining.is_zero(), "the paused connection never arrived");
+            state = self
+                .changed
+                .wait_timeout(state, remaining)
+                .expect("the pause state")
+                .0;
+        }
+    }
+
+    fn release(&self) {
+        self.state.lock().expect("the pause state").1 = true;
+        self.changed.notify_all();
+    }
+}
+
+/// Where an instrumented connection pauses: just before the first statement
+/// starting with the prefix is sent, or just after it has finished.
+#[derive(Debug, Clone, Copy)]
+enum PauseAt {
+    Start,
+    Finish,
+}
+
+/// Logs every statement a connection starts and pauses it once, at the
+/// first statement starting with `prefix`.
+#[derive(Debug)]
+struct PauseStatements {
+    prefix: &'static str,
+    at: PauseAt,
+    pause: Arc<Pause>,
+    log: Arc<Mutex<Vec<String>>>,
+}
+
+impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for PauseStatements {
+    fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+        let prefix = self.prefix;
+        let at = self.at;
+        let pause = Arc::clone(&self.pause);
+        let log = Arc::clone(&self.log);
+        connection.set_instrumentation(move |event: InstrumentationEvent<'_>| match event {
+            InstrumentationEvent::StartQuery { query, .. } => {
+                let statement = query.to_string();
+                log.lock()
+                    .expect("the statement log")
+                    .push(statement.clone());
+                if matches!(at, PauseAt::Start) && statement.starts_with(prefix) {
+                    pause.arrive();
+                }
+            }
+            InstrumentationEvent::FinishQuery { query, .. }
+                if matches!(at, PauseAt::Finish) && query.to_string().starts_with(prefix) =>
+            {
+                pause.arrive();
+            }
+            _ => {}
+        });
+        Ok(())
+    }
+}
+
+/// A one-connection pool whose connection pauses as described and logs every
+/// statement it starts after its establishment.
+fn pausing_pool(
+    prefix: &'static str,
+    at: PauseAt,
+    pause: &Arc<Pause>,
+) -> (PgPool, Arc<Mutex<Vec<String>>>) {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let pool = diesel::r2d2::Pool::builder()
+        .max_size(1)
+        .connection_customizer(Box::new(PauseStatements {
+            prefix,
+            at,
+            pause: Arc::clone(pause),
+            log: Arc::clone(&log),
+        }))
+        .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+        .expect("a pausing pool");
+    drop(pool.get().expect("a pausing connection"));
+    log.lock().expect("the statement log").clear();
+    (pool, log)
+}
+
+/// A one-connection logging pool that never pauses.
+fn logging_pool() -> (PgPool, Arc<Mutex<Vec<String>>>) {
+    pausing_pool("\u{0}", PauseAt::Start, &Arc::new(Pause::default()))
+}
+
+/// How many backends of this database are waiting for a lock inside a
+/// statement starting with `prefix`.
+fn lock_waiters(pool: &PgPool, prefix: &str) -> i64 {
+    scalar_i64(
+        pool,
+        &format!(
+            "(SELECT COUNT(*) FROM pg_stat_activity \
+              WHERE datname = current_database() \
+                AND wait_event_type = 'Lock' \
+                AND query LIKE '{prefix}%')"
+        ),
+    )
+}
+
+/// Wait, bounded, until exactly `expected` backends wait for a lock inside a
+/// statement starting with `prefix`: an observed database fact, not a timing
+/// assumption.
+fn wait_for_lock_waiters(pool: &PgPool, prefix: &str, expected: i64) {
+    let deadline = Instant::now() + SYNC_DEADLINE;
+    loop {
+        if lock_waiters(pool, prefix) == expected {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{expected} backend(s) never came to wait for a lock in `{prefix}`"
+        );
+        std::thread::sleep(StdDuration::from_millis(20));
+    }
+}
+
+/// The six derived tables' `ACCESS SHARE` locks currently granted.
+fn granted_projection_read_locks(pool: &PgPool) -> i64 {
+    scalar_i64(
+        pool,
+        "(SELECT COUNT(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation \
+          WHERE l.locktype = 'relation' AND l.mode = 'AccessShareLock' AND l.granted \
+            AND c.relname IN ('metric_rollup_work_month', \
+                              'metric_rollup_work_country_month', \
+                              'metric_rollup_work_institution_month', \
+                              'metric_rollup_work_month_ambiguity', \
+                              'metric_rollup_work_country_year', \
+                              'metric_rollup_work_institution_year'))",
+    )
+}
+
+/// Nonzero evidence served from the monthly projection under complete
+/// coverage: 5 + 7 title sessions in March 2026 for the first work, and a
+/// request for exactly that calendar month, whose total and single `MONTH`
+/// bucket are both `12`. An empty monthly read of this request would be a
+/// justified — and false — zero.
+pub(crate) fn complete_month(fx: &Fixture) -> MetricDashboardInput {
+    commit(
+        fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 3, 10),
+        5,
+    );
+    commit(
+        fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 3, 20),
+        7,
+    );
+    apply_all(&fx.pool);
+    cover(
+        fx,
+        fx.sessions,
+        d(2026, 3, 1),
+        d(2026, 4, 1),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-04-02T00:00:00Z'",
+    );
+    request(
+        fx.publisher_id,
+        d(2026, 3, 1),
+        d(2026, 4, 1),
+        &[fx.platform_id],
+        &[fx.sessions],
+        Some(MetricTimelineGrain::Month),
+    )
+}
+
+fn assert_twelve(dashboard: &MetricDashboard, fx: &Fixture) {
+    assert_eq!(total(dashboard, fx.platform_id, fx.sessions), some("12"));
+    assert_eq!(bucket_values(dashboard, fx.sessions), vec![some("12")]);
+    assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Complete);
+    assert!(codes(dashboard).is_empty(), "{:?}", codes(dashboard));
+}
+
+/// Make the six derived families verify inexact without touching any row
+/// the complete-month request reads: one stray yearly country row, which the
+/// rebuild's `TRUNCATE` and recomputation remove.
+fn make_rebuild_necessary(fx: &Fixture) {
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_country_year \
+                 (work_id, publication_id, platform_id, measure_id, year_start, country_code, \
+                  value, requires_institution_coverage, watermark) \
+             VALUES ('{}', NULL, '{}', '{}', '2026-01-01', 'ZZ', 1, FALSE, 1);",
+            fx.works[0], fx.platform_id, fx.sessions
+        ),
+    );
+    assert!(
+        !verify_metric_rollup_months(&fx.pool)
+            .expect("the verification")
+            .matches,
+        "the stray yearly row must make the derived state inexact"
+    );
+}
+
+fn stray_rows(fx: &Fixture) -> i64 {
+    scalar_i64(
+        &fx.pool,
+        "(SELECT COUNT(*) FROM metric_rollup_work_country_year WHERE country_code = 'ZZ')",
+    )
+}
+
+fn frontier(fx: &Fixture) -> String {
+    state(&fx.pool).applied_through_sequence.to_string()
+}
+
+fn count_rows(connection: &mut PgConnection, table: &str) -> Result<i64, diesel::result::Error> {
+    diesel::select(diesel::dsl::sql::<SqlBigInt>(&format!(
+        "(SELECT COUNT(*) FROM {table})"
+    )))
+    .get_result(connection)
+}
+
+#[test]
+fn a_snapshot_frozen_before_a_rebuild_truncate_sees_the_projection_as_empty() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    assert_twelve(&read(&fx, &input), &fx);
+    let rows_before = scalar_i64(&fx.pool, "(SELECT COUNT(*) FROM metric_rollup_work_month)");
+    assert!(rows_before > 0);
+
+    // The ordering the read had before MET-WP11-B-CORR-H1, replayed statement
+    // by statement from this module's own constants: the planner setting, then
+    // the publishers query freezing the REPEATABLE READ snapshot with no lock
+    // on the projection tables, and the monthly projection read only later —
+    // after an exceptional rebuild truncated, repopulated and committed.
+    let mut stale =
+        PgConnection::establish(&test_db_url()).expect("Failed to open the stale reader");
+    let seen_by_stale_snapshot = stale
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
+            let publishers: Vec<PublisherRow> = sql_query(PUBLISHERS_SQL)
+                .bind::<Array<SqlUuid>, _>(vec![fx.publisher_id])
+                .load(connection)?;
+            assert_eq!(publishers.len(), 1, "the snapshot is frozen by this query");
+            rebuild_month_projections(&fx.pool).expect("the unconditional rebuild");
+            count_rows(connection, "metric_rollup_work_month")
+        })
+        .expect("the stale read");
+    assert_eq!(
+        seen_by_stale_snapshot, 0,
+        "a snapshot frozen before the truncate sees the rebuilt monthly projection as empty: \
+         that emptiness, under complete coverage, was the false zero"
+    );
+    assert_eq!(
+        scalar_i64(&fx.pool, "(SELECT COUNT(*) FROM metric_rollup_work_month)"),
+        rows_before,
+        "the committed rebuilt rows exist; only the stale snapshot cannot see them"
+    );
+    // The corrected read, which locks before its snapshot, still serves them.
+    assert_twelve(&read(&fx, &input), &fx);
+}
+
+#[test]
+fn a_reader_holding_the_pre_snapshot_lock_blocks_the_rebuild_until_it_commits() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    make_rebuild_necessary(&fx);
+
+    // The first reader pauses after its lock, just before its first query.
+    let pause = Arc::new(Pause::default());
+    let (first_pool, first_log) = pausing_pool(PUBLISHERS_SQL, PauseAt::Start, &pause);
+    let first_input = input.clone();
+    let first = std::thread::spawn(move || metric_dashboard(&first_pool, &first_input));
+    pause.wait_arrived();
+    assert_eq!(
+        statement_names(&first_log.lock().expect("the statement log")),
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+            "PUBLISHERS_SQL",
+        ],
+        "the lock is held before the first query is sent"
+    );
+    assert_eq!(granted_projection_read_locks(&fx.pool), 6);
+
+    // A rebuild that must truncate waits at its TRUNCATE.
+    let rebuild_pool = Arc::clone(&fx.pool);
+    let expected = frontier(&fx);
+    let rebuild =
+        std::thread::spawn(move || rebuild_metric_rollup_months(&rebuild_pool, &expected));
+    wait_for_lock_waiters(&fx.pool, "TRUNCATE TABLE", 1);
+
+    // A second reader arriving now queues behind the waiting TRUNCATE at its
+    // own lock, before any query of its own.
+    let (second_pool, second_log) = logging_pool();
+    let second_input = input.clone();
+    let second = std::thread::spawn(move || metric_dashboard(&second_pool, &second_input));
+    wait_for_lock_waiters(&fx.pool, "LOCK TABLE", 1);
+    assert_eq!(
+        statement_names(&second_log.lock().expect("the statement log")),
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+        ],
+        "the queued reader has sent no query"
+    );
+    assert_eq!(
+        stray_rows(&fx),
+        1,
+        "nothing is rebuilt while the first reader holds its locks"
+    );
+
+    // Release the first reader, well inside the rebuild's own lock timeout.
+    pause.release();
+    let first = first
+        .join()
+        .expect("the first reader thread")
+        .expect("the first read");
+    assert_twelve(&first, &fx);
+    let rebuilt = rebuild
+        .join()
+        .expect("the rebuild thread")
+        .expect("the rebuild proceeds once the reader has committed");
+    assert!(rebuilt.rebuilt);
+    assert!(rebuilt.verification.matches);
+    assert_eq!(stray_rows(&fx), 0);
+    let second = second
+        .join()
+        .expect("the second reader thread")
+        .expect("the queued read");
+    assert_twelve(&second, &fx);
+    let names = statement_names(&second_log.lock().expect("the statement log"));
+    assert_eq!(names[4], "PROJECTION_LOCK_SQL");
+    assert_eq!(names[5], "PUBLISHERS_SQL");
+    assert_eq!(names.last(), Some(&"COMMIT"));
+}
+
+#[test]
+fn a_reader_holding_the_lock_past_the_rebuild_lock_timeout_fails_the_rebuild_closed() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    make_rebuild_necessary(&fx);
+
+    let pause = Arc::new(Pause::default());
+    let (reader_pool, _) = pausing_pool(PUBLISHERS_SQL, PauseAt::Start, &pause);
+    let reader_input = input.clone();
+    let reader = std::thread::spawn(move || metric_dashboard(&reader_pool, &reader_input));
+    pause.wait_arrived();
+
+    let rebuild_pool = Arc::clone(&fx.pool);
+    let expected = frontier(&fx);
+    let started = Instant::now();
+    let rebuild =
+        std::thread::spawn(move || rebuild_metric_rollup_months(&rebuild_pool, &expected));
+    wait_for_lock_waiters(&fx.pool, "TRUNCATE TABLE", 1);
+
+    // The reader keeps its locks; the rebuild expires its own existing 5s
+    // lock timeout, fails closed and rolls back, leaving the derived state
+    // exactly as it was.
+    let error = rebuild
+        .join()
+        .expect("the rebuild thread")
+        .expect_err("the rebuild must not wait indefinitely");
+    assert!(
+        error.to_string().contains("lock timeout"),
+        "the rebuild's own lock timeout, not another failure: {error}"
+    );
+    assert!(
+        started.elapsed() >= StdDuration::from_secs(4),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(stray_rows(&fx), 1, "the failed rebuild changed nothing");
+    assert_eq!(lock_waiters(&fx.pool, "TRUNCATE TABLE"), 0);
+    assert_eq!(granted_projection_read_locks(&fx.pool), 6);
+
+    pause.release();
+    let dashboard = reader.join().expect("the reader thread").expect("the read");
+    assert_twelve(&dashboard, &fx);
+
+    // Unobstructed, the same rebuild succeeds.
+    let rebuilt =
+        rebuild_metric_rollup_months(&fx.pool, &frontier(&fx)).expect("the later rebuild");
+    assert!(rebuilt.rebuilt);
+    assert_eq!(stray_rows(&fx), 0);
+    assert_twelve(&read(&fx, &input), &fx);
+}
+
+#[test]
+fn a_reader_arriving_during_a_rebuild_waits_before_its_snapshot_and_sees_the_rebuilt_state() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    make_rebuild_necessary(&fx);
+
+    // The rebuild pauses just after its TRUNCATE, holding the six tables
+    // exclusively in its open transaction.
+    let pause = Arc::new(Pause::default());
+    let (rebuild_pool, _) = pausing_pool(REBUILD_TRUNCATE_SQL, PauseAt::Finish, &pause);
+    let expected = frontier(&fx);
+    let rebuild =
+        std::thread::spawn(move || rebuild_metric_rollup_months(&rebuild_pool, &expected));
+    pause.wait_arrived();
+
+    // A reader arriving now waits at its lock, before any query and
+    // therefore before its snapshot.
+    let (reader_pool, reader_log) = logging_pool();
+    let reader_input = input.clone();
+    let reader = std::thread::spawn(move || metric_dashboard(&reader_pool, &reader_input));
+    wait_for_lock_waiters(&fx.pool, "LOCK TABLE", 1);
+    assert_eq!(
+        statement_names(&reader_log.lock().expect("the statement log")),
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+        ],
+        "the waiting reader has frozen no snapshot"
+    );
+
+    pause.release();
+    let rebuilt = rebuild
+        .join()
+        .expect("the rebuild thread")
+        .expect("the rebuild");
+    assert!(rebuilt.rebuilt);
+    assert!(rebuilt.verification.matches);
+    let dashboard = reader
+        .join()
+        .expect("the reader thread")
+        .expect("the read after the rebuild committed");
+    assert_twelve(&dashboard, &fx);
+    assert_eq!(stray_rows(&fx), 0);
+    let names = statement_names(&reader_log.lock().expect("the statement log"));
+    assert_eq!(names[5], "PUBLISHERS_SQL");
+    assert_eq!(names.last(), Some(&"COMMIT"));
+}
+
+#[test]
+fn lock_contention_past_the_statement_timeout_fails_closed_and_returns_the_connection() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+
+    // Another transaction holds one projection table exclusively, as a
+    // rebuild's TRUNCATE would, for longer than the reader's timeout.
+    let mut holder =
+        PgConnection::establish(&test_db_url()).expect("Failed to open the holder connection");
+    holder
+        .batch_execute(
+            "BEGIN; LOCK TABLE public.metric_rollup_work_month IN ACCESS EXCLUSIVE MODE;",
+        )
+        .expect("hold the monthly table exclusively");
+
+    let (pool, log) = logging_pool();
+    let started = Instant::now();
+    let result = metric_dashboard_with_statement_timeout(
+        &pool,
+        &input,
+        "SET LOCAL statement_timeout = '250ms'",
+    );
+    assert_eq!(result, Err(MetricReadError::Unavailable));
+    assert!(started.elapsed() < StdDuration::from_secs(30));
+    assert_eq!(MetricReadError::Unavailable.code(), "INTERNAL_ERROR");
+    assert_eq!(
+        MetricReadError::Unavailable.message(),
+        "The Metrics read could not be completed."
+    );
+    assert_eq!(
+        statement_names(&log.lock().expect("the statement log")),
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+            "ROLLBACK",
+        ],
+        "no query ran, nothing partial was assembled, and the transaction was rolled back"
+    );
+    // The connection went back to the pool holding nothing.
+    assert_eq!(pool.state().idle_connections, 1);
+    assert_eq!(lock_waiters(&fx.pool, "LOCK TABLE"), 0);
+    assert_eq!(granted_projection_read_locks(&fx.pool), 0);
+    assert_eq!(
+        scalar_i64(
+            &fx.pool,
+            "(SELECT COUNT(*) FROM pg_stat_activity \
+              WHERE datname = current_database() \
+                AND state LIKE 'idle in transaction%' \
+                AND query LIKE 'LOCK TABLE public.metric_rollup_work_month, %')",
+        ),
+        0,
+        "the failed read left no transaction open"
+    );
+
+    // Once the holder is gone, the same pool serves the exact values.
+    holder.batch_execute("COMMIT;").expect("release the holder");
+    assert_twelve(
+        &metric_dashboard(&pool, &input).expect("the read after release"),
+        &fx,
+    );
+}
+
+#[test]
+fn incremental_maintenance_is_not_blocked_by_a_reader_holding_the_pre_snapshot_lock() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    // One more canonical day, not yet applied to the projections.
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 3, 25),
+        3,
+    );
+
+    let pause = Arc::new(Pause::default());
+    let (reader_pool, _) = pausing_pool(PUBLISHERS_SQL, PauseAt::Start, &pause);
+    let reader_input = input.clone();
+    let reader = std::thread::spawn(move || metric_dashboard(&reader_pool, &reader_input));
+    pause.wait_arrived();
+    assert_eq!(granted_projection_read_locks(&fx.pool), 6);
+
+    // Normal claim and completion write the monthly projection under ROW
+    // EXCLUSIVE locks and commit while the reader still holds its locks.
+    let (done, completed) = mpsc::channel();
+    let maintenance_pool = Arc::clone(&fx.pool);
+    std::thread::spawn(move || {
+        apply_all(&maintenance_pool);
+        done.send(()).expect("report the completed maintenance");
+    });
+    completed
+        .recv_timeout(StdDuration::from_secs(30))
+        .expect("ROW EXCLUSIVE maintenance must not wait for an ACCESS SHARE reader");
+    assert_eq!(granted_projection_read_locks(&fx.pool), 6);
+    assert_eq!(
+        scalar_i64(
+            &fx.pool,
+            "(SELECT COALESCE(SUM(value), 0)::bigint FROM metric_rollup_work_month)",
+        ),
+        15
+    );
+
+    // The reader's snapshot is frozen only after its release, so it already
+    // sees the maintained state.
+    pause.release();
+    let dashboard = reader.join().expect("the reader thread").expect("the read");
+    assert_eq!(total(&dashboard, fx.platform_id, fx.sessions), some("15"));
+    assert_eq!(bucket_values(&dashboard, fx.sessions), vec![some("15")]);
+    assert_eq!(dashboard.coverage.status, MetricCoverageStatus::Complete);
 }
 
 // ==========================================================================
@@ -7470,7 +8213,7 @@ fn latency(fx: &Fixture, label: &str, input: &MetricDashboardInput) {
         statements.len(),
     );
     assert!(
-        statements.len() <= 16,
+        statements.len() <= 18,
         "{label}: {:?}",
         statement_names(&statements)
     );

@@ -1417,18 +1417,58 @@ Contract properties consumers may rely on:
   range, served platforms and served measures. Identifier quality does not
   widen it.
 - **Execution.** Everything still runs on one connection in one
-  `READ ONLY, REPEATABLE READ` transaction, starting with
-  `SET LOCAL plan_cache_mode = force_custom_plan` so each statement is
-  planned for its actual arrays and bounds. The longest request path is
-  exactly sixteen database statements counted conservatively — the pool's
-  own checkout `SELECT 1`, `BEGIN`, the planner setting, twelve queries
-  including the identifier-quality query, and `COMMIT` — whatever the number
-  of publishers, works, days, months, countries, institutions or quarantine
-  rows: the frontier is read with the publishers, explicit selector IDs are
-  checked while the works are resolved, native grains and lag share one
-  statement, each monthly and edge-day section statement runs at most once,
-  and no work or institution is looked up individually. The per-publisher
-  coverage day series is a `MATERIALIZED` CTE.
+  `READ ONLY, REPEATABLE READ` transaction. Before its first query, and
+  therefore before its snapshot is frozen, the read executes exactly three
+  non-query statements in this order: `SET LOCAL plan_cache_mode =
+  force_custom_plan`, so each statement is planned for its actual arrays and
+  bounds; `SET LOCAL statement_timeout = '30s'`, a limit on each later
+  statement individually, not a whole-request deadline; and one `LOCK TABLE`
+  on exactly the six derived projection tables the exceptional rebuild
+  truncates — `metric_rollup_work_month`, `metric_rollup_work_country_month`,
+  `metric_rollup_work_institution_month`, `metric_rollup_work_month_ambiguity`,
+  `metric_rollup_work_country_year` and `metric_rollup_work_institution_year`,
+  in the order the verifier of section 3.7 locks them — `IN ACCESS SHARE
+  MODE`, held until the transaction ends (`MET-WP11-B-CORR-H1`, issue #987).
+  The longest request path is exactly eighteen database statements counted
+  conservatively — the pool's own checkout `SELECT 1`, `BEGIN`, the planner
+  setting, the statement timeout, the lock, twelve queries including the
+  identifier-quality query, and `COMMIT` — and seventeen excluding the pool's
+  checkout, whatever the number of publishers, works, days, months, countries,
+  institutions or quarantine rows: the frontier is read with the publishers,
+  explicit selector IDs are checked while the works are resolved, native
+  grains and lag share one statement, each monthly and edge-day section
+  statement runs at most once, and no work or institution is looked up
+  individually. The per-publisher coverage day series is a `MATERIALIZED`
+  CTE.
+- **Snapshot protection and contention.** PostgreSQL's `TRUNCATE` is not
+  MVCC-safe: a `REPEATABLE READ` snapshot frozen before a concurrent
+  `rebuildMetricRollupMonths` truncate would see the projection tables it had
+  not yet read as empty, and complete coverage would turn that emptiness into
+  a successful, false zero. The pre-snapshot `ACCESS SHARE` lock closes that
+  anomaly exactly as the verifier's does. It conflicts only with `ACCESS
+  EXCLUSIVE`, which the rebuild's `TRUNCATE` takes, and not with the `ROW
+  EXCLUSIVE` locks of normal incremental completion, so routine monthly and
+  yearly maintenance is never blocked by a dashboard read. Reader first: a
+  rebuild cannot truncate while a read holds the six locks; it either acquires
+  its lock after the read ends and proceeds under its own existing limits, or
+  expires its own existing 5-second `lock_timeout`, fails closed and rolls
+  back. Rebuilder first: the read waits at its `LOCK TABLE`, before its
+  snapshot, until the rebuild commits or rolls back, bounded by its own
+  30-second statement timeout, and then sees the committed rebuilt state. A
+  read arriving while a `TRUNCATE` is queued waits behind it under
+  PostgreSQL's lock ordering, bounded the same way. No wait is indefinite, and
+  no fairness or whole-request latency is promised.
+- **Bounded failure.** A statement timeout, a lock wait that reaches it, or
+  any other SQL failure aborts the whole read, rolls its transaction back,
+  returns the connection to the pool and fails as `INTERNAL_ERROR` with the
+  fixed message `The Metrics read could not be completed.`; no partial
+  response and no fabricated zero is ever returned.
+- **Deferred B2 reconciliation.** The deferred `MET-WP4-03C-B2` reader
+  cutover (issue #980) prescribes one combined settings statement and its own
+  statement ceilings. This current-reader contract neither amends nor
+  satisfies them: before B2 resumes, its approved settings sequence and count
+  acceptance must be explicitly reconciled under #980 with this lock and the
+  actual reader instrumentation.
 - **Activation gate.** The monthly projections are served only once, under
   separate authorization, the `MET-WP4-03A` migration has run and a full
   historical rebuild has been reconciled at a recorded work-day frontier

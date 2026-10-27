@@ -18,7 +18,10 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use diesel::connection::SimpleConnection;
+use diesel::{Connection, PgConnection};
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
@@ -27,10 +30,12 @@ use super::sdl_support::sdl_block;
 use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::metric_dashboard::tests::{
-    apply_all, commit, commit_dims, cover, day_n, exec, insert_institution, insert_measure,
-    projection_sql, publisher_sql, quarantine, setup, works_sql, Dims, Fixture,
+    apply_all, capturing_pool, commit, commit_dims, complete_month, cover, day_n, exec,
+    insert_institution, insert_measure, projection_sql, publisher_sql, quarantine, setup,
+    statement_names, statement_text, works_sql, Dims, Fixture,
 };
-use crate::model::metric_platform::tests::{insert_platform_row, setup_registry_db};
+use crate::model::metric_dashboard::MetricDashboardInput;
+use crate::model::metric_platform::tests::{insert_platform_row, scalar_i64, setup_registry_db};
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
 
@@ -1399,4 +1404,120 @@ async fn unknown_enum_selector_values_are_refused_before_the_resolver() {
         "metricDashboard"
     )
     .is_object());
+}
+
+// ==========================================================================
+// MET-WP11-B-CORR-H1: snapshot protection through the API
+// ==========================================================================
+
+/// The complete-month request of `complete_month`, as GraphQL variables.
+fn complete_month_variables(fx: &Fixture, input: &MetricDashboardInput) -> JsonValue {
+    json!({
+        "input": {
+            "selector": { "publisherIds": [fx.publisher_id] },
+            "startDate": input.start_date.to_string(),
+            "endDate": input.end_date.to_string(),
+            "platforms": [fx.platform_id],
+            "measures": [fx.sessions],
+            "timelineGrain": "MONTH",
+        }
+    })
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_api_read_locks_the_projections_before_its_first_query_within_the_ceiling() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    let variables = complete_month_variables(&fx, &input);
+    let (pool, log) = capturing_pool();
+    let context = context_for(&Arc::new(pool), Some(reader()));
+    let schema = create_schema();
+
+    let response = run(&schema, &context, DASHBOARD, variables).await;
+    let dashboard = data(&response, "metricDashboard");
+    assert_eq!(dashboard["totals"].as_array().map(Vec::len), Some(1));
+    assert_eq!(dashboard["totals"][0]["value"], json!("12"));
+    assert_eq!(dashboard["timeline"].as_array().map(Vec::len), Some(1));
+    assert_eq!(dashboard["timeline"][0]["value"], json!("12"));
+    assert_eq!(dashboard["coverage"]["status"], json!("COMPLETE"));
+
+    // Through the resolver too, the planner setting, the statement timeout
+    // and the six-table lock precede the first query, and the whole read stays
+    // within the current reader's ceiling of eighteen statements including
+    // the pool's checkout check.
+    let statements = log.lock().expect("the statement log").clone();
+    let names = statement_names(&statements);
+    assert_eq!(
+        &names[..6],
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+            "PUBLISHERS_SQL",
+        ]
+    );
+    assert_eq!(names.last(), Some(&"COMMIT"));
+    assert!(names.len() <= 18, "{names:?}");
+    assert_eq!(
+        statement_text(&statements[3]),
+        "SET LOCAL statement_timeout = '30s'"
+    );
+    let lock = statement_text(&statements[4]);
+    assert!(lock.starts_with("LOCK TABLE public.metric_rollup_work_month, "));
+    assert!(lock.ends_with(" IN ACCESS SHARE MODE"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_api_read_waits_for_an_exclusive_projection_holder_before_its_snapshot() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    let variables = complete_month_variables(&fx, &input);
+
+    // Another transaction holds one projection table exclusively, as a
+    // rebuild's TRUNCATE would.
+    let mut holder =
+        PgConnection::establish(&test_db::test_db_url()).expect("the holder connection");
+    holder
+        .batch_execute(
+            "BEGIN; LOCK TABLE public.metric_rollup_work_month IN ACCESS EXCLUSIVE MODE;",
+        )
+        .expect("hold the monthly table exclusively");
+
+    // Release it only once the API read is observed waiting at its
+    // pre-snapshot lock.
+    let observer_pool = Arc::clone(&fx.pool);
+    let observer = tokio::task::spawn_blocking(move || {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            let waiting = scalar_i64(
+                &observer_pool,
+                "(SELECT COUNT(*) FROM pg_stat_activity \
+                  WHERE datname = current_database() \
+                    AND wait_event_type = 'Lock' \
+                    AND query LIKE 'LOCK TABLE public.metric_rollup_work_month, %')",
+            );
+            if waiting == 1 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the API read never waited at its projection lock"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        holder.batch_execute("COMMIT;").expect("release the holder");
+    });
+
+    let context = context_for(&fx.pool, Some(reader()));
+    let schema = create_schema();
+    let response = run(&schema, &context, DASHBOARD, variables).await;
+    observer.await.expect("the observer");
+
+    let dashboard = data(&response, "metricDashboard");
+    assert_eq!(dashboard["totals"][0]["value"], json!("12"));
+    assert_eq!(dashboard["timeline"][0]["value"], json!("12"));
+    assert_eq!(dashboard["coverage"]["status"], json!("COMPLETE"));
+    assert!(dashboard["warnings"].as_array().is_some_and(Vec::is_empty));
 }
