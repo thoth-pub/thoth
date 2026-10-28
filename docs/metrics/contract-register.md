@@ -1452,12 +1452,14 @@ Contract properties consumers may rely on:
   rebuild cannot truncate while a read holds the six locks; it either acquires
   its lock after the read ends and proceeds under its own existing limits, or
   expires its own existing 5-second `lock_timeout`, fails closed and rolls
-  back. Rebuilder first: the read waits at its `LOCK TABLE`, before its
-  snapshot, until the rebuild commits or rolls back, bounded by its own
-  30-second statement timeout, and then sees the committed rebuilt state. A
-  read arriving while a `TRUNCATE` is queued waits behind it under
-  PostgreSQL's lock ordering, bounded the same way. No wait is indefinite, and
-  no fairness or whole-request latency is promised.
+  back. Rebuilder first: the read waits at its `LOCK TABLE`, before
+  establishing its snapshot, until the rebuild commits or rolls back, subject
+  to its own 30-second statement timeout. After a successful rebuild commit it
+  sees the rebuilt committed state; after rollback it sees the previously
+  committed state. A statement timeout fails the read closed. A read arriving
+  while a `TRUNCATE` is queued waits behind it under PostgreSQL's lock
+  ordering, bounded the same way. No wait is indefinite, and no fairness or
+  whole-request latency is promised.
 - **Bounded failure.** A statement timeout, a lock wait that reaches it, or
   any other SQL failure aborts the whole read, rolls its transaction back,
   returns the connection to the pool and fails as `INTERNAL_ERROR` with the
