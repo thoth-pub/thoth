@@ -273,8 +273,27 @@ slice merges into `feature/metrics`, the exact-list A2 inventory, independent
 review, retirement authorization, guarded retirement and completion receipt
 are repeated against the resulting `feature/metrics` head before B may
 proceed, and B keeps its own independent CRITICAL review and explicit CTO
-merge authorization under #981; after the final integration, later Thoth
-Metrics tasks use the STANDARD `feature/<area>/<task> -> develop` flow.
+merge authorization under #981. Before B, one further finite pre-B
+source-correction stage is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981) and its owning issues
+[#987](https://github.com/thoth-pub/thoth/issues/987),
+[#988](https://github.com/thoth-pub/thoth/issues/988) and
+[#989](https://github.com/thoth-pub/thoth/issues/989): exactly three sibling
+slices, `feature/metrics--wp11-b-corr-h1`, `feature/metrics--wp11-b-corr-h2`
+and `feature/metrics--wp11-b-corr-h3`, created in that order, each from the
+then-current `feature/metrics` head its predecessor's merge produced, and each
+merged back into `feature/metrics` by a separately authorized true merge after
+its own independent exact-head review and its own separate readiness and merge
+permissions. That stage imports no `develop` commit, creates no other slice,
+and defers the retirement of those three merged refs to one stage-terminal A2
+inventory, independent review, exact-name retirement authorization, guarded
+retirement and completion receipt against the resulting `feature/metrics`
+head, after which B keeps its own fresh cumulative CRITICAL review and explicit
+CTO merge authorization. It is a bounded exception recorded on #981, not a
+standing authorization, and it leaves the earlier one-time
+`feature/metrics--wp11-b-clippy` exception as recorded; after the final
+integration, later Thoth Metrics tasks use the STANDARD
+`feature/<area>/<task> -> develop` flow.
 
 In `metrics-dashboard` it is `dev`, that repository's approved permanent
 development branch.

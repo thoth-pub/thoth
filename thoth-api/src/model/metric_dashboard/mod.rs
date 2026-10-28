@@ -17,6 +17,16 @@
 //! transaction's own timestamp. Nothing here advances the frontier, claims or
 //! completes a delta, repairs a projection row or records coverage.
 //!
+//! Before the first query freezes that snapshot, the read takes one
+//! table-level `ACCESS SHARE` lock on exactly the six derived projection
+//! tables the exceptional monthly rebuild truncates, and holds it until the
+//! transaction ends (`MET-WP11-B-CORR-H1`). PostgreSQL's `TRUNCATE` is not
+//! MVCC-safe: a snapshot frozen before a concurrent rebuild's truncate would
+//! see the tables it had not yet read as empty, and complete coverage would
+//! turn that emptiness into a successful, false zero. The lock orders the
+//! read and the rebuild instead, exactly as the rollup verifier's does; see
+//! [`PROJECTION_LOCK_SQL`].
+//!
 //! # Zero is a claim
 //!
 //! A value of `"0"` asserts that nothing happened. It is returned for an
@@ -1248,6 +1258,39 @@ struct IdentifierQualityRow {
 /// confines the setting to this read-only transaction.
 pub(crate) const CUSTOM_PLANS_SQL: &str = "SET LOCAL plan_cache_mode = force_custom_plan";
 
+/// Step 0, continued: bound every later statement of this transaction — the
+/// lock acquisition below included — to thirty seconds each. This is a limit
+/// per statement, not a whole-request deadline, and `LOCAL` confines it to
+/// this transaction. A statement that reaches it fails the whole read as
+/// [`MetricReadError::Unavailable`]; no partial response is assembled.
+pub(crate) const STATEMENT_TIMEOUT_SQL: &str = "SET LOCAL statement_timeout = '30s'";
+
+/// Step 0, concluded: the one table-level lock the read takes, before its
+/// first query and therefore before its `REPEATABLE READ` snapshot is
+/// frozen, on exactly the four monthly and the two yearly projection tables
+/// the exceptional `rebuildMetricRollupMonths` truncates, in the order the
+/// rollup verifier locks them, and holds until the transaction ends.
+///
+/// `ACCESS SHARE` is the weakest table lock, granted to every ordinary
+/// reader, conflicting only with `ACCESS EXCLUSIVE`, which that rebuild's
+/// `TRUNCATE` takes, and not with the `ROW EXCLUSIVE` locks of normal
+/// incremental completion, so routine maintenance is never held up by a
+/// read. With the lock held from before the snapshot until commit, the
+/// rebuild's truncate either committed before the lock was granted — and the
+/// snapshot then sees the rebuilt state — or waits until this read ends,
+/// bounded by the rebuild's own lock timeout. A read arriving while a
+/// rebuild holds the tables waits here, before its snapshot, bounded by
+/// [`STATEMENT_TIMEOUT_SQL`]. It is not a row lock, takes no `FOR UPDATE` or
+/// `FOR SHARE`, and the transaction remains read-only.
+pub(crate) const PROJECTION_LOCK_SQL: &str = "LOCK TABLE \
+         public.metric_rollup_work_month, \
+         public.metric_rollup_work_country_month, \
+         public.metric_rollup_work_institution_month, \
+         public.metric_rollup_work_month_ambiguity, \
+         public.metric_rollup_work_country_year, \
+         public.metric_rollup_work_institution_year \
+     IN ACCESS SHARE MODE";
+
 /// Steps 1 and 2: the transaction timestamp and the `MET-WP4-01` frontier,
 /// with each selected publisher that exists and its package. The singleton
 /// frontier row is always returned, once per existing publisher or once with
@@ -1850,7 +1893,9 @@ pub(crate) const IDENTIFIER_QUALITY_SQL: &str =
 /// database run first; everything else runs in one `READ ONLY, REPEATABLE
 /// READ` transaction on one connection, in this order:
 ///
-/// 0. plan every statement for its actual arguments;
+/// 0. plan every statement for its actual arguments, bound each later
+///    statement to thirty seconds, and lock the six derived projection
+///    tables `ACCESS SHARE` before the first query freezes the snapshot;
 /// 1. resolve the selected publishers and require `METRICS_DASHBOARD` for
 ///    each through the ADR-0001 package model, and, in the same statement,
 /// 2. read the `MET-WP4-01` frontier `W`, `next_sequence` and `watermark_at`,
@@ -1876,12 +1921,26 @@ pub(crate) const IDENTIFIER_QUALITY_SQL: &str =
 ///
 /// Every statement is set-based over the whole request, so the number of
 /// statements does not depend on how many publishers, works, days, months,
-/// countries, institutions or rows are involved: at most fifteen, including
-/// transaction control, run for any request, and sixteen counting the pool's
+/// countries, institutions or rows are involved: at most seventeen, including
+/// transaction control, run for any request, and eighteen counting the pool's
 /// own connection check on checkout.
 pub(crate) fn metric_dashboard(
     db: &PgPool,
     input: &MetricDashboardInput,
+) -> Result<MetricDashboard, MetricReadError> {
+    metric_dashboard_with_statement_timeout(db, input, STATEMENT_TIMEOUT_SQL)
+}
+
+/// [`metric_dashboard`] with an explicit per-statement timeout statement.
+///
+/// The production entry point passes [`STATEMENT_TIMEOUT_SQL`]. Tests pass a
+/// far shorter timeout to prove the lock-contention failure path without
+/// waiting thirty seconds; the statement is always one of this module's own
+/// constants, never caller text, and it changes nothing else about the read.
+fn metric_dashboard_with_statement_timeout(
+    db: &PgPool,
+    input: &MetricDashboardInput,
+    statement_timeout_sql: &'static str,
 ) -> Result<MetricDashboard, MetricReadError> {
     let request = validate(input)?;
     let mut connection = db.get()?;
@@ -1889,7 +1948,7 @@ pub(crate) fn metric_dashboard(
         .build_transaction()
         .read_only()
         .repeatable_read()
-        .run(|connection| evaluate(connection, &request))
+        .run(|connection| evaluate(connection, &request, statement_timeout_sql))
 }
 
 /// The works a request resolved to, and the publishers they represent.
@@ -1901,9 +1960,15 @@ struct WorkScope {
 fn evaluate(
     connection: &mut PgConnection,
     request: &ValidatedRequest,
+    statement_timeout_sql: &'static str,
 ) -> Result<MetricDashboard, MetricReadError> {
-    // 0. Custom plans for this transaction only.
+    // 0. Custom plans, the per-statement timeout and the six-table read lock,
+    // for this transaction only and in that order. None of the three takes a
+    // snapshot, so the `REPEATABLE READ` snapshot is frozen by the publishers
+    // query below, after the lock is already held.
     diesel::sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
+    diesel::sql_query(statement_timeout_sql).execute(connection)?;
+    diesel::sql_query(PROJECTION_LOCK_SQL).execute(connection)?;
 
     // 1. Publishers and entitlement, with (2) the rollup frontier read in
     // the same snapshot as everything else.
