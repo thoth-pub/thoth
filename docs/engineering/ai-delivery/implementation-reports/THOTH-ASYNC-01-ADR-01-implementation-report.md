@@ -45,16 +45,112 @@ durable task evidence only. Live head, CI, review, authorization and
 merge state is GitHub-owned lifecycle evidence under `ADR-0005` and is not
 copied here.
 
-Sections 1-15 preserve the earlier Amendment-13 approval-state and prior
-historical Route-B evidence; the current Amendment-14 stage is recorded
-below. Those historical candidate, approval-state,
-recovery,
-report-only correction and clarification stage recorded as history. Appendix A
-preserves the earlier authoring, review, approval-state, reconciliation and
-validation record. Appendix B records the
+Sections 1-15 and the appendices preserve the earlier Amendment-13
+approval-state and all preceding Route-B stages **as historical evidence**.
+This report first describes the current Amendment-14 replacement PROPOSED
+candidate, then the original Amendment-14 candidate, which received
+CHANGES REQUIRED. Statements in those historical sections about the
+'current' head, approval status or authority apply only to their named
+historical exact versions, not to the present A14 candidate. Appendix A
+preserves earlier authoring, review, approval-state and validation evidence. Appendix B records the
 durable control conditions.
 
-## Amendment 14 + Revision 1 — current PROPOSED candidate stage
+## Amendment 14 + Revision 1 — current replacement PROPOSED candidate
+
+**Task:** `THOTH-ASYNC-01-ADR-01`, issue #958, programme #957;
+CRITICAL, documentation-only `PROGRAMME_INTEGRATION` stage on the existing
+`feature/async/adr-0012` task branch targeting `feature/worker`.
+**Implementer:** OpenAI GPT-6; as author of the preceding candidate source
+the implementer cannot independently review or approve this correction.
+
+**Authorization and source parent:** CTO's bounded CHANGES REQUIRED
+correction authorization is recorded on issue #958, with the **sole
+authorized commit parent** `5660e82e2ddd67c52369699de4589945d82e8508`
+(initial A14 PROPOSED ADR blob `142ef922cd3367469c8d7f4057a4c0ce9d2b1376`).
+The historical Amendment-13 source parent was
+`2d01255c24f68cd03666cfa05518bb9f4ae76667`, whose ADR blob
+`69f9ec9017ffe39d865bbe3ae67522c6917dc857` was CTO APPROVED
+on 2026-10-20 **for that exact A13 source version only**.
+Neither earlier approval applies to this corrected PROPOSED version.
+The current replacement head, tree, ADR blob, CI and review evidence
+remain GitHub-owned and are not self-pinned inside the committing report.
+
+**Independent review dependency:** Claude Fable 5.1, independent of the
+initial GPT-6 source author, returned **CHANGES REQUIRED** for the first
+A14 candidate on 2026-10-27. The CTO-supplied review summary and
+control's corroborating source comparisons are durable in #958; the full
+original external-review markdown has not yet been made accessible or
+archived there, and that evidence limitation remains unresolved.
+Blocking finding B-01: invariant 8 changed 'At most one' to
+'Exactly one ... may exist' and omitted mandatory in-transaction
+eligibility, authorization, audit and original-epoch validation.
+Blocking finding B-02: invariants 42 and 46 compressed previously
+approved concurrency, successor/replay, no-duplicate, bounded backoff,
+generation, held-successor and target-fencing guarantees.
+
+**Bounded source correction:** Restore original A13 invariant 8 in full
+except for the genuinely `coalescing-admission-open` eligibility delta.
+Restore original A13 invariants 42 and 46 as normative bases, adding
+only approved A14 closure by lawful terminal-before-first-claim and
+durable kind-policy fact, database-atomic attachment/claim/terminal/
+policy order, safe late-arrival successor-generation proof and the
+separation of undispositioned routes from already attached obligations
+whose truthful terminal outcomes remain covered by invariant 48.
+All original explicit A13 requirements about at-most-one disposition,
+transactional original-epoch proof, no two jobs, no orphan successor,
+no replay or forced resend, deterministic crash/lost-ack arbitration,
+bounded generations/backoff, held-successor observability,
+`CURRENT_STATE`/`REVISION_BOUND`, claim tokens and target-effect fencing
+remain binding. No other numbered invariant was rewritten.
+
+**Non-blocking source cleanup:** Retain a single `Decision owner: CTO`
+header; restore `RECONCILIATION_REQUIRED` as a durable recorded
+kind-authorized reconciliation attempt; strengthen section 3.5's
+already-approved original-epoch, anomaly and withdrawal/selection
+transaction-order cross-references; correct A14-T05 and A14-T28 to
+cover all lawful admission-closure triggers; mark historical report
+sections explicitly historical. No architecture change is introduced.
+
+**Source budget:** the corrected ADR-0012 and this existing report
+are the only two existing files requiring modification under the
+four-path maximum. The existing decision-register row and
+`CHANGELOG.md` entry already show the A14 version as PROPOSED and do
+not require further edits. ADR-0008/0010/0013, code, API/GraphQL,
+migrations, auth, generated contracts, CI, infra and other repos
+remain unchanged. No file creation, deletion, rename or move.
+
+**Acceptance and limitations:** the correction remains PROPOSED;
+invariants 1–48, all 30 active A13 validation identifiers
+(A13-T25 stays retired) and A14-T01–T34 remain required, including
+F-01–F-08 and previously approved trust-separated sealed-artifact
+invariant 26. Static content, historical-clause preservation,
+documentation-only changed-path and Markdown whitespace checks
+must be completed before publication. No Rust, SQL/database
+concurrency, migration or provider test is executed by this task.
+A real local `git diff --check` is not claimed without an available
+checked-out repository; any substitute must be identified accurately.
+Automatic PR classifiers and skipped heavy CI do not constitute
+an executed database/runtime test or authority to publish images.
+
+**Remaining gates:** fresh independent non-author CRITICAL exact-
+candidate source review including B-01/B-02, F-01–F-08, original
+A13 guarantee preservation and any missing original-review evidence;
+then separately CTO candidate architecture-content approval, a
+separately authorized approval-state commit, exact-final-ADR-blob
+CTO approval, fresh independent final-head review, configured PR
+review, unresolved Codex P1 adjudication and separately authorized
+Draft-to-Ready and SHA-bound merge. No runtime, downstream,
+migration, provider, deployment, release or activation permission.
+
+## Amendment 14 + Revision 1 — first PROPOSED candidate (HISTORICAL / CHANGES REQUIRED)
+
+**Historical first A14 source:** the single candidate head
+`5660e82e2ddd67c52369699de4589945d82e8508` was found
+**CHANGES REQUIRED**, not candidate-content approved. The rest
+of this section records implementation claims for that rejected
+exact version only; later source corrections cannot inherit its
+head-bound review or imply CTO content approval.
+
 
 **Identity:** `THOTH-ASYNC-01-ADR-01`,
 `thoth-pub/thoth#958` / parent `#957`, CRITICAL.
@@ -187,7 +283,13 @@ The implementer does not self-approve.
 
 ### Preserved historical task-stage record
 
-## 1. Repository state
+**Historical snapshot only:** Sections 1-15 and their original source-head,
+APPROVED/approval-date or CI statements describe prior Amendment-13 and
+older source versions. They do not establish approval for any A14 version;
+current branch, candidate, review and authorization evidence is in issue #958
+and PR #960.
+
+## 1. Repository state (historical through Amendment 13)
 
 Owning GitHub issue: [#958](https://github.com/thoth-pub/thoth/issues/958)
 Parent programme: [#957](https://github.com/thoth-pub/thoth/issues/957) (THOTH-ASYNC-01)

@@ -2,7 +2,6 @@
 
 Status: PROPOSED
 Date: 2026-09-29
-Decision owner: Javi, CTO
 Material correction: Amendment 14 + Revision 1; Route B candidate
 Historical approved Amendment-13 ADR Git blob: 69f9ec9017ffe39d865bbe3ae67522c6917dc857 (CTO approval 2026-10-20; not approval of these A14 bytes)
 Decision owner: CTO
@@ -1572,7 +1571,9 @@ First-claim-first cancellation during `PRE_WRITE`
 remains post-start, with the first-claim admission
 closure permanent.
 
-A reconciler or protected staff command may establish
+Resolving `RECONCILIATION_REQUIRED` is itself a claimed,
+claim-token-fenced, kind-authorized action **recorded as a durable
+attempt**. A reconciler or protected staff command may establish
 `SUCCEEDED`, `FAILED` or `CANCELLED` from
 `RECONCILIATION_REQUIRED` only under existing
 claimed/token-fenced kind authorization and the
@@ -1780,7 +1781,13 @@ revision withdrawal/selection and
 strand safety, atomic routed-job/
 disposition/input creation, lease/
 claim tokens, target effect fencing
-and deadlock-safe lock order.
+and deadlock-safe lock order. This same order must preserve
+immutable original-epoch eligibility, revision withdrawal/selection
+and strand-safety evidence, the canonical `OPEN` versus born-terminal
+`ENROLLED` mismatch-anomaly decision, one route disposition per
+`(event_id, route_key)` and the atomic job/disposition/input boundary.
+No independent stale admission check or incompatible lock/CAS order
+may treat a lawfully terminal predecessor as still admission-open.
 A stale application-level `PENDING`
 or no-attempt precheck is insufficient.
 
@@ -3060,27 +3067,32 @@ execution until a separate approved architecture decision says otherwise.
    `(event_id, route_key)` unused.
 7. Job idempotency identifies a specific intended effect; a resource-only key
    must not suppress later revisions/schedule slots/commands.
-8. Exactly one durable `(event_id, route_key)` disposition
-   may exist across all epochs/revisions, and eligible
-   obligations remain owed until lawfully dispositioned.
-   Materialized dispositions each reference one job;
-   several may share only a **genuinely coalescing-admission-open**
-   job under kind rules and invariant 42. A never-claimed
-   but lawfully terminal job is never admission-open.
-   The explicit authorized and audited terminal
-   non-materialized disposition references no job
-   and may cover only a still-owed, **ordinarily eligible**
-   original-epoch obligation with actor/authority,
-   reason and lawful reconciliation or accepted-divergence
-   evidence. It occupies the same unique slot and
-   is barred for contract mismatches, out-of-epoch
-   events and unrelated kinds. Mismatched first
-   disposition arises solely from compatible
-   authorized historical enrollment with its
-   canonical terminal `ENROLLED` anomaly.
-   No job cancellation, replay, reactivation
-   or route revision resets this uniqueness.
-
+8. At most one durable disposition may exist for a given
+   `(event_id, route_key)`; an eligible route obligation remains owed until it
+   has received exactly one. A successfully materialized disposition maps to
+   exactly one job; many materialized dispositions may map to one
+   genuinely coalescing-admission-open job only under an explicit durable
+   coalescing rule (invariant 42). The job must remain executable and
+   nonterminal, with no committed first claim/start, independently lawful
+   terminal-before-first-claim transition or durable approved kind-policy
+   admission-close fact; absence of a first claim alone is insufficient. An explicit authorized/audited terminal
+   non-materialized disposition maps to no job, records actor, authority,
+   reason and any covering reconciliation/backfill, and shares the same
+   uniqueness boundary so it cannot coexist with a materialized disposition for
+   the same event/route pair. Only a durable route obligation proven
+   ordinarily eligible from its immutable original epoch and still owed may
+   receive that terminal non-materialized disposition: the authorizing
+   evidence, reconciliation or expressly accepted divergence, protected
+   staff-command audit and immutable eligibility are validated inside the
+   disposition's transaction. It is prohibited for an in-epoch contract
+   mismatch, an event outside every epoch and an event of an unrelated kind;
+   a mismatched event's first route disposition arises solely from explicitly
+   authorized compatible historical enrollment under canonical anomaly and
+   terminal `ENROLLED` arbitration (invariant 47). The uniqueness boundary
+   spans every activation epoch and every route-contract revision of the
+   route and excludes any epoch or revision identifier, so neither
+   reactivation, a revision transition nor backfill/replay can rematerialize
+   an event that already has a disposition.
 9. Every job kind declares `CURRENT_STATE` or `REVISION_BOUND` semantics.
    A CURRENT_STATE fingerprint covers all canonical inputs determining its effect.
    A REVISION_BOUND effect must not regress a newer already-applied revision
@@ -3201,36 +3213,51 @@ execution until a separate approved architecture decision says otherwise.
     without database-enforced ordering does not satisfy this. The mechanism
     composes with the per-`route_key` lifecycle serialization and introduces
     no second contradictory lifecycle order.
-42. One logical job is **coalescing-admission-open**
-    only while executable/nonterminal, without any
-    committed first successful claim/start, independently
-    lawful terminal-before-first-claim outcome or
-    approved durable kind-policy admission-close fact,
-    and while all compatible admission/authorization
-    conditions hold. A successful first claim/start
-    **or** lawful terminal preclaim commit permanently
-    closes admission, with policy closure also
-    forbidding later attachment. Attachment, first
-    claim, every lawful preclaim terminal transition
-    and policy close share **one** database-enforced,
-    deadlock-safe serialization, composing with route
-    and canonical anomaly order. Attachment-first
-    commits immutable disposition and complete inputs,
-    which later execution must genuinely represent.
-    Terminal-first prevents a later claim and refuses
-    attachment without route slot or born-terminal
-    anomaly. Claim-first refuses attachment and any
-    later cancellation must obey the post-start effect
-    phase and all-attached-obligation invariant 48.
-    Rolled-back claims/cancellations do not close
-    admission, and retry/lease/recovery cannot
-    reopen committed closure. A stale app-level
-    precheck is insufficient. First claim remains
-    distinct from `EFFECT_STARTED`. Historical
-    enrollment/direct-created coalescing attachment
-    has the same order; no new route, job-state
-    or cancellation authority is inferred.
-
+42. For every logical job of a kind that permits many-route-to-one-job
+    coalescing, the job is `coalescing-admission-open` only while executable
+    and nonterminal under its approved kind/route/input policy, with no
+    committed first successful claim/start, independently lawful terminal
+    transition before that claim, or durable approved kind-policy admission-
+    closing fact. The first committed claim/start **or** a lawful terminal
+    transition before first claim permanently closes admission; a durable
+    kind-policy window-close fact also permanently prevents attachment.
+    The admission-closure boundary belongs to the logical job,
+    and no retry, lease reclaim, WAITING resume, reconciliation, cancellation,
+    recovery or later claim reopens it. A coalescing attachment, first
+    claim/start, every independently lawful
+    pre-claim terminal transition and every durable kind-policy admission-
+    closing fact share one database-atomic serialization, lock or
+    compare-and-set boundary with one durable linearized order. It composes
+    with immutable original-epoch route-disposition admission, the canonical
+    mismatch-anomaly decision, revision withdrawal/selection and strand
+    safety, claim/attempt fencing and target-effect locks: an attachment
+    that linearizes first commits a disposition that the started job genuinely
+    represents and that is never rewritten or detached; a claim/start that
+    linearizes first closes coalescing admission before execution, and the later
+    attachment
+    is refused with no disposition committed, the `(event_id, route_key)` slot
+    unused, the obligation still owed and visible and its recovery governed
+    by invariant 46 after the losing materializer rereads durable state; the
+    losing stale attachment transaction invents no logical-job identity. A
+    stale pre-claim observation never
+    commits an attachment after any permanent admission closure; an
+    application-level pre-check does
+    not satisfy this; a rolled-back first claim, terminalization or kind-policy close does not close admission. The first committed claim/start is a separate
+    execution fact earlier
+    than and distinct from `EFFECT_STARTED`. If an independently lawful
+    terminal transition commits **before** first claim, it closes admission,
+    prevents subsequent claim/execution and atomically records truthful
+    per-disposition evidence and consequences for every already committed
+    attachment under invariant 48; a losing attachment commits no route
+    slot, job input, membership or phantom terminal `ENROLLED` anomaly.
+    If attachment commits first, cancellation/other terminalization sees
+    the complete attached set and refuses/HOLD without terminal job-state
+    mutation unless all lawful per-attachment consequences are proven.
+    A durable kind-policy close similarly rejects later attachment without
+    inventing a terminal job state. The losing/stale attachment under any
+    closing event leaves a **new undispositioned** obligation owed and
+    age-visible under invariant 46; an already attached obligation retains
+    its immutable disposition and authorized job-level consequence.
 43. A revision withdrawal commits only from a database-consistent
     strand-safety decision that remains valid through the withdrawal's
     linearization/commit point. Every already-defined durable mutation that
@@ -3310,40 +3337,68 @@ execution until a separate approved architecture decision says otherwise.
     own rules and replaces no terminal outcome; and external compensation
     remains fenced by the existing effect, ambiguity and reconciliation
     controls.
-46. Permanent coalescing-admission closure from first
-    committed claim/start, independently lawful terminal
-    preclaim outcome or approved durable policy fact
-    closes **one job**, never the eligible **new**
-    event-route obligations arriving later. A new
-    still-undispositioned obligation keeps its slot
-    unused, remains owed/backlogged/age-visible and
-    after fresh durable reread follows one approved
-    compatible **different** admission-open successor
-    or new deterministic executable successor
-    generation committed atomically with its
-    one disposition and inputs (invariant 44).
-    The closed predecessor and reserved idempotency
-    key are never execution evidence; collisions
-    cannot hot-loop or invent extra generations.
-    A kind may use one generation only on durable
-    preactivation proof that no new eligible
-    obligation can arrive or first enroll after
-    **ANY** permitted closure; otherwise it
-    must provide a valid distinct successor
-    or forbid the conflicting terminal transition,
-    else coalescing activation remains OFF/HOLD.
-    A previously attached obligation keeps
-    its original immutable disposition and
-    needs invariant 48's truthful job-level
-    terminal consequence and separately
-    authorized replacement, never another
-    route disposition. Target-scoped
-    effect/claim fencing, ambiguity,
-    `CURRENT_STATE`/`REVISION_BOUND`,
-    original epoch/revision and immutable
-    route key remain authoritative,
-    with no unsafe second provider write.
-
+46. A permanent coalescing-admission closure (first committed claim/start,
+    independently lawful terminal-before-first-claim transition or approved
+    durable kind-policy close) closes one logical job, not the route obligations that
+    follow it. A newly eligible, still-undispositioned obligation refused
+    because its predecessor job is permanently
+    coalescing-admission-closed remains owed, undispositioned and visible; it is never
+    attached to the admission-closed job, never counted complete because that job
+    exists or ran, and never dispositioned by the permanent idempotency-key
+    collision, an admission closure, retry exhaustion or an unavailable materializer. Every
+    coalescing kind has an approved deterministic post-closure materialization
+    contract under which, after rereading canonical durable state, the
+    obligation attaches to a different eligible coalescing-admission-open successor
+    under invariant 42 or is represented by a distinct legitimate routed
+    successor created under invariant 44 together with its disposition; the
+    admission-closed job is never such a path, a new generation is created only when
+    the reread shows the obligation still owed and no eligible open
+    successor - whether every earlier generation is admission-closed or an earlier
+    admission-open generation is ineligible for the obligation - and an already represented
+    obligation receives no successor on any retry. Group or window identity
+    is distinct from executable generation identity wherever successive
+    generations may be needed; a
+    successor has a unique, stable idempotency key for its intended successor
+    effect; the predecessor's key, admission-closure fact, attempts and history are unchanged;
+    predecessor retry or reclaim is never successor creation; and a successor
+    is not a replay or forced resend. Successor selection and creation are
+    database-arbitrated with deterministic recovery after races, uniqueness
+    losses, rollback and acknowledgment loss: no duplicate disposition, no
+    two jobs for one obligation, no orphan or unrepresented successor, no
+    write skew and no deadlock. Successors keep the canonical target
+    identity, target-scoped concurrency, applied-fingerprint/revision
+    evidence, claim fencing, effect phases, `WAITING` and
+    `RECONCILIATION_REQUIRED` semantics; an ambiguous predecessor effect is
+    never bypassed by a new key; `CURRENT_STATE` and `REVISION_BOUND`
+    semantics prevent duplicate or regressive effects; and no `route_key`,
+    epoch, revision, event, eligibility or provider authorization is
+    redefined. Under finite owed inputs, a compatible available materializer,
+    fair capacity and no legitimate blocker the path converges on one
+    disposition per obligation and never reselects an admission-closed identity
+    indefinitely; an obligation for which no eligible successor can be
+    selected or admitted stays undispositioned, backlogged, age-visible and
+    attention-raising, while a committed successor whose execution is held
+    is a dispositioned job visible through job-level waiting, reconciliation
+    and blocked-successor state, in both cases with bounded backoff and
+    bounded generations. A kind
+    without a demonstrated safe successor contract may not activate that
+    coalescing mode and may use only a separately approved safe
+    event-distinct identity; the exceptional terminal non-materialized
+    disposition stays under its existing controls and is never automatic.
+    This successor path applies only to newly eligible, still-undispositioned
+    route obligations. A previously materialized obligation keeps its sole
+    immutable route disposition and original predecessor-job linkage;
+    invariant 48 requires a truthful approved consequence for every attached
+    route before lawful terminal pre-effect status. Any separately authorized
+    correlated job-level replay/replacement consumes neither a second route
+    disposition nor an ordinary successor generation, and preserves original
+    target-effect, claim-phase and provider ambiguity fencing.
+    A kind may disclaim distinct executable generations only when approved
+    durable pre-activation evidence proves no new eligible obligation may
+    arrive or first historically enroll after ANY permitted closure, including
+    lawful preclaim terminal and durable kind-policy closure, or an independently
+    approved kind rule refuses the conflicting terminal transition.
+    Otherwise a safe distinct successor is required or coalescing stays OFF/HOLD.
 47. Every operation that can create the first durable disposition for an
     `(event_id, route_key)` pair - ordinary routed materialization, explicitly
     authorized historical enrollment and the authorized terminal
@@ -4492,7 +4547,7 @@ No A14 tests are claimed executed by documenting them.
 | A14-T02 | Router reads open job; cancellation commits; router attempts stale attachment | Atomic refusal; no ghost disposition/input; backlog remains owed and observed |
 | A14-T03 | New valid attachment commits before cancellation | Cancellation sees newly committed disposition and applies approved domain treatment or HOLD; does not lose or reparent it |
 | A14-T04 | Cancellation race with first claim; cancellation-first | Claim refused; no execution from terminal job |
-| A14-T05 | First claim race with cancellation; claim-first | First-claim seal retained; cancellation uses post-start/pre-write-or-effect-start rules, not pre-start terminal shortcut |
+| A14-T05 | First claim race with cancellation; claim-first | First committed claim/start permanently closes admission; cancellation follows post-start PRE_WRITE/EFFECT_STARTED, token-fencing and truthful per-attachment consequences, not pre-start terminal shortcut |
 | A14-T06 | Cancel transaction rolls back while attachment waits | No durable closure; ordinary valid attachment remains possible |
 | A14-T07 | Two routers after cancelled predecessor compete for new generation | Exactly one disposition per event-route; deterministic generation/idempotency convergence; no duplicate effect |
 | A14-T08 | Cancelled predecessor retains absolute idempotency key | Repeated materialization cannot loop or attach to it; successor has different legitimate executable identity |
@@ -4515,7 +4570,7 @@ No A14 tests are claimed executed by documenting them.
 | `A14-T25` | Terminal `FAILED` after genuine pre-write retry exhaustion with two attached routes and no provider effect | Failure remains visible with truthful per-attachment failure/attention (not provider success); no phantom post-closure rerouting; no unapproved cancellation-policy shortcut |
 | `A14-T26` | Terminal outcome committed with audit/coverage record but worker/router loses acknowledgment, then replayed transition and fresh routing occur | Single terminalization, stable immutable audit/route linkage, no resurrection or duplicate effect; fresh eligible undispositioned obligation follows authorized successor only |
 | `A14-T27` | First compatible historical mismatch enrollment races a pending-job terminal transition and loses attachment; predecessor's key remains reserved | No partial born-terminal `ENROLLED` anomaly, slot or input; after reread, only an approved distinct eligible successor can receive first disposition under canonical anomaly order |
-| `A14-T28` | Per-attachment proof/audit insert fails during terminalization while a competing router attempts attachment | Whole terminal transaction rolls back, admission remains open if not otherwise sealed; router/worker state converges in one order, with no falsely terminal job or missing route membership |
+| `A14-T28` | Per-attachment proof/audit insert fails during terminalization while a competing router attempts attachment | Whole terminal transaction rolls back; admission stays open only if no separately lawful claim/start, terminal transition or durable kind-policy fact has closed it; router/worker state converges in one order, with no falsely terminal job or missing route membership |
 | `A14-T29` | Reconciler establishes legal no-effect `CANCELLED`/`FAILED` from `RECONCILIATION_REQUIRED` with attached obligations | Token-fenced valid per-obligation proof/attention or whole terminal command aborts |
 | `A14-T30` | `RETRY_SCHEDULED` and other pre-effect cancellation allowed/forbidden by kind | Only legal transitions commit; closure and complete attachment evidence cannot be skipped |
 | `A14-T31` | Terminal close races first historical mismatch enrollment, revision withdrawal/selection, strand safety and kind retirement/drain | One canonical atomic ordering, no ghost born-terminal anomaly or abandoned older attachment |
