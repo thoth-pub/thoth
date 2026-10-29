@@ -16,7 +16,7 @@ Frozen `develop` D: `b44303c214498baf76c9d9a0a7cab374377f9cbe` (tree `050e1e2954
 PR target: `feature/metrics`
 Programme integration branch: `feature/metrics`
 Task branch: `feature/metrics--wp11-b-corr-h2`, created from exact N at 2026-10-29T21:02:45Z in the isolated worktree `/home/claude/wt-h2`
-Head commit: `5f81265bc44347ed9f6816a6036402f86ff3ead2` (tree `6d58af36b45cf588320f2395392edbd8de996dc2`) carries the complete source, test, contract and changelog change; the commit that adds this report and the changelog PR link follows it. A commit cannot contain its own SHA, so the exact current head is the one recorded on the pull request, and each independent exact-head source review binds to that SHA.
+Head commit: `5f81265bc44347ed9f6816a6036402f86ff3ead2` (tree `6d58af36b45cf588320f2395392edbd8de996dc2`) carries the complete source, test, contract and changelog change; the commit that adds this report and the changelog PR link, `b5af4b071620dddbf4835659e106b9c528b618f7` (tree `b7669d4175b708a1d6ec26ed781c299320ff8aa7`), follows it, and the documentation-only commit that corrects this report's CI record (section 4.3) follows that. A commit cannot contain its own SHA, so the exact current head is the one recorded on the pull request, and each independent exact-head source review binds to that SHA.
 Pull request: [#993](https://github.com/thoth-pub/thoth/pull/993), `feature/metrics--wp11-b-corr-h2` -> `feature/metrics`; opened as a draft at 2026-10-29T22:52:56Z and left draft; live review, readiness and merge state is held by GitHub
 Expected branch deletion after merge: YES — but only through the stage-terminal A2 inventory, independent review, exact-name retirement authorization, guarded retirement and completion receipt that Amendment 8 item 7 defers it to; `delete_branch_on_merge` was `false` at 2026-10-29T22:55:09Z, so a merge does not delete the ref.
 Final programme PR required: YES — the existing outer PR #984, separately gated.
@@ -69,7 +69,8 @@ Out-of-scope changes made: NONE (source and path scope: `git diff --stat` from N
 ## 3. Commits
 
 - `5f81265bc44347ed9f6816a6036402f86ff3ead2` - MET-WP11-B-CORR-H2: reserve the coordinator connection before the batch guard locks (#988)
-- the following commit - MET-WP11-B-CORR-H2: add the implementation report and changelog PR link (#988) — its SHA is recorded on PR #993
+- `b5af4b071620dddbf4835659e106b9c528b618f7` - MET-WP11-B-CORR-H2: add the implementation report and changelog PR link (#988)
+- the following commit - MET-WP11-B-CORR-H2: correct the report's CI record and evidence cutoff (#988) — documentation only; its SHA is recorded on PR #993
 
 ## 4. Files changed
 
@@ -155,14 +156,14 @@ Unauthorized actions performed: none identified against the issued handoff's pat
 
 Automatic CI/provider effects observed:
 
-Observed on the first commit `5f81265bc44347ed9f6816a6036402f86ff3ead2` (PR [#993](https://github.com/thoth-pub/thoth/pull/993); GitHub ran every workflow on its `pull_request` merge ref `0bd7645c06c606a69823461d54a54f8b27e698e4`, the merge of `5f81265b` into N, which carries the same tree as `5f81265b` because the base is the merge-base). All four workflows were triggered by the push and PR creation alone at 2026-10-29T22:53:00Z; nothing was dispatched, re-run or cancelled. State at this report's evidence cutoff, 2026-10-29T23:01Z:
+Observed on the first commit `5f81265bc44347ed9f6816a6036402f86ff3ead2` (PR [#993](https://github.com/thoth-pub/thoth/pull/993); GitHub ran every workflow on its `pull_request` merge ref `0bd7645c06c606a69823461d54a54f8b27e698e4`, the merge of `5f81265b` into N, which carries the same tree as `5f81265b` because the base is the merge-base). All four workflows were triggered by the push and PR creation alone at 2026-10-29T22:53:00Z; nothing was dispatched, re-run or cancelled. State as observed at 2026-10-29T22:58Z, before the report commit `b5af4b07…` (22:58:58Z), with the later `lint` result and the report commit's own runs added at 2026-10-29T23:00Z by the correction commit:
 
-- `build-test-and-check` run [40969179775](https://github.com/thoth-pub/thoth/actions/runs/40969179775): `classify` (job 123781295214) succeeded with exactly the predicted classification `{"docs_only": "false", "run_build": "true", "run_docker": "true", "run_migrations": "false"}`; `format_check` (`cargo fmt --all -- --check`, job 123781355651) succeeded, 22:53:12Z to 22:53:20Z; `build` (`cargo build -vv`, job 123781355457) succeeded, 22:53:11Z to 22:57:48Z; `lint` (`cargo clippy --all --all-targets --all-features -- -D warnings`, job 123781355497) and `test` (`cargo test --workspace -vv` against the workflow's `postgres:17` and `redis:alpine` service containers, job 123781355643) were still in progress.
+- `build-test-and-check` run [40969179775](https://github.com/thoth-pub/thoth/actions/runs/40969179775): `classify` (job 123781295214) succeeded with exactly the predicted classification `{"docs_only": "false", "run_build": "true", "run_docker": "true", "run_migrations": "false"}`; `format_check` (`cargo fmt --all -- --check`, job 123781355651) succeeded, 22:53:12Z to 22:53:20Z; `build` (`cargo build -vv`, job 123781355457) succeeded, 22:53:11Z to 22:57:48Z; `lint` (`cargo clippy --all --all-targets --all-features -- -D warnings`, job 123781355497) succeeded, 22:53:12Z to 22:58:44Z (the Clippy step 22:53:15Z to 22:58:35Z); `test` (`cargo test --workspace -vv` against the workflow's `postgres:17` and `redis:alpine` service containers, job 123781355643) was still in progress at 2026-10-29T23:00Z.
 - `check-changelog` run [40969179748](https://github.com/thoth-pub/thoth/actions/runs/40969179748): succeeded (job 123781295174, 22:53:03Z to 22:53:10Z).
 - `run-migrations` run [40969179662](https://github.com/thoth-pub/thoth/actions/runs/40969179662): `classify` (job 123781295212) succeeded and its log line is `{"docs_only": "false", "run_build": "true", "run_docker": "true", "run_migrations": "false"}`; the `run_migrations` job (123781370971) was skipped, as the classification requires for a diff without migration or `db.rs` paths.
 - `publish-to-dockerhub` run [40969179731](https://github.com/thoth-pub/thoth/actions/runs/40969179731): `classify` (job 123781295024) succeeded; `build_and_push_staging_docker_image` (job 123781357155) had logged in to the container registry and was still in its `Build and push` step toward the automatic `ghcr.io/thoth-pub/thoth:staging-pr-993` image, so the publication and its digest were not yet observable from the log.
 
-The commit that adds this report triggers the same four workflows once more; those results, and the completion of the runs above, post-date the report and are recorded on PR #993 and in the #988 evidence comment (job logs only; no registry access).
+The report commit `b5af4b07…` triggered the same four workflows once more at 2026-10-29T22:59:09Z (`build-test-and-check` run 40969891206, `check-changelog` run 40969891133, `run-migrations` run 40969891127, `publish-to-dockerhub` run 40969891094); by 2026-10-29T23:00Z their `classify` jobs had succeeded, `check-changelog` and `format_check` had succeeded, `run_migrations` was skipped, and `build`, `lint`, `test` and the staging image build were running. The second push did not cancel the first commit's runs, which continued. The correction commit triggers the four workflows a third time. Every later result post-dates this report and is held on PR #993 and in the #988 evidence comment (job logs only; no registry access).
 
 Manually initiated external actions: NONE
 
@@ -336,7 +337,7 @@ Evidence link/screenshot/log reference: the natural CI runs in section 11 and th
 
 ## 11. CI
 
-CI status: PENDING at the evidence cutoff (2026-10-29T23:01Z) — on `5f81265b…` every job that had completed succeeded or was skipped as predicted (`classify` in all three classifying workflows, `check-changelog`, `format_check`, `build`; `run_migrations` skipped), and `lint`, `test` and the staging image build were still running with no failure observed. The run on the commit that adds this report starts after this commit; every later head has its own natural CI, held on GitHub.
+CI status: PENDING at the evidence cutoff (2026-10-29T23:00Z) — on `5f81265b…` every job that had completed succeeded or was skipped as predicted (`classify` in all three classifying workflows, `check-changelog`, `format_check`, `build`, `lint`; `run_migrations` skipped), and `test` and the staging image build were still running with no failure observed. The run on the commit that adds this report starts after this commit; every later head has its own natural CI, held on GitHub.
 Checks: `build-test-and-check` (classify, build, test, lint, format_check) run 40969179775; `check-changelog` run 40969179748; `run-migrations` run 40969179662 (classify; `run_migrations` skipped by classification); `publish-to-dockerhub` run 40969179731 (classify, build_and_push_staging_docker_image).
 Failures or warnings: none observed. The only notices in the completed job logs are the runners' Node.js 20 deprecation warnings for third-party actions, unrelated to this change.
 
@@ -362,7 +363,7 @@ Monitoring required: none new; a refused reservation, a guard lock-timeout expir
 
 ## 14. Unresolved issues
 
-- None known at the evidence cutoff (2026-10-29T23:01Z). The independent exact-head cross-model source review, readiness, true merge, H3 and terminal A2 are open and separately gated; the live review, readiness and merge state is held on PR #993 and the owning issue #988.
+- None known at the evidence cutoff (2026-10-29T23:00Z). The independent exact-head cross-model source review, readiness, true merge, H3 and terminal A2 are open and separately gated; the live review, readiness and merge state is held on PR #993 and the owning issue #988.
 
 ## 15. Agent self-assessment
 
