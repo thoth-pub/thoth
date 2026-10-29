@@ -34,9 +34,10 @@ use super::hash::{
     REQUEST_DOMAIN,
 };
 use super::{
-    classify_unique, ingest_metric_batch, period_matches_grain, MetricIngestionBatch,
-    MetricIngestionError, MetricIngestionErrorCode as Code, MetricIngestionOutcome,
-    NormalizedMetricCoverageAssertion, NormalizedMetricObservation, MAX_BATCH_KEY_BYTES,
+    classify_unique, ingest_metric_batch, ingest_metric_batch_on_connection,
+    ingest_validated_batch, period_matches_grain, MetricIngestionBatch, MetricIngestionError,
+    MetricIngestionErrorCode as Code, MetricIngestionOutcome, NormalizedMetricCoverageAssertion,
+    NormalizedMetricObservation, CANONICAL_STATEMENT_TIMEOUT_SQL, MAX_BATCH_KEY_BYTES,
     MAX_COVERAGE_ASSERTIONS, MAX_OBSERVATIONS, PROVENANCE_DETAILS_SCHEMA, ROLLUP_DELTA_PENDING,
     SUPPORTED_SCHEMA_VERSION,
 };
@@ -4407,4 +4408,322 @@ fn only_unknown_doi_rejections_are_ever_quarantined() {
         assert_eq!(outcome.rows[0].reason_code, Some(code));
     }
     assert_eq!(f.snapshot().quarantine, 0);
+}
+
+// ---------------------------------------------------------------------------
+// MET-WP11-B-CORR-H2 (#988): the connection entry and the canonical statement
+// timeout
+// ---------------------------------------------------------------------------
+
+/// The last statement backend `pid` ran, as `pg_stat_activity` reports it.
+fn last_statement(pid: i64) -> String {
+    let mut monitor = establish();
+    diesel::select(diesel::dsl::sql::<
+        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+    >(&format!(
+        "(SELECT query FROM pg_stat_activity WHERE pid = {pid})"
+    )))
+    .get_result::<Option<String>>(&mut monitor)
+    .expect("last statement")
+    .unwrap_or_default()
+}
+
+/// The current value of `setting` on `connection`.
+fn current_setting(connection: &mut PgConnection, setting: &str) -> String {
+    diesel::select(diesel::dsl::sql::<diesel::sql_types::Text>(&format!(
+        "current_setting('{setting}')"
+    )))
+    .get_result(connection)
+    .expect("current_setting")
+}
+
+/// Poll `pg_stat_activity` until `pid` is queued on a lock held by backend
+/// `holder`. Naming the holder distinguishes a fresh wait from the one a
+/// previous holder has just released. The deadline is a hang guard only.
+fn wait_until_blocked_by(pid: i64, holder: i64) {
+    let mut monitor = establish();
+    let started = Instant::now();
+    loop {
+        let blocked: i64 = diesel::select(diesel::dsl::sql::<diesel::sql_types::BigInt>(&format!(
+            "(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND wait_event_type = 'Lock' AND {holder} = ANY(pg_blocking_pids({pid})))"
+        )))
+        .get_result(&mut monitor)
+        .unwrap();
+        if blocked == 1 {
+            return;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(20),
+            "backend {pid} never queued behind {holder}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn the_connection_entry_validates_request_shape_before_touching_its_connection() {
+    let mut connection = establish();
+    let pid = backend_pid(&mut connection);
+    exec(&mut connection, "SELECT 'wp11-h2-marker'");
+    let base = golden_batch();
+    let expect = |connection: &mut PgConnection, batch: MetricIngestionBatch, code: Code| {
+        assert_eq!(
+            ingest_metric_batch_on_connection(connection, &batch),
+            Err(MetricIngestionError::new(code)),
+            "{code}"
+        );
+    };
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            batch_key: "   ".into(),
+            ..base.clone()
+        },
+        Code::InvalidBatchKey,
+    );
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            batch_key: "k".repeat(MAX_BATCH_KEY_BYTES + 1),
+            ..base.clone()
+        },
+        Code::InvalidBatchKey,
+    );
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            schema_version: "thoth-normalized-metrics/2".into(),
+            ..base.clone()
+        },
+        Code::UnsupportedSchemaVersion,
+    );
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            observations: vec![],
+            coverage: vec![],
+            ..base.clone()
+        },
+        Code::EmptyBatch,
+    );
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            observations: vec![golden_observation(); MAX_OBSERVATIONS + 1],
+            ..base.clone()
+        },
+        Code::BatchLimitExceeded,
+    );
+    expect(
+        &mut connection,
+        MetricIngestionBatch {
+            coverage: vec![golden_coverage(); MAX_COVERAGE_ASSERTIONS + 1],
+            ..base.clone()
+        },
+        Code::BatchLimitExceeded,
+    );
+    // Every refusal above was decided without a statement: the connection's
+    // last statement is still the marker.
+    assert_eq!(last_statement(pid), "SELECT 'wp11-h2-marker'");
+
+    // Within limits, the next step is the database: the golden import does
+    // not exist, and both entries say so identically.
+    let (_guard, f) = setup_fixture();
+    assert_eq!(
+        ingest_metric_batch_on_connection(&mut connection, &base),
+        ingest_metric_batch(&f.pool, &base)
+    );
+    assert_ne!(last_statement(pid), "SELECT 'wp11-h2-marker'");
+}
+
+#[test]
+fn the_connection_entry_replays_a_committed_batch_and_refuses_a_reused_key_without_writing() {
+    let (_guard, f) = setup_fixture();
+    let first = f.accept(&f.batch("b1", vec![f.observation()]));
+    let committed = f.snapshot();
+    let mut connection = establish();
+
+    let replay =
+        ingest_metric_batch_on_connection(&mut connection, &f.batch("b1", vec![f.observation()]))
+            .expect("replay");
+    assert!(replay.replayed);
+    assert_eq!(replay.import_batch_id, first.import_batch_id);
+    assert_eq!(replay.request_hash, first.request_hash);
+    assert_eq!(replay.rows, first.rows);
+    assert_eq!(f.snapshot(), committed);
+
+    let reused = f.batch(
+        "b1",
+        vec![NormalizedMetricObservation {
+            value: 11,
+            ..f.observation()
+        }],
+    );
+    assert_eq!(
+        ingest_metric_batch_on_connection(&mut connection, &reused),
+        Err(MetricIngestionError::new(Code::IdempotencyKeyReused))
+    );
+    assert_eq!(f.snapshot(), committed);
+
+    // The pooled entry reads back the same persisted outcome.
+    let again = f.accept(&f.batch("b1", vec![f.observation()]));
+    assert!(again.replayed);
+    assert_eq!(again.rows, first.rows);
+}
+
+#[test]
+fn the_connection_entry_runs_all_three_drift_attempts_on_its_one_connection() {
+    let (_guard, f) = setup_fixture();
+    let third_imprint = Uuid::new_v4();
+    f.sql(&format!("INSERT INTO imprint (imprint_id, publisher_id, imprint_name) VALUES ('{third_imprint}', '{}', 'Third imprint')", f.publisher_id));
+    let move_to = |imprint: Uuid| {
+        format!(
+            "UPDATE work SET imprint_id = '{imprint}' WHERE work_id = '{}'",
+            f.work_id
+        )
+    };
+    let imprints = [f.other_imprint_id, third_imprint, f.imprint_id];
+
+    // The same choreography as the pooled entry's three-attempt test, on one
+    // established connection whose pid is known: every attempt must queue on
+    // the work lock from that pid, because the entry has no pool to check
+    // another connection out of.
+    let mut connection = establish();
+    let pid = backend_pid(&mut connection);
+    let before = f.snapshot();
+    let mut holder = HeldTransaction::start(vec![move_to(imprints[0])]);
+    let batch = f.batch("b1", vec![f.observation()]);
+    let ingestion = thread::spawn(move || {
+        let outcome = ingest_metric_batch_on_connection(&mut connection, &batch);
+        (outcome, connection)
+    });
+    for next in [imprints[1], imprints[2]] {
+        wait_until_blocked_by(pid, holder.pid);
+        let queued = HeldTransaction::start(vec![move_to(next)]);
+        queued.wait_until_blocked();
+        holder.commit();
+        holder = queued;
+    }
+    wait_until_blocked_by(pid, holder.pid);
+    holder.commit();
+    let (outcome, mut connection) = ingestion.join().unwrap();
+    assert_eq!(
+        outcome,
+        Err(MetricIngestionError::new(Code::ConcurrentAuthorityChange))
+    );
+    assert_eq!(f.snapshot(), before, "zero durable consequence");
+
+    // The connection comes back clean, and the same request is retryable on
+    // it: the work now sits on its final imprint.
+    assert_eq!(current_setting(&mut connection, "statement_timeout"), "0");
+    let retry =
+        ingest_metric_batch_on_connection(&mut connection, &f.batch("b1", vec![f.observation()]))
+            .expect("retry");
+    assert!(!retry.replayed);
+    assert_eq!(retry.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn a_canonical_statement_timeout_aborts_the_attempt_rolls_it_back_and_is_sanitized() {
+    let (_guard, f) = setup_fixture();
+    let _trigger = TestTrigger::pausing(&f.pool, "BEFORE INSERT", "metric_import_batch", PAUSE_KEY);
+    let hold = PauseHold::acquire();
+    let before = f.snapshot();
+    let mut connection = establish();
+    let batch = f.batch("b1", vec![f.observation()]);
+
+    // Both entries share the attempt runner, which takes its timeout
+    // statement as a parameter so the abort path can be proven in 200ms; the
+    // production value on both entries is pinned separately.
+    let started = Instant::now();
+    assert_eq!(
+        ingest_validated_batch(
+            &mut connection,
+            &batch,
+            "SET LOCAL statement_timeout = '200ms'"
+        ),
+        Err(MetricIngestionError::new(Code::InternalDatabaseError))
+    );
+    assert!(started.elapsed() >= Duration::from_millis(200));
+    assert_eq!(
+        f.snapshot(),
+        before,
+        "the aborted attempt committed nothing"
+    );
+    assert_eq!(
+        current_setting(&mut connection, "statement_timeout"),
+        "0",
+        "SET LOCAL ended with the rolled-back attempt"
+    );
+    let mut pooled = f.pool.get().unwrap();
+    assert_eq!(
+        ingest_validated_batch(
+            &mut pooled,
+            &f.batch("b2", vec![f.observation()]),
+            "SET LOCAL statement_timeout = '200ms'"
+        ),
+        Err(MetricIngestionError::new(Code::InternalDatabaseError))
+    );
+    assert_eq!(f.snapshot(), before);
+    drop(pooled);
+
+    // The pause was held throughout, so the timeout ended both attempts. Once
+    // it is released, the same connection commits the same request as a
+    // first commit, not a replay.
+    hold.release();
+    let outcome =
+        ingest_metric_batch_on_connection(&mut connection, &batch).expect("commit after the pause");
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn every_canonical_attempt_sets_the_thirty_second_statement_timeout_on_both_entries() {
+    assert_eq!(
+        CANONICAL_STATEMENT_TIMEOUT_SQL,
+        "SET LOCAL statement_timeout = '30s'"
+    );
+    let (_guard, f) = setup_fixture();
+    // A probe that fails the batch insert unless statement_timeout has the
+    // expected value inside the canonical transaction itself.
+    let probe = |expected: &str| {
+        TestTrigger::install(
+            &f.pool,
+            "BEFORE INSERT",
+            "metric_import_batch",
+            None,
+            &format!("IF current_setting('statement_timeout') <> '{expected}' THEN RAISE EXCEPTION 'thoth test probe: statement_timeout is %', current_setting('statement_timeout'); END IF; RETURN NEW;"),
+            false,
+        )
+    };
+
+    // Observed from inside the canonical transaction, on both entries.
+    let thirty = probe("30s");
+    let pooled = f.accept(&f.batch("b1", vec![f.observation()]));
+    assert_eq!(pooled.rows[0].classification, Class::Winner);
+    let mut connection = establish();
+    let direct =
+        ingest_metric_batch_on_connection(&mut connection, &f.batch("b2", vec![f.observation()]))
+            .expect("the connection entry runs under the 30s statement timeout");
+    assert_eq!(direct.rows[0].classification, Class::Duplicate);
+    drop(thirty);
+    // The setting ended with the attempt: the caller's connection carries its
+    // default again.
+    assert_eq!(current_setting(&mut connection, "statement_timeout"), "0");
+
+    // Negative control: the probe decides, and the failure is sanitized with
+    // nothing durable on either entry.
+    let other = probe("31s");
+    assert_request_failure(
+        &f,
+        &f.batch("b3", vec![f.observation()]),
+        Code::InternalDatabaseError,
+    );
+    let before = f.snapshot();
+    assert_eq!(
+        ingest_metric_batch_on_connection(&mut connection, &f.batch("b3", vec![f.observation()])),
+        Err(MetricIngestionError::new(Code::InternalDatabaseError))
+    );
+    assert_eq!(f.snapshot(), before);
+    drop(other);
 }
