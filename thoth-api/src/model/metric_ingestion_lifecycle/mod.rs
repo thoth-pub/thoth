@@ -2,9 +2,10 @@
 //!
 //! This module owns the repository-internal protocol behind the five protected
 //! `METRICS_INGEST_SERVICE` lifecycle operations. It is transport and lifecycle
-//! only: canonical ingestion is delegated unchanged to
-//! [`ingest_metric_batch`](crate::model::metric_ingestion::ingest_metric_batch),
-//! and the only durable state touched here is the existing
+//! only: canonical ingestion is delegated unchanged to the `MET-WP2-01B`
+//! coordinator ([`ingest_metric_batch`](crate::model::metric_ingestion::ingest_metric_batch),
+//! through its connection entry `ingest_metric_batch_on_connection`), and
+//! the only durable state touched here is the existing
 //! `metric_source_checkpoint` lease, progress and cursor row, the existing
 //! `metric_import` envelope and, read-only, the committed `metric_import_batch`
 //! and `metric_coverage` evidence. There is no second queue, no process-local
@@ -115,10 +116,35 @@
 //! The batch uses the bounded two-connection guard fixed by Specification
 //! Amendment 2: a short guard transaction locks and validates the checkpoint
 //! row, checks the batch key, and **while holding that lock** calls the
-//! unchanged coordinator, which uses its own pooled connection and transaction.
+//! unchanged coordinator, which runs on its own connection and transaction.
 //! A concurrent reclaim uses `FOR UPDATE SKIP LOCKED` on the same row, so it
 //! cannot replace the token while the coordinator runs. Nothing outside the
 //! local coordinator call happens inside the guard.
+//!
+//! # Capacity admission and bounded guard waits (`MET-WP11-B-CORR-H2`)
+//!
+//! A caller never waits for pool capacity while it holds the guard. The batch
+//! checks out its guard connection with the pool's ordinary blocking `get()`
+//! and then, before the guard transaction opens or any checkpoint lock is
+//! taken, reserves the coordinator's connection with exactly one non-blocking
+//! `try_get()`. `try_get()` takes an already-idle connection, not nominal
+//! capacity: it can refuse below the pool's maximum size, for instance while
+//! reaped idle connections are being replaced. A refusal releases the guard
+//! connection and fails as `INTERNAL_DATABASE_ERROR` with no durable effect;
+//! there is no blocking fallback, third checkout, pool growth or scheduler,
+//! and the identical request may simply be retried. With both connections
+//! held, the guard transaction sets [`GUARD_LOCK_TIMEOUT_SQL`] (`SET LOCAL
+//! lock_timeout = '1s'`) before it locks the checkpoint row, so a checkpoint
+//! held by another transaction fails the guard closed after one second —
+//! through the ordinary Diesel error conversion to `INTERNAL_DATABASE_ERROR`,
+//! with nothing committed — instead of queueing indefinitely; and every
+//! canonical attempt on the reserved connection, each drift retry included,
+//! runs under the coordinator's `SET LOCAL statement_timeout = '30s'`.
+//! Neither timeout is a whole-request deadline: the pool's checkout health
+//! check and connection establishment can still block, and no total latency
+//! or fairness is promised. The two-transaction seam is unchanged: a
+//! canonical commit may survive a later guard failure, and the retry replays
+//! the committed outcome without writing (#988).
 
 use std::collections::BTreeSet;
 use std::str::FromStr;
@@ -140,8 +166,9 @@ use crate::db::PgPool;
 use crate::model::metric_coverage::MetricCoverageStatus;
 use crate::model::metric_import::{MetricImport, MetricImportStatus};
 use crate::model::metric_ingestion::{
-    ingest_metric_batch, MetricIngestionBatch, MetricIngestionErrorCode, MetricIngestionOutcome,
-    NormalizedMetricCoverageAssertion, NormalizedMetricObservation, MAX_BATCH_KEY_BYTES,
+    ingest_metric_batch_on_connection, MetricIngestionBatch, MetricIngestionErrorCode,
+    MetricIngestionOutcome, NormalizedMetricCoverageAssertion, NormalizedMetricObservation,
+    MAX_BATCH_KEY_BYTES,
 };
 use crate::model::metric_platform::MetricPlatform;
 use crate::model::metric_platform_measure::MetricReportingGrain;
@@ -184,6 +211,11 @@ pub const MAX_EXPECTED_BATCH_KEYS: usize = 100;
 /// The fixed schema of the server-owned manifest envelope a managed-DRIVER
 /// import stores.
 pub const MANAGED_IMPORT_MANIFEST_SCHEMA: &str = "thoth-managed-driver-import/1";
+/// The `lock_timeout` the batch guard transaction sets locally before it locks
+/// the checkpoint row (`MET-WP11-B-CORR-H2`, #988). It bounds the guard's wait
+/// for a checkpoint held by another transaction; it is not a whole-request
+/// deadline.
+pub(crate) const GUARD_LOCK_TIMEOUT_SQL: &str = "SET LOCAL lock_timeout = '1s'";
 
 // --------------------------------------------------------------------------
 // Errors
@@ -1118,11 +1150,21 @@ pub fn begin_metric_import(
 /// Ingest one expected batch of a claimed import through the canonical
 /// coordinator, under the two-connection lease guard.
 ///
-/// The guard transaction locks and validates the checkpoint and the batch key,
-/// then — still holding that lock — calls the unchanged coordinator on its own
-/// pooled connection. The coordinator's result, success or failure, is
-/// returned as it is; a coordinator failure is carried by its authoritative
-/// code. A replay of a committed batch returns the persisted outcome.
+/// After the request-shape checks, the guard connection is checked out with
+/// the pool's ordinary blocking checkout and the coordinator's connection is
+/// reserved with exactly one non-blocking `try_get()` before the guard
+/// transaction opens or any checkpoint lock is taken (`MET-WP11-B-CORR-H2`,
+/// #988). Without an idle connection to reserve, the guard connection is
+/// released and the request fails as the sanitized `INTERNAL_DATABASE_ERROR`
+/// with no durable effect; there is no blocking fallback, third checkout or
+/// pool growth. With both connections held, the guard transaction sets
+/// [`GUARD_LOCK_TIMEOUT_SQL`], locks and validates the checkpoint and the
+/// batch key, then — still holding that lock — calls the unchanged
+/// coordinator on the reserved connection, which runs every attempt there
+/// under the coordinator's statement timeout. The coordinator's result,
+/// success or failure, is returned as it is; a coordinator failure is carried
+/// by its authoritative code. A replay of a committed batch returns the
+/// persisted outcome.
 pub fn ingest_metric_batch_under_claim(
     db: &PgPool,
     input: &IngestMetricBatchInput,
@@ -1130,7 +1172,21 @@ pub fn ingest_metric_batch_under_claim(
     let batch = to_coordinator_batch(input)?;
 
     let mut guard = db.get()?;
+    // Reserve the coordinator's connection before the guard transaction opens
+    // or any checkpoint lock is taken: one non-blocking checkout of an
+    // already-idle connection, refused rather than waited for.
+    let Some(mut canonical) = db.try_get() else {
+        drop(guard);
+        log::error!(
+            "metric ingestion lifecycle found no idle database connection to reserve for the \
+             canonical coordinator"
+        );
+        return Err(MetricLifecycleError::Ingestion(
+            MetricIngestionErrorCode::InternalDatabaseError,
+        ));
+    };
     guard.transaction(|connection| {
+        sql_query(GUARD_LOCK_TIMEOUT_SQL).execute(connection)?;
         let import = find_import(connection, input.import_id)?;
         require_live_claim(connection, import.source_account_id, input.lease_token)?;
         let expected = expected_batch_keys(&import.manifest)
@@ -1138,7 +1194,7 @@ pub fn ingest_metric_batch_under_claim(
         if !expected.contains(&input.batch_key) {
             return Err(MetricLifecycleError::UnexpectedBatchKey);
         }
-        let outcome = ingest_metric_batch(db, &batch)
+        let outcome = ingest_metric_batch_on_connection(&mut canonical, &batch)
             .map_err(|error| MetricLifecycleError::Ingestion(error.code))?;
         MetricBatchResult::try_from(outcome)
     })

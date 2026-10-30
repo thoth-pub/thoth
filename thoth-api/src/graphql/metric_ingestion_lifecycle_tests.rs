@@ -24,6 +24,8 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use diesel::pg::PgConnection;
+use diesel::r2d2::ConnectionManager;
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
@@ -1027,4 +1029,60 @@ async fn a_claim_returns_its_locked_platform_code_and_the_accepted_period_manife
         "no stored cursor content may reach the caller: {response}"
     );
     assert_eq!(f.snapshot(), before);
+}
+
+// --------------------------------------------------------------------------
+// MET-WP11-B-CORR-H2 (#988): a refused coordinator-connection reservation
+// through GraphQL
+// --------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_capacity_refusal_is_the_fixed_internal_database_error_and_the_retry_commits() {
+    let (_guard, f, token, import_id) = seeded();
+    let schema = create_schema();
+    let (import_id, token) = (import_id.to_string(), token.to_string());
+
+    // A one-connection pool: the batch guard checks out the only connection
+    // and finds no idle second one to reserve for the coordinator.
+    let one = Arc::new(
+        diesel::r2d2::Pool::builder()
+            .max_size(1)
+            .build(ConnectionManager::<PgConnection>::new(
+                test_db::test_db_url(),
+            ))
+            .expect("one-connection pool"),
+    );
+    let starved = context_for(&one, Some(ingest_user()));
+    let before = f.snapshot();
+    let response = run(
+        &schema,
+        &starved,
+        &ingest_doc(&import_id, &token, "b1", "10"),
+    )
+    .await;
+    assert_error(&response, "INTERNAL_DATABASE_ERROR");
+    assert_eq!(
+        only_error(&response).0,
+        "The metric ingestion request was refused."
+    );
+    assert_eq!(f.snapshot(), before);
+    // The one connection was returned: an operation that needs a single
+    // connection still runs on that pool and reaches the lifecycle.
+    let response = run(&schema, &starved, &complete_doc(&import_id, &token)).await;
+    assert_error(&response, "IMPORT_INCOMPLETE");
+    assert_eq!(f.snapshot(), before);
+
+    // The identical request on a pool with an idle second connection commits
+    // once, as a first commit rather than a replay.
+    let context = context_for(&f.pool, Some(ingest_user()));
+    let response = run(
+        &schema,
+        &context,
+        &ingest_doc(&import_id, &token, "b1", "10"),
+    )
+    .await;
+    let batch = data(&response, "ingestMetricBatch");
+    assert_eq!(batch["replayed"], false);
+    assert_eq!(batch["rows"][0]["classification"], "WINNER");
+    assert_ne!(f.snapshot(), before, "the retry committed the batch");
 }

@@ -21,6 +21,7 @@
 //! after release, fail-closed stored state and a real current-versus-stale
 //! update race.
 
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -4338,4 +4339,1037 @@ fn a_failure_inside_coverage_run_maintenance_rolls_back_the_lifecycle_terminaliz
         vec![expected_run(&f, day(1), day(2), "COMPLETE", "COMPLETED")]
     );
     assert_account_a_exact(&f, 1);
+}
+
+// --------------------------------------------------------------------------
+// MET-WP11-B-CORR-H2 (#988): the coordinator's connection is reserved before
+// the batch guard locks, the guard waits at most one second for the
+// checkpoint, and every canonical attempt runs under the thirty-second
+// statement timeout
+// --------------------------------------------------------------------------
+
+/// The session-level advisory key a paused canonical transaction waits on.
+const H2_PAUSE_KEY: i64 = 987_654_321_402;
+
+/// The statement diesel's r2d2 manager runs to validate a connection on
+/// checkout. A backend whose last statement is still this one ran nothing
+/// after the pool handed it out.
+const CHECKOUT_HEALTH_CHECK: &str = "SELECT 1";
+
+/// A unique `application_name`, so the backends of one test pool can be told
+/// apart from every other connection to the test database.
+fn pool_tag() -> String {
+    format!("wp11-h2-{}", Uuid::new_v4().simple())
+}
+
+/// The test database URL with `application_name` set to `tag`.
+fn tagged_db_url(tag: &str) -> String {
+    let url = test_db_url();
+    let separator = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{separator}application_name={tag}")
+}
+
+/// A pool on the test database whose size, idle floor and checkout timeout
+/// are test inputs rather than defaults, tagged `tag`. `min_idle` `None`
+/// keeps every connection established and idle, as the production pool does;
+/// `Some(0)` establishes connections only on demand.
+fn sized_pool(
+    tag: &str,
+    max_size: u32,
+    min_idle: Option<u32>,
+    connection_timeout: Duration,
+) -> Arc<PgPool> {
+    Arc::new(
+        diesel::r2d2::Pool::builder()
+            .max_size(max_size)
+            .min_idle(min_idle)
+            .connection_timeout(connection_timeout)
+            .build(ConnectionManager::<PgConnection>::new(tagged_db_url(tag)))
+            .expect("Failed to build a sized pool"),
+    )
+}
+
+/// The backend pids of the pool tagged `tag`, ascending.
+fn tagged_backends(f: &Fixture, tag: &str) -> Vec<i64> {
+    text(
+        &f.pool,
+        &format!("(SELECT string_agg(pid::text, ',' ORDER BY pid) FROM pg_stat_activity WHERE application_name = '{tag}')"),
+    )
+    .unwrap_or_default()
+    .split(',')
+    .filter(|pid| !pid.is_empty())
+    .map(|pid| pid.parse().expect("a backend pid"))
+    .collect()
+}
+
+/// The batch input every H2 test submits: one observation, no coverage.
+fn batch_input(
+    import_id: Uuid,
+    token: Uuid,
+    key: &str,
+    value: &str,
+    start: NaiveDate,
+) -> IngestMetricBatchInput {
+    IngestMetricBatchInput {
+        import_id,
+        lease_token: token,
+        batch_key: key.into(),
+        schema_version: "thoth-normalized-metrics/1".into(),
+        observations: vec![observation(value, start)],
+        coverage: vec![],
+    }
+}
+
+/// Whether backend `pid` is idle inside an open transaction: the state the
+/// old nested checkout left the guard in while it waited for a second
+/// connection.
+fn is_idle_in_transaction(f: &Fixture, pid: i64) -> bool {
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND state = 'idle in transaction')"),
+    ) == 1
+}
+
+/// Whether backend `pid` has a transaction open at all.
+fn has_open_transaction(f: &Fixture, pid: i64) -> bool {
+    scalar_i64(
+        &f.pool,
+        &format!(
+            "(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND xact_start IS NOT NULL)"
+        ),
+    ) == 1
+}
+
+/// The last statement backend `pid` ran, as `pg_stat_activity` reports it.
+fn last_statement(f: &Fixture, pid: i64) -> String {
+    text(
+        &f.pool,
+        &format!("(SELECT query FROM pg_stat_activity WHERE pid = {pid})"),
+    )
+    .unwrap_or_default()
+}
+
+/// Assert that the pool handed backend `pid` out and took it back without the
+/// batch running anything on it: no transaction is open and its last
+/// statement is still the checkout health check, not `BEGIN`, `SET LOCAL`, a
+/// lock or a `ROLLBACK`.
+fn assert_untouched_since_checkout(f: &Fixture, pid: i64) {
+    assert!(
+        !has_open_transaction(f, pid),
+        "backend {pid} still has a transaction open"
+    );
+    assert_eq!(
+        last_statement(f, pid),
+        CHECKOUT_HEALTH_CHECK,
+        "backend {pid} ran a statement after its checkout"
+    );
+}
+
+/// The pid among `pids` that is queued on a heavyweight lock other than the
+/// pause key, once one is. The deadline is a hang guard only.
+fn wait_until_row_lock_waiting(f: &Fixture, pids: &[i64]) -> i64 {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        if let Some(pid) = pids.iter().copied().find(|pid| {
+            scalar_i64(
+                &f.pool,
+                &format!("(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND wait_event_type = 'Lock' AND wait_event <> 'advisory')"),
+            ) == 1
+        }) {
+            return pid;
+        }
+        assert!(Instant::now() < deadline, "no backend queued on a row lock");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The pid among `pids` that is queued on a lock held by backend `holder`,
+/// once one is. Naming the holder distinguishes a fresh wait from the one a
+/// previous holder has just released. The deadline is a hang guard only.
+fn wait_until_blocked_by(f: &Fixture, pids: &[i64], holder: i64) -> i64 {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        if let Some(pid) = pids.iter().copied().find(|pid| {
+            scalar_i64(
+                &f.pool,
+                &format!("(SELECT COUNT(*) FROM pg_stat_activity WHERE pid = {pid} AND wait_event_type = 'Lock' AND {holder} = ANY(pg_blocking_pids({pid})))"),
+            ) == 1
+        }) {
+            return pid;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "no backend queued behind {holder}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The checkpoint row probe of `account`, for `row_is_free`.
+fn checkpoint_row(account: Uuid) -> String {
+    format!("SELECT 1 FROM metric_source_checkpoint WHERE source_account_id = '{account}'")
+}
+
+/// Run one batch on its own thread against `pool`.
+fn batch_worker(
+    pool: &Arc<PgPool>,
+    input: IngestMetricBatchInput,
+) -> thread::JoinHandle<Result<super::MetricBatchResult, E>> {
+    let pool = Arc::clone(pool);
+    thread::spawn(move || ingest_metric_batch_under_claim(&pool, &input))
+}
+
+/// Wait for `worker` to finish under a hang guard and return its result.
+fn join_within<T>(worker: thread::JoinHandle<T>, what: &str) -> T {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !worker.is_finished() {
+        assert!(Instant::now() < deadline, "{what} never finished");
+        thread::sleep(Duration::from_millis(10));
+    }
+    worker.join().unwrap()
+}
+
+/// A deterministic pause point inside the canonical coordinator transaction:
+/// `BEFORE INSERT` on `metric_import_batch` blocks on the transaction-level
+/// advisory lock `H2_PAUSE_KEY` until the test releases its session-level
+/// hold of the same key, so a batch is frozen after its guard has locked the
+/// checkpoint and while both of its connections are in use. The trigger, its
+/// function and the hold exist only in the disposable test database and are
+/// removed on drop; the hold is released first so a still-frozen batch can
+/// finish before the `DROP`s wait on its table lock.
+struct CanonicalPause {
+    pool: Arc<PgPool>,
+    hold: PgConnection,
+    name: String,
+}
+
+impl CanonicalPause {
+    fn install(pool: &Arc<PgPool>) -> Self {
+        let mut hold = PgConnection::establish(&test_db_url()).expect("pause session");
+        sql_query(format!("SELECT pg_advisory_lock({H2_PAUSE_KEY})"))
+            .execute(&mut hold)
+            .expect("session-level hold");
+        let name = format!("wp11_h2_pause_{}", Uuid::new_v4().simple());
+        exec(pool, &format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock({H2_PAUSE_KEY}); RETURN NEW; END $$"));
+        exec(pool, &format!("CREATE TRIGGER {name} BEFORE INSERT ON metric_import_batch FOR EACH ROW EXECUTE FUNCTION {name}()"));
+        CanonicalPause {
+            pool: Arc::clone(pool),
+            hold,
+            name,
+        }
+    }
+
+    /// Block until the canonical transaction on one of `pids` is frozen at the
+    /// pause point, and return that pid. The deadline is a hang guard only.
+    fn wait_until_paused(&self, f: &Fixture, pids: &[i64]) -> i64 {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            if let Some(pid) = pids
+                .iter()
+                .copied()
+                .find(|pid| is_lock_waiting(f, *pid, Some("advisory")))
+            {
+                return pid;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "no canonical transaction reached the pause point"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn release(&mut self) {
+        sql_query(format!("SELECT pg_advisory_unlock({H2_PAUSE_KEY})"))
+            .execute(&mut self.hold)
+            .expect("release the hold");
+    }
+}
+
+impl Drop for CanonicalPause {
+    fn drop(&mut self) {
+        let _ = sql_query("SELECT pg_advisory_unlock_all()").execute(&mut self.hold);
+        if let Ok(mut connection) = self.pool.get() {
+            let _ = sql_query(format!(
+                "DROP TRIGGER IF EXISTS {} ON metric_import_batch",
+                self.name
+            ))
+            .execute(&mut connection);
+            let _ = sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name))
+                .execute(&mut connection);
+        }
+    }
+}
+
+/// A `BEFORE INSERT` trigger on `metric_import_batch` that fails the
+/// inserting transaction unless `setting` equals `expected` inside it, so a
+/// transaction's own local settings are observed from within rather than
+/// inferred. Removed on drop.
+struct SettingProbe {
+    pool: Arc<PgPool>,
+    name: String,
+}
+
+impl SettingProbe {
+    fn install(pool: &Arc<PgPool>, setting: &str, expected: &str) -> Self {
+        let name = format!("wp11_h2_probe_{}", Uuid::new_v4().simple());
+        exec(pool, &format!("CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF current_setting('{setting}') <> '{expected}' THEN RAISE EXCEPTION 'thoth test probe: {setting} is % inside the canonical transaction', current_setting('{setting}'); END IF; RETURN NEW; END $$"));
+        exec(pool, &format!("CREATE TRIGGER {name} BEFORE INSERT ON metric_import_batch FOR EACH ROW EXECUTE FUNCTION {name}()"));
+        SettingProbe {
+            pool: Arc::clone(pool),
+            name,
+        }
+    }
+}
+
+impl Drop for SettingProbe {
+    fn drop(&mut self) {
+        if let Ok(mut connection) = self.pool.get() {
+            let _ = sql_query(format!(
+                "DROP TRIGGER IF EXISTS {} ON metric_import_batch",
+                self.name
+            ))
+            .execute(&mut connection);
+            let _ = sql_query(format!("DROP FUNCTION IF EXISTS {}()", self.name))
+                .execute(&mut connection);
+        }
+    }
+}
+
+/// A transaction on its own session that runs `statement`, which may itself
+/// queue on a row lock, and then holds everything it locked until `commit`.
+struct HeldStatement {
+    pid: i64,
+    release: Sender<()>,
+    handle: thread::JoinHandle<()>,
+}
+
+impl HeldStatement {
+    fn start(statement: String) -> Self {
+        let (release, wait): (Sender<()>, Receiver<()>) = channel();
+        let (pid_tx, pid_rx) = channel();
+        let handle = thread::spawn(move || {
+            let mut connection = PgConnection::establish(&test_db_url()).expect("held session");
+            pid_tx.send(backend_pid(&mut connection)).unwrap();
+            connection
+                .transaction::<_, diesel::result::Error, _>(|connection| {
+                    sql_query(statement).execute(connection)?;
+                    wait.recv().expect("release signal");
+                    Ok(())
+                })
+                .expect("held statement must commit");
+        });
+        let pid = pid_rx.recv().unwrap();
+        HeldStatement {
+            pid,
+            release,
+            handle,
+        }
+    }
+
+    /// Wait until this session's statement is itself queued on a lock. The
+    /// deadline is a hang guard only.
+    fn wait_until_blocked(&self, f: &Fixture) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !is_lock_waiting(f, self.pid, None) {
+            assert!(
+                Instant::now() < deadline,
+                "the held statement never queued on the row lock"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn commit(self) {
+        self.release.send(()).unwrap();
+        self.handle.join().unwrap();
+    }
+}
+
+#[test]
+fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exists() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-capacity", day(1))
+        .unwrap();
+    let input = || batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
+    let before = f.snapshot();
+
+    // Pool size one: the guard checkout takes the only connection, so no idle
+    // second connection can exist to reserve for the coordinator.
+    let tag = pool_tag();
+    let one = sized_pool(&tag, 1, None, Duration::from_secs(2));
+    let pid = tagged_backends(&f, &tag)[0];
+    assert_eq!(
+        ingest_metric_batch_under_claim(&one, &input()),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_untouched_since_checkout(&f, pid);
+    let state = one.state();
+    assert_eq!(
+        (state.connections, state.idle_connections),
+        (1, 1),
+        "the guard connection was returned"
+    );
+    assert_eq!(
+        f.snapshot(),
+        before,
+        "a refused batch has no durable effect"
+    );
+
+    // An exhausted larger pool: every connection but one is held elsewhere,
+    // so the one idle connection serves the guard checkout and nothing is
+    // left to reserve.
+    let tag = pool_tag();
+    let three = sized_pool(&tag, 3, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 3);
+    let mut held_a = three.get().unwrap();
+    let mut held_b = three.get().unwrap();
+    let held = [backend_pid(&mut held_a), backend_pid(&mut held_b)];
+    let remaining = pids
+        .iter()
+        .copied()
+        .find(|pid| !held.contains(pid))
+        .expect("one idle connection");
+    assert_eq!(
+        ingest_metric_batch_under_claim(&three, &input()),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_untouched_since_checkout(&f, remaining);
+    let state = three.state();
+    assert_eq!(
+        (state.connections, state.idle_connections),
+        (3, 1),
+        "the guard connection was returned while the two held ones stay out"
+    );
+    assert_eq!(f.snapshot(), before);
+    drop(held_a);
+    drop(held_b);
+    assert_eq!(three.state().idle_connections, 3);
+
+    // The refusal is retry-safe: with an idle second connection the identical
+    // request commits once, as a first commit and not a replay.
+    let outcome = ingest_metric_batch_under_claim(&three, &input())
+        .expect("two idle connections admit the batch");
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+    assert_eq!(f.count("metric_import_batch", "batch_key = 'b1'"), 1);
+}
+
+#[test]
+fn a_batch_is_refused_when_no_connection_is_idle_even_below_the_pool_maximum() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-idle", day(1))
+        .unwrap();
+    let input = || batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
+    let before = f.snapshot();
+
+    // Four connections allowed, none kept idle: the guard checkout
+    // establishes the first connection on demand, and no idle second one
+    // exists to reserve, although three more could still be opened.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 4, Some(0), Duration::from_secs(5));
+    assert_eq!(pool.state().connections, 0);
+    assert_eq!(
+        ingest_metric_batch_under_claim(&pool, &input()),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    let state = pool.state();
+    assert_eq!(
+        (state.connections, state.idle_connections),
+        (1, 1),
+        "one connection was established for the guard and returned; none was opened for the coordinator"
+    );
+    let established = tagged_backends(&f, &tag);
+    assert_eq!(established.len(), 1, "exactly one backend exists");
+    assert_untouched_since_checkout(&f, established[0]);
+    assert_eq!(f.snapshot(), before);
+
+    // The one connection is idle again, still alone: the same refusal.
+    assert_eq!(
+        ingest_metric_batch_under_claim(&pool, &input()),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_eq!(pool.state().connections, 1);
+    assert_eq!(f.snapshot(), before);
+
+    // Once a second connection is idle, the identical request commits.
+    {
+        let _first = pool.get().unwrap();
+        let _second = pool.get().unwrap();
+    }
+    assert_eq!(pool.state().idle_connections, 2);
+    let outcome = ingest_metric_batch_under_claim(&pool, &input())
+        .expect("an idle second connection admits the batch");
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn the_guard_never_holds_a_transaction_while_waiting_for_a_second_connection() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-regression", day(1))
+        .unwrap();
+    let before = f.snapshot();
+
+    // Before MET-WP11-B-CORR-H2 the guard opened its transaction, locked the
+    // checkpoint and only then had the coordinator block on a second
+    // checkout: on this one-connection pool the guard sat idle in its
+    // transaction, holding the checkpoint lock, for the whole checkout
+    // timeout and then rolled back. The second connection is now reserved
+    // first, so the call is refused before any guard transaction exists.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 1, None, Duration::from_secs(2));
+    let pid = tagged_backends(&f, &tag)[0];
+    let worker = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    // Observed barrier: the call finishes, or its backend is caught idle
+    // inside an open transaction, which is the old nested wait.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !worker.is_finished() {
+        assert!(
+            !is_idle_in_transaction(&f, pid),
+            "the guard sits in an open transaction (last statement `{}`) while waiting for a second connection",
+            last_statement(&f, pid)
+        );
+        assert!(Instant::now() < deadline, "the batch call never finished");
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(
+        worker.join().unwrap(),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_untouched_since_checkout(&f, pid);
+    assert!(row_is_free(&checkpoint_row(f.account_a)));
+    assert_eq!(f.snapshot(), before);
+    assert_eq!(pool.state().idle_connections, 1);
+}
+
+#[test]
+fn a_held_checkpoint_row_fails_the_guard_closed_after_the_one_second_lock_timeout() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-lock", day(1))
+        .unwrap();
+    let before = f.snapshot();
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 2, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 2);
+
+    // Another transaction holds the checkpoint row, as a concurrent
+    // same-account batch, a reclaim or a checkpoint update would.
+    let hold = CheckpointRowHold::acquire(f.account_a);
+    let started = Instant::now();
+    let worker = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    // Both connections are reserved, the guard transaction opens and queues
+    // on the held row...
+    let guard_pid = wait_until_row_lock_waiting(&f, &pids);
+    assert_eq!(
+        pool.state().idle_connections,
+        0,
+        "the guard and the reserved coordinator connection are both out"
+    );
+    // ...and gives up through its own lock timeout while the row is still
+    // held: the hold is released only after the call has returned.
+    let result = join_within(worker, "the batch behind a held checkpoint");
+    let waited = started.elapsed();
+    assert_eq!(result, Err(E::Ingestion(Code::InternalDatabaseError)));
+    assert!(
+        waited >= Duration::from_secs(1),
+        "the guard gave up before its one-second lock timeout: {waited:?}"
+    );
+    assert_eq!(
+        last_statement(&f, guard_pid),
+        "ROLLBACK",
+        "the guard transaction was rolled back"
+    );
+    assert!(!has_open_transaction(&f, guard_pid));
+    let canonical_pid = pids.iter().copied().find(|pid| *pid != guard_pid).unwrap();
+    // The reserved coordinator connection was never used.
+    assert_untouched_since_checkout(&f, canonical_pid);
+    let state = pool.state();
+    assert_eq!(
+        (state.connections, state.idle_connections),
+        (2, 2),
+        "both connections were returned"
+    );
+    hold.release();
+    assert_eq!(f.snapshot(), before, "nothing was committed");
+
+    // The refusal is retry-safe once the row is free.
+    let outcome = ingest_metric_batch_under_claim(
+        &pool,
+        &batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    )
+    .expect("the retry commits once the row is free");
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn a_same_account_batch_behind_a_running_batch_is_refused_instead_of_queueing_on_the_checkpoint() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-backlog", day(1))
+        .unwrap();
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 3, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 3);
+    let mut pause = CanonicalPause::install(&f.pool);
+
+    // b1 is frozen inside its canonical transaction: its guard holds the
+    // checkpoint lock and both of its connections are out.
+    let first = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    let canonical = pause.wait_until_paused(&f, &pids);
+    let first_guard = pids
+        .iter()
+        .copied()
+        .find(|pid| *pid != canonical && is_idle_in_transaction(&f, *pid))
+        .expect("b1's guard is idle in its transaction");
+    let spare = pids
+        .iter()
+        .copied()
+        .find(|pid| *pid != canonical && *pid != first_guard)
+        .unwrap();
+    assert_eq!(pool.state().idle_connections, 1);
+    let before = f.snapshot();
+
+    // b2 of the same account: the one idle connection serves its guard
+    // checkout and nothing is left to reserve, so it is refused before it
+    // could queue on the checkpoint b1 holds.
+    let second = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b2", "10", day(1)),
+    );
+    let refused = join_within(second, "the same-account batch behind b1");
+    assert_eq!(refused, Err(E::Ingestion(Code::InternalDatabaseError)));
+    assert!(
+        is_lock_waiting(&f, canonical, Some("advisory")),
+        "b1 is still frozen, so b2 was decided while b1 ran"
+    );
+    assert_untouched_since_checkout(&f, spare);
+    assert!(
+        !is_lock_waiting(&f, first_guard, None) && !is_lock_waiting(&f, spare, None),
+        "no connection of the pool is queued on the checkpoint"
+    );
+    assert_eq!(
+        pool.state().idle_connections,
+        1,
+        "b2 returned its guard connection"
+    );
+    assert_eq!(f.snapshot(), before);
+    // A concurrent claim still skips the locked unit instead of waiting on it.
+    assert!(f
+        .claim(10)
+        .unwrap()
+        .iter()
+        .all(|c| c.source_account.code != ACCOUNT_A));
+
+    pause.release();
+    let committed = join_within(first, "the frozen batch").expect("b1 commits");
+    assert_eq!(committed.rows[0].classification, Class::Winner);
+    // The refusal was retry-safe: b2 now commits on the same pool.
+    let retry = ingest_metric_batch_under_claim(
+        &pool,
+        &batch_input(import.import_id, claim.lease_token, "b2", "10", day(1)),
+    )
+    .expect("b2 retry");
+    assert!(!retry.replayed);
+    assert_eq!(
+        f.count(
+            "metric_import_batch",
+            &format!("import_id = '{}'", import.import_id)
+        ),
+        2
+    );
+}
+
+#[test]
+fn a_same_account_batch_with_spare_capacity_waits_at_most_one_second_for_the_held_checkpoint() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-queue", day(1))
+        .unwrap();
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 4, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 4);
+    let mut pause = CanonicalPause::install(&f.pool);
+
+    let first = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    let canonical = pause.wait_until_paused(&f, &pids);
+    let first_guard = pids
+        .iter()
+        .copied()
+        .find(|pid| *pid != canonical && is_idle_in_transaction(&f, *pid))
+        .expect("b1's guard is idle in its transaction");
+    let before = f.snapshot();
+
+    // b2 reserves both remaining connections, opens its guard and queues
+    // behind b1's checkpoint lock...
+    let started = Instant::now();
+    let second = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b2", "10", day(1)),
+    );
+    let second_guard = wait_until_row_lock_waiting(&f, &pids);
+    assert!(second_guard != canonical && second_guard != first_guard);
+    assert_eq!(pool.state().idle_connections, 0);
+    // ...and gives up through its one-second lock timeout while b1 is still
+    // frozen, so same-account backlog is bounded, not an indefinite queue.
+    let refused = join_within(second, "the queued same-account batch");
+    let waited = started.elapsed();
+    assert_eq!(refused, Err(E::Ingestion(Code::InternalDatabaseError)));
+    assert!(
+        waited >= Duration::from_secs(1),
+        "b2 gave up before its one-second lock timeout: {waited:?}"
+    );
+    assert!(
+        is_lock_waiting(&f, canonical, Some("advisory")),
+        "b1 is still frozen"
+    );
+    assert_eq!(last_statement(&f, second_guard), "ROLLBACK");
+    let second_canonical = pids
+        .iter()
+        .copied()
+        .find(|pid| ![canonical, first_guard, second_guard].contains(pid))
+        .unwrap();
+    assert_untouched_since_checkout(&f, second_canonical);
+    assert_eq!(
+        pool.state().idle_connections,
+        2,
+        "b2 returned both of its connections"
+    );
+    assert_eq!(f.snapshot(), before);
+
+    pause.release();
+    let committed = join_within(first, "the frozen batch").expect("b1 commits");
+    assert_eq!(committed.rows[0].classification, Class::Winner);
+    let retry = ingest_metric_batch_under_claim(
+        &pool,
+        &batch_input(import.import_id, claim.lease_token, "b2", "10", day(1)),
+    )
+    .expect("b2 retry");
+    assert!(!retry.replayed);
+}
+
+#[test]
+fn a_distinct_account_batch_never_holds_its_guard_while_another_batch_occupies_the_pool() {
+    let (_guard, f) = setup();
+    let claims = f.claim(10).unwrap();
+    assert_eq!(claims.len(), 2);
+    let (token_a, token_b) = (claims[0].lease_token, claims[1].lease_token);
+    let import_a = f.begin(token_a, "report-h2-account-a", day(1)).unwrap();
+    let import_b = begin_metric_import(
+        &f.pool,
+        ACTOR,
+        &BeginMetricImportInput {
+            source_account_code: ACCOUNT_B.into(),
+            ..begin_input(token_b, "report-h2-account-b", day(1))
+        },
+    )
+    .unwrap();
+    let input_b = || {
+        let mut input = batch_input(import_b.import_id, token_b, "b1", "7", day(2));
+        input.observations[0].source_account_code = ACCOUNT_B.into();
+        input
+    };
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 3, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 3);
+    let mut pause = CanonicalPause::install(&f.pool);
+
+    // Account A's batch is frozen in its canonical transaction with both of
+    // its connections out.
+    let first = batch_worker(
+        &pool,
+        batch_input(import_a.import_id, token_a, "b1", "10", day(1)),
+    );
+    let canonical = pause.wait_until_paused(&f, &pids);
+    let first_guard = pids
+        .iter()
+        .copied()
+        .find(|pid| *pid != canonical && is_idle_in_transaction(&f, *pid))
+        .expect("A's guard is idle in its transaction");
+    let spare = pids
+        .iter()
+        .copied()
+        .find(|pid| *pid != canonical && *pid != first_guard)
+        .unwrap();
+    let before = f.snapshot();
+
+    // Account B's batch finds one idle connection for its guard and none to
+    // reserve: it is refused at once, without locking B's checkpoint and
+    // without waiting for A.
+    let second = batch_worker(&pool, input_b());
+    let refused = join_within(second, "account B's batch");
+    assert_eq!(refused, Err(E::Ingestion(Code::InternalDatabaseError)));
+    assert!(
+        is_lock_waiting(&f, canonical, Some("advisory")),
+        "A is still frozen"
+    );
+    assert_untouched_since_checkout(&f, spare);
+    assert!(
+        row_is_free(&checkpoint_row(f.account_b)),
+        "B's checkpoint was never locked"
+    );
+    assert_eq!(pool.state().idle_connections, 1);
+    assert_eq!(f.snapshot(), before);
+
+    pause.release();
+    let committed = join_within(first, "account A's batch").expect("A commits");
+    assert_eq!(committed.rows[0].classification, Class::Winner);
+    // B's identical request commits once capacity exists.
+    let outcome = ingest_metric_batch_under_claim(&pool, &input_b()).expect("B commits");
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn every_canonical_attempt_of_a_lifecycle_batch_runs_under_the_thirty_second_statement_timeout() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-timeout", day(1))
+        .unwrap();
+
+    // Observed from inside the canonical transaction: the probe fails the
+    // batch insert unless statement_timeout is exactly 30s there.
+    let probe = SettingProbe::install(&f.pool, "statement_timeout", "30s");
+    let outcome = f
+        .ingest(
+            import.import_id,
+            claim.lease_token,
+            "b1",
+            vec![observation("10", day(1))],
+            vec![],
+        )
+        .expect("the canonical transaction carries the 30s statement timeout");
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+    drop(probe);
+
+    // Negative control: the probe decides the outcome, and a canonical
+    // database failure stays sanitized with nothing durable and every
+    // connection returned.
+    let probe = SettingProbe::install(&f.pool, "statement_timeout", "31s");
+    let before = f.snapshot();
+    assert_eq!(
+        f.ingest(
+            import.import_id,
+            claim.lease_token,
+            "b2",
+            vec![observation("10", day(1))],
+            vec![],
+        ),
+        Err(E::Ingestion(Code::InternalDatabaseError))
+    );
+    assert_eq!(f.snapshot(), before);
+    let state = f.pool.state();
+    assert_eq!(state.idle_connections, state.connections);
+    drop(probe);
+
+    // The failed attempt was rolled back whole: the retry is a first commit,
+    // not a replay.
+    let outcome = f
+        .ingest(
+            import.import_id,
+            claim.lease_token,
+            "b2",
+            vec![observation("10", day(1))],
+            vec![],
+        )
+        .expect("b2 after the probe");
+    assert!(!outcome.replayed);
+}
+
+#[test]
+fn a_canonical_commit_survives_an_injected_guard_failure_and_the_retry_replays_without_writing() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-seam", day(1))
+        .unwrap();
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 2, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 2);
+    let mut pause = CanonicalPause::install(&f.pool);
+
+    let worker = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    let canonical = pause.wait_until_paused(&f, &pids);
+    let guard = pids.iter().copied().find(|pid| *pid != canonical).unwrap();
+    assert!(
+        is_idle_in_transaction(&f, guard),
+        "the guard holds its transaction while the coordinator runs"
+    );
+
+    // Injected guard failure: the guard's session is terminated while the
+    // canonical transaction is still open, so the canonical commit lands and
+    // the guard's own commit cannot.
+    f.sql(&format!("SELECT pg_terminate_backend({guard})"));
+    pause.release();
+    let result = join_within(worker, "the batch whose guard was terminated");
+    assert_eq!(result, Err(E::Ingestion(Code::InternalDatabaseError)));
+
+    // The canonical outcome is durable exactly once.
+    let committed = f.snapshot();
+    assert_eq!(
+        f.count(
+            "metric_import_batch",
+            &format!("import_id = '{}' AND batch_key = 'b1'", import.import_id)
+        ),
+        1
+    );
+    assert_eq!(f.count("metric_record", "TRUE"), 1);
+    assert_eq!(f.count("metric_record_revision", "TRUE"), 1);
+    assert_eq!(f.count("metric_record_provenance", "TRUE"), 1);
+    assert_eq!(f.count("metric_rollup_delta", "TRUE"), 1);
+    assert_eq!(
+        f.count(
+            "metric_import",
+            &format!(
+                "import_id = '{}' AND received_count = 1 AND accepted_count = 1",
+                import.import_id
+            )
+        ),
+        1
+    );
+
+    // The claim is still live, and the retry replays the committed outcome
+    // without writing anything.
+    let replay = f
+        .ingest(
+            import.import_id,
+            claim.lease_token,
+            "b1",
+            vec![observation("10", day(1))],
+            vec![],
+        )
+        .expect("replay");
+    assert!(replay.replayed);
+    assert_eq!(replay.rows[0].classification, Class::Winner);
+    assert_eq!(f.snapshot(), committed);
+    assert_eq!(f.count("metric_record_revision", "TRUE"), 1);
+
+    // ...and the unit still completes normally.
+    f.ingest(
+        import.import_id,
+        claim.lease_token,
+        "b2",
+        vec![observation("10", day(1))],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(
+        f.complete(import.import_id, claim.lease_token)
+            .unwrap()
+            .status,
+        MetricImportStatus::Completed
+    );
+}
+
+#[test]
+fn authority_drift_retries_run_on_the_reserved_coordinator_connection_without_a_third_checkout() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-h2-drift", day(1))
+        .unwrap();
+    let moves: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+    for (index, imprint) in moves.iter().enumerate() {
+        f.sql(&format!("INSERT INTO imprint (imprint_id, publisher_id, imprint_name) VALUES ('{imprint}', '{}', 'Drift imprint {index}')", f.publisher_id));
+    }
+    let move_to = |imprint: Uuid| {
+        format!("UPDATE work SET imprint_id = '{imprint}' WHERE doi = '{WORK_DOI}'")
+    };
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 2, None, Duration::from_secs(2));
+    let pids = tagged_backends(&f, &tag);
+    assert_eq!(pids.len(), 2);
+    let before = f.snapshot();
+
+    // Each held update keeps the work row locked from before an attempt's
+    // discovery until that attempt is queued on the work lock, so every
+    // attempt observes a moved imprint at its barrier: the choreography of
+    // the coordinator's own three-attempt test, now through the lifecycle on
+    // a pool with room for exactly the guard and the reserved connection.
+    let mut holder = HeldStatement::start(move_to(moves[0]));
+    let worker = batch_worker(
+        &pool,
+        batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    );
+    let mut attempts = Vec::new();
+    let mut observe_attempt = |holder: &HeldStatement| {
+        let blocked = wait_until_blocked_by(&f, &pids, holder.pid);
+        attempts.push(blocked);
+        let guard = pids.iter().copied().find(|pid| *pid != blocked).unwrap();
+        assert!(
+            is_idle_in_transaction(&f, guard),
+            "the guard holds its transaction while attempt {} runs",
+            attempts.len()
+        );
+        assert_eq!(
+            pool.state().idle_connections,
+            0,
+            "exactly the guard and the reserved connection are out"
+        );
+    };
+    for next in [moves[1], moves[2]] {
+        observe_attempt(&holder);
+        let queued = HeldStatement::start(move_to(next));
+        queued.wait_until_blocked(&f);
+        holder.commit();
+        holder = queued;
+    }
+    observe_attempt(&holder);
+    holder.commit();
+    let result = join_within(worker, "the drifting batch");
+    assert_eq!(result, Err(E::Ingestion(Code::ConcurrentAuthorityChange)));
+    assert_eq!(attempts.len(), 3);
+    assert!(
+        attempts.iter().all(|pid| *pid == attempts[0]),
+        "every attempt ran on the one reserved connection: {attempts:?}"
+    );
+    let state = pool.state();
+    assert_eq!(
+        (state.connections, state.idle_connections),
+        (2, 2),
+        "no third connection was ever checked out, and both were returned"
+    );
+    assert_eq!(f.snapshot(), before, "zero durable consequence");
+
+    // The same request is retryable on the same pool.
+    let retry = ingest_metric_batch_under_claim(
+        &pool,
+        &batch_input(import.import_id, claim.lease_token, "b1", "10", day(1)),
+    )
+    .expect("retry");
+    assert!(!retry.replayed);
+    assert_eq!(retry.rows[0].classification, Class::Winner);
 }

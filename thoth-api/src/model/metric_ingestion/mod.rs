@@ -62,6 +62,22 @@
 //! failures, including any invalid coverage assertion and any database
 //! failure, commit nothing.
 //!
+//! # Connections and statement timeout (`MET-WP11-B-CORR-H2`)
+//!
+//! The pooled entry [`ingest_metric_batch`] checks out exactly one connection
+//! for the whole call, and the crate-internal connection entry
+//! `ingest_metric_batch_on_connection` runs on a connection its caller has
+//! already reserved. Neither makes a second or fallback checkout, so every
+//! attempt of one call — each of the at most three authority-drift retries
+//! included — runs on that same connection. Each attempt begins with
+//! [`CANONICAL_STATEMENT_TIMEOUT_SQL`] (`SET LOCAL statement_timeout = '30s'`),
+//! a limit on each later statement of that attempt individually and not a
+//! whole-request deadline; a statement or lock wait that reaches it aborts
+//! the attempt, rolls it back and is reduced to `INTERNAL_DATABASE_ERROR`
+//! like any other database failure, never to a partial batch. `SET LOCAL`
+//! ends with the transaction, so the connection returns to its caller or the
+//! pool with its default settings (#988).
+//!
 //! # Unresolved-DOI quarantine (`MET-WP7-PREREQ-02`)
 //!
 //! An observation that passed every input check, whose DOI therefore parsed,
@@ -137,6 +153,10 @@ pub const MAX_COVERAGE_ASSERTIONS: usize = 100;
 pub const MAX_BATCH_KEY_BYTES: usize = 256;
 /// Maximum first-time transaction attempts per call (Amendment 4 C6).
 pub const MAX_ATTEMPTS: u8 = 3;
+/// The `statement_timeout` every canonical attempt sets locally before its
+/// first lock (`MET-WP11-B-CORR-H2`, #988). It bounds each statement of the
+/// attempt individually and is not a whole-request deadline.
+pub(crate) const CANONICAL_STATEMENT_TIMEOUT_SQL: &str = "SET LOCAL statement_timeout = '30s'";
 /// The fixed `metric_record_provenance.details` schema written for every row.
 pub const PROVENANCE_DETAILS_SCHEMA: &str = "thoth-metric-provenance-details/1";
 /// The rollup-delta status created by this coordinator. Application is WP4.
@@ -226,25 +246,61 @@ pub struct MetricIngestionRowOutcome {
 }
 
 /// Ingest one bounded batch under the protocol described in the module
-/// documentation.
+/// documentation, on one connection checked out from `db`.
 ///
 /// Request-shape failures are detected before any database access. Every
 /// other request-level failure aborts the transaction and commits nothing. A
-/// database failure is reduced to `INTERNAL_DATABASE_ERROR`.
+/// database failure, a canonical statement timeout included, is reduced to
+/// `INTERNAL_DATABASE_ERROR`. The one connection this entry checks out serves
+/// every attempt of the call; there is no second or fallback checkout.
 pub fn ingest_metric_batch(
     db: &PgPool,
     batch: &MetricIngestionBatch,
 ) -> Result<MetricIngestionOutcome, MetricIngestionError> {
     validate_request_shape(batch)?;
+    let mut connection = db.get().map_err(|error| {
+        log::error!("metric ingestion could not obtain a database connection: {error}");
+        MetricIngestionError::new(Code::InternalDatabaseError)
+    })?;
+    ingest_validated_batch(&mut connection, batch, CANONICAL_STATEMENT_TIMEOUT_SQL)
+}
+
+/// [`ingest_metric_batch`] on a connection the caller has already reserved
+/// (`MET-WP11-B-CORR-H2`, #988).
+///
+/// The managed-DRIVER lifecycle reserves this connection before it opens its
+/// batch guard transaction, so a caller holding the checkpoint lock never
+/// waits for pool capacity. Request-shape validation before any database
+/// access, hashing, replay, the three-attempt drift logic, rollback and
+/// sanitization are those of the pooled entry; every attempt runs on
+/// `connection`, and nothing is checked out from any pool.
+pub(crate) fn ingest_metric_batch_on_connection(
+    connection: &mut PgConnection,
+    batch: &MetricIngestionBatch,
+) -> Result<MetricIngestionOutcome, MetricIngestionError> {
+    validate_request_shape(batch)?;
+    ingest_validated_batch(connection, batch, CANONICAL_STATEMENT_TIMEOUT_SQL)
+}
+
+/// Every attempt of one shape-validated batch, on one connection.
+///
+/// Each attempt is one transaction that first executes
+/// `statement_timeout_sql` — [`CANONICAL_STATEMENT_TIMEOUT_SQL`] on both
+/// entries; the test module injects a shorter timeout to prove the abort
+/// path — and then runs the protocol. Drift rolls the attempt back and retries
+/// on the same connection, at most [`MAX_ATTEMPTS`] times.
+fn ingest_validated_batch(
+    connection: &mut PgConnection,
+    batch: &MetricIngestionBatch,
+    statement_timeout_sql: &'static str,
+) -> Result<MetricIngestionOutcome, MetricIngestionError> {
     let request_hash = request_hash(batch);
 
     for _attempt in 0..MAX_ATTEMPTS {
-        let mut connection = db.get().map_err(|error| {
-            log::error!("metric ingestion could not obtain a database connection: {error}");
-            MetricIngestionError::new(Code::InternalDatabaseError)
-        })?;
-        let attempt =
-            connection.transaction(|connection| run_attempt(connection, batch, &request_hash));
+        let attempt = connection.transaction(|connection| {
+            sql_query(statement_timeout_sql).execute(connection)?;
+            run_attempt(connection, batch, &request_hash)
+        });
         match attempt {
             Ok(outcome) => return Ok(outcome),
             Err(AttemptError::Drift) => continue,

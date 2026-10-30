@@ -393,10 +393,45 @@ Contract:
   canonical base-10 signed 64-bit integer string and `sourceRowNumber`
   non-negative. The batch key must be one of the import's expected keys. A
   short guard transaction locks and validates the checkpoint and, still holding
-  that lock, calls the unchanged coordinator on a second pooled connection, so
-  no reclaim can replace the token during the call. The coordinator's limits,
-  hashing, classifications, replay and idempotency apply unchanged; a replay of
-  a committed batch returns its persisted outcome with `replayed: true`.
+  that lock, calls the unchanged coordinator on a second pooled connection in
+  its own transaction, so no reclaim can replace the token during the call.
+  The coordinator's limits, hashing, classifications, replay and idempotency
+  apply unchanged; a replay of a committed batch returns its persisted outcome
+  with `replayed: true`.
+- **Batch capacity admission and bounded guard waits (`MET-WP11-B-CORR-H2`,
+  issue #988).** The two-connection, two-transaction guard above is unchanged
+  in what it locks, validates and commits; what changes is when the second
+  connection is taken and how long the guard may wait. After the request-shape
+  checks, the batch checks out its guard connection with the pool's ordinary
+  blocking checkout and then, before the guard transaction opens and before
+  any checkpoint lock is taken, reserves the coordinator's connection with
+  exactly one non-blocking `try_get()`. That reservation takes an already-idle
+  connection, not nominal capacity: it can refuse below the pool's maximum
+  size, for instance while reaped idle connections are being replaced. A
+  refusal releases the guard connection and fails the request as
+  `INTERNAL_DATABASE_ERROR` with no durable batch, checkpoint or canonical
+  effect; there is no blocking fallback checkout, third checkout, pool growth
+  or scheduler, and the identical request may be retried. With both
+  connections held, the guard transaction executes `SET LOCAL lock_timeout =
+  '1s'` before it locks the checkpoint row, so a checkpoint held by another
+  transaction — a concurrent batch of the same account, a reclaim or a
+  checkpoint update — fails the guard closed after one second through the
+  existing Diesel error conversion to `INTERNAL_DATABASE_ERROR`, with nothing
+  committed, instead of queueing indefinitely; a caller never waits for pool
+  capacity while it holds the guard. Every canonical attempt, including each
+  of the coordinator's at most three authority-drift retries, runs on the
+  reserved connection inside a transaction that first executes `SET LOCAL
+  statement_timeout = '30s'`, a limit on each statement individually; a
+  statement or lock wait that reaches it aborts and rolls back that attempt
+  and fails the request as `INTERNAL_DATABASE_ERROR`, never as a partial
+  batch. Both `SET LOCAL` settings end with their transaction, so no
+  connection returns to the pool carrying them. Neither timeout is a
+  whole-request deadline: the pool's checkout health check and connection
+  establishment can still block, and no total latency, starvation or fairness
+  guarantee is made. The two-transaction seam is preserved: a canonical commit
+  may survive a later guard failure, and a retry of the same batch replays the
+  committed outcome with `replayed: true` and no duplicated revision, delta,
+  provenance, coverage or counter.
 - **Completion.** `completeMetricImport` requires the import's committed batch
   keys to equal its expected set exactly (`IMPORT_INCOMPLETE` while any is
   missing) and sets `COMPLETED` when the coordinator's persisted invalid and
@@ -420,9 +455,11 @@ Contract:
   `IMPORT_IDEMPOTENCY_MISMATCH`, `UNEXPECTED_BATCH_KEY`, `IMPORT_INCOMPLETE`,
   `INVALID_IMPORT_STATE` and `LIFECYCLE_LIMIT_EXCEEDED`, with fixed messages.
   A coordinator request failure carries its `MetricIngestionErrorCode` value
-  unchanged, and a database failure is `INTERNAL_DATABASE_ERROR`. No message
-  carries SQL, a constraint name, connection detail, a token, source
-  configuration or caller input.
+  unchanged, and a database failure is `INTERNAL_DATABASE_ERROR`; a refused
+  coordinator-connection reservation, a guard lock-timeout expiry and a
+  canonical statement timeout are database failures and carry that same
+  code with its fixed message. No message carries SQL, a constraint name,
+  connection detail, a token, source configuration or caller input.
 
 No migration, table, column or index is added: the existing checkpoint lease
 columns and import idempotency index are the whole durable boundary. There is
