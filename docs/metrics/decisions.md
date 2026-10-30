@@ -1,7 +1,7 @@
 # Thoth Metrics Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-25
+Last updated: 2026-10-30
 Owner: CTO
 
 The approved technical design and approved ADRs remain authoritative.
@@ -118,6 +118,45 @@ exactly seven durable-job conventions are shared as conventions, not as a
 framework. `ADR-0008` selects no Metrics role name, entitlement model,
 credential model or operation matrix.
 
+### Canonical reporting grain is immutable for its v1 identity (`MET-WP11-B-CORR-H3`)
+
+Decision (issue [#989](https://github.com/thoth-pub/thoth/issues/989), a
+pre-B correction under #981 Amendment 8 as corrected by Amendment 8-C1 and
+#989 correction 1): the v1 canonical identity hash deliberately excludes the
+reporting grain, so a `DAY` observation and a one-day `REPORTING_PERIOD`
+observation (or a `MONTH` observation and a one-month `REPORTING_PERIOD`
+observation) of the same cell and period share one canonical identity. The
+grain persisted on `metric_record` by first arrival is the record's grain for
+as long as that identity exists. Later evidence for the same v1 identity with
+a different grain is never silently accepted:
+
+- the shared canonical application authority compares the incoming grain with
+  the persisted grain under the existing `metric_record` row lock, before any
+  content-duplicate, source-conflict or revision decision, and a mismatch is
+  the distinct internal outcome `ReportingGrainMismatch`, which rewrites no
+  canonical grain, revises no canonical content, emits no rollup delta,
+  chooses no new winner and is never classified as a duplicate or a conflict;
+- ordinary ingestion records the observation as `REJECTED` with the additive
+  closed-vocabulary reason `REPORTING_GRAIN_MISMATCH` (bounded field
+  `reporting_grain`, static sanitized message) through the existing
+  rejected-provenance, import-error and `invalid_count` paths, keeping their
+  cardinality and replay semantics;
+- automatic unresolved-DOI reconciliation maps the same outcome to the
+  existing retryable `BLOCKED_INCONSISTENT_EVIDENCE` state, whose meaning is
+  extended to include a canonical reporting-grain mismatch, under the
+  unchanged capped 1h, 2h, 4h, 8h, 16h, 24h schedule; it never mutates the
+  original quarantine evidence, provenance, import counters, status or
+  coverage, and no new persisted state or reason is introduced.
+
+Explicitly not decided here: no v1 hash byte, golden vector or `hash.rs` line
+changes; no historical record is normalized, no committed historical outcome
+is altered and no committed batch replay changes; first-arrival grain
+selection stays; source grains are not distinguished in identity; and there is
+no hash v2, repair migration or schema change. The additive GraphQL enum value
+is not automatically compatible with a closed-enum consumer: Sphinx
+`REQUIRES CHANGE` through thoth-pub/thoth-sphinx#38 against the merged
+producer contract before any collection against it.
+
 ## 3. Decisions still required
 
 ### Service-role codes (WP5-owned)
@@ -173,3 +212,6 @@ Select report types and metric mappings only after representative reports are su
 11. OBELISK collection failures and missing configuration do not block unrelated
     operations.
 12. Missing or unavailable metric data is never fabricated or treated as zero.
+13. An existing canonical record's reporting grain is immutable for its v1
+    identity; mismatched later evidence is rejected or blocked, never silently
+    accepted, and never changes the record.

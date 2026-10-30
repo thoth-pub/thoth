@@ -345,3 +345,127 @@ fn sdl_exposes_only_the_bounded_mutation_and_aggregate_result() {
         );
     }
 }
+
+// --------------------------------------------------------------------------
+// MET-WP11-B-CORR-H3 (#989): a canonical reporting-grain mismatch is reported
+// through the unchanged aggregate as blocked
+// --------------------------------------------------------------------------
+
+/// Seed one unresolved-DOI quarantine row of `grain` for `doi`, returning its
+/// quarantine id.
+fn seed_quarantine(
+    fixture: &crate::model::metric_ingestion_lifecycle::tests::Fixture,
+    doi: &str,
+    value: i64,
+    grain: &str,
+    created_at: &str,
+) -> Uuid {
+    let import_id = Uuid::new_v4();
+    let batch_id = Uuid::new_v4();
+    let provenance_id = Uuid::new_v4();
+    let quarantine_id = Uuid::new_v4();
+    fixture.sql(&format!(
+        "INSERT INTO metric_import \
+             (import_id, source_account_id, publisher_id, format_code, format_version, status, \
+              received_count, invalid_count, normalizer_version, created_by, created_at, completed_at) \
+         VALUES ('{import_id}', '{}', '{}', 'cloudfront-legacy-s3', '1', \
+                 'COMPLETED_WITH_ERRORS', 1, 1, 'sphinx-cloudfront/1', 'fixture', \
+                 TIMESTAMPTZ '{created_at}', TIMESTAMPTZ '{created_at}')",
+        fixture.account_a, fixture.publisher_id
+    ));
+    fixture.sql(&format!(
+        "INSERT INTO metric_import_batch (import_batch_id, import_id, batch_key, request_hash) \
+         VALUES ('{batch_id}', '{import_id}', '{quarantine_id}', 'hash-{quarantine_id}')"
+    ));
+    fixture.sql(&format!(
+        "INSERT INTO metric_record_provenance \
+             (record_provenance_id, import_id, classification, details, import_batch_id, batch_row_index) \
+         VALUES ('{provenance_id}', '{import_id}', 'REJECTED', \
+                 '{{\"schema\":\"thoth-metric-provenance-details/1\", \
+                   \"reason_code\":\"UNKNOWN_DOI\",\"reporting_grain\":\"{grain}\"}}'::jsonb, \
+                 '{batch_id}', 0)"
+    ));
+    fixture.sql(&format!(
+        "INSERT INTO metric_identifier_quarantine \
+             (identifier_quarantine_id, record_provenance_id, source_account_id, platform_id, \
+              measure_id, schema_version, work_doi, period_start, period_end, reporting_grain, \
+              country_code, value, methodology_version, created_at) \
+         VALUES ('{quarantine_id}', '{provenance_id}', '{}', '{}', \
+                 (SELECT measure_id FROM metric_measure WHERE code = 'title_sessions'), \
+                 'thoth-normalized-metrics/1', '{doi}', \
+                 DATE '2026-03-01', DATE '2026-03-02', '{grain}', NULL, {value}, \
+                 'cloudfront-title-session/2', TIMESTAMPTZ '{created_at}')",
+        fixture.account_a, fixture.platform_id
+    ));
+    quarantine_id
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_reporting_grain_mismatch_is_counted_as_blocked_without_new_vocabulary() {
+    let (_guard, fixture) = setup();
+    let schema = create_schema();
+    let context = context_for(
+        &fixture.pool,
+        Some(user_with(
+            INGEST_USER,
+            &[(Role::MetricsIngestService, "org-1")],
+        )),
+    );
+    let doi = "https://doi.org/10.12345/graphql-grain-mismatch";
+    fixture.sql(&format!(
+        "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition, doi) \
+         VALUES ('{}', 'monograph', 'forthcoming', \
+                 (SELECT imprint_id FROM imprint WHERE publisher_id = '{}' ORDER BY imprint_id LIMIT 1), \
+                 1, '{doi}')",
+        Uuid::new_v4(),
+        fixture.publisher_id
+    ));
+
+    let winner = seed_quarantine(
+        &fixture,
+        doi,
+        7,
+        "REPORTING_PERIOD",
+        "2026-09-22 08:00:00+00",
+    );
+    let response = run(&schema, &context, &mutation(1)).await;
+    assert_eq!(
+        data(&response, "reconcileMetricIdentifierQuarantine"),
+        &json!({ "attempted": 1, "resolved": 1, "pending": 0, "blocked": 0 })
+    );
+    let state_of = |quarantine_id: Uuid| {
+        let mut connection = fixture.pool.get().expect("database connection");
+        diesel::select(diesel::dsl::sql::<diesel::sql_types::Text>(&format!(
+            "(SELECT state::text FROM metric_identifier_quarantine_reconciliation \
+              WHERE identifier_quarantine_id = '{quarantine_id}')"
+        )))
+        .get_result::<String>(&mut connection)
+        .expect("reconciliation state")
+    };
+    assert_eq!(state_of(winner), "RESOLVED_WINNER");
+
+    let mismatched = seed_quarantine(&fixture, doi, 7, "DAY", "2026-09-22 09:00:00+00");
+    let before = fixture.snapshot();
+    let response = run(&schema, &context, &mutation(1)).await;
+    assert_eq!(
+        data(&response, "reconcileMetricIdentifierQuarantine"),
+        &json!({ "attempted": 1, "resolved": 0, "pending": 0, "blocked": 1 })
+    );
+    assert_eq!(state_of(mismatched), "BLOCKED_INCONSISTENT_EVIDENCE");
+    assert_eq!(
+        fixture.snapshot(),
+        before,
+        "the block writes no canonical or quarantine evidence"
+    );
+
+    // The aggregate result and the mutation signature are unchanged: no new
+    // state, reason or field is exposed for the mismatch.
+    let sdl = create_schema().as_sdl();
+    let result = sdl_block(&sdl, "type MetricIdentifierQuarantineReconciliationBatch {");
+    assert_eq!(
+        signatures(result),
+        "attempted:Int!resolved:Int!pending:Int!blocked:Int!"
+    );
+    assert!(!sdl.contains("BLOCKED_REPORTING_GRAIN"));
+    assert!(!sdl.contains("MetricIdentifierQuarantineReconciliationState"));
+}

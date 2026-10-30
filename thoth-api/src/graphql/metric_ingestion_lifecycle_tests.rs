@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
+use diesel::RunQueryDsl;
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
@@ -38,6 +39,7 @@ use crate::model::metric_ingestion::MetricIngestionErrorCode;
 use crate::model::metric_ingestion_lifecycle::tests::{
     begin_input, day, setup, Fixture, ACCOUNT_A, DIGEST, SOURCE_CODE,
 };
+use crate::model::metric_platform::tests::scalar_i64;
 use crate::model::metric_record_provenance::MetricRecordProvenanceClassification;
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
@@ -237,11 +239,22 @@ fn begin_doc(token: &str, upstream: &str, keys: &[&str]) -> String {
 }
 
 fn ingest_doc(import_id: &str, token: &str, key: &str, value: &str) -> String {
+    ingest_doc_at_grain(import_id, token, key, value, "DAY")
+}
+
+/// The `ingest_doc` batch with its one-day observation at `grain`.
+fn ingest_doc_at_grain(
+    import_id: &str,
+    token: &str,
+    key: &str,
+    value: &str,
+    grain: &str,
+) -> String {
     format!(
         "mutation {{ ingestMetricBatch(input: {{ importId: \"{import_id}\", leaseToken: \"{token}\", \
            batchKey: \"{key}\", schemaVersion: \"thoth-normalized-metrics/1\", \
            observations: [{{ sourceAccountCode: \"{ACCOUNT_A}\", platformCode: \"cf\", measureCode: \"title_sessions\", \
-             workDoi: \"{WORK_DOI}\", periodStart: \"2026-03-01\", periodEnd: \"2026-03-02\", reportingGrain: DAY, \
+             workDoi: \"{WORK_DOI}\", periodStart: \"2026-03-01\", periodEnd: \"2026-03-02\", reportingGrain: {grain}, \
              value: \"{value}\", methodologyVersion: \"cloudfront-title-session/2\", sourceRowNumber: 0 }}], \
            coverage: [{{ platformCode: \"cf\", measureCode: \"title_sessions\", periodStart: \"2026-03-01\", \
              periodEnd: \"2026-03-02\", status: COMPLETE, countryCoverage: false, institutionCoverage: false }}] }}) \
@@ -639,7 +652,12 @@ fn the_three_domain_vocabularies_are_exposed_with_exactly_their_authoritative_va
         .collect();
     let sdl_values = enum_values(&sdl, "MetricIngestionErrorCode");
     assert_eq!(sdl_values.len(), rust_variants.len());
-    assert_eq!(sdl_values.len(), 47);
+    // `MET-WP2-02` froze 47 values; `MET-WP11-B-CORR-H3` (#989) added exactly
+    // one, `REPORTING_GRAIN_MISMATCH`.
+    assert_eq!(sdl_values.len(), 48);
+    assert!(sdl_values
+        .iter()
+        .any(|value| value == "REPORTING_GRAIN_MISMATCH"));
     for value in &sdl_values {
         let parsed = MetricIngestionErrorCode::from_str(value)
             .unwrap_or_else(|_| panic!("`{value}` is not a coordinator code"));
@@ -1085,4 +1103,190 @@ async fn a_capacity_refusal_is_the_fixed_internal_database_error_and_the_retry_c
     assert_eq!(batch["replayed"], false);
     assert_eq!(batch["rows"][0]["classification"], "WINNER");
     assert_ne!(f.snapshot(), before, "the retry committed the batch");
+}
+
+// --------------------------------------------------------------------------
+// MET-WP11-B-CORR-H3 (#989): canonical reporting-grain mismatch at the API
+// --------------------------------------------------------------------------
+
+/// A uniquely named `BEFORE INSERT` trigger on `metric_import_error` that
+/// raises a sentinel database error, removed again when dropped so a failed
+/// assertion leaves no debris in the shared test database.
+struct GrainSentinel {
+    pool: Arc<PgPool>,
+    name: String,
+}
+
+impl GrainSentinel {
+    fn install(f: &Fixture) -> Self {
+        let name = format!("thoth_h3_grain_sentinel_{}", Uuid::new_v4().simple());
+        f.sql(&format!(
+            "CREATE FUNCTION {name}() RETURNS trigger LANGUAGE plpgsql AS \
+             $$ BEGIN RAISE EXCEPTION 'grain-sentinel'; RETURN NULL; END $$"
+        ));
+        f.sql(&format!(
+            "CREATE TRIGGER {name} BEFORE INSERT ON metric_import_error \
+             FOR EACH ROW EXECUTE FUNCTION {name}()"
+        ));
+        GrainSentinel {
+            pool: Arc::clone(&f.pool),
+            name,
+        }
+    }
+}
+
+impl Drop for GrainSentinel {
+    fn drop(&mut self) {
+        let mut connection = self.pool.get().expect("database connection");
+        for statement in [
+            format!(
+                "DROP TRIGGER IF EXISTS {} ON metric_import_error",
+                self.name
+            ),
+            format!("DROP FUNCTION IF EXISTS {}()", self.name),
+        ] {
+            diesel::sql_query(statement)
+                .execute(&mut connection)
+                .expect("remove the sentinel trigger");
+        }
+    }
+}
+
+fn count(f: &Fixture, table: &str, predicate: &str) -> i64 {
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM {table} WHERE {predicate})"),
+    )
+}
+
+#[tokio::test]
+async fn a_reporting_grain_mismatch_is_a_bounded_rejected_row_with_the_exact_reason() {
+    let (_guard, f, token, import_id) = seeded();
+    let schema = create_schema();
+    let (import_id, token) = (import_id.to_string(), token.to_string());
+    f.sql(
+        "UPDATE metric_platform_measure \
+         SET supported_grains = ARRAY['DAY', 'REPORTING_PERIOD']::metric_reporting_grain[]",
+    );
+    let context = context_for(&f.pool, Some(ingest_user()));
+
+    let first = run(
+        &schema,
+        &context,
+        &ingest_doc_at_grain(&import_id, &token, "b1", "10", "DAY"),
+    )
+    .await;
+    let first = data(&first, "ingestMetricBatch").clone();
+    assert_eq!(first["rows"][0]["classification"], "WINNER");
+    let record_id = first["rows"][0]["recordId"].clone();
+    assert!(record_id.is_string());
+    let committed = f.snapshot();
+
+    // A database failure while the rejection evidence is written is the
+    // fixed, sanitized database classification and commits nothing.
+    let sentinel = GrainSentinel::install(&f);
+    let failed = run(
+        &schema,
+        &context,
+        &ingest_doc_at_grain(&import_id, &token, "b2", "10", "REPORTING_PERIOD"),
+    )
+    .await;
+    assert_error(&failed, "INTERNAL_DATABASE_ERROR");
+    assert_eq!(
+        only_error(&failed).0,
+        "The metric ingestion request was refused."
+    );
+    assert!(
+        !failed.to_string().contains("grain-sentinel"),
+        "database detail leaked: {failed}"
+    );
+    assert_eq!(f.snapshot(), committed);
+    drop(sentinel);
+
+    // Every denied principal is refused before the mismatch is evaluated.
+    for (label, user) in denied("org") {
+        let response = run(
+            &schema,
+            &context_for(&f.pool, user),
+            &ingest_doc_at_grain(&import_id, &token, "b2", "10", "REPORTING_PERIOD"),
+        )
+        .await;
+        assert_unauthorized(&response);
+        assert_eq!(
+            f.snapshot(),
+            committed,
+            "{label}: denial must not touch state"
+        );
+    }
+
+    // The same one-day period at REPORTING_PERIOD grain shares the DAY
+    // record's v1 identity and is rejected with exactly the new reason.
+    let second = run(
+        &schema,
+        &context,
+        &ingest_doc_at_grain(&import_id, &token, "b2", "10", "REPORTING_PERIOD"),
+    )
+    .await;
+    let second = data(&second, "ingestMetricBatch").clone();
+    assert_eq!(second["replayed"], false);
+    assert_eq!(second["rows"].as_array().map(Vec::len), Some(1));
+    let row = &second["rows"][0];
+    assert_eq!(row["batchRowIndex"], 0);
+    assert_eq!(row["classification"], "REJECTED");
+    assert_eq!(row["reasonCode"], "REPORTING_GRAIN_MISMATCH");
+    assert!(row["recordId"].is_null(), "{row}");
+    assert_eq!(row["identityHash"], first["rows"][0]["identityHash"]);
+    assert_eq!(row["contentHash"], first["rows"][0]["contentHash"]);
+    assert_eq!(
+        MetricIngestionErrorCode::from_str("REPORTING_GRAIN_MISMATCH").unwrap(),
+        MetricIngestionErrorCode::ReportingGrainMismatch
+    );
+
+    // The record keeps its first-arrival grain; the import error is bounded
+    // and static.
+    assert_eq!(count(&f, "metric_record", "reporting_grain = 'DAY'"), 1);
+    assert_eq!(count(&f, "metric_record", "TRUE"), 1);
+    assert_eq!(count(&f, "metric_record_revision", "TRUE"), 1);
+    assert_eq!(
+        count(
+            &f,
+            "metric_import_error",
+            &format!(
+                "import_id = '{import_id}' AND row_number = 0 \
+                 AND error_code = 'REPORTING_GRAIN_MISMATCH' AND severity = 'ERROR' \
+                 AND field_name = 'reporting_grain' AND raw_value IS NULL \
+                 AND message = '{}'",
+                MetricIngestionErrorCode::ReportingGrainMismatch.message()
+            )
+        ),
+        1
+    );
+    assert!(
+        MetricIngestionErrorCode::ReportingGrainMismatch
+            .message()
+            .len()
+            <= 120
+    );
+    assert_eq!(
+        count(
+            &f,
+            "metric_record_provenance",
+            "classification = 'REJECTED' AND details->>'reason_code' = 'REPORTING_GRAIN_MISMATCH' \
+             AND details->>'reporting_grain' = 'REPORTING_PERIOD'"
+        ),
+        1
+    );
+
+    // The committed rejection replays unchanged.
+    let after = f.snapshot();
+    let replay = run(
+        &schema,
+        &context,
+        &ingest_doc_at_grain(&import_id, &token, "b2", "10", "REPORTING_PERIOD"),
+    )
+    .await;
+    let replay = data(&replay, "ingestMetricBatch").clone();
+    assert_eq!(replay["replayed"], true);
+    assert_eq!(replay["rows"], second["rows"]);
+    assert_eq!(f.snapshot(), after);
 }

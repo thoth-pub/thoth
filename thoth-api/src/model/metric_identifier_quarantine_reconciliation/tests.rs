@@ -1039,3 +1039,214 @@ fn publisher_overlap_and_delta_overflow_fail_closed_without_canonical_effect() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// MET-WP11-B-CORR-H3 (#989): a canonical reporting-grain mismatch blocks as
+// retryable inconsistent evidence through the shared authority
+// ---------------------------------------------------------------------------
+
+fn record_grain_count(f: &Fixture, grain: &str) -> i64 {
+    scalar_i64(
+        &f.pool,
+        &format!("(SELECT COUNT(*) FROM metric_record WHERE reporting_grain = '{grain}')"),
+    )
+}
+
+fn canonical_counts(f: &Fixture) -> (i64, i64, i64) {
+    (
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record)"),
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_record_revision)"),
+        scalar_i64(&f.pool, "(SELECT COUNT(*) FROM metric_rollup_delta)"),
+    )
+}
+
+fn assert_blocked_inconsistent(f: &Fixture, evidence: Evidence, attempt: i64, seconds: i64) {
+    assert_eq!(
+        state(f, evidence.quarantine_id),
+        "BLOCKED_INCONSISTENT_EVIDENCE"
+    );
+    assert_eq!(attempt_count(f, evidence.quarantine_id), attempt);
+    assert_eq!(retry_seconds(f, evidence.quarantine_id), seconds);
+    assert_resolved_at_is_null(f, evidence.quarantine_id);
+    assert_eq!(
+        scalar_i64(
+            &f.pool,
+            &format!(
+                "(SELECT COUNT(*) FROM metric_identifier_quarantine_reconciliation \
+                  WHERE identifier_quarantine_id = '{}' \
+                    AND record_id IS NULL AND record_revision_id IS NULL)",
+                evidence.quarantine_id
+            ),
+        ),
+        1
+    );
+}
+
+#[test]
+fn a_reporting_grain_mismatch_blocks_as_retryable_inconsistent_evidence() {
+    let (_guard, f) = setup();
+    insert_work(&f, DOI);
+
+    // The canonical record for the identity arrives as a one-day
+    // REPORTING_PERIOD observation.
+    let winner = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 08:00:00+00",
+        "2026-09-22 08:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "REPORTING_PERIOD",
+    );
+    assert_eq!(reconcile(&f, 1).resolved, 1);
+    assert_eq!(state(&f, winner.quarantine_id), "RESOLVED_WINNER");
+    assert_eq!(record_grain_count(&f, "REPORTING_PERIOD"), 1);
+    let settled = canonical_counts(&f);
+    assert_eq!(settled, (1, 1, 1));
+
+    // Same content from the winner, different content from the winner and
+    // different content from the losing account, all at DAY grain for the
+    // same identity: none is a duplicate, a revision or a conflict.
+    let same_content = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 09:00:00+00",
+        "2026-09-22 09:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    let different_content = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        8,
+        "2026-09-22 10:00:00+00",
+        "2026-09-22 10:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    let losing_source = seed_evidence(
+        &f,
+        f.account_b,
+        DOI,
+        9,
+        "2026-09-22 11:00:00+00",
+        "2026-09-22 11:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    let historical: Vec<String> = [same_content, different_content, losing_source]
+        .into_iter()
+        .map(|evidence| historical_snapshot(&f, evidence))
+        .collect();
+
+    let result = reconcile(&f, 3);
+    assert_eq!(
+        (
+            result.attempted,
+            result.resolved,
+            result.pending,
+            result.blocked
+        ),
+        (3, 0, 0, 3)
+    );
+    for evidence in [same_content, different_content, losing_source] {
+        assert_blocked_inconsistent(&f, evidence, 1, 3600);
+    }
+    assert_eq!(
+        [same_content, different_content, losing_source]
+            .into_iter()
+            .map(|evidence| historical_snapshot(&f, evidence))
+            .collect::<Vec<_>>(),
+        historical,
+        "quarantine evidence, provenance, import counters and coverage are untouched"
+    );
+    assert_eq!(canonical_counts(&f), settled);
+    assert_eq!(record_grain_count(&f, "REPORTING_PERIOD"), 1);
+    assert_eq!(record_grain_count(&f, "DAY"), 0);
+    assert_eq!(
+        text(
+            &f.pool,
+            "(SELECT value::text FROM metric_record_revision WHERE status = 'CURRENT')"
+        ),
+        "7"
+    );
+    assert_eq!(
+        scalar_i64(
+            &f.pool,
+            "(SELECT COUNT(*) FROM metric_identifier_quarantine_reconciliation \
+              WHERE state IN ('RESOLVED_DUPLICATE', 'RESOLVED_REVISION', 'BLOCKED_SOURCE_CONFLICT'))"
+        ),
+        0
+    );
+
+    // The block is retryable on the capped schedule and stays a block.
+    mark_due(&f, same_content.quarantine_id);
+    let retry = reconcile(&f, 1);
+    assert_eq!((retry.attempted, retry.blocked), (1, 1));
+    assert_blocked_inconsistent(&f, same_content, 2, 7200);
+    assert_eq!(historical_snapshot(&f, same_content), historical[0]);
+    assert_eq!(canonical_counts(&f), settled);
+    assert_eq!(record_grain_count(&f, "REPORTING_PERIOD"), 1);
+}
+
+#[test]
+fn a_day_record_blocks_later_one_day_reporting_period_evidence() {
+    let (_guard, f) = setup();
+    insert_work(&f, DOI);
+    let winner = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 08:00:00+00",
+        "2026-09-22 08:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    assert_eq!(reconcile(&f, 1).resolved, 1);
+    assert_eq!(state(&f, winner.quarantine_id), "RESOLVED_WINNER");
+
+    let period = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 09:00:00+00",
+        "2026-09-22 09:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "REPORTING_PERIOD",
+    );
+    let historical = historical_snapshot(&f, period);
+    let result = reconcile(&f, 1);
+    assert_eq!((result.attempted, result.blocked), (1, 1));
+    assert_blocked_inconsistent(&f, period, 1, 3600);
+    assert_eq!(historical_snapshot(&f, period), historical);
+    assert_eq!(canonical_counts(&f), (1, 1, 1));
+    assert_eq!(record_grain_count(&f, "DAY"), 1);
+
+    // Same-grain evidence for the same identity still resolves normally.
+    let duplicate = seed_evidence(
+        &f,
+        f.account_a,
+        DOI,
+        7,
+        "2026-09-22 10:00:00+00",
+        "2026-09-22 10:00:00+00",
+        "2026-03-01",
+        "2026-03-02",
+        "DAY",
+    );
+    assert_eq!(reconcile(&f, 1).resolved, 1);
+    assert_eq!(state(&f, duplicate.quarantine_id), "RESOLVED_DUPLICATE");
+    assert_eq!(canonical_counts(&f), (1, 1, 1));
+}

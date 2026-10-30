@@ -348,7 +348,11 @@ when its pinned publisher's package grants `METRICS_COLLECT`.
 The public GraphQL scalars are the repository's own: `Uuid`, `Timestamp` and
 `Date`. `MetricImportStatus`, `MetricRecordProvenanceClassification` and
 `MetricIngestionErrorCode` are the existing closed domain enums, exposed
-unchanged; `MetricCoverageStatus` is reused from `MET-WP4-02`.
+unchanged by `MET-WP2-02`; `MetricCoverageStatus` is reused from `MET-WP4-02`.
+`MET-WP11-B-CORR-H3` (issue #989) later adds exactly one value to
+`MetricIngestionErrorCode`, `REPORTING_GRAIN_MISMATCH`, and nothing else to the
+SDL (see the canonical reporting-grain bullet below); every other value, its
+name and its meaning are unchanged.
 
 Contract:
 
@@ -398,6 +402,33 @@ Contract:
   The coordinator's limits, hashing, classifications, replay and idempotency
   apply unchanged; a replay of a committed batch returns its persisted outcome
   with `replayed: true`.
+- **Canonical reporting grain immutability (`MET-WP11-B-CORR-H3`, issue
+  #989).** The v1 canonical identity hash excludes the reporting grain, so
+  observations of the same cell and half-open period share one identity
+  whatever grain label they carry (a `DAY` observation and a one-day
+  `REPORTING_PERIOD` observation, a `MONTH` observation and a one-month
+  `REPORTING_PERIOD` observation). The grain persisted on `metric_record` by
+  the first-arriving winner is immutable for that identity. Under the
+  existing `metric_record` row lock, and before any content-duplicate,
+  source-conflict or revision decision, the shared canonical application
+  authority compares the observation's grain with the persisted grain; a
+  mismatch is a per-observation `REJECTED` row with the additive reason
+  `REPORTING_GRAIN_MISMATCH`, `metric_import_error.field_name`
+  `reporting_grain`, the static message "The reporting grain does not match
+  the existing canonical record" and `raw_value` null, written through the
+  existing rejected-provenance, import-error and `invalid_count` paths with
+  the row's identity and content hashes recorded. Whether the content is the
+  same or different, whether the account is the winning account or another
+  account, whether the rows arrive in separate batches, in one batch or in
+  concurrent first arrivals, the grain check precedes classification: the
+  mismatch never rewrites the canonical grain, revises the canonical content,
+  emits a rollup delta, chooses a new winner or is reported as `DUPLICATE` or
+  `CONFLICT`. A committed batch replays its persisted outcome unchanged, so
+  rows classified before this correction keep their committed classification;
+  no historical record is normalized and no hash changes. The reason is one
+  additive `MetricIngestionErrorCode` value; a consumer that decodes the enum
+  closed must accept it before any collection against this producer (the
+  pinned Sphinx subsets do not: see section 8 and thoth-pub/thoth-sphinx#38).
 - **Batch capacity admission and bounded guard waits (`MET-WP11-B-CORR-H2`,
   issue #988).** The two-connection, two-transaction guard above is unchanged
   in what it locks, validates and commits; what changes is when the second
@@ -639,7 +670,16 @@ while pending/blocked states use the server-owned 1h, 2h, 4h, 8h, 16h, then
 24h-capped retry schedule. Deterministically contradictory historical evidence
 becomes retryable `BLOCKED_INCONSISTENT_EVIDENCE` without canonical effect;
 an unexpected database/internal failure rolls that row back and returns a
-fixed redacted error.
+fixed redacted error. Since `MET-WP11-B-CORR-H3` (issue #989)
+`BLOCKED_INCONSISTENT_EVIDENCE` also covers a canonical reporting-grain
+mismatch: quarantined evidence whose DOI now resolves to a record of the same
+v1 identity whose persisted `reporting_grain` differs from the quarantine
+row's grain is blocked with that existing state, before any duplicate,
+source-conflict or revision decision, under the same capped 1h, 2h, 4h, 8h,
+16h, 24h schedule; the original quarantine row, provenance, import counters,
+import status and coverage are not mutated, only the existing reconciliation
+attempt/backoff bookkeeping changes, and no new persisted state, reason or
+column exists.
 
 Current DOI -> Work metadata remains authoritative. A current Work must still
 belong to the publisher pinned on the original import. Reconciliation reuses
@@ -1614,3 +1654,18 @@ shortcut.
 ## 8. Cross-repository gate
 
 Record exact producer commit/preview, generated types, contract fixtures, compatibility, merge order, non-production credentials and independent rollback before final review.
+
+Recorded disposition for `MET-WP11-B-CORR-H3` (issue #989): the producer SDL
+gains exactly one additive `MetricIngestionErrorCode` value,
+`REPORTING_GRAIN_MISMATCH`, reachable only through the protected
+`ingestMetricBatch` result (`MetricIngestionRowResult.reasonCode`). The Sphinx
+consumer subsets pinned at Sphinx `feature/metrics`
+`fa4b0f88751ee73617a0697d7fd6b1be221b6b74` (producer
+`52483ae29febdc4e253d3c8d70f7206c6e6de48b`) and `develop`
+`e97444c20fb5626f9233397ed627a54d1a2a46d2` (producer
+`8305de9d465abfec2216184d32e4646791d35188`) enumerate 47 reasons, omit the
+new value and decode an unknown reason as a non-retryable contract violation:
+Sphinx `REQUIRES CHANGE` through the separate repository-local task
+thoth-pub/thoth-sphinx#38, which pins the merged H3 producer contract before
+any collection against it. No other known consumer selects `reasonCode` or
+decodes this enum.

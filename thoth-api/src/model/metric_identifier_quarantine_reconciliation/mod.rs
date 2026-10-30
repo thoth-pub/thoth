@@ -79,6 +79,9 @@ pub enum MetricIdentifierQuarantineReconciliationState {
     BlockedImportOrderAmbiguous,
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_DELTA_OVERFLOW")]
     BlockedDeltaOverflow,
+    /// Retryable: the historical evidence is internally inconsistent, or
+    /// (`MET-WP11-B-CORR-H3`) the canonical record of the same v1 identity
+    /// was persisted with a different reporting grain.
     #[cfg_attr(feature = "backend", db_rename = "BLOCKED_INCONSISTENT_EVIDENCE")]
     BlockedInconsistentEvidence,
     #[cfg_attr(feature = "backend", db_rename = "RESOLVED_WINNER")]
@@ -493,6 +496,15 @@ fn process_one(
         ),
         CanonicalApplicationOutcome::OverlappingPeriod => (
             MetricIdentifierQuarantineReconciliationState::BlockedOverlappingPeriod,
+            None,
+            None,
+        ),
+        // `MET-WP11-B-CORR-H3` (#989): the canonical record of this identity
+        // carries another reporting grain. The evidence is retryable
+        // inconsistent evidence under the capped schedule; nothing canonical,
+        // and no quarantine, provenance or import evidence, is written.
+        CanonicalApplicationOutcome::ReportingGrainMismatch => (
+            MetricIdentifierQuarantineReconciliationState::BlockedInconsistentEvidence,
             None,
             None,
         ),
