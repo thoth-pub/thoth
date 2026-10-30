@@ -59,9 +59,14 @@ ADR-0001 and ADR-0002 are approved and their approval records are merged.
 ADR-0001 was approved by Javi, CTO, on 2026-07-28. Its independently reviewed
 approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged on
 2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. The shared ADR
-approval-and-merge dependency is satisfied, but no implementation task is ready.
-Publisher Services and Metrics implementation remain blocked by their genuine
-programme, task-specification and repository-readiness prerequisites. PR #772
+approval-and-merge dependency is satisfied; it does not by itself make any
+implementation task ready. Publisher Services implementation remains blocked by
+its genuine programme, task-specification and repository-readiness
+prerequisites. Thoth Metrics implementation has proceeded under its own
+approved bounded specifications on the `feature/metrics` programme line; the
+final integration of that line into `develop` is governed by #766/#981 through
+the separately gated A -> A2 -> B stages, with release, deployment and
+activation gated separately again. PR #772
 changed engineering-control documentation only and implemented or activated no
 runtime behaviour.
 
@@ -80,8 +85,14 @@ Current implementation decision: `BLOCKED`.
 - [Programme controls](../metrics/README.md)
 - [Task tracker](../metrics/task-status.md)
 - [Master issue #766](https://github.com/thoth-pub/thoth/issues/766)
+- [Integration and inactive-release readiness control #981](https://github.com/thoth-pub/thoth/issues/981)
 
-Current implementation decision: `BLOCKED`.
+Current programme decision: the inactive Metrics foundation is merged on the
+`feature/metrics` programme line under approved bounded specifications; its
+final integration into `develop` is governed by #981 through the separately
+gated stages A -> A2 -> B, reconciled on #766. Each stage, and any later
+release, deployment or activation, requires its own independent review and
+explicit CTO authorization; none is implied by this entry.
 
 ## 8. Canonical names
 
@@ -109,21 +120,30 @@ Achieved:
 
 Outstanding:
 
-- None for the foundation closeout gate. Dependent Publisher Services and Metrics
+- None for the foundation closeout gate. Dependent Publisher Services
   implementation remains blocked by Publisher Services ADR-01 and its final
   distribution-platform inventory, task-specific approved specifications, and
-  applicable branch-readiness controls. For Metrics, the previously recorded
-  Diesel/schema-control blocker is resolved (ADR-0003 is
-  repository-authoritative through merged PR
-  [#778](https://github.com/thoth-pub/thoth/pull/778)) and the `MET-CTRL-01`
+  applicable branch-readiness controls. Metrics implementation is not blocked
+  by this gate: the previously recorded Diesel/schema-control blocker is
+  resolved (ADR-0003 is repository-authoritative through merged PR
+  [#778](https://github.com/thoth-pub/thoth/pull/778)), the `MET-CTRL-01`
   programme-control dependency is satisfied through merged PR
-  [#833](https://github.com/thoth-pub/thoth/pull/833), so
-  Thoth WP1 entry now waits only on separately authorized `feature/metrics`
-  creation and one approved bounded WP1 child specification; Sphinx, client
+  [#833](https://github.com/thoth-pub/thoth/pull/833), and the Thoth WP1
+  entry path was completed: the repository-local `feature/metrics` integration
+  branch was created under the SHA-bound authorization recorded in
+  [#766](https://github.com/thoth-pub/thoth/issues/766), and the bounded
+  `MET-WP1-01` registry-foundation slice
+  ([#836](https://github.com/thoth-pub/thoth/issues/836)) was approved and
+  merged into `feature/metrics`, which made WP1 `IN PROGRESS` at entry (see
+  [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-resolved-2026-08-26-for-wp1-entry),
+  resolved for WP1 entry). Since then the inactive Metrics foundation has been
+  delivered on `feature/metrics` under bounded approved specifications; its
+  final integration into `develop` is governed by #766/#981 through the
+  separately gated A -> A2 -> B stages, with release, deployment and
+  activation gated separately again. Sphinx, client
   and source-specific readiness gates remain
-  attached to their owning later work packages rather than blocking WP1 (see
-  [CG-08](./repository-map/control-gaps.md#cg-08---metrics-readiness-open)).
+  attached to their owning later work packages rather than blocking WP1.
   ADR-0001 and ADR-0002 approval remove shared decision dependencies without
-  making either programme implementation-ready.
+  making any later work package implementation-ready.
 
 The implementing conversation cannot approve its own work.

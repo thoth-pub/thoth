@@ -28,6 +28,18 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_dashboard::{metric_dashboard, MetricDashboard, MetricDashboardInput, MetricReadError},
+    metric_measure::{
+        crud::{list_metric_measures, metric_measure_by_code},
+        MetricMeasure,
+    },
+    metric_platform::{
+        crud::{list_metric_platforms, metric_platform_by_code},
+        MetricPlatform,
+    },
+    metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
+    metric_source::{crud::metric_source_by_code, MetricSource},
+    metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -2152,5 +2164,135 @@ impl QueryRoot {
     fn me(context: &Context) -> FieldResult<Me> {
         let user = context.require_authentication()?;
         user.to_me(context)
+    }
+
+    #[graphql(
+        description = "Look up one metric platform by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one platform and offers no listing, search, filter or pagination"
+    )]
+    fn metric_platform_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The platform's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricPlatform> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_platform_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric measure by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one measure and offers no listing, search, filter or pagination"
+    )]
+    fn metric_measure_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The measure's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricMeasure> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_measure_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric platform/measure mapping by the stable codes of its platform and measure. Superuser only. This is an administrative lookup, not a public registry query"
+    )]
+    fn metric_platform_measure_by_codes(
+        context: &Context,
+        #[graphql(description = "The platform's stable code, matched exactly")]
+        platform_code: String,
+        #[graphql(description = "The measure's stable code, matched exactly")] measure_code: String,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                metric_platform_measure_by_codes(&context.db, &platform_code, &measure_code)
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric source by its stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one source and offers no listing, search, filter or pagination"
+    )]
+    fn metric_source_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The source's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricSource> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_source_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Look up one metric source account by its globally unique stable code. Superuser only. This is an administrative lookup, not a public registry query: it returns exactly one account, offers no listing, search, filter or pagination, and never exposes a stored configuration outside the supported representations"
+    )]
+    fn metric_source_account_by_code(
+        context: &Context,
+        #[graphql(
+            description = "The account's stable code, matched exactly. Codes are never trimmed, case-folded or otherwise normalised, so a case or whitespace variant is a different code"
+        )]
+        code: String,
+    ) -> FieldResult<MetricSourceAccount> {
+        context
+            .require_superuser()
+            .and_then(|_| metric_source_account_by_code(&context.db, &code))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Protected Metrics read service (`MET-WP4-02`)
+    //
+    // Exactly these three fields make up the MOM-1 read surface, and each one
+    // requires exactly `METRICS_READ_SERVICE` through the one central guard
+    // before any Metrics-specific database access. No other role satisfies
+    // that guard: `SUPERUSER`, `METRICS_INGEST_SERVICE`,
+    // `DISSEMINATION_WORKER` and every publisher-scoped role are refused.
+    // Holding the role never supplies publisher entitlement; the dashboard
+    // additionally requires `METRICS_DASHBOARD` for every selected publisher
+    // inside its own read (`MET-WP4-03B`).
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "Coverage-aware Metrics totals, timeline, countries and institutions for one bounded request. Requires the METRICS_READ_SERVICE role, and every selected publisher must be entitled to the Metrics dashboard. Absent totals and timeline values are null unless complete coverage justifies a zero, country and institution rows list only known values, and the response reports its coverage, freshness and warnings. A request intersecting Metrics reported for a whole month or reporting period fails with METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
+    )]
+    fn metric_dashboard(
+        context: &Context,
+        #[graphql(description = "The bounded dashboard request")] input: MetricDashboardInput,
+    ) -> FieldResult<MetricDashboard> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| metric_dashboard(&context.db, &input))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Every Metrics measure, enabled or disabled, ordered by code, so a service can select dashboard measures by ID. Requires the METRICS_READ_SERVICE role. At most 500 are returned; a larger registry is an error, never a truncated list"
+    )]
+    fn metric_measures(context: &Context) -> FieldResult<Vec<MetricMeasure>> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| list_metric_measures(&context.db))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Every Metrics platform, enabled or disabled, ordered by code, so a service can select dashboard platforms by ID. Requires the METRICS_READ_SERVICE role. At most 500 are returned; a larger registry is an error, never a truncated list"
+    )]
+    fn metric_platforms(context: &Context) -> FieldResult<Vec<MetricPlatform>> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| list_metric_platforms(&context.db))
+            .map_err(IntoFieldError::into_field_error)
     }
 }

@@ -31,6 +31,39 @@ pub(crate) enum Role {
     /// It confers **no** publisher scope, no `CDN_WRITE` capability and no
     /// Metrics permission, and `SUPERUSER` does not imply it.
     DisseminationWorker,
+    /// The `MET-WP5-01` Metrics ingestion service caller
+    /// ([ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+    /// convention; #907 Specification Amendments 1 and 2).
+    ///
+    /// A **Metrics-specific** unscoped machine role for the Sphinx
+    /// orchestration caller, whose MOM-1 workload claims and ingests across
+    /// managed source accounts and publishers rather than as one publisher
+    /// organisation. Its complete MOM-1 operation set is fixed by #907
+    /// Amendment 2 and is consumed only by the separately authorized
+    /// `MET-WP2-02` and `MET-WP4-01` slices; defining the role grants nothing
+    /// to any existing operation.
+    ///
+    /// It confers **no** publisher scope, no `PublisherPermissions`, no
+    /// package/capability entitlement, no `SUPERUSER`, no
+    /// `DISSEMINATION_WORKER` and no `METRICS_READ_SERVICE` authority, and
+    /// `SUPERUSER` does not imply it.
+    MetricsIngestService,
+    /// The `MET-WP5-01` Metrics read service caller
+    /// ([ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+    /// convention; #907 Specification Amendments 1 and 2).
+    ///
+    /// A **Metrics-specific** unscoped machine role for Thoth-owned
+    /// server-side Metrics query clients. Its complete MOM-1 operation set is
+    /// fixed by #907 Amendment 2 and is consumed only by the separately
+    /// authorized `MET-WP4-02` slice; publisher entitlement for the data it
+    /// may serve (for example `METRICS_DASHBOARD`) remains a separate
+    /// ADR-0001 check that this role never supplies.
+    ///
+    /// It confers **no** publisher scope, no `PublisherPermissions`, no
+    /// package/capability entitlement, no `SUPERUSER`, no
+    /// `DISSEMINATION_WORKER` and no `METRICS_INGEST_SERVICE` authority, and
+    /// `SUPERUSER` does not imply it.
+    MetricsReadService,
 }
 
 /// The unscoped-role check, expressed once.
@@ -40,11 +73,12 @@ pub(crate) enum Role {
 /// it is not a general service-role API, there is no `ServiceRole` type, no role
 /// registry and no machine-identity storage.
 ///
-/// Sharing this implementation pattern between `SUPERUSER` and
-/// `DISSEMINATION_WORKER` says nothing about what either role may do. ADR-0008
-/// section 3.1 fixes that independently: `SUPERUSER` authority does not imply
-/// machine-role authority, and holding a machine role confers no administrative
-/// authority.
+/// Sharing this implementation pattern between `SUPERUSER`,
+/// `DISSEMINATION_WORKER` and the two Metrics machine roles says nothing about
+/// what any of them may do. ADR-0008 section 3.1 fixes that independently:
+/// `SUPERUSER` authority does not imply machine-role authority, holding a
+/// machine role confers no administrative authority, and no machine role
+/// implies another.
 trait UnscopedRoleAccess {
     fn has_unscoped_role(&self, role: Role) -> bool;
 }
@@ -85,6 +119,25 @@ pub(crate) trait UserAccess {
     /// itself is present.
     fn is_dissemination_worker(&self) -> bool;
 
+    /// Whether the user holds the unscoped `METRICS_INGEST_SERVICE` project
+    /// role.
+    ///
+    /// True only when that exact role key is present: there is no inheritance
+    /// from `SUPERUSER`, from `METRICS_READ_SERVICE` or from any other role.
+    /// This slice defines the predicate; consuming operations are wired by
+    /// their owning `MET-WP2-02` / `MET-WP4-01` tasks under separate
+    /// authorization.
+    fn is_metrics_ingest_service(&self) -> bool;
+
+    /// Whether the user holds the unscoped `METRICS_READ_SERVICE` project
+    /// role.
+    ///
+    /// True only when that exact role key is present: there is no inheritance
+    /// from `SUPERUSER`, from `METRICS_INGEST_SERVICE` or from any other role.
+    /// This slice defines the predicate; consuming operations are wired by
+    /// their owning `MET-WP4-02` task under separate authorization.
+    fn is_metrics_read_service(&self) -> bool;
+
     /// Returns true if the user has the given role scoped to the given ZITADEL organisation id.
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool;
 
@@ -104,6 +157,14 @@ impl UserAccess for IntrospectedUser {
 
     fn is_dissemination_worker(&self) -> bool {
         self.has_unscoped_role(Role::DisseminationWorker)
+    }
+
+    fn is_metrics_ingest_service(&self) -> bool {
+        self.has_unscoped_role(Role::MetricsIngestService)
+    }
+
+    fn is_metrics_read_service(&self) -> bool {
+        self.has_unscoped_role(Role::MetricsReadService)
     }
 
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool {
@@ -131,12 +192,18 @@ impl UserAccess for IntrospectedUser {
         // ones. This is future-proof: adding a new publisher-scoped role
         // automatically enables publisher selection.
         //
-        // `DISSEMINATION_WORKER` is excluded for the same reason `SUPERUSER` is:
-        // it is an unscoped project role, so any organisation key present under
-        // it is not a publisher the account may act for. Without this a
-        // worker-only account would appear to hold publisher organisations in
+        // `DISSEMINATION_WORKER`, `METRICS_INGEST_SERVICE` and
+        // `METRICS_READ_SERVICE` are excluded for the same reason `SUPERUSER`
+        // is: each is an unscoped project role, so any organisation key present
+        // under it is not a publisher the account may act for. Without this a
+        // machine-only account would appear to hold publisher organisations in
         // the frontend switcher list, which it must not.
-        let unscoped_keys = [Role::Superuser.as_ref(), Role::DisseminationWorker.as_ref()];
+        let unscoped_keys = [
+            Role::Superuser.as_ref(),
+            Role::DisseminationWorker.as_ref(),
+            Role::MetricsIngestService.as_ref(),
+            Role::MetricsReadService.as_ref(),
+        ];
         for (role_key, scoped) in project_roles {
             if unscoped_keys.contains(&role_key.as_str()) {
                 continue;
@@ -226,6 +293,57 @@ pub(crate) trait PolicyContext {
     fn require_dissemination_worker(&self) -> ThothResult<&IntrospectedUser> {
         let user = self.require_authentication()?;
         if user.is_dissemination_worker() {
+            Ok(user)
+        } else {
+            Err(ThothError::Unauthorised)
+        }
+    }
+
+    /// Require that the authenticated user holds the `METRICS_INGEST_SERVICE`
+    /// role.
+    ///
+    /// The one explicit guard for the MOM-1 protected ingestion and rollup
+    /// operations fixed by #907 Amendment 2, consumed by the separately
+    /// authorized `MET-WP2-02` and `MET-WP4-01` slices. It mirrors
+    /// [`Self::require_dissemination_worker`] in shape and in nothing else:
+    /// `SUPERUSER` does **not** satisfy it, `METRICS_READ_SERVICE` does not
+    /// satisfy it, and it confers no publisher scope, no administrative
+    /// authority and no capability of any other role. A principal that must
+    /// genuinely act under two service authorities holds both roles
+    /// explicitly; no role composition is introduced.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ThothError::Unauthorised`] if the user is not authenticated or
+    /// does not hold the role.
+    #[allow(dead_code)]
+    fn require_metrics_ingest_service(&self) -> ThothResult<&IntrospectedUser> {
+        let user = self.require_authentication()?;
+        if user.is_metrics_ingest_service() {
+            Ok(user)
+        } else {
+            Err(ThothError::Unauthorised)
+        }
+    }
+
+    /// Require that the authenticated user holds the `METRICS_READ_SERVICE`
+    /// role.
+    ///
+    /// The one explicit guard for the MOM-1 protected Metrics read operations
+    /// fixed by #907 Amendment 2, consumed by the separately authorized
+    /// `MET-WP4-02` slice. `SUPERUSER` does **not** satisfy it,
+    /// `METRICS_INGEST_SERVICE` does not satisfy it, and passing it never
+    /// supplies publisher package/capability entitlement, which remains a
+    /// separate ADR-0001 check.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ThothError::Unauthorised`] if the user is not authenticated or
+    /// does not hold the role.
+    #[allow(dead_code)]
+    fn require_metrics_read_service(&self) -> ThothResult<&IntrospectedUser> {
+        let user = self.require_authentication()?;
+        if user.is_metrics_read_service() {
             Ok(user)
         } else {
             Err(ThothError::Unauthorised)
@@ -386,6 +504,299 @@ mod tests {
         assert_eq!(Role::WorkLifecycle.as_ref(), "WORK_LIFECYCLE");
         assert_eq!(Role::CdnWrite.as_ref(), "CDN_WRITE");
         assert_eq!(Role::DisseminationWorker.as_ref(), "DISSEMINATION_WORKER");
+        assert_eq!(
+            Role::MetricsIngestService.as_ref(),
+            "METRICS_INGEST_SERVICE"
+        );
+        assert_eq!(Role::MetricsReadService.as_ref(), "METRICS_READ_SERVICE");
+    }
+
+    // ----------------------------------------------------------------------
+    // `MET-WP5-01` minimum Metrics service roles (#907)
+    // ----------------------------------------------------------------------
+
+    fn user_with_roles(keys: &[&str]) -> IntrospectedUser {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        for key in keys {
+            roles.insert((*key).to_string(), HashMap::new());
+        }
+        mk_user(Some(roles))
+    }
+
+    /// Every principal class the matrix names, each with exactly the roles it
+    /// holds, so the predicate/guard truth table below is exhaustive rather
+    /// than illustrative.
+    fn principal_matrix() -> Vec<(&'static str, IntrospectedUser, bool, bool)> {
+        vec![
+            ("no roles at all", mk_user(None), false, false),
+            (
+                "empty role map",
+                mk_user(Some(HashMap::new())),
+                false,
+                false,
+            ),
+            (
+                "ingest service only",
+                user_with_roles(&["METRICS_INGEST_SERVICE"]),
+                true,
+                false,
+            ),
+            (
+                "read service only",
+                user_with_roles(&["METRICS_READ_SERVICE"]),
+                false,
+                true,
+            ),
+            (
+                "superuser only",
+                user_with_roles(&["SUPERUSER"]),
+                false,
+                false,
+            ),
+            (
+                "dissemination worker only",
+                user_with_roles(&["DISSEMINATION_WORKER"]),
+                false,
+                false,
+            ),
+            (
+                "every publisher-scoped human role",
+                {
+                    let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+                    for role in [
+                        Role::PublisherAdmin,
+                        Role::PublisherUser,
+                        Role::WorkLifecycle,
+                        Role::CdnWrite,
+                    ] {
+                        roles.insert(role.as_ref().to_string(), scoped("org-1"));
+                    }
+                    mk_user(Some(roles))
+                },
+                false,
+                false,
+            ),
+            (
+                "superuser plus dissemination worker",
+                user_with_roles(&["SUPERUSER", "DISSEMINATION_WORKER"]),
+                false,
+                false,
+            ),
+            (
+                "both Metrics roles, granted explicitly",
+                user_with_roles(&["METRICS_INGEST_SERVICE", "METRICS_READ_SERVICE"]),
+                true,
+                true,
+            ),
+            (
+                "case variant of the ingest key",
+                user_with_roles(&["metrics_ingest_service"]),
+                false,
+                false,
+            ),
+            (
+                "whitespace variant of the read key",
+                user_with_roles(&[" METRICS_READ_SERVICE"]),
+                false,
+                false,
+            ),
+            (
+                "generic service keys that do not exist",
+                user_with_roles(&["SERVICE", "MACHINE", "WORKER", "METRICS_SERVICE"]),
+                false,
+                false,
+            ),
+            (
+                "deferred sync role key",
+                user_with_roles(&["METRICS_SYNC_SERVICE"]),
+                false,
+                false,
+            ),
+        ]
+    }
+
+    #[test]
+    fn metrics_predicates_follow_the_exact_role_key_and_nothing_else() {
+        for (label, user, ingest, read) in principal_matrix() {
+            assert_eq!(
+                user.is_metrics_ingest_service(),
+                ingest,
+                "{label}: ingest predicate"
+            );
+            assert_eq!(
+                user.is_metrics_read_service(),
+                read,
+                "{label}: read predicate"
+            );
+        }
+    }
+
+    #[test]
+    fn no_metrics_role_implies_any_other_authority() {
+        let ingest = user_with_roles(&["METRICS_INGEST_SERVICE"]);
+        let read = user_with_roles(&["METRICS_READ_SERVICE"]);
+        for (label, user) in [("ingest", &ingest), ("read", &read)] {
+            assert!(!user.is_superuser(), "{label} must not confer SUPERUSER");
+            assert!(
+                !user.is_dissemination_worker(),
+                "{label} must not confer DISSEMINATION_WORKER"
+            );
+            for org in ["org-1", ""] {
+                assert_eq!(
+                    user.permissions_for_org(org),
+                    PublisherPermissions::default(),
+                    "{label} must confer no publisher permission"
+                );
+                for role in [
+                    Role::PublisherAdmin,
+                    Role::PublisherUser,
+                    Role::WorkLifecycle,
+                    Role::CdnWrite,
+                ] {
+                    assert!(!user.has_role_for_org(role, org));
+                }
+            }
+        }
+        assert!(
+            !ingest.is_metrics_read_service(),
+            "ingest must not imply read"
+        );
+        assert!(
+            !read.is_metrics_ingest_service(),
+            "read must not imply ingest"
+        );
+    }
+
+    #[test]
+    fn a_metrics_machine_only_account_holds_no_publisher_scope() {
+        // ZITADEL may carry an organisation key under an unscoped role; it is
+        // not a publisher the account may act for.
+        for key in ["METRICS_INGEST_SERVICE", "METRICS_READ_SERVICE"] {
+            let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+            roles.insert(key.to_string(), scoped("org-1"));
+            let user = mk_user(Some(roles));
+            assert!(
+                user.publisher_org_ids().is_empty(),
+                "{key}: a Metrics machine account must not appear to hold publisher organisations"
+            );
+            assert_eq!(
+                user.permissions_for_org("org-1"),
+                PublisherPermissions::default()
+            );
+        }
+    }
+
+    #[test]
+    fn publisher_org_ids_still_collects_scoped_roles_alongside_the_metrics_roles() {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        roles.insert(Role::PublisherUser.as_ref().to_string(), scoped("org-1"));
+        roles.insert(
+            Role::MetricsIngestService.as_ref().to_string(),
+            scoped("org-8"),
+        );
+        roles.insert(
+            Role::MetricsReadService.as_ref().to_string(),
+            scoped("org-9"),
+        );
+        let user = mk_user(Some(roles));
+        assert_eq!(
+            user.publisher_org_ids(),
+            vec!["org-1".to_string()],
+            "only the genuinely publisher-scoped role contributes organisations"
+        );
+        assert!(user.has_role_for_org(Role::PublisherUser, "org-1"));
+        assert!(user.is_metrics_ingest_service() && user.is_metrics_read_service());
+    }
+
+    #[cfg(feature = "backend")]
+    mod guards {
+        use super::*;
+        use crate::model::tests::db::failing_pool;
+
+        /// A minimal policy context over an unreachable database: the guards
+        /// must decide from the introspected principal alone, so none of them
+        /// may ever touch the pool.
+        struct Ctx {
+            db: PgPool,
+            user: Option<IntrospectedUser>,
+        }
+
+        impl PolicyContext for Ctx {
+            fn db(&self) -> &PgPool {
+                &self.db
+            }
+            fn user(&self) -> Option<&IntrospectedUser> {
+                self.user.as_ref()
+            }
+        }
+
+        fn ctx(user: Option<IntrospectedUser>) -> Ctx {
+            Ctx {
+                db: failing_pool(),
+                user,
+            }
+        }
+
+        #[test]
+        fn the_guards_follow_the_predicate_truth_table_and_fail_closed() {
+            assert!(matches!(
+                ctx(None).require_metrics_ingest_service(),
+                Err(ThothError::Unauthorised)
+            ));
+            assert!(matches!(
+                ctx(None).require_metrics_read_service(),
+                Err(ThothError::Unauthorised)
+            ));
+            for (label, user, ingest, read) in principal_matrix() {
+                let user_id = user.user_id.clone();
+                let c = ctx(Some(user));
+                let ingest_result = c.require_metrics_ingest_service();
+                let read_result = c.require_metrics_read_service();
+                match (ingest, ingest_result) {
+                    (true, Ok(granted)) => assert_eq!(granted.user_id, user_id),
+                    (false, Err(ThothError::Unauthorised)) => {}
+                    (expected, other) => {
+                        panic!("{label}: ingest guard expected {expected}, got {other:?}")
+                    }
+                }
+                match (read, read_result) {
+                    (true, Ok(granted)) => assert_eq!(granted.user_id, user_id),
+                    (false, Err(ThothError::Unauthorised)) => {}
+                    (expected, other) => {
+                        panic!("{label}: read guard expected {expected}, got {other:?}")
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn the_metrics_guards_grant_nothing_to_the_existing_guards_and_vice_versa() {
+            let ingest = ctx(Some(user_with_roles(&["METRICS_INGEST_SERVICE"])));
+            let read = ctx(Some(user_with_roles(&["METRICS_READ_SERVICE"])));
+            for (label, c) in [("ingest", &ingest), ("read", &read)] {
+                assert!(
+                    matches!(c.require_superuser(), Err(ThothError::Unauthorised)),
+                    "{label} must not pass the superuser guard"
+                );
+                assert!(
+                    matches!(
+                        c.require_dissemination_worker(),
+                        Err(ThothError::Unauthorised)
+                    ),
+                    "{label} must not pass the worker guard"
+                );
+            }
+            let superuser = ctx(Some(user_with_roles(&["SUPERUSER"])));
+            assert!(superuser.require_superuser().is_ok());
+            assert!(matches!(
+                superuser.require_metrics_ingest_service(),
+                Err(ThothError::Unauthorised)
+            ));
+            assert!(matches!(
+                superuser.require_metrics_read_service(),
+                Err(ThothError::Unauthorised)
+            ));
+        }
     }
 
     #[test]
