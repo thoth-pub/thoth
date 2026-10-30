@@ -95,6 +95,23 @@
 //! row and the observation itself; no caller flag, source or account code,
 //! hostname or routing value participates. A replay writes nothing, so it
 //! never creates a second quarantine row.
+//!
+//! # Canonical reporting grain (`MET-WP11-B-CORR-H3`)
+//!
+//! The v1 identity hash deliberately excludes the reporting grain, so a `DAY`
+//! observation and a one-day `REPORTING_PERIOD` observation of the same cell
+//! and half-open period share one canonical identity. The grain persisted on
+//! `metric_record` by first arrival is immutable for that identity. Inside
+//! [`apply_canonical_application`], under the existing `metric_record` row
+//! lock and before any duplicate, revision or source-conflict decision, an
+//! incoming candidate whose grain differs from the persisted grain is the
+//! distinct outcome [`CanonicalApplicationOutcome::ReportingGrainMismatch`]:
+//! it rewrites no grain, revises no content, emits no delta and chooses no
+//! winner. Ordinary ingestion records it as `REJECTED` /
+//! `REPORTING_GRAIN_MISMATCH` through the ordinary rejected paths; quarantine
+//! reconciliation maps it to its existing retryable
+//! `BLOCKED_INCONSISTENT_EVIDENCE` state (#989). No historical record is
+//! normalized and no committed batch outcome changes.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::str::FromStr;
@@ -495,6 +512,11 @@ pub(crate) enum CanonicalApplicationOutcome {
     },
     SourceConflict,
     OverlappingPeriod,
+    /// The existing canonical record of this identity was persisted with a
+    /// different reporting grain (`MET-WP11-B-CORR-H3`). Decided under the
+    /// record's row lock before any duplicate, revision or conflict decision;
+    /// nothing canonical is written.
+    ReportingGrainMismatch,
     SameImportOrder,
     ImportOrderAmbiguous,
     DeltaOverflow,
@@ -1552,6 +1574,12 @@ pub(crate) fn apply_canonical_application(
         });
     };
 
+    // The canonical grain is immutable for its v1 identity: compare under the
+    // row lock just taken, before any duplicate, revision or conflict logic.
+    if record.reporting_grain != candidate.reporting_grain {
+        return Ok(CanonicalApplicationOutcome::ReportingGrainMismatch);
+    }
+
     let current_revision_id = record
         .current_revision_id
         .ok_or(CanonicalApplicationError::InternalStateInconsistency)?;
@@ -1753,6 +1781,18 @@ fn apply_candidate(
             row_index,
             observation,
             Code::OverlappingPeriod,
+            Some(candidate.identity_hash.clone()),
+            Some(candidate.content_hash.clone()),
+            None,
+            counters,
+        )?),
+        CanonicalApplicationOutcome::ReportingGrainMismatch => Ok(write_rejected(
+            connection,
+            scope,
+            import_batch_id,
+            row_index,
+            observation,
+            Code::ReportingGrainMismatch,
             Some(candidate.identity_hash.clone()),
             Some(candidate.content_hash.clone()),
             None,

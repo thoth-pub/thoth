@@ -36,10 +36,10 @@ use super::hash::{
 use super::{
     classify_unique, ingest_metric_batch, ingest_metric_batch_on_connection,
     ingest_validated_batch, period_matches_grain, MetricIngestionBatch, MetricIngestionError,
-    MetricIngestionErrorCode as Code, MetricIngestionOutcome, NormalizedMetricCoverageAssertion,
-    NormalizedMetricObservation, CANONICAL_STATEMENT_TIMEOUT_SQL, MAX_BATCH_KEY_BYTES,
-    MAX_COVERAGE_ASSERTIONS, MAX_OBSERVATIONS, PROVENANCE_DETAILS_SCHEMA, ROLLUP_DELTA_PENDING,
-    SUPPORTED_SCHEMA_VERSION,
+    MetricIngestionErrorCode as Code, MetricIngestionOutcome, MetricIngestionRowOutcome,
+    NormalizedMetricCoverageAssertion, NormalizedMetricObservation,
+    CANONICAL_STATEMENT_TIMEOUT_SQL, MAX_BATCH_KEY_BYTES, MAX_COVERAGE_ASSERTIONS,
+    MAX_OBSERVATIONS, PROVENANCE_DETAILS_SCHEMA, ROLLUP_DELTA_PENDING, SUPPORTED_SCHEMA_VERSION,
 };
 use crate::db::PgPool;
 use crate::model::metric_coverage::MetricCoverageStatus;
@@ -716,6 +716,7 @@ fn error_codes_are_stable_screaming_snake_case_and_round_trip() {
             "METRICS_COLLECT_NOT_ENTITLED",
         ),
         (Code::OverlappingPeriod, "OVERLAPPING_PERIOD"),
+        (Code::ReportingGrainMismatch, "REPORTING_GRAIN_MISMATCH"),
         (Code::SourceConflict, "SOURCE_CONFLICT"),
         (Code::ConflictingFinalRecord, "CONFLICTING_FINAL_RECORD"),
         (Code::InvalidCoveragePeriod, "INVALID_COVERAGE_PERIOD"),
@@ -753,6 +754,19 @@ fn import_error_field_names_and_messages_are_static_and_bounded() {
         Some("period_start")
     );
     assert_eq!(Code::SourceConflict.field_name(false), None);
+    assert_eq!(
+        Code::ReportingGrainMismatch.field_name(false),
+        Some("reporting_grain")
+    );
+    assert_eq!(
+        Code::ReportingGrainMismatch.field_name(true),
+        Some("reporting_grain")
+    );
+    assert_eq!(
+        Code::ReportingGrainMismatch.message(),
+        "The reporting grain does not match the existing canonical record"
+    );
+    assert!(Code::ReportingGrainMismatch.message().len() < 120);
     assert!(Code::InvalidValue.message().len() < 120);
     assert!(!Code::InvalidValue.message().trim().is_empty());
 }
@@ -1664,35 +1678,517 @@ fn overlapping_period_in_the_same_cell_is_rejected_and_adjacent_periods_accepted
     assert_eq!(third.rows[1].reason_code, Some(Code::OverlappingPeriod));
 }
 
-#[test]
-fn a_different_grain_label_for_the_same_identity_is_not_a_new_identity() {
-    let (_guard, f) = setup_fixture();
-    let month = NormalizedMetricObservation {
-        period_start: date(2026, 3, 1),
-        period_end: date(2026, 4, 1),
-        reporting_grain: MetricReportingGrain::Month,
+// ---------------------------------------------------------------------------
+// MET-WP11-B-CORR-H3 (#989): the canonical reporting grain is immutable for
+// its v1 identity
+// ---------------------------------------------------------------------------
+
+/// The `title_sessions` observation of `f.observation()` at another grain of
+/// the same cell and half-open period, so it shares the v1 identity.
+fn grained(
+    f: &Fixture,
+    grain: MetricReportingGrain,
+    start: NaiveDate,
+    end: NaiveDate,
+) -> NormalizedMetricObservation {
+    NormalizedMetricObservation {
+        period_start: start,
+        period_end: end,
+        reporting_grain: grain,
         ..f.observation()
-    };
-    let reporting_period = NormalizedMetricObservation {
-        reporting_grain: MetricReportingGrain::ReportingPeriod,
-        ..month.clone()
-    };
-    let first = f.accept(&f.batch("b1", vec![month]));
-    let second = f.accept(&f.batch("b2", vec![reporting_period]));
-    assert_eq!(second.rows[0].classification, Class::Duplicate);
-    assert_eq!(second.rows[0].record_id, first.rows[0].record_id);
+    }
+}
+
+/// The persisted `metric_record.reporting_grain` of the one record carrying
+/// `identity_hash`.
+fn record_grain(f: &Fixture, identity_hash: &str) -> String {
+    text(
+        &f.pool,
+        &format!(
+            "(SELECT reporting_grain::text FROM metric_record WHERE identity_hash = '{identity_hash}')"
+        ),
+    )
+    .expect("the canonical record exists")
+}
+
+/// Assert that `row` is the `REJECTED` / `REPORTING_GRAIN_MISMATCH` outcome
+/// for the identity and content of `winner`, with no record attached.
+fn assert_grain_mismatch(row: &MetricIngestionRowOutcome, winner: &MetricIngestionRowOutcome) {
+    assert_eq!(row.classification, Class::Rejected, "{row:?}");
     assert_eq!(
-        count(&f.pool, "metric_record", "reporting_grain = 'MONTH'"),
+        row.reason_code,
+        Some(Code::ReportingGrainMismatch),
+        "{row:?}"
+    );
+    assert_eq!(row.record_id, None, "{row:?}");
+    assert_eq!(row.identity_hash, winner.identity_hash, "{row:?}");
+    assert!(row.content_hash.is_some(), "{row:?}");
+}
+
+#[test]
+fn a_mismatched_reporting_grain_for_the_same_identity_is_rejected_in_either_order() {
+    use MetricReportingGrain::{Day, Month, ReportingPeriod};
+    let cases = [
+        (Day, ReportingPeriod, date(2026, 3, 1), date(2026, 3, 2)),
+        (ReportingPeriod, Day, date(2026, 3, 1), date(2026, 3, 2)),
+        (Month, ReportingPeriod, date(2026, 3, 1), date(2026, 4, 1)),
+        (ReportingPeriod, Month, date(2026, 3, 1), date(2026, 4, 1)),
+    ];
+    for (first_grain, second_grain, start, end) in cases {
+        let label = format!("{first_grain:?} then {second_grain:?}");
+        let (_guard, f) = setup_fixture();
+        let first = f.accept(&f.batch("b1", vec![grained(&f, first_grain, start, end)]));
+        assert_eq!(first.rows[0].classification, Class::Winner, "{label}");
+        let winner = &first.rows[0];
+        let record_id = winner.record_id.unwrap();
+        let identity = winner.identity_hash.clone().unwrap();
+        assert_eq!(
+            record_grain(&f, &identity),
+            enum_code(&first_grain),
+            "{label}"
+        );
+        let before = f.snapshot();
+
+        let second = f.accept(&f.batch("b2", vec![grained(&f, second_grain, start, end)]));
+        let after = f.snapshot();
+        assert!(!second.replayed, "{label}");
+        assert_eq!(second.rows.len(), 1, "{label}");
+        assert_grain_mismatch(&second.rows[0], winner);
+        assert_eq!(second.rows[0].content_hash, winner.content_hash, "{label}");
+
+        // The first-arrival grain and content are retained; nothing canonical
+        // moved, and only the rejection ledgers grew.
+        assert_eq!(
+            record_grain(&f, &identity),
+            enum_code(&first_grain),
+            "{label}"
+        );
+        assert_eq!(f.current_value(record_id), 10, "{label}");
+        assert_eq!(after.records, before.records, "{label}");
+        assert_eq!(after.revisions, before.revisions, "{label}");
+        assert_eq!(after.deltas, before.deltas, "{label}");
+        assert_eq!(after.quarantine, before.quarantine, "{label}");
+        assert_eq!(after.coverage, before.coverage, "{label}");
+        assert_eq!(after.batches, before.batches + 1, "{label}");
+        assert_eq!(after.provenance, before.provenance + 1, "{label}");
+        assert_eq!(after.errors, before.errors + 1, "{label}");
+        assert_eq!(count(&f.pool, "metric_record", "TRUE"), 1, "{label}");
+        assert_eq!(
+            count(
+                &f.pool,
+                "metric_record_revision",
+                &format!(
+                    "record_id = '{record_id}' AND revision_number = 1 AND status = 'CURRENT'"
+                )
+            ),
+            1,
+            "{label}"
+        );
+        assert_eq!(count(&f.pool, "metric_record_provenance", &format!("classification = 'REJECTED' AND record_id IS NULL AND identity_hash = '{identity}' AND content_hash IS NOT NULL AND import_batch_id = '{}' AND batch_row_index = 0 AND details->>'reason_code' = 'REPORTING_GRAIN_MISMATCH' AND details->>'reporting_grain' = '{}' AND details->>'schema' = '{PROVENANCE_DETAILS_SCHEMA}'", second.import_batch_id, enum_code(&second_grain))), 1, "{label}");
+        assert_eq!(count(&f.pool, "metric_import_error", &format!("import_id = '{}' AND row_number = 1 AND error_code = 'REPORTING_GRAIN_MISMATCH' AND severity = 'ERROR' AND field_name = 'reporting_grain' AND raw_value IS NULL AND message = '{}'", f.import_a, Code::ReportingGrainMismatch.message())), 1, "{label}");
+        assert_eq!(f.counters(f.import_a), [2, 1, 0, 0, 0, 1], "{label}");
+    }
+}
+
+#[test]
+fn the_grain_is_checked_before_duplicate_revision_and_conflict_classification() {
+    let (_guard, f) = setup_fixture();
+    let first = f.accept(&f.batch("b1", vec![f.observation()]));
+    let winner = first.rows[0].clone();
+    let record_id = winner.record_id.unwrap();
+    let identity = winner.identity_hash.clone().unwrap();
+    let before = f.snapshot();
+
+    let period = |value: i64, account_b: bool| NormalizedMetricObservation {
+        reporting_grain: MetricReportingGrain::ReportingPeriod,
+        value,
+        ..if account_b {
+            f.observation_b()
+        } else {
+            f.observation()
+        }
+    };
+    // Same content and different content from the winning account, in one
+    // batch: neither is a duplicate nor a revision.
+    let from_a = f.accept(&f.batch("b2", vec![period(10, false), period(25, false)]));
+    // Same content and different content from the losing account: neither is
+    // a duplicate nor a conflict.
+    let from_b = f.accept(&f.batch_b("b1", vec![period(10, true), period(99, true)]));
+    for row in from_a.rows.iter().chain(from_b.rows.iter()) {
+        assert_grain_mismatch(row, &winner);
+    }
+    assert_ne!(from_a.rows[0].content_hash, from_a.rows[1].content_hash);
+    assert_eq!(from_a.rows[0].content_hash, winner.content_hash);
+
+    let after = f.snapshot();
+    assert_eq!(after.records, before.records);
+    assert_eq!(after.revisions, before.revisions);
+    assert_eq!(after.deltas, before.deltas);
+    assert_eq!(after.provenance, before.provenance + 4);
+    assert_eq!(after.errors, before.errors + 4);
+    assert_eq!(record_grain(&f, &identity), "DAY");
+    assert_eq!(f.current_value(record_id), 10);
+    assert_eq!(
+        count(&f.pool, "metric_record", &format!("record_id = '{record_id}' AND winning_source_account_id = '{}' AND current_revision_id = (SELECT record_revision_id FROM metric_record_revision WHERE record_id = '{record_id}' AND revision_number = 1)", f.account_a)),
         1
     );
     assert_eq!(
         count(
             &f.pool,
             "metric_record_provenance",
-            "classification = 'DUPLICATE' AND details->>'reporting_grain' = 'REPORTING_PERIOD'"
+            "classification IN ('DUPLICATE', 'REVISION', 'CONFLICT')"
         ),
-        1
+        0
     );
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_import_error",
+            "error_code = 'REPORTING_GRAIN_MISMATCH' AND field_name = 'reporting_grain'"
+        ),
+        4
+    );
+    assert_eq!(f.counters(f.import_a), [3, 1, 0, 0, 0, 2]);
+    assert_eq!(f.counters(f.import_b), [2, 0, 0, 0, 0, 2]);
+
+    // Same-grain evidence still takes the ordinary paths afterwards: a
+    // revision from the winner, a duplicate and a conflict from the loser.
+    let revised = f.accept(&f.batch(
+        "b3",
+        vec![NormalizedMetricObservation {
+            value: 25,
+            ..f.observation()
+        }],
+    ));
+    assert_eq!(revised.rows[0].classification, Class::Revision);
+    assert_eq!(revised.rows[0].record_id, Some(record_id));
+    assert_eq!(f.current_value(record_id), 25);
+    let duplicate = f.accept(&f.batch_b(
+        "b2",
+        vec![NormalizedMetricObservation {
+            value: 25,
+            ..f.observation_b()
+        }],
+    ));
+    assert_eq!(duplicate.rows[0].classification, Class::Duplicate);
+    let conflict = f.accept(&f.batch_b(
+        "b3",
+        vec![NormalizedMetricObservation {
+            value: 30,
+            ..f.observation_b()
+        }],
+    ));
+    assert_eq!(conflict.rows[0].classification, Class::Conflict);
+    assert_eq!(conflict.rows[0].reason_code, Some(Code::SourceConflict));
+    assert_eq!(record_grain(&f, &identity), "DAY");
+    assert_eq!(f.current_value(record_id), 25);
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_record_revision",
+            &format!("record_id = '{record_id}'")
+        ),
+        2
+    );
+    assert_eq!(f.counters(f.import_a), [4, 1, 0, 1, 0, 2]);
+    assert_eq!(f.counters(f.import_b), [4, 0, 1, 0, 1, 2]);
+}
+
+#[test]
+fn mismatched_grains_in_one_batch_keep_the_first_row_and_reject_the_later_one() {
+    use MetricReportingGrain::{Day, ReportingPeriod};
+    let (_guard, f) = setup_fixture();
+    let march = (date(2026, 3, 1), date(2026, 3, 2));
+    let april = (date(2026, 4, 1), date(2026, 4, 2));
+    let outcome = f.accept(&f.batch(
+        "b1",
+        vec![
+            grained(&f, Day, march.0, march.1),
+            grained(&f, ReportingPeriod, march.0, march.1),
+            grained(&f, ReportingPeriod, april.0, april.1),
+            grained(&f, Day, april.0, april.1),
+        ],
+    ));
+    let classes: Vec<_> = outcome
+        .rows
+        .iter()
+        .map(|row| (row.classification, row.reason_code))
+        .collect();
+    assert_eq!(
+        classes,
+        vec![
+            (Class::Winner, None),
+            (Class::Rejected, Some(Code::ReportingGrainMismatch)),
+            (Class::Winner, None),
+            (Class::Rejected, Some(Code::ReportingGrainMismatch)),
+        ]
+    );
+    assert_grain_mismatch(&outcome.rows[1], &outcome.rows[0]);
+    assert_grain_mismatch(&outcome.rows[3], &outcome.rows[2]);
+    assert_eq!(count(&f.pool, "metric_record", "TRUE"), 2);
+    assert_eq!(
+        record_grain(&f, outcome.rows[0].identity_hash.as_deref().unwrap()),
+        "DAY"
+    );
+    assert_eq!(
+        record_grain(&f, outcome.rows[2].identity_hash.as_deref().unwrap()),
+        "REPORTING_PERIOD"
+    );
+    assert_eq!(count(&f.pool, "metric_record_revision", "TRUE"), 2);
+    assert_eq!(count(&f.pool, "metric_rollup_delta", "TRUE"), 2);
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_import_error",
+            "error_code = 'REPORTING_GRAIN_MISMATCH'"
+        ),
+        2
+    );
+    assert_eq!(f.counters(f.import_a), [4, 2, 0, 0, 0, 2]);
+}
+
+#[test]
+fn concurrent_first_arrival_with_different_grains_commits_one_record_and_rejects_the_other() {
+    use MetricReportingGrain::{Day, ReportingPeriod};
+    // Two accounts, then one account: in both races exactly one row wins with
+    // its own grain and the other is rejected, never classified as a
+    // duplicate or a conflict.
+    for same_account in [false, true] {
+        let (_guard, f) = setup_fixture();
+        let day = grained(&f, Day, date(2026, 3, 1), date(2026, 3, 2));
+        let period = NormalizedMetricObservation {
+            reporting_grain: ReportingPeriod,
+            ..if same_account {
+                f.observation()
+            } else {
+                f.observation_b()
+            }
+        };
+        let second = if same_account {
+            f.batch("b2", vec![period])
+        } else {
+            f.batch_b("b1", vec![period])
+        };
+        let (a, b) = race(&f, f.batch("b1", vec![day]), second);
+        let (a, b) = (a.unwrap(), b.unwrap());
+        let mut all = [classes(&a), classes(&b)];
+        all.sort_by_key(|classes| classes.iter().map(ToString::to_string).collect::<Vec<_>>());
+        assert_eq!(
+            all,
+            [vec![Class::Rejected], vec![Class::Winner]],
+            "{same_account}"
+        );
+        let (winner, loser) = if a.rows[0].classification == Class::Winner {
+            (&a.rows[0], &b.rows[0])
+        } else {
+            (&b.rows[0], &a.rows[0])
+        };
+        assert_grain_mismatch(loser, winner);
+        assert_eq!(count(&f.pool, "metric_record", "TRUE"), 1);
+        assert_eq!(count(&f.pool, "metric_record_revision", "TRUE"), 1);
+        assert_eq!(count(&f.pool, "metric_rollup_delta", "TRUE"), 1);
+        assert_eq!(
+            count(
+                &f.pool,
+                "metric_record_provenance",
+                "classification IN ('DUPLICATE', 'CONFLICT', 'REVISION')"
+            ),
+            0
+        );
+        // The record carries exactly the winner's grain, as its provenance
+        // recorded it.
+        let winner_grain = text(
+            &f.pool,
+            "(SELECT details->>'reporting_grain' FROM metric_record_provenance WHERE classification = 'WINNER')",
+        )
+        .unwrap();
+        assert_eq!(
+            record_grain(&f, winner.identity_hash.as_deref().unwrap()),
+            winner_grain
+        );
+        assert_eq!(
+            count(
+                &f.pool,
+                "metric_import_error",
+                "error_code = 'REPORTING_GRAIN_MISMATCH' AND field_name = 'reporting_grain'"
+            ),
+            1
+        );
+        if same_account {
+            assert_eq!(f.counters(f.import_a), [2, 1, 0, 0, 0, 1]);
+        } else {
+            let winner_import = text(
+                &f.pool,
+                "(SELECT import_id::text FROM metric_record_provenance WHERE classification = 'WINNER')",
+            )
+            .unwrap();
+            let (winner_import, loser_import) = if uuid(&winner_import) == f.import_a {
+                (f.import_a, f.import_b)
+            } else {
+                (f.import_b, f.import_a)
+            };
+            assert_eq!(f.counters(winner_import), [1, 1, 0, 0, 0, 0]);
+            assert_eq!(f.counters(loser_import), [1, 0, 0, 0, 0, 1]);
+        }
+    }
+}
+
+#[test]
+fn the_grain_check_waits_for_the_canonical_row_lock_and_rejects_once_it_is_released() {
+    let (_guard, f) = setup_fixture();
+    let first = f.accept(&f.batch("b1", vec![f.observation()]));
+    let record_id = first.rows[0].record_id.unwrap();
+    let before = f.snapshot();
+
+    // Another transaction holds the canonical row lock; the mismatched batch
+    // must queue behind it rather than decide from an unlocked read.
+    let held = HeldTransaction::start(vec![format!(
+        "SELECT record_id FROM metric_record WHERE record_id = '{record_id}' FOR UPDATE"
+    )]);
+    let (pool, pid) = pinned_pool();
+    let batch = f.batch(
+        "b2",
+        vec![NormalizedMetricObservation {
+            reporting_grain: MetricReportingGrain::ReportingPeriod,
+            ..f.observation()
+        }],
+    );
+    let ingestion = thread::spawn(move || ingest_metric_batch(&pool, &batch));
+    wait_until_blocked(pid);
+    assert!(
+        last_statement(pid)
+            .to_ascii_uppercase()
+            .contains("FOR UPDATE"),
+        "the coordinator must be waiting on the canonical row lock"
+    );
+    assert_eq!(f.snapshot(), before, "nothing is committed while blocked");
+    held.commit();
+
+    let outcome = ingestion.join().unwrap().expect("batch must commit");
+    assert_grain_mismatch(&outcome.rows[0], &first.rows[0]);
+    assert_eq!(count(&f.pool, "metric_record", "TRUE"), 1);
+    assert_eq!(
+        record_grain(&f, first.rows[0].identity_hash.as_deref().unwrap()),
+        "DAY"
+    );
+    assert_eq!(f.counters(f.import_a), [2, 1, 0, 0, 0, 1]);
+}
+
+#[test]
+fn a_reporting_grain_mismatch_replays_its_committed_rejection_and_writes_nothing() {
+    let (_guard, f) = setup_fixture();
+    let first = f.accept(&f.batch("b1", vec![f.observation()]));
+    let batch = f.batch(
+        "b2",
+        vec![
+            NormalizedMetricObservation {
+                reporting_grain: MetricReportingGrain::ReportingPeriod,
+                ..f.observation()
+            },
+            f.observation(),
+        ],
+    );
+    let committed = f.accept(&batch);
+    assert_grain_mismatch(&committed.rows[0], &first.rows[0]);
+    assert_eq!(committed.rows[1].classification, Class::Duplicate);
+    let state = f.snapshot();
+    let fresh_pool = pool_of(2);
+    for replay in [
+        f.accept(&batch),
+        ingest_metric_batch(&fresh_pool, &batch).unwrap(),
+        f.accept(&batch),
+    ] {
+        assert!(replay.replayed);
+        assert_eq!(replay.import_batch_id, committed.import_batch_id);
+        assert_eq!(replay.rows, committed.rows);
+        assert_eq!(f.snapshot(), state, "a replay writes nothing");
+    }
+    // The same mismatched batch submitted twice concurrently commits once and
+    // replays once.
+    let concurrent = f.batch(
+        "b3",
+        vec![NormalizedMetricObservation {
+            reporting_grain: MetricReportingGrain::ReportingPeriod,
+            ..f.observation()
+        }],
+    );
+    let (one, two) = race(&f, concurrent.clone(), concurrent);
+    let (one, two) = (one.unwrap(), two.unwrap());
+    assert_ne!(one.replayed, two.replayed);
+    assert_eq!(one.rows, two.rows);
+    assert_grain_mismatch(&one.rows[0], &first.rows[0]);
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_import_error",
+            "error_code = 'REPORTING_GRAIN_MISMATCH'"
+        ),
+        2
+    );
+    assert_eq!(f.counters(f.import_a), [4, 1, 1, 0, 0, 2]);
+}
+
+#[test]
+fn a_historical_batch_committed_before_the_correction_replays_its_committed_outcome() {
+    // A batch committed by the pre-H3 coordinator classified a one-day
+    // REPORTING_PERIOD observation of a DAY record as a DUPLICATE. Its
+    // persisted outcome is replayed exactly; it is neither re-evaluated,
+    // rewritten nor re-counted, and the record keeps its grain.
+    let (_guard, f) = setup_fixture();
+    let first = f.accept(&f.batch("b1", vec![f.observation()]));
+    let winner = &first.rows[0];
+    let record_id = winner.record_id.unwrap();
+    let identity = winner.identity_hash.clone().unwrap();
+    let content = winner.content_hash.clone().unwrap();
+    let historical = f.batch(
+        "b2",
+        vec![NormalizedMetricObservation {
+            reporting_grain: MetricReportingGrain::ReportingPeriod,
+            ..f.observation()
+        }],
+    );
+    let historical_hash = request_hash(&historical);
+    let batch_id = Uuid::new_v4();
+    f.sql(&format!(
+        "INSERT INTO metric_import_batch (import_batch_id, import_id, batch_key, request_hash) VALUES ('{batch_id}', '{}', 'b2', '{historical_hash}')",
+        f.import_a
+    ));
+    f.sql(&format!(
+        "INSERT INTO metric_record_provenance (record_id, import_id, source_record_id, source_row_number, identity_hash, content_hash, classification, details, import_batch_id, batch_row_index) VALUES ('{record_id}', '{}', 'row-1', 1, '{identity}', '{content}', 'DUPLICATE', '{{\"schema\": \"{PROVENANCE_DETAILS_SCHEMA}\", \"reason_code\": null, \"reporting_grain\": \"REPORTING_PERIOD\"}}'::jsonb, '{batch_id}', 0)",
+        f.import_a
+    ));
+    f.sql(&format!(
+        "UPDATE metric_import SET received_count = received_count + 1, duplicate_count = duplicate_count + 1 WHERE import_id = '{}'",
+        f.import_a
+    ));
+    let state = f.snapshot();
+
+    let replay = f.accept(&historical);
+    assert!(replay.replayed);
+    assert_eq!(replay.import_batch_id, batch_id);
+    assert_eq!(replay.request_hash, historical_hash);
+    assert_eq!(
+        replay.rows,
+        vec![MetricIngestionRowOutcome {
+            batch_row_index: 0,
+            classification: Class::Duplicate,
+            reason_code: None,
+            record_id: Some(record_id),
+            identity_hash: Some(identity.clone()),
+            content_hash: Some(content),
+        }]
+    );
+    assert_eq!(f.snapshot(), state, "historical replay writes nothing");
+    assert_eq!(record_grain(&f, &identity), "DAY");
+    assert_eq!(
+        count(
+            &f.pool,
+            "metric_import_error",
+            "error_code = 'REPORTING_GRAIN_MISMATCH'"
+        ),
+        0
+    );
+    assert_eq!(f.counters(f.import_a), [2, 1, 1, 0, 0, 0]);
 }
 
 #[test]

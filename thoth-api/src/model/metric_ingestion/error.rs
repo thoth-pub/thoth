@@ -18,7 +18,10 @@
 //! `MET-WP2-02` exposes [`MetricIngestionErrorCode`] as a `juniper::GraphQLEnum`
 //! so that the protected `ingestMetricBatch` result can carry each row's reason
 //! in exactly this vocabulary. Every value keeps its existing
-//! SCREAMING_SNAKE_CASE name: none is added, removed, renamed or aliased.
+//! SCREAMING_SNAKE_CASE name: none is added, removed, renamed or aliased by
+//! that slice. `MET-WP11-B-CORR-H3` (issue #989) later adds exactly one
+//! additive value, [`MetricIngestionErrorCode::ReportingGrainMismatch`], and
+//! changes no existing value.
 
 use std::fmt;
 
@@ -192,6 +195,11 @@ pub enum MetricIngestionErrorCode {
     /// Per-observation `REJECTED`: a distinct accepted record in the same
     /// dimensional cell already covers an overlapping half-open period.
     OverlappingPeriod,
+    /// Per-observation `REJECTED` (`MET-WP11-B-CORR-H3`, #989): the existing
+    /// canonical record of the same v1 identity was persisted with a different
+    /// reporting grain. The canonical grain is immutable for its identity, so
+    /// the evidence is neither a duplicate, a conflict nor a revision.
+    ReportingGrainMismatch,
     /// The `CONFLICT` reason: same identity, different content, from a DRIVER
     /// account that is not the canonical winner.
     SourceConflict,
@@ -229,7 +237,7 @@ impl MetricIngestionErrorCode {
             | PlatformMeasureNotFound
             | PlatformMeasureDisabled
             | NotDirectCollection => Some("measure_code"),
-            UnsupportedReportingGrain => Some("reporting_grain"),
+            UnsupportedReportingGrain | ReportingGrainMismatch => Some("reporting_grain"),
             InvalidReportingGrainPeriod | OverlappingPeriod => Some("period_start"),
             UnsupportedPublicationDimension | UnknownPublication | AmbiguousPublication => {
                 Some(publication_field)
@@ -283,6 +291,9 @@ impl MetricIngestionErrorCode {
             MethodologyMismatch => "The methodology version does not match the measure",
             PublisherScopeMismatch => "The work does not belong to the expected publisher",
             OverlappingPeriod => "The period overlaps an existing canonical record",
+            ReportingGrainMismatch => {
+                "The reporting grain does not match the existing canonical record"
+            }
             _ => "The observation was rejected",
         }
     }
