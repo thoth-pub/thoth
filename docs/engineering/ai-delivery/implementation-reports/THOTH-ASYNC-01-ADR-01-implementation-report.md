@@ -38,8 +38,10 @@ Route-B candidate stage of the canonical mismatch-anomaly decision order
 and universal first route-disposition admission correction specified by
 Specification Amendment 13 with its Revisions 1 and 2 after the configured
 final-head automated review of that Amendment-12 approval-state head, and
-the Route-B approval-state stage of that Amendment-13 candidate, and the
-Route-B PROPOSED candidate stage of Amendment 14 + Revision 1.
+the Route-B approval-state stage of that Amendment-13 candidate, the
+Route-B PROPOSED candidate stage of Amendment 14 + Revision 1, its
+replacement PROPOSED candidate, and the Route-B approval-state stage of
+that content-approved Amendment-14 replacement candidate.
 It records
 durable task evidence only. Live head, CI, review, authorization and
 merge state is GitHub-owned lifecycle evidence under `ADR-0005` and is not
@@ -47,15 +49,131 @@ copied here.
 
 Sections 1-15 and the appendices preserve the earlier Amendment-13
 approval-state and all preceding Route-B stages **as historical evidence**.
-This report first describes the current Amendment-14 replacement PROPOSED
-candidate, then the original Amendment-14 candidate, which received
-CHANGES REQUIRED. Statements in those historical sections about the
-'current' head, approval status or authority apply only to their named
-historical exact versions, not to the present A14 candidate. Appendix A
+This report first describes the current Amendment-14 approval-state
+stage, then the historical Amendment-14 replacement PROPOSED candidate
+whose exact architecture content the CTO approved, then the original
+Amendment-14 candidate, which received CHANGES REQUIRED. Statements in
+those historical sections about the 'current' head, approval status or
+authority apply only to their named historical exact versions, not to the
+present A14 approval-state version. Appendix A
 preserves earlier authoring, review, approval-state and validation evidence. Appendix B records the
 durable control conditions.
 
-## Amendment 14 + Revision 1 — current replacement PROPOSED candidate
+## Amendment 14 + Revision 1 — current approval-state stage
+
+**Task:** `THOTH-ASYNC-01-ADR-01`, issue #958, programme #957;
+CRITICAL, documentation-only `PROGRAMME_INTEGRATION` Route-B
+approval-state stage on the existing `feature/async/adr-0012` task
+branch targeting `feature/worker`.
+**Implementer:** one bounded implementing agent that did not author or
+review the A14 candidate content; its model and session identity are
+reported to engineering control. It cannot review or approve this
+approval-state change; a different, non-implementing agent must perform
+the independent approval-state review.
+
+**Authority:** Javi, CTO approved the exact A14 + Revision-1 Route-B
+PROPOSED candidate architecture content on **2026-10-29**, recorded on
+issue #958, following the independent exact-candidate source review
+of APPROVED with zero blocking findings, also recorded on #958. That
+approval binds only candidate head
+`b9a2a6125c49daa25a69bd82f55ca363ec80c422` (tree
+`a057193adaf8afa638ad8e9de3c310096b463108`) and PROPOSED ADR-0012
+blob `d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8`. A separate CTO
+authorization on #958, dated 2026-10-30, authorized exactly one
+approval-state documentation commit whose sole parent is that
+candidate head, and one non-force push. The historical Amendment-13
+ADR blob `69f9ec9017ffe39d865bbe3ae67522c6917dc857` (CTO approval
+2026-10-20) remains historical exact-version evidence only.
+
+**Approval-state changes (four existing paths only):**
+
+- ADR-0012: the header `Status` changes from `PROPOSED` to
+  `APPROVED`, and `Approved by: Javi, CTO` and
+  `Approval date: 2026-10-29` are added. `Date: 2026-09-29`, the
+  `Material correction` line and the historical Amendment-13 blob line
+  are unchanged. In section 12, only the current-state paragraph is
+  rewritten (current decision state `APPROVED`, the 2026-10-29
+  architecture-content approval of the exact candidate, and the
+  exact-final-blob approval, final-head review and repository-authority
+  gates still outstanding), and the phrase 'This proposed architecture
+  candidate' becomes 'This approved architecture version'. The
+  historical approval timeline, the historical A13 blob, the authority
+  condition, the ADR-0013 reliance limits and the no-implementation
+  boundary are preserved.
+- `decision-register.md`: only the ADR-0012 row (and `Last updated`)
+  changes, to `APPROVED (Amendment 14)` with the 2026-10-29
+  architecture-content approval; final-blob approval, final-head
+  review, configured review, merge, ADR-0013 reliance and repository
+  authority remain separate unfulfilled gates.
+- `CHANGELOG.md`: only the existing
+  `THOTH-ASYNC-01-ADR-01-AMENDMENT-14-CANDIDATE` entry under
+  `[Unreleased]` changes, to record the same exact A14 architecture as
+  CTO content-approved with status `APPROVED` dated 2026-10-29. No
+  release or merge is claimed.
+- This report: the introduction and this current-stage section; the
+  replacement-candidate section is marked historical.
+
+**Not changed:** ADR-0012 sections 1–11, invariants 1–48, the thirty
+active A13 validation cases (`A13-T01`–`A13-T24`, `A13-T26`–`A13-T31`;
+`A13-T25` retired) and `A14-T01`–`A14-T34` are byte-identical to the
+content-approved blob. The LOW review findings N-01 (the ambiguous
+retry-exhaustion sentence) and N-02 (formatting) are deliberately
+**not** fixed in this stage, because fixing them would change reviewed
+bytes. ADR-0008, ADR-0010, ADR-0013, `docs/engineering/decisions/README.md`,
+`AGENTS.md`, the CI classifier and the workflows are unchanged. No
+file is created, deleted, renamed or mode-changed.
+
+**Validation performed before the commit (local isolated clone):**
+
+- `git diff --cached --name-status` against the candidate head: exactly
+  four `M` paths (the ADR, the register, `CHANGELOG.md` and this
+  report); all file modes remain `100644`.
+- `git diff --cached --check`: no output (clean).
+- Byte-preservation proof: a script compared the new ADR line by line
+  with blob `d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8` after removing
+  only the allowed regions (the header `Status` line, the two added
+  header lines, the section-12 current-state paragraph and the one
+  section-12 phrase). Every one of the 4665 remaining lines was
+  identical, and all text before `## 12.` other than the header
+  approval metadata was identical.
+- Invariants: section 7 contains numbered invariants 1–48, 48 in total.
+- Test IDs: all 30 active A13 IDs and `A14-T01`–`A14-T34` are present,
+  with occurrence counts identical to the content-approved blob.
+- `APPROVED` and `2026-10-29` agree across the ADR header, ADR
+  section 12, the register row and the changelog entry.
+- `python3 .github/scripts/classify_ci_changes.py --paths ...` on the
+  four directly changed paths, and on the six cumulative PR paths
+  against `feature/worker`, returned `docs_only=true`,
+  `run_build=false`, `run_migrations=false` and `run_docker=false`
+  in both cases.
+- No Rust, SQL, database, migration or provider test is executed by
+  this documentation task.
+
+**Not claimed here:** this commit's own SHA, tree and blobs, the
+automatic CI results for the push, and the outcome of any later review
+are GitHub-owned lifecycle evidence and are not recorded in this
+committed report.
+
+**Remaining gates:** an independent approval-state source review by a
+non-implementing agent; CTO approval of the exact final ADR Git blob;
+a fresh independent final-head review; PR #960 metadata and Codex
+thread reconciliation; separately authorized Draft-to-Ready and
+configured review; SHA-bound CTO merge authorization and guarded merge
+into `feature/worker`; and, separately, `feature/worker` to `develop`
+integration, repository authority and any ADR-0013 reliance. No
+runtime implementation, migration, provider/IAM action, deployment,
+image publication, release or activation is authorized.
+
+## Amendment 14 + Revision 1 — replacement PROPOSED candidate (HISTORICAL / CTO CONTENT-APPROVED)
+
+**Historical stage:** this section records the replacement PROPOSED
+candidate head `b9a2a6125c49daa25a69bd82f55ca363ec80c422` (ADR-0012
+blob `d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8`) as written at that
+stage. It received an independent exact-candidate source review of
+APPROVED and CTO architecture-content approval on 2026-10-29, both
+recorded on issue #958. Its statements that the correction 'remains
+PROPOSED' and its list of remaining gates are historical; the current
+state is recorded in the approval-state section above.
 
 **Task:** `THOTH-ASYNC-01-ADR-01`, issue #958, programme #957;
 CRITICAL, documentation-only `PROGRAMME_INTEGRATION` stage on the existing

@@ -1,7 +1,9 @@
 # ADR-0012 - Shared asynchronous event and job execution architecture
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-09-29
+Approved by: Javi, CTO
+Approval date: 2026-10-29
 Material correction: Amendment 14 + Revision 1; Route B candidate
 Historical approved Amendment-13 ADR Git blob: 69f9ec9017ffe39d865bbe3ae67522c6917dc857 (CTO approval 2026-10-20; not approval of these A14 bytes)
 Decision owner: CTO
@@ -4592,14 +4594,29 @@ shared-engine tests.
 
 ## 12. Approval and authority
 
-Current decision state: **PROPOSED - Amendment 14 + Revision 1
-Route-B material correction candidate**. CTO approval of
-the **exact effective original A14 + Revision-1 specification**,
-including F-01–F-08 mandatory candidate acceptance and
-per-attached-obligation safeguards for **ALL routed jobs**,
-is **SPECIFICATION ONLY**. The corrected ADR source bytes,
-candidate Git blob/head and later exact final blob have
-**not** yet received their separate CTO approvals.
+Current decision state: **APPROVED - Amendment 14 + Revision 1
+Route-B material correction**.
+
+Approved by: Javi, CTO
+Approval date: 2026-10-29
+
+The CTO earlier approved the **exact effective original
+A14 + Revision-1 specification**, including F-01–F-08
+mandatory candidate acceptance and per-attached-obligation
+safeguards for **ALL routed jobs**, as specification only.
+On 2026-10-29 the CTO approved this exact A14 + Revision-1
+architecture content under the repository decision process,
+as represented by the Route-B candidate head
+`b9a2a6125c49daa25a69bd82f55ca363ec80c422` and candidate
+ADR-0012 blob `d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8`;
+this version differs from that candidate only in this
+approval-state representation. That approval is
+**architecture approval only**. The exact final ADR Git
+blob has **not** yet received its separate CTO approval,
+no fresh independent final-head review of this version
+has occurred, and this approval does not by itself make
+this ADR repository-authoritative: the authority
+condition below still applies.
 
 The historical **Amendment-13** version was `APPROVED`
 by Javi, CTO on 2026-10-20 as ADR-0012 Git blob
@@ -4663,7 +4680,7 @@ only to the exact boundaries in this
 ADR's header; unaffected machine-role,
 least-privilege, Staff Operations and
 staff-command controls remain binding.
-This proposed architecture candidate
+This approved architecture version
 authorizes no runtime implementation,
 SQL/data migration, provider/IAM action,
 external writes, worker deployment,
