@@ -7,6 +7,10 @@ These documents apply across Thoth engineering programmes unless a stricter appr
 ## Documents
 
 - `operating-model.md` - roles, authority, lifecycle and task boundaries.
+- `quickstart.md` - short entry point for a thread: state block, gate comments,
+  authorization bundles, land-check summary, models and token rules.
+- `parallel-landing.md` - lanes, land-check, guarded merge and refresh rules for
+  landing independent changes in parallel.
 - `branching-and-release-workflow.md` - GitHub Flow, `develop`/`master`, programme integration branches and releases.
 - `risk-classification.md` - task risk levels and mandatory controls.
 - `model-selection.md` - implementation and review model guidance.

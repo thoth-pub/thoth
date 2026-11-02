@@ -32,11 +32,23 @@ Independent review binds to an exact PR head, and CTO merge authorization, where
 required, binds to that same head.
 
 Perform the merge with an expected-head guard, so that the merge fails rather
-than proceeding if the reviewed head has moved. For example:
+than proceeding if the reviewed head has moved. The standard form is GitHub's
+PR merge API with the reviewed head as the expected `sha`:
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/pulls/<number>/merge \
+  -f merge_method=merge -f sha=<reviewed-sha>
+```
+
+The equivalent CLI form is:
 
 ```bash
 gh pr merge <number> --merge --match-head-commit <reviewed-sha>
 ```
+
+A CTO merge authorization for the reviewed head also covers a pure-merge
+refresh of that head, as proved by `refresh_check.py` (see
+`parallel-landing.md` section 5). It covers no other head.
 
 The implementing agent must not merge its own PR.
 

@@ -327,6 +327,11 @@ Review is bound to an exact PR head. If the reviewed head changes for any
 repository commit, substantive or not, the previous exact-head review does not
 carry forward and fresh review is required.
 
+The one exception is a pure-merge refresh. When `refresh_check.py` proves that
+the new head is only the reviewed head merged with the target tip, the light
+re-check under `parallel-landing.md` section 5 is the fresh exact-head review
+for the new head. Any other head change needs a full fresh review.
+
 Do not create a commit solely to copy a review decision or approval identifier
 into the repository. That moves the head and invalidates the very review it
 records. PR body edits and GitHub comments do not change the Git commit and may
@@ -461,6 +466,9 @@ Parallel tasks are permitted only when:
 
 Do not run competing agents on alternative implementations of the same approved task unless the task is explicitly a time-boxed design spike.
 
+Lanes, the migration lane, the land-check and refresh rules are in
+`parallel-landing.md`.
+
 ## 8. Production safety defaults
 
 Prefer:
@@ -478,3 +486,68 @@ Prefer:
 - observation before cleanup.
 
 High-risk production activation requires explicit CTO approval.
+
+## 9. Ledger and authorization bundles
+
+### 9.1 Ledger
+
+The owning GitHub issue is the ledger (Gate 1). Keep it short.
+
+The stage issue body opens with a state block. Edit it in place; do not append
+a new block. Template:
+
+```text
+Stage:     <TASK-ID> · Risk <LEVEL> · Programme: <programme>
+Gate:      <current gate>
+Spec:      <issue body or committed spec>
+Base:      <repo> <branch> @ <sha>  ->  <target>
+PR:        <number or none> · branch <name>
+Surface:   <declared write surface> · Migration date: <date or none>
+Grant:     <bundle and risk>
+Review:    <state> · Codex: <state>
+Next:      <next action> · Owner: <who>
+```
+
+Gate decisions are comments of five kinds. Each starts
+`<KIND> <TASK-ID> @ <sha>: <ruling>` and stays under 15 lines.
+
+| Kind | Posted by | Records |
+| --- | --- | --- |
+| `GRANT` | CTO or control role | The bundle granted, the action list and the reserved migration date. |
+| `REVIEW` | Independent reviewer | `APPROVED`, `CHANGES REQUIRED` or `BLOCKED`, the model and effort, and findings by severity. |
+| `MERGE AUTH` | CTO | Merge authorization for the exact head. |
+| `LANDED` | Lander | The merge commit, post-merge CI and the model and effort. |
+| `HOLD` | Anyone | The reason work stopped and what releases it. |
+
+A pinned Delivery board issue in `thoth-pub/thoth` lists every active stage
+across repositories, with its state, PR and reserved migration date.
+
+Resume from the state block, the last three comments, the PR head and CI. If
+they conflict with chat history, they win (section 3.2).
+
+### 9.2 Authorization bundles
+
+A bundle names actions explicitly. Anything not named stays denied (section 2.4).
+
+| Risk | Bundle |
+| --- | --- |
+| LOW, MEDIUM | One grant covers implementation through guarded merge. The merge happens once the independent review is `APPROVED` at the head, CI is green and Codex, where installed, has no P0 or P1 finding. There is no separate merge card. A specification may gate its own merge on CTO approval; then that gate applies. |
+| HIGH | One grant covers implementation through an `APPROVED` review. A merge authorization bound to the exact head follows. Merge authorizations may be batched for one landing window. |
+| CRITICAL | As HIGH, with two independent reviews, at least one cross-family. A CRITICAL merge authorization is never batched with another. |
+
+The independent review for HIGH is a fresh Opus review plus the Codex review.
+Codex should be installed on every repository that adopts these controls.
+
+These are never bundled. Each needs its own explicit authorization:
+
+- release or tag;
+- deployment;
+- migration runs outside CI;
+- production activation;
+- provider reads or writes;
+- secrets;
+- direct pushes to `develop`, `dev`, `main` or `master`;
+- force-push;
+- a new integration branch;
+- a change to an approved ADR;
+- growth of scope or write surface.
