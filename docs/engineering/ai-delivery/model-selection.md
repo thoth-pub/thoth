@@ -18,7 +18,7 @@ The scoping model should not implement the task it later approves.
 
 Default:
 
-- strongest available Codex coding model;
+- the model the section 6 table assigns to the task's risk;
 - high reasoning.
 
 Use maximum practical reasoning for:
@@ -38,12 +38,9 @@ Medium reasoning is acceptable only for contained low-risk changes with strong e
 
 ## 3. Independent review
 
-Prefer a different model family from the implementer.
+The reviewer is always a fresh instance that did not scope or implement the change. HIGH and CRITICAL work gets two independent reviews on two different models (section 6). Neither reviewer sees the other's ruling before giving its own.
 
-Example policy:
-
-- Codex implements -> strongest available Claude model reviews.
-- Claude implements -> strongest available Codex model reviews.
+No gate depends on an automatic third-party reviewer such as Codex. Where one is installed its findings are advisory: answer a P0 or P1 before merging, but never wait for a result.
 
 Use high or maximum reasoning for high-risk tasks.
 
@@ -68,7 +65,7 @@ Require two independent reviews for critical tasks involving:
 - source-of-truth cutover;
 - production secrets or identity-provider configuration.
 
-At least one reviewer must be from a different model family than the implementer.
+The two reviews run on different models (section 6), and neither reviewer implemented the change.
 
 ## 5. Record keeping
 
@@ -93,9 +90,9 @@ Model names evolve. The table names the current assignment for each kind of task
 | Stage orchestrator; LOW and MEDIUM implementation | Sonnet 5.5, medium |
 | HIGH implementation | Opus 5.5, high |
 | CRITICAL implementation | Opus 5.5, max |
-| LOW and MEDIUM review | Fresh Sonnet 5.5, high, plus Codex |
-| HIGH review | Fresh Opus 5.5, high, plus Codex |
-| CRITICAL review | Fresh Opus 5.5 and fresh Fable 5.1, plus Codex |
+| LOW and MEDIUM review | Fresh Sonnet 5.5, high |
+| HIGH review | Fresh Opus 5.5, high, and fresh Fable 5.1, independent |
+| CRITICAL review | Fresh Opus 5.5, max, and fresh Fable 5.1, independent |
 | Land-check runs, refresh re-checks, landings, CI watching, state block and board edits, thread handoffs | Haiku 5.5, low |
 
 "Fresh" means a new instance that did not implement the task. "Named only" means the model is used when the CTO names it for the task.

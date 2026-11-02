@@ -505,7 +505,7 @@ Base:      <repo> <branch> @ <sha>  ->  <target>
 PR:        <number or none> · branch <name>
 Surface:   <declared write surface> · Migration date: <date or none>
 Grant:     <bundle and risk>
-Review:    <state> · Codex: <state>
+Review:    <state> · Advisory bots: <state or none>
 Next:      <next action> · Owner: <who>
 ```
 
@@ -523,8 +523,11 @@ Gate decisions are comments of five kinds. Each starts
 PRs are opened under the `ja573` account, so independent review rulings are
 posted as COMMENT reviews, not GitHub approvals.
 
-A pinned Delivery board issue in `thoth-pub/thoth` lists every active stage
-across repositories, with its state, PR and reserved migration date.
+A pinned Delivery board issue in the private `thoth-pub/infrastructure`
+repository lists every active stage across repositories, with its state, PR and
+reserved migration date. Stage issues stay in their own repositories. A stage
+issue in a public repository links to the board but never copies private detail
+from it, such as production facts or credential names.
 
 Resume from the state block, the last three comments, the PR head and CI. If
 they conflict with chat history, they win (section 3.2).
@@ -535,12 +538,20 @@ A bundle names actions explicitly. Anything not named stays denied (section 2.4)
 
 | Risk | Bundle |
 | --- | --- |
-| LOW, MEDIUM | One grant covers implementation through guarded merge. The merge happens once the independent review is `APPROVED` at the head, CI is green and Codex, where installed, has no P0 or P1 finding. There is no separate merge card. A specification may gate its own merge on CTO approval; then that gate applies. |
-| HIGH | One grant covers implementation through an `APPROVED` review. A merge authorization bound to the exact head follows. Merge authorizations may be batched for one landing window. |
-| CRITICAL | As HIGH, with two independent reviews, at least one cross-family. A CRITICAL merge authorization is never batched with another. |
+| LOW, MEDIUM | One grant covers implementation through guarded merge. The merge happens once the independent review is `APPROVED` at the head and CI is green. There is no separate merge card. A specification may gate its own merge on CTO approval; then that gate applies. |
+| HIGH | One grant covers implementation through two independent `APPROVED` reviews. A merge authorization bound to the exact head follows. Merge authorizations may be batched for one landing window. |
+| CRITICAL | As HIGH, with the Opus review at max effort. A CRITICAL merge authorization is never batched with another. |
 
-The independent review for HIGH is a fresh Opus review plus the Codex review.
-Codex should be installed on every repository that adopts these controls.
+Independent review by risk: LOW and MEDIUM get one fresh Sonnet 5.5 review at
+high effort. HIGH gets two independent fresh reviews, Opus 5.5 at high effort
+and Fable 5.1. CRITICAL gets two independent fresh reviews, Opus 5.5 at max
+effort and Fable 5.1. In a dual review neither reviewer sees the other's ruling
+before giving its own, and both must be `APPROVED` at the same head.
+
+No gate waits for an automatic third-party reviewer such as Codex. Where one is
+installed it is advisory: a P0 or P1 finding it posts before the merge is
+answered first, by a fix or a rebuttal on its thread, but a missing or slow
+result never blocks.
 
 These are never bundled. Each needs its own explicit authorization:
 

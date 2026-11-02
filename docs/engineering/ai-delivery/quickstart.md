@@ -23,9 +23,11 @@ Base:      <repo> <branch> @ <sha>  ->  <target>
 PR:        <number or none> · branch <name>
 Surface:   <declared write surface> · Migration date: <date or none>
 Grant:     <bundle and risk>
-Review:    <state> · Codex: <state>
+Review:    <state> · Advisory bots: <state or none>
 Next:      <next action> · Owner: <who>
 ```
+
+The Delivery board is a pinned issue in the private `thoth-pub/infrastructure` repository. Stage issues stay in their own repositories; a public stage issue links to the board and never copies private detail from it.
 
 ## 3. Gate comments
 
@@ -41,13 +43,15 @@ Five kinds. Each starts `<KIND> <TASK-ID> @ <sha>: <ruling>` and stays under 15 
 
 | Risk | One grant covers | Merge |
 | --- | --- | --- |
-| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head, CI is green and Codex (where installed) has no P0 or P1 |
-| HIGH | Implementation through `APPROVED` review | SHA-bound CTO `MERGE AUTH`; may be batched per landing window |
-| CRITICAL | As HIGH, with two independent reviews, one cross-family | SHA-bound CTO `MERGE AUTH`; never batched with another CRITICAL |
+| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head and CI is green |
+| HIGH | Implementation through two independent `APPROVED` reviews | SHA-bound CTO `MERGE AUTH`; may be batched per landing window |
+| CRITICAL | As HIGH, with the Opus review at max effort | SHA-bound CTO `MERGE AUTH`; never batched with another CRITICAL |
 
 Never bundled, each needs its own explicit grant: release or tag; deployment; migration runs outside CI; production activation; provider reads or writes; secrets; direct pushes to `develop`, `dev`, `main` or `master`; force-push; a new integration branch; a change to an approved ADR; growth of scope or write surface.
 
 If the spec gates its own merge on the CTO, that gate applies at any risk.
+
+No gate waits for Codex or another automatic reviewer. Where one is installed it is advisory: answer a P0 or P1 it posts before merging, but never wait for a result.
 
 ## 5. Landing
 
@@ -78,9 +82,9 @@ Names evolve. Record model and effort in every `REVIEW` and `LANDED` comment (`m
 | Stage orchestrator; LOW and MEDIUM implementation | Sonnet 5.5, medium |
 | HIGH implementation | Opus 5.5, high |
 | CRITICAL implementation | Opus 5.5, max |
-| LOW and MEDIUM review | Fresh Sonnet 5.5, high, plus Codex |
-| HIGH review | Fresh Opus 5.5, high, plus Codex |
-| CRITICAL review | Fresh Opus 5.5 and fresh Fable 5.1, plus Codex |
+| LOW and MEDIUM review | Fresh Sonnet 5.5, high |
+| HIGH review | Fresh Opus 5.5, high, and fresh Fable 5.1, independent |
+| CRITICAL review | Fresh Opus 5.5, max, and fresh Fable 5.1, independent |
 | Land-check, refresh re-check, landing, CI watching, state block and board edits, handoffs | Haiku 5.5, low |
 
 ## 7. Token rules
