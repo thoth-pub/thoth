@@ -81,3 +81,23 @@ Every task specification and implementation report records:
 - material limitations encountered.
 
 Do not infer quality from model choice alone. Approval depends on evidence.
+
+## 6. Task-type table
+
+Model names evolve. The table names the current assignment for each kind of task. Where it names a model, it takes precedence over the defaults in sections 1 to 3. Sections 4 and 5 still apply in full.
+
+| Task type | Model and effort |
+| --- | --- |
+| Cross-programme architecture, ADRs, CRITICAL design, large audits | Fable 5.1 (named only) |
+| Specifications and stage decomposition | Opus 5.5, high |
+| Stage orchestrator; LOW and MEDIUM implementation | Sonnet 5.5, medium |
+| HIGH implementation | Opus 5.5, high |
+| CRITICAL implementation | Opus 5.5, max |
+| LOW and MEDIUM review | Fresh Sonnet 5.5, high, plus Codex |
+| HIGH review | Fresh Opus 5.5, high, plus Codex |
+| CRITICAL review | Fresh Opus 5.5 and fresh Fable 5.1, plus Codex |
+| Land-check runs, refresh re-checks, landings, CI watching, state block and board edits, thread handoffs | Haiku 5.5, low |
+
+"Fresh" means a new instance that did not implement the task. "Named only" means the model is used when the CTO names it for the task.
+
+Record the model and effort in every `REVIEW` and `LANDED` comment (`operating-model.md` section 9.1), as well as in the task report.
