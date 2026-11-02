@@ -1,6 +1,6 @@
 # Delivery Quickstart
 
-Status: APPROVED by the CTO (CTRL-DELIVERY-03, #995); ACTIVE from its merge into `develop`
+Status: APPROVED by the CTO (decisions D1-D5, #995)
 Owner: CTO
 
 Read this first. It is a summary, not a replacement. When it and a full document differ, the full document wins.

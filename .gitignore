@@ -5,3 +5,5 @@ machinekey/
 coverage/
 reports/
 scripts/
+!.github/scripts/
+__pycache__/
