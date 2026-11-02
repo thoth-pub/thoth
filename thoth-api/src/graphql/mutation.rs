@@ -1,4 +1,4 @@
-use juniper::FieldResult;
+use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 
 use crate::graphql::Context;
@@ -36,6 +36,49 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_coverage_run::{
+        crud::rebuild_metric_coverage_runs, verification::verify_metric_coverage_runs,
+        MetricCoverageRunRebuildResult, MetricCoverageRunVerificationPage,
+    },
+    metric_identifier_quarantine_reconciliation::{
+        reconcile_metric_identifier_quarantine, MetricIdentifierQuarantineReconciliationBatch,
+    },
+    metric_import::MetricImport,
+    metric_ingestion_lifecycle::{
+        begin_metric_import, claim_metric_source_units, complete_metric_import,
+        ingest_metric_batch_under_claim, update_metric_source_checkpoint, BeginMetricImportInput,
+        ClaimMetricSourceUnitsInput, CompleteMetricImportInput, IngestMetricBatchInput,
+        MetricBatchResult, MetricSourceUnitClaim, UpdateMetricSourceCheckpointInput,
+    },
+    metric_measure::{
+        crud::{create_metric_measure, update_metric_measure},
+        MetricMeasure, NewMetricMeasure, PatchMetricMeasure,
+    },
+    metric_platform::{
+        crud::{create_metric_platform, update_metric_platform},
+        MetricPlatform, NewMetricPlatform, PatchMetricPlatform,
+    },
+    metric_platform_measure::{
+        crud::{create_metric_platform_measure, update_metric_platform_measure},
+        MetricPlatformMeasure, NewMetricPlatformMeasure, PatchMetricPlatformMeasure,
+    },
+    metric_rollup_delta::{
+        crud::{
+            claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
+        },
+        verification::verify_metric_rollup_months,
+        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupMonthRebuildResult,
+        MetricRollupMonthVerification, MetricRollupWatermark, RebuildMetricRollupMonthsInput,
+    },
+    metric_source::{
+        crud::{create_metric_source, update_metric_source},
+        MetricSource, NewMetricSource, PatchMetricSource,
+    },
+    metric_source_account::{
+        crud::{create_metric_source_account, update_metric_source_account},
+        MetricSourceAccount, NewMetricSourceAccount, PatchMetricSourceAccount,
+    },
+    metric_source_checkpoint::MetricSourceCheckpoint,
     price::{NewPrice, PatchPrice, Price, PricePolicy},
     publication::{
         NewPublication, PatchPublication, Publication, PublicationPolicy, PublicationProperties,
@@ -161,6 +204,167 @@ fn cancel_job(
     cancel_distribution_job(&context.db, data.distribution_job_id).map(DistributionJobPayload::lazy)
 }
 
+/// Authorize one Metrics registry administration mutation and return the audit
+/// actor.
+///
+/// `MET-WP1-12`'s six registry mutations and three administrative lookups are
+/// SUPERUSER only. The check runs **before** the coordinator is called and
+/// therefore before any mutation-specific database read, row lock or write, so
+/// a denied request leaves both the canonical registry and the audit history
+/// untouched and writes nothing to roll back.
+///
+/// `SUPERUSER` is used here as the existing human/global administration
+/// boundary. Publisher users and admins are denied whatever roles they hold for
+/// whatever publisher, and machine roles — including `DISSEMINATION_WORKER` —
+/// are denied too: package capabilities do not substitute for global
+/// administration authority, and no Metrics machine role is introduced by this
+/// slice.
+///
+/// The returned actor is the authenticated principal's repository-authoritative
+/// user identity. It is derived, never accepted from the request, so the audit
+/// trail cannot be spoofed by a caller.
+fn authorize_metric_registry_admin(context: &Context) -> ThothResult<&str> {
+    context.require_superuser()?;
+    context.user_id()
+}
+
+/// Authorize one Metrics rollup application operation and return the claimant.
+///
+/// `MET-WP4-01`'s two operations require exactly `METRICS_INGEST_SERVICE`.
+/// The check runs **before** the coordinator is called, and therefore before
+/// any rollup-specific database read, row lock, claim or write, so a denied
+/// request leaves the deltas, the projection and the watermark untouched and
+/// writes nothing to roll back.
+///
+/// Nothing else satisfies it. `SUPERUSER` is not a machine-service shortcut,
+/// `METRICS_READ_SERVICE` reads and does not ingest, `DISSEMINATION_WORKER`
+/// belongs to Publisher Services, and publisher-scoped human roles and
+/// anonymous callers hold no Metrics authority at all — under `ADR-0008` none
+/// of them acquires this authority by implication, and no third Metrics
+/// service role is introduced.
+///
+/// The returned claimant is the authenticated principal's repository
+/// identity. It is derived, never accepted from the request, which is what
+/// makes `claimed_by` trustworthy enough to reject a foreign completion.
+fn authorize_metric_rollup_service(context: &Context) -> ThothResult<&str> {
+    context.require_metrics_ingest_service()?;
+    context.user_id()
+}
+
+/// Authorize one managed-DRIVER ingestion lifecycle operation.
+///
+/// `MET-WP2-02`'s five operations require exactly `METRICS_INGEST_SERVICE`,
+/// checked here **before** the lifecycle coordinator is called and therefore
+/// before any checkpoint, source, import, batch or coverage read, lock, claim
+/// or write. `SUPERUSER`, `METRICS_READ_SERVICE`, `DISSEMINATION_WORKER`,
+/// publisher-scoped human roles and anonymous callers do not satisfy it. The
+/// role authorizes the machine caller only: managed collection additionally
+/// requires the pinned publisher's `METRICS_COLLECT` capability, which the
+/// coordinator decides from canonical state.
+///
+/// The returned identity is the authenticated principal, recorded as an
+/// import's `created_by`; it is never accepted from the request.
+fn authorize_metric_ingestion_lifecycle(context: &Context) -> ThothResult<&str> {
+    context.require_metrics_ingest_service()?;
+    context.user_id()
+}
+
+/// Authorize and run one bounded identifier-quarantine reconciliation sweep.
+fn reconcile_identifier_quarantine(
+    context: &Context,
+    limit: i32,
+) -> ThothResult<MetricIdentifierQuarantineReconciliationBatch> {
+    let actor = authorize_metric_ingestion_lifecycle(context)?;
+    reconcile_metric_identifier_quarantine(&context.db, actor, limit)
+}
+
+/// Authorize a rollup claim and delegate to the frontier protocol.
+fn claim_rollup_deltas(context: &Context, limit: i32) -> ThothResult<Vec<MetricRollupDeltaClaim>> {
+    let claimant = authorize_metric_rollup_service(context)?;
+    claim_metric_rollup_deltas(&context.db, claimant, limit)
+}
+
+/// Authorize a rollup completion and delegate to the application transaction.
+///
+/// The resolver's whole responsibility is to authorize, derive the claimant
+/// and pass the token through. Every value, dimension, status transition and
+/// watermark advance is derived inside the coordinator's single transaction
+/// from durable state.
+fn complete_rollup_deltas(
+    context: &Context,
+    data: &CompleteMetricRollupDeltasInput,
+) -> ThothResult<MetricRollupWatermark> {
+    let claimant = authorize_metric_rollup_service(context)?;
+    complete_metric_rollup_deltas(&context.db, claimant, data.claim_token)
+}
+
+/// Authorize a monthly verification and delegate to the read-only snapshot.
+///
+/// `MET-WP4-03A-OPS-02` reuses exactly the rollup service boundary above:
+/// the check runs before the verifier is called, and therefore before any
+/// rollup-specific database read, so a denied request opens no transaction
+/// and reads no rollup state at all.
+fn verify_rollup_months(context: &Context) -> ThothResult<MetricRollupMonthVerification> {
+    authorize_metric_rollup_service(context)?;
+    verify_metric_rollup_months(&context.db)
+}
+
+/// Authorize a monthly rebuild and delegate to the self-verifying
+/// transaction.
+///
+/// The resolver authorizes and passes the caller's pinned frontier string
+/// through, nothing more. Its validation, the frontier comparison, the
+/// state-row lock, every derived row and both independent verifications
+/// happen inside the coordinator's single transaction.
+fn rebuild_rollup_months(
+    context: &Context,
+    data: &RebuildMetricRollupMonthsInput,
+) -> ThothResult<MetricRollupMonthRebuildResult> {
+    authorize_metric_rollup_service(context)?;
+    rebuild_metric_rollup_months(&context.db, &data.expected_applied_through_sequence)
+}
+
+/// Authorize one coverage-run maintenance operation.
+///
+/// `MET-WP4-03C-B1`'s two operations require exactly `METRICS_INGEST_SERVICE`,
+/// checked here **before** the H1 model is called and therefore before any
+/// coverage-run, coverage, import or account read, snapshot, lock or write.
+/// `SUPERUSER`, `METRICS_READ_SERVICE`, `DISSEMINATION_WORKER`,
+/// publisher-scoped human roles and anonymous callers do not satisfy it, and
+/// the denial is rendered by the repository's existing `NO_ACCESS` path, not
+/// by the H1-local error boundary.
+fn authorize_metric_coverage_run_maintenance(context: &Context) -> Result<(), FieldError> {
+    context
+        .require_metrics_ingest_service()
+        .map(|_| ())
+        .map_err(IntoFieldError::into_field_error)
+}
+
+/// Authorize a coverage-run verification page and delegate to the read-only
+/// snapshot. Every H1-local failure is mapped to its approved public
+/// classification by the model's own error boundary.
+fn verify_coverage_runs(
+    context: &Context,
+    after_source_account_id: Option<Uuid>,
+    limit: Option<i32>,
+) -> FieldResult<MetricCoverageRunVerificationPage> {
+    authorize_metric_coverage_run_maintenance(context)?;
+    verify_metric_coverage_runs(&context.db, after_source_account_id, limit)
+        .map_err(IntoFieldError::into_field_error)
+}
+
+/// Authorize a coverage-run rebuild and delegate to the self-verifying
+/// transaction. The resolver authorizes and passes the account identity
+/// through, nothing more.
+fn rebuild_coverage_runs(
+    context: &Context,
+    source_account_id: Uuid,
+) -> FieldResult<MetricCoverageRunRebuildResult> {
+    authorize_metric_coverage_run_maintenance(context)?;
+    rebuild_metric_coverage_runs(&context.db, source_account_id)
+        .map_err(IntoFieldError::into_field_error)
+}
+
 #[juniper::graphql_object(Context = Context)]
 impl MutationRoot {
     #[graphql(description = "Create a new work with the specified values")]
@@ -233,6 +437,153 @@ impl MutationRoot {
         #[graphql(description = "Which job to cancel")] data: CancelDistributionJobInput,
     ) -> FieldResult<DistributionJobPayload> {
         cancel_job(context, &data).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Reconcile up to 50 due unresolved-DOI quarantine rows from current Thoth metadata. Requires exactly METRICS_INGEST_SERVICE. The caller supplies only a bounded limit; all row selection, retry state, authority, canonical identity and outcomes are server-owned."
+    )]
+    fn reconcile_metric_identifier_quarantine(
+        context: &Context,
+        #[graphql(description = "Maximum due quarantine rows to attempt, from 1 to 50 inclusive")]
+        limit: i32,
+    ) -> FieldResult<MetricIdentifierQuarantineReconciliationBatch> {
+        reconcile_identifier_quarantine(context, limit).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Claim the contiguous run of work-day rollup deltas that begins at the durable applied-through frontier, for up to 900 seconds. Requires the METRICS_INGEST_SERVICE role. The limit must be between 1 and 50 inclusive. Every returned row carries the same batch claim token. An empty result means the frontier is exhausted or is currently held by another live claim; the protocol never skips a held or missing position."
+    )]
+    fn claim_metric_rollup_deltas(
+        context: &Context,
+        #[graphql(
+            description = "How many consecutive work-day deltas to claim, from 1 to 50 inclusive. A value outside that range is rejected and claims nothing"
+        )]
+        limit: i32,
+    ) -> FieldResult<Vec<MetricRollupDeltaClaim>> {
+        claim_rollup_deltas(context, limit).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Apply one claimed rollup delta batch to the work-day projection and advance the durable watermark, in one transaction. Requires the METRICS_INGEST_SERVICE role. The batch is applied whole or not at all: any failure leaves the projection, every delta and the watermark unchanged. Repeating an already-applied token returns the current watermark without writing, so a completion that timed out after committing is safe to retry. A stale, foreign or reclaimed token changes nothing."
+    )]
+    fn complete_metric_rollup_deltas(
+        context: &Context,
+        #[graphql(description = "Which claimed rollup delta batch to apply")]
+        input: CompleteMetricRollupDeltasInput,
+    ) -> FieldResult<MetricRollupWatermark> {
+        complete_rollup_deltas(context, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Verify the six derived rollup projection families (monthly total, monthly country, monthly institution, monthly ambiguity, yearly country, yearly institution) against the state independently derived from metric_rollup_work_day, in one read-only REPEATABLE READ snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. Returns bounded counts per family and the frontier facts of the coherent snapshot; pending rollup lag above the frontier is reported as such and is not projection corruption. A mismatch never triggers a rebuild automatically."
+    )]
+    fn verify_metric_rollup_months(
+        context: &Context,
+    ) -> FieldResult<MetricRollupMonthVerification> {
+        verify_rollup_months(context).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Verify and, when required, rebuild all six derived rollup projection families from the work-day projection at the caller-pinned durable frontier, in one all-or-nothing transaction beneath the rollup state-row lock. Requires the METRICS_INGEST_SERVICE role. A frontier that no longer matches, a work-day row above the frontier, or more than 100000 represented month keys is rejected before any projection row is touched. State whose six families already verify exact is left untouched and returns rebuilt: false without projection writes. Otherwise exactly the four monthly and the two yearly tables are truncated, the monthly projections are replayed in chunks of at most 50 month keys, the yearly country and institution tables are then derived set-wise from the rebuilt monthly state, and all six families are independently verified again before commit; anything short of an exact match, any failure, and more than 120 seconds of server-side elapsed time roll the whole rebuild back. The frontier, the work-day projection, rollup deltas and canonical records are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
+    )]
+    fn rebuild_metric_rollup_months(
+        context: &Context,
+        #[graphql(description = "Which durable rollup frontier the rebuild is pinned to")]
+        input: RebuildMetricRollupMonthsInput,
+    ) -> FieldResult<MetricRollupMonthRebuildResult> {
+        rebuild_rollup_months(context, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Verify one strictly ascending page of source accounts' derived coverage runs against the runs independently derived from raw coverage and terminal import evidence, in one read-only repeatable-read snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. afterSourceAccountId is an exclusive ordering boundary that need not name an existing account; omitting it starts at the beginning of the domain. The limit must be between 1 and 10 inclusive and is never clamped. Every page reports the complete source-account domain's count and fingerprint from its own snapshot, so one coherent full traversal sees the same two values on every page. Returns bounded counts only; a mismatch never triggers a rebuild by itself."
+    )]
+    fn verify_metric_coverage_runs(
+        context: &Context,
+        #[graphql(
+            description = "Return only source accounts whose ID is strictly greater than this one, in ascending order; omit to start at the beginning of the domain"
+        )]
+        after_source_account_id: Option<Uuid>,
+        #[graphql(
+            default = 10,
+            description = "How many source accounts to verify in this page, from 1 to 10 inclusive"
+        )]
+        limit: Option<i32>,
+    ) -> FieldResult<MetricCoverageRunVerificationPage> {
+        verify_coverage_runs(context, after_source_account_id, limit)
+    }
+
+    #[graphql(
+        description = "Verify and, only if not already exact, rebuild one source account's derived coverage runs from raw coverage and terminal import evidence, in one all-or-nothing read-committed transaction beneath the source account row lock that every import terminalization of that account also takes. Requires the METRICS_INGEST_SERVICE role. An unknown source account is rejected before anything is read. An account whose runs independently verify exact is left untouched and returns rebuilt: false. Otherwise its runs are replaced and independently verified again; anything short of an exact match and any failure roll the whole rebuild back. Raw coverage, import, checkpoint and account rows are never modified. This is exceptional initial-population or repair maintenance, not a scheduled operation."
+    )]
+    fn rebuild_metric_coverage_runs(
+        context: &Context,
+        #[graphql(description = "Which source account's coverage runs to verify and rebuild")]
+        source_account_id: Uuid,
+    ) -> FieldResult<MetricCoverageRunRebuildResult> {
+        rebuild_coverage_runs(context, source_account_id)
+    }
+
+    #[graphql(
+        description = "Claim up to 50 units of one managed DRIVER metric source, each leased under a fresh token. Requires the METRICS_INGEST_SERVICE role. A unit is one enabled, correctly configured source account whose publisher holds the METRICS_COLLECT capability; its default checkpoint is created on first claim. A unit already leased by a live claim is skipped. An empty result means nothing is claimable now."
+    )]
+    fn claim_metric_source_units(
+        context: &Context,
+        #[graphql(description = "Which source to claim units of, how many and for how long")]
+        input: ClaimMetricSourceUnitsInput,
+    ) -> FieldResult<Vec<MetricSourceUnitClaim>> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        claim_metric_source_units(&context.db, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record a terminal metric import on its claimed source account checkpoint and release the claim. Requires the METRICS_INGEST_SERVICE role. Successful period progress advances only for a COMPLETED import with at least one coverage assertion, all of which cover exactly the import period completely; it never moves backwards. Repeating the call after the claim was released returns the recorded checkpoint without writing."
+    )]
+    fn update_metric_source_checkpoint(
+        context: &Context,
+        #[graphql(description = "Which terminal import to record, and under which claim")]
+        input: UpdateMetricSourceCheckpointInput,
+    ) -> FieldResult<MetricSourceCheckpoint> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        update_metric_source_checkpoint(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create, or return the existing, managed DRIVER metric import for one upstream report of a claimed source account. Requires the METRICS_INGEST_SERVICE role. The source account, publisher and platform come from canonical Thoth configuration, never from the caller. Repeating the same request returns the same import in its current state; a request for the same upstream report with different values changes nothing and is refused."
+    )]
+    fn begin_metric_import(
+        context: &Context,
+        #[graphql(description = "The import envelope, and the claim it is begun under")]
+        input: BeginMetricImportInput,
+    ) -> FieldResult<MetricImport> {
+        let actor = authorize_metric_ingestion_lifecycle(context)
+            .map_err(IntoFieldError::into_field_error)?;
+        begin_metric_import(&context.db, actor, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Ingest one expected thoth-normalized-metrics/1 batch of a claimed metric import through the canonical ingestion coordinator. Requires the METRICS_INGEST_SERVICE role. Repeating a committed batch returns its committed outcome without writing again; reusing a batch key with a different payload is refused."
+    )]
+    fn ingest_metric_batch(
+        context: &Context,
+        #[graphql(description = "The batch, its import and the claim it is ingested under")]
+        input: IngestMetricBatchInput,
+    ) -> FieldResult<MetricBatchResult> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        ingest_metric_batch_under_claim(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Complete a claimed metric import once every expected batch is committed. Requires the METRICS_INGEST_SERVICE role. The terminal status is derived from the committed batch outcomes: COMPLETED when no observation was rejected or conflicting, otherwise COMPLETED_WITH_ERRORS. Repeating the call returns the terminal import unchanged."
+    )]
+    fn complete_metric_import(
+        context: &Context,
+        #[graphql(description = "Which import to complete, and under which claim")]
+        input: CompleteMetricImportInput,
+    ) -> FieldResult<MetricImport> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        complete_metric_import(&context.db, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]
@@ -1686,5 +2037,132 @@ impl MutationRoot {
         ContactPolicy::can_delete(context, &contact)?;
 
         contact.delete(&context.db).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Create a new metric platform with the specified values. Superuser only. The code is stored exactly as supplied and becomes the platform's stable identifier. Records one before/after audit entry atomically with the creation. Creates no source, mapping or collection behaviour"
+    )]
+    fn create_metric_platform(
+        context: &Context,
+        #[graphql(description = "Values for metric platform to be created")]
+        data: NewMetricPlatform,
+    ) -> FieldResult<MetricPlatform> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_platform(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric platform's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of displayName, enabled and publicDescription, not a partial patch; the code and ownershipClass cannot be changed. A request that matches the stored values changes nothing, moves no timestamp and records no audit entry. Any real change records one before/after audit entry atomically"
+    )]
+    fn update_metric_platform(
+        context: &Context,
+        #[graphql(description = "Values for metric platform to be updated")]
+        data: PatchMetricPlatform,
+    ) -> FieldResult<MetricPlatform> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_platform(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric measure with the specified values. Superuser only. The code is stored exactly as supplied and becomes the measure's stable identifier. Records one before/after audit entry atomically with the creation"
+    )]
+    fn create_metric_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric measure to be created")] data: NewMetricMeasure,
+    ) -> FieldResult<MetricMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric measure's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of displayName, publicVisibility, definition, methodologyVersion and enabled, not a partial patch; the code and the canonical semantic values category, unit, allowNegative, additiveAcrossTime and additiveAcrossWorks cannot be changed. A request that matches the stored values changes nothing, moves no timestamp and records no audit entry"
+    )]
+    fn update_metric_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric measure to be updated")]
+        data: PatchMetricMeasure,
+    ) -> FieldResult<MetricMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric platform/measure mapping, referencing its platform and measure by their exact stable codes. Superuser only. Records one before/after audit entry atomically with the creation. Creating a mapping starts, schedules and enqueues no downstream activity of any kind"
+    )]
+    fn create_metric_platform_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric platform/measure mapping to be created")]
+        data: NewMetricPlatformMeasure,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_platform_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric platform/measure mapping's mutable values, selected by the exact stable codes of its platform and measure. Superuser only. This is a complete replacement, not a partial patch; the mapped platform and measure cannot be changed. A request that matches the stored values changes nothing and records no audit entry. Changing directCollection enqueues, backfills and activates nothing"
+    )]
+    fn update_metric_platform_measure(
+        context: &Context,
+        #[graphql(description = "Values for metric platform/measure mapping to be updated")]
+        data: PatchMetricPlatformMeasure,
+    ) -> FieldResult<MetricPlatformMeasure> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_platform_measure(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric source with the specified values. Superuser only. The code and driverKey are stored exactly as supplied; a DRIVER source requires a non-blank driverKey and every other acquisition type requires none. Records one before/after audit entry atomically with the creation. Creates no account, driver, checkpoint or collection behaviour"
+    )]
+    fn create_metric_source(
+        context: &Context,
+        #[graphql(description = "Values for metric source to be created")] data: NewMetricSource,
+    ) -> FieldResult<MetricSource> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_source(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric source's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of enabled, defaultLookbackDays and defaultFinalizationDelayDays, not a partial patch; the code, acquisitionType and driverKey cannot be changed. A request that matches the stored values changes nothing and records no audit entry. Any real change records one before/after audit entry atomically"
+    )]
+    fn update_metric_source(
+        context: &Context,
+        #[graphql(description = "Values for metric source to be updated")] data: PatchMetricSource,
+    ) -> FieldResult<MetricSource> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_source(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new metric source account, referencing its source and platform by their exact stable codes and supplying its closed typed configuration. Superuser only. Records one before/after audit entry atomically with the creation. Creating an account starts, schedules and collects nothing"
+    )]
+    fn create_metric_source_account(
+        context: &Context,
+        #[graphql(description = "Values for metric source account to be created")]
+        data: NewMetricSourceAccount,
+    ) -> FieldResult<MetricSourceAccount> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| create_metric_source_account(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric source account's mutable values, selected by its exact stable code. Superuser only. This is a complete replacement of configuration and enabled, not a partial patch; the code, source, platform, externalKey and expectedPublisherId cannot be changed. A request that matches the stored values changes nothing and records no audit entry. An account whose stored configuration is outside the supported representations is neither updated nor audited"
+    )]
+    fn update_metric_source_account(
+        context: &Context,
+        #[graphql(description = "Values for metric source account to be updated")]
+        data: PatchMetricSourceAccount,
+    ) -> FieldResult<MetricSourceAccount> {
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_source_account(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
     }
 }
