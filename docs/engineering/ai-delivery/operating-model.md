@@ -319,7 +319,9 @@ Implementation cannot enter review until:
 
 ### Gate 4 - Independent review
 
-The independent reviewer applies `independent-review-template.md`.
+The independent reviewer applies `independent-review-template.md`. HIGH and
+CRITICAL work needs two independent `APPROVED` reviews at the same head
+(section 9.2).
 
 Narrative claims do not replace inspection of code, migrations and test evidence.
 
@@ -329,8 +331,9 @@ carry forward and fresh review is required.
 
 The one exception is a pure-merge refresh. When `refresh_check.py` proves that
 the new head is only the reviewed head merged with the target tip, the light
-re-check under `parallel-landing.md` section 5 is the fresh exact-head review
-for the new head, subject to `parallel-landing.md` section 6. Any other head
+re-check under `parallel-landing.md` section 5 stands in for every required
+exact-head review at the new head (both, for HIGH), subject to
+`parallel-landing.md` section 6. Any other head
 change needs a full fresh review.
 
 Do not create a commit solely to copy a review decision or approval identifier

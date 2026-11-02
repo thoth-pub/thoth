@@ -38,7 +38,7 @@ Medium reasoning is acceptable only for contained low-risk changes with strong e
 
 ## 3. Independent review
 
-The reviewer is always a fresh instance that did not scope or implement the change. HIGH and CRITICAL work gets two independent reviews on two different models (section 6). Neither reviewer sees the other's ruling before giving its own.
+The reviewer is always a fresh instance that did not implement the change. HIGH and CRITICAL work gets two independent reviews on two different models (section 6). Neither reviewer sees the other's ruling before giving its own.
 
 No gate depends on an automatic third-party reviewer such as Codex. Where one is installed its findings are advisory: answer a P0 or P1 before merging, but never wait for a result.
 
@@ -56,7 +56,7 @@ Do not bias the first review with the implementer's narrative justification unle
 
 ## 4. Dual review
 
-Require two independent reviews for critical tasks involving:
+Two independent reviews are standard for every HIGH and CRITICAL task (section 6). They are always required for tasks involving:
 
 - destructive migration;
 - canonical historical recomputation;
