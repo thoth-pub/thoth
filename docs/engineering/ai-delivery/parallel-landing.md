@@ -59,14 +59,15 @@ When check 3, 4 or 5 fails, or the only conflict is in `CHANGELOG.md`, refresh t
 
 1. Merge the target tip into the PR branch. The commit is authored and committed as Javi. It makes no other change. The first parent is the reviewed head and the second parent is the target tip.
 2. In `thoth-pub/thoth` a conflict only in `CHANGELOG.md` is resolved by keeping both sides' entries (decision D5).
-3. Run `.github/scripts/refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new>`. `PURE` means:
+3. Run `.github/scripts/refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new> --target <ref>`. `PURE` means:
+   - the target tip is an ancestor of (or equal to) the target ref;
    - the parents are the reviewed head and the target tip, in that order;
    - the new head's tree equals `git merge-tree --write-tree` of those parents;
    - if `CHANGELOG.md` merged cleanly, no difference at all is allowed;
    - if `CHANGELOG.md` conflicted (decision D5, thoth only), the new file must be byte-identical to `git merge-file -p --union` of the reviewed, base and target versions, in either side order, and must have no conflict markers.
 4. On `PURE`, a Haiku light re-check of the overlapping files, including rename destinations, posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. This counts as the fresh exact-head review for the new head (decision D2).
 5. A CTO merge authorization for the reviewed head carries over to a pure-merge refresh (decision D2). It carries over to nothing else.
-6. Rerun the land-check on the new head: `--reviewed <new> --head <new> --target <ref>`. For HIGH and CRITICAL work add `--authorized <old> --refreshed-from <old>`. The script then accepts the head only if `refresh_check` logic returns `PURE` for `<old>` to `<new>`. In a chain of refreshes, `<old>` is the immediately previous head (the authorized head or a head already proved `PURE`), and each step needs its own `PURE` record. Do not pass the new SHA as `--authorized`.
+6. Rerun the land-check on the new head: `land_check.py --reviewed <new> --head <new> --authorized <MERGE AUTH sha> --target <ref>`. `--authorized` is always the SHA the CTO authorized (HIGH and CRITICAL). When the head differs from it, the script walks first parents from the head back to the authorized SHA, at most 20 steps. Each step must be a two-parent merge whose second parent is on the target and which `refresh_check` rates `PURE`. If the walk does not reach the authorized SHA exactly, check 1 fails. On success check 1 prints the chain (authorized SHA, then each refresh head with its target parent). Paste it into the `LANDED` evidence.
 7. Then land.
 
 On `NOT PURE`, treat the new head as a changed head. Review it fully.

@@ -55,7 +55,7 @@ If the spec gates its own merge on the CTO, that gate applies at any risk.
 
 1. Run `python3 .github/scripts/land_check.py --reviewed <sha> --head <sha> --target <ref> [--authorized <sha>]`. It uses git only.
 2. `PASS` (exit 0): merge the reviewed head with the PR merge API and the expected `sha`. Then post `LANDED`.
-3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. Re-run the land-check with `--reviewed <new> --head <new> --authorized <old> --refreshed-from <old>` (HIGH and CRITICAL; each refresh step needs its own `PURE`).
+3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new> --target <ref>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. Re-run `land_check.py --reviewed <new> --head <new> --authorized <MERGE AUTH sha> --target <ref>` (HIGH and CRITICAL). The script proves the whole refresh chain back to the authorized SHA and prints it for the `LANDED` evidence.
 4. `FAIL` (exit 20): stop. The head moved or the merge conflicts. Post `HOLD`.
 5. Check 6, CI green at the head and the target tip, is yours to verify on GitHub.
 6. In `thoth-pub/thoth`, a conflict only in `CHANGELOG.md` is resolved by keeping both entries.

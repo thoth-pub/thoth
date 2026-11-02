@@ -245,22 +245,66 @@ class LandCheckTests(Base):
         self.repo.git("commit", "-q", "-m", "refresh")
         return self.repo.sha("HEAD")
 
-    def test_refreshed_from_accepts_pure_refresh(self):
+    def _advance_target(self, files):
+        self.repo.git("checkout", "-q", "target")
+        return self.repo.commit(files, "target2")
+
+    def test_chain_one_step_accepted(self):
         reviewed = self.pr({"src/a.txt": "a2\n"})
         self.target({"src/b.txt": "b2\n"})
         new = self._refresh(reviewed)
         code, out, _ = self.land(new, None, "--authorized", reviewed)
-        self.assertEqual(code, 20, out)
-        code, out, _ = self.land(new, None, "--authorized", reviewed, "--refreshed-from", reviewed)
         self.assertEqual(code, 0, out)
-        self.assertIn("pure-merge refresh", out)
+        self.assertIn("pure-merge refresh chain", out)
+        self.assertIn(reviewed[:12], out)
 
-    def test_refreshed_from_rejects_hand_edited_refresh(self):
+    def test_chain_two_steps_accepted(self):
+        reviewed = self.pr({"src/a.txt": "a2\n"})
+        self.target({"src/b.txt": "b2\n"})
+        n1 = self._refresh(reviewed)
+        self._advance_target({"src/c.txt": "c\n"})
+        n2 = self._refresh(n1)
+        code, out, _ = self.land(n2, None, "--authorized", reviewed)
+        self.assertEqual(code, 0, out)
+        self.assertIn(n1[:12], out)
+
+    def test_chain_two_steps_one_impure_rejected(self):
+        reviewed = self.pr({"src/a.txt": "a2\n"})
+        self.target({"src/b.txt": "b2\n"})
+        n1 = self._refresh(reviewed, {"src/a.txt": "sneaky\n"})
+        self._advance_target({"src/c.txt": "c\n"})
+        n2 = self._refresh(n1)
+        code, out, _ = self.land(n2, None, "--authorized", reviewed)
+        self.assertEqual(code, 20, out)
+
+    def test_hand_edited_refresh_rejected(self):
         reviewed = self.pr({"src/a.txt": "a2\n"})
         self.target({"src/b.txt": "b2\n"})
         new = self._refresh(reviewed, {"src/a.txt": "sneaky\n"})
-        code, out, _ = self.land(new, None, "--authorized", reviewed, "--refreshed-from", reviewed)
+        code, out, _ = self.land(new, None, "--authorized", reviewed)
         self.assertEqual(code, 20, out)
+
+    def test_t1_unauthorized_intermediate_head_rejected(self):
+        a = self.pr({"src/a.txt": "a2\n"})
+        b = self.repo.commit({"src/a.txt": "unauthorized\n"}, "hand edit on A")
+        self.target({"src/b.txt": "b2\n"})
+        c = self._refresh(b)
+        code, out, _ = self.land(c, None, "--authorized", a)
+        self.assertEqual(code, 20, out)
+        self.assertIn("not a two-parent refresh merge", out)
+
+    def test_t2_second_parent_not_on_target_rejected(self):
+        a = self.pr({"src/a.txt": "a2\n"})
+        self.repo.branch("side", self.base)
+        self.repo.commit({"src/s.txt": "new code\n"}, "side")
+        self.target({"src/b.txt": "b2\n"})
+        self.repo.branch("refreshed", a)
+        subprocess.run(["git", "-C", self.tmp, "merge", "--no-ff", "-q", "-m", "m", "side"],
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        c = self.repo.sha("HEAD")
+        code, out, _ = self.land(c, None, "--authorized", a)
+        self.assertEqual(code, 20, out)
+        self.assertIn("not on the target", out)
 
 
 class RefreshCheckTests(Base):
@@ -272,7 +316,7 @@ class RefreshCheckTests(Base):
     def refresh(self, new, reviewed=None, tip=None):
         return run_script(
             REFRESH, self.repo, "--reviewed", reviewed or self.reviewed,
-            "--target-tip", tip or self.tip, "--new-head", new,
+            "--target-tip", tip or self.tip, "--new-head", new, "--target", "target",
         )
 
     def merge(self, branch_from, other, message_files=None, resolve=None):
@@ -363,6 +407,17 @@ class RefreshCheckTests(Base):
         self.assertEqual(code, 20, out)
         self.assertIn("parents", out)
 
+    def test_not_pure_tip_not_on_target(self):
+        self.repo.branch("side", self.base)
+        side = self.repo.commit({"src/s.txt": "s\n"}, "side")
+        self.repo.branch("refreshed", self.reviewed)
+        subprocess.run(["git", "-C", self.tmp, "merge", "--no-ff", "-q", "-m", "m", side],
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        new = self.repo.sha("HEAD")
+        code, out, _ = self.refresh(new, self.reviewed, side)
+        self.assertEqual(code, 20, out)
+        self.assertIn("not on the target", out)
+
     def test_not_pure_single_parent(self):
         self.repo.branch("refreshed", self.reviewed)
         single = self.repo.commit({"src/b.txt": "b2\n"}, "squashed")
@@ -401,7 +456,7 @@ class RefreshCheckTests(Base):
         new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": changelog("pr entry", "target entry")})
         code, out, _ = run_script(
             REFRESH, self.repo, "--reviewed", reviewed, "--target-tip", tip,
-            "--new-head", new, "--no-changelog-union")
+            "--new-head", new, "--target", "target", "--no-changelog-union")
         self.assertEqual(code, 20, out)
 
     def test_not_pure_hand_edit_from_subdirectory(self):
@@ -415,7 +470,8 @@ class RefreshCheckTests(Base):
         edited = self.repo.sha("HEAD")
         proc = subprocess.run(
             [sys.executable, REFRESH, "--repo-dir", os.path.join(self.tmp, "thoth-api"),
-             "--reviewed", self.reviewed, "--target-tip", self.tip, "--new-head", edited],
+             "--reviewed", self.reviewed, "--target-tip", self.tip, "--new-head", edited,
+             "--target", "target"],
             stdout=subprocess.PIPE, text=True)
         self.assertEqual(proc.returncode, 20, proc.stdout)
 

@@ -5,7 +5,6 @@ Usage:
     land_check.py --reviewed <sha> --head <sha> --target <ref>
                   [--authorized <sha>] [--migrations-dir <path>]
                   [--lockfiles <glob,...>] [--repo-dir <path>]
-                  [--refreshed-from <sha>]
                   [--changelog-union | --no-changelog-union]
 
 Runs checks 1 to 5 of docs/engineering/ai-delivery/parallel-landing.md with
@@ -16,10 +15,11 @@ verdict:
     REFRESH  exit 10  check 3, 4 or 5 failed, or only CHANGELOG.md conflicts.
     FAIL     exit 20  check 1 failed, or a conflict outside CHANGELOG.md.
 
---refreshed-from <old>: head may differ from --authorized when head is a pure
-merge refresh of <old> (same rules as refresh_check.py). Pass the immediately
-previous authorized or PURE head; each step of a chain needs its own PURE
-record. --no-changelog-union turns off decision D5 (default on, as in thoth):
+--authorized is always the MERGE AUTH SHA. When head differs from it, the script
+walks first parents from head back to it (at most 20 steps). Each step must be
+a two-parent merge whose second parent is on --target and which refresh_check
+rates PURE. The chain is printed in check 1 for the LANDED evidence.
+--no-changelog-union turns off decision D5 (default on, as in thoth):
 any CHANGELOG.md conflict is then FAIL.
 
 Exit 2 means the script could not run (bad ref, git older than 2.38). That is
@@ -161,6 +161,37 @@ def pr_migration_names(paths: Sequence[str], mig_dir: str) -> List[str]:
     return sorted({n for n in (dated_migration_of(p, mig_dir) for p in paths) if n})
 
 
+MAX_CHAIN = 20
+
+
+def refresh_chain(
+    repo: str, head: str, authorized: str, target: str, changelog_union: bool
+) -> Tuple[bool, str]:
+    """Walk first parents from head to authorized; every step must be PURE."""
+    cur = head
+    chain = [authorized[:12]]
+    steps: List[str] = []
+    for _ in range(MAX_CHAIN):
+        if cur == authorized:
+            for item in reversed(steps):
+                chain.append(item)
+            return True, " -> ".join(chain)
+        _, out = git(repo, "rev-list", "--parents", "-n", "1", cur)
+        parents = out.split()[1:]
+        if len(parents) != 2:
+            return False, "%s is not a two-parent refresh merge" % cur[:12]
+        p1, p2 = parents
+        pure, _, reasons = refresh_check.check_pure(
+            repo, p1, p2, cur, changelog_union, target
+        )
+        if not pure:
+            return False, "%s is not a PURE refresh of %s (%s)" % (
+                cur[:12], p1[:12], "; ".join(reasons))
+        steps.append("%s (target parent %s)" % (cur[:12], p2[:12]))
+        cur = p1
+    return False, "chain from head does not reach authorized within %d steps" % MAX_CHAIN
+
+
 def run(args: argparse.Namespace) -> int:
     require_git_version()
     repo = toplevel(args.repo_dir)
@@ -181,19 +212,11 @@ def run(args: argparse.Namespace) -> int:
     if head != reviewed:
         problems.append("head %s != reviewed %s" % (head[:12], reviewed[:12]))
     if authorized is not None and head != authorized:
-        proved = False
-        if args.refreshed_from:
-            old = resolve(repo, args.refreshed_from)
-            _, rl = git(repo, "rev-list", "--parents", "-n", "1", head)
-            parents = rl.split()[1:]
-            if len(parents) == 2:
-                proved, _, _ = refresh_check.check_pure(
-                    repo, old, parents[1], head, args.changelog_union
-                )
-        if proved:
-            note = " (pure-merge refresh of %s)" % old[:12]
+        ok, detail = refresh_chain(repo, head, authorized, target, args.changelog_union)
+        if ok:
+            note = " (pure-merge refresh chain: %s)" % detail
         else:
-            problems.append("head %s != authorized %s" % (head[:12], authorized[:12]))
+            problems.append("head %s != authorized %s and %s" % (head[:12], authorized[:12], detail))
     if problems:
         fail = True
     print("1 head binding: %s" % ("FAIL (%s)" % "; ".join(problems) if problems else "ok" + note))
@@ -284,7 +307,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--migrations-dir", default=DEFAULT_MIGRATIONS_DIR)
     parser.add_argument("--lockfiles", default=DEFAULT_LOCKFILES)
     parser.add_argument("--repo-dir", default=".")
-    parser.add_argument("--refreshed-from", help="previous authorized or PURE head")
     parser.add_argument("--changelog-union", action=argparse.BooleanOptionalAction, default=True,
                         help="apply decision D5 (thoth only); default on")
     args = parser.parse_args(argv)

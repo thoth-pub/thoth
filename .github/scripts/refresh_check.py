@@ -3,7 +3,7 @@
 
 Usage:
     refresh_check.py --reviewed <sha> --target-tip <sha> --new-head <sha>
-                     [--repo-dir <path>]
+                     --target <ref> [--repo-dir <path>]
 
 Local git only (no network, no GitHub API). Prints one line per check, then:
 
@@ -15,6 +15,8 @@ Options:
     --changelog-union / --no-changelog-union   (default: on, as in thoth)
 
 Checks:
+  0. The target tip is an ancestor of (or equal to) --target. The script does
+     not trust --target-tip on its own.
   1. The new head has exactly two parents: the reviewed head first, the target
      tip second.
   2. The new head's tree equals `git merge-tree --write-tree` of those parents.
@@ -24,6 +26,9 @@ Checks:
      target versions (either side order) and have no conflict markers. When
      CHANGELOG.md merged cleanly, no difference is allowed. With
      --no-changelog-union a CHANGELOG.md conflict is NOT PURE.
+
+The conflict-marker check also rejects a Markdown setext underline (a line of
+exactly `=======`) in CHANGELOG.md. That fails closed.
 
 Exit 2 means the script could not run (bad ref, git older than 2.38).
 The script writes tree objects to the object store; it changes no ref, index
@@ -113,19 +118,33 @@ def union_candidates(repo: str, base: str, reviewed: str, tip: str) -> List[byte
         for ours, theirs in (("reviewed", "tip"), ("tip", "reviewed")):
             proc = subprocess.run(
                 ["git", "merge-file", "-p", "--union", paths[ours], paths["base"], paths[theirs]],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             )
             if proc.returncode >= 0 and proc.returncode < 128:
                 results.append(proc.stdout)
     return results
 
 
+def on_target(repo: str, tip: str, target: str) -> bool:
+    """True when tip is an ancestor of (or equal to) target."""
+    code, _ = git(repo, "merge-base", "--is-ancestor", tip, target, ok=(0, 1))
+    return code == 0
+
+
 def check_pure(
-    repo: str, reviewed: str, tip: str, new: str, changelog_union: bool = True
+    repo: str, reviewed: str, tip: str, new: str, changelog_union: bool = True,
+    target: Optional[str] = None,
 ) -> Tuple[bool, List[str], List[str]]:
     """Return (pure, per-check lines, reasons). Arguments are resolved SHAs."""
     lines: List[str] = []
     reasons: List[str] = []
+
+    if target is not None:
+        if on_target(repo, tip, target):
+            lines.append("0 target tip is on the target: ok")
+        else:
+            reasons.append("target tip %s is not on the target" % tip[:12])
+            lines.append("0 target tip is on the target: FAIL")
 
     _, out = git(repo, "rev-list", "--parents", "-n", "1", new)
     parents = out.split()[1:]
@@ -189,7 +208,8 @@ def run(args: argparse.Namespace) -> int:
     reviewed = resolve(repo, args.reviewed)
     tip = resolve(repo, args.target_tip)
     new = resolve(repo, args.new_head)
-    pure, lines, reasons = check_pure(repo, reviewed, tip, new, args.changelog_union)
+    target = resolve(repo, args.target)
+    pure, lines, reasons = check_pure(repo, reviewed, tip, new, args.changelog_union, target)
     for line in lines:
         print(line)
     if pure:
@@ -206,6 +226,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--reviewed", required=True, help="reviewed head SHA")
     parser.add_argument("--target-tip", required=True, help="target tip SHA")
     parser.add_argument("--new-head", required=True, help="refreshed PR head SHA")
+    parser.add_argument("--target", required=True, help="target ref the tip must be on")
     parser.add_argument("--repo-dir", default=".")
     parser.add_argument("--changelog-union", action=argparse.BooleanOptionalAction, default=True,
                         help="apply decision D5 (thoth only); default on")
