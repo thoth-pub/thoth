@@ -11,15 +11,19 @@ Local git only (no network, no GitHub API). Prints one line per check, then:
                        tip and nothing else.
     NOT PURE  exit 20  at least one check failed; reasons are printed.
 
+Options:
+    --changelog-union / --no-changelog-union   (default: on, as in thoth)
+
 Checks:
   1. The new head has exactly two parents: the reviewed head first, the target
      tip second.
   2. The new head's tree equals `git merge-tree --write-tree` of those parents.
-     The only allowed difference is CHANGELOG.md (decision D5, union
-     resolution). It is accepted only when the new file has no conflict
-     markers, holds every line added on each side since the merge base, and
-     holds no line that is absent from the base, reviewed and target versions.
-     Also, a base line that both sides kept must still be there.
+     The only allowed difference is CHANGELOG.md, and only under decision D5
+     (thoth): when CHANGELOG.md conflicted in the merge, the new file must be
+     byte-identical to `git merge-file -p --union` of the reviewed, base and
+     target versions (either side order) and have no conflict markers. When
+     CHANGELOG.md merged cleanly, no difference is allowed. With
+     --no-changelog-union a CHANGELOG.md conflict is NOT PURE.
 
 Exit 2 means the script could not run (bad ref, git older than 2.38).
 The script writes tree objects to the object store; it changes no ref, index
@@ -29,10 +33,11 @@ or working tree.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
-from typing import List, Optional, Sequence, Set, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 CHANGELOG = "CHANGELOG.md"
 MIN_GIT = (2, 38)
@@ -79,61 +84,59 @@ def resolve(repo: str, rev: str) -> str:
     return out.strip()
 
 
-def file_lines(repo: str, rev: str, path: str) -> List[str]:
-    code, out = git(repo, "show", "%s:%s" % (rev, path), ok=(0, 128))
-    return out.split("\n") if code == 0 else []
+def toplevel(repo: str) -> str:
+    _, out = git(repo, "rev-parse", "--show-toplevel")
+    return out.strip()
 
 
-def nonblank(lines: Sequence[str]) -> Set[str]:
-    return {line for line in lines if line.strip()}
+def git_bytes(repo: str, *args: str) -> Tuple[int, bytes]:
+    proc = subprocess.run(["git", "-C", repo, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return proc.returncode, proc.stdout
 
 
-def changelog_union_problems(
-    base: Sequence[str], reviewed: Sequence[str], target: Sequence[str], new: Sequence[str]
-) -> List[str]:
-    problems: List[str] = []
-    markers = [line for line in new if MARKER.match(line)]
-    if markers:
-        problems.append("CHANGELOG.md has conflict markers")
-    b, r, t, n = nonblank(base), nonblank(reviewed), nonblank(target), nonblank(new)
-    missing_r = (r - b) - n
-    missing_t = (t - b) - n
-    if missing_r:
-        problems.append("CHANGELOG.md lost %d line(s) added by the reviewed head" % len(missing_r))
-    if missing_t:
-        problems.append("CHANGELOG.md lost %d line(s) added by the target" % len(missing_t))
-    foreign = n - (b | r | t)
-    if foreign:
-        problems.append("CHANGELOG.md has %d line(s) found in no input version" % len(foreign))
-    dropped = (b & r & t) - n
-    if dropped:
-        problems.append("CHANGELOG.md dropped %d line(s) both sides kept" % len(dropped))
-    return problems
+def blob(repo: str, rev: str, path: str) -> bytes:
+    code, out = git_bytes(repo, "show", "%s:%s" % (rev, path))
+    return out if code == 0 else b""
 
 
-def run(args: argparse.Namespace) -> int:
-    require_git_version()
-    repo = args.repo_dir
-    reviewed = resolve(repo, args.reviewed)
-    tip = resolve(repo, args.target_tip)
-    new = resolve(repo, args.new_head)
+def union_candidates(repo: str, base: str, reviewed: str, tip: str) -> List[bytes]:
+    """Return git merge-file --union results for both side orders."""
+    import tempfile
+
+    results: List[bytes] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = {}
+        for name, rev in (("base", base), ("reviewed", reviewed), ("tip", tip)):
+            paths[name] = os.path.join(tmp, name)
+            with open(paths[name], "wb") as handle:
+                handle.write(blob(repo, rev, CHANGELOG))
+        for ours, theirs in (("reviewed", "tip"), ("tip", "reviewed")):
+            proc = subprocess.run(
+                ["git", "merge-file", "-p", "--union", paths[ours], paths["base"], paths[theirs]],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            if proc.returncode >= 0 and proc.returncode < 128:
+                results.append(proc.stdout)
+    return results
+
+
+def check_pure(
+    repo: str, reviewed: str, tip: str, new: str, changelog_union: bool = True
+) -> Tuple[bool, List[str], List[str]]:
+    """Return (pure, per-check lines, reasons). Arguments are resolved SHAs."""
+    lines: List[str] = []
     reasons: List[str] = []
 
-    # Check 1: parents.
     _, out = git(repo, "rev-list", "--parents", "-n", "1", new)
     parents = out.split()[1:]
     if parents == [reviewed, tip]:
-        print("1 parents: ok (reviewed head, then target tip)")
+        lines.append("1 parents: ok (reviewed head, then target tip)")
     else:
         reason = "parents are [%s], expected [%s, %s]" % (
-            ", ".join(p[:12] for p in parents),
-            reviewed[:12],
-            tip[:12],
-        )
+            ", ".join(p[:12] for p in parents), reviewed[:12], tip[:12])
         reasons.append(reason)
-        print("1 parents: FAIL (%s)" % reason)
+        lines.append("1 parents: FAIL (%s)" % reason)
 
-    # Check 2: tree equals the merge-tree result.
     code, out = git(
         repo, "merge-tree", "--write-tree", "--name-only", "-z", reviewed, tip, ok=(0, 1)
     )
@@ -145,44 +148,57 @@ def run(args: argparse.Namespace) -> int:
             if part == "":
                 break
             conflicts.append(part)
-    _, out = git(repo, "diff-tree", "-r", "--no-renames", "--name-only", "-z", expected_tree, new + "^{tree}")
+        if not conflicts:
+            reasons.append("merge-tree reported a conflict but named no path")
+    _, out = git(repo, "diff-tree", "-r", "--no-renames", "--name-only", "-z",
+                 expected_tree, new + "^{tree}")
     differing = [p for p in out.split("\0") if p]
-    other_conflicts = [c for c in conflicts if c != CHANGELOG]
-    other_diff = [p for p in differing if p != CHANGELOG]
 
-    tree_ok = True
+    problems: List[str] = []
+    allowed_conflicts = [CHANGELOG] if changelog_union else []
+    other_conflicts = [c for c in conflicts if c not in allowed_conflicts]
     if other_conflicts:
-        tree_ok = False
-        reasons.append("conflict outside CHANGELOG.md: " + ", ".join(other_conflicts))
+        problems.append("conflict that needs hand resolution: " + ", ".join(other_conflicts))
+    other_diff = [p for p in differing if p != CHANGELOG]
     if other_diff:
-        tree_ok = False
-        reasons.append("tree differs from merge result at: " + ", ".join(other_diff))
-    if tree_ok and (CHANGELOG in differing or CHANGELOG in conflicts):
-        _, mb = git(repo, "merge-base", reviewed, tip)
-        base = mb.strip()
-        problems = changelog_union_problems(
-            file_lines(repo, base, CHANGELOG),
-            file_lines(repo, reviewed, CHANGELOG),
-            file_lines(repo, tip, CHANGELOG),
-            file_lines(repo, new, CHANGELOG),
-        )
-        if problems:
-            tree_ok = False
-            reasons.extend(problems)
-        else:
-            print("2 tree equals merge result: ok (CHANGELOG.md differs only by union of both sides)")
-    elif tree_ok:
-        print("2 tree equals merge result: ok")
-    if not tree_ok:
-        print("2 tree equals merge result: FAIL")
+        problems.append("tree differs from merge result at: " + ", ".join(other_diff))
+    note = ""
+    if not problems:
+        if CHANGELOG in conflicts:
+            _, mb = git(repo, "merge-base", reviewed, tip)
+            new_blob = blob(repo, new, CHANGELOG)
+            if any(MARKER.match(l) for l in new_blob.decode("utf-8", "replace").split("\n")):
+                problems.append("CHANGELOG.md has conflict markers")
+            elif new_blob not in union_candidates(repo, mb.strip(), reviewed, tip):
+                problems.append("CHANGELOG.md is not the git merge-file --union of both sides")
+            else:
+                note = " (CHANGELOG.md is the union of both sides)"
+        elif CHANGELOG in differing:
+            problems.append("CHANGELOG.md differs from the clean merge result")
+    if problems:
+        reasons.extend(problems)
+        lines.append("2 tree equals merge result: FAIL")
+    else:
+        lines.append("2 tree equals merge result: ok" + note)
+    return (not reasons), lines, reasons
 
-    if reasons:
-        print("NOT PURE")
-        for reason in reasons:
-            print("  - " + reason)
-        return 20
-    print("PURE")
-    return 0
+
+def run(args: argparse.Namespace) -> int:
+    require_git_version()
+    repo = toplevel(args.repo_dir)
+    reviewed = resolve(repo, args.reviewed)
+    tip = resolve(repo, args.target_tip)
+    new = resolve(repo, args.new_head)
+    pure, lines, reasons = check_pure(repo, reviewed, tip, new, args.changelog_union)
+    for line in lines:
+        print(line)
+    if pure:
+        print("PURE")
+        return 0
+    print("NOT PURE")
+    for reason in reasons:
+        print("  - " + reason)
+    return 20
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -191,6 +207,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--target-tip", required=True, help="target tip SHA")
     parser.add_argument("--new-head", required=True, help="refreshed PR head SHA")
     parser.add_argument("--repo-dir", default=".")
+    parser.add_argument("--changelog-union", action=argparse.BooleanOptionalAction, default=True,
+                        help="apply decision D5 (thoth only); default on")
     args = parser.parse_args(argv)
     try:
         return run(args)

@@ -48,7 +48,11 @@ gh pr merge <number> --merge --match-head-commit <reviewed-sha>
 
 A CTO merge authorization for the reviewed head also covers a pure-merge
 refresh of that head, as proved by `refresh_check.py` (see
-`parallel-landing.md` section 5). It covers no other head.
+`parallel-landing.md` section 5). It covers no other head. `ADR-0005` 4.1(3)
+binds authorization to the exact head; the carry-over is a CTO decision (D2)
+scoped to lifecycle evidence under `ADR-0005` 4.2. The `LANDED` comment and any
+terminal-evidence comment record the authorized head, the `MERGE AUTH`
+reference, every refresh head and each `PURE` result.
 
 The implementing agent must not merge its own PR.
 

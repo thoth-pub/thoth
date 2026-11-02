@@ -41,7 +41,7 @@ Five kinds. Each starts `<KIND> <TASK-ID> @ <sha>: <ruling>` and stays under 15 
 
 | Risk | One grant covers | Merge |
 | --- | --- | --- |
-| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head, CI is green and Codex has no P0 or P1 |
+| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head, CI is green and Codex (where installed) has no P0 or P1 |
 | HIGH | Implementation through `APPROVED` review | SHA-bound CTO `MERGE AUTH`; may be batched per landing window |
 | CRITICAL | As HIGH, with two independent reviews, one cross-family | SHA-bound CTO `MERGE AUTH`; never batched with another CRITICAL |
 
@@ -55,11 +55,13 @@ If the spec gates its own merge on the CTO, that gate applies at any risk.
 
 1. Run `python3 .github/scripts/land_check.py --reviewed <sha> --head <sha> --target <ref> [--authorized <sha>]`. It uses git only.
 2. `PASS` (exit 0): merge the reviewed head with the PR merge API and the expected `sha`. Then post `LANDED`.
-3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. Re-run the land-check.
+3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. Re-run the land-check with `--reviewed <new> --head <new> --authorized <old> --refreshed-from <old>` (HIGH and CRITICAL; each refresh step needs its own `PURE`).
 4. `FAIL` (exit 20): stop. The head moved or the merge conflicts. Post `HOLD`.
 5. Check 6, CI green at the head and the target tip, is yours to verify on GitHub.
 6. In `thoth-pub/thoth`, a conflict only in `CHANGELOG.md` is resolved by keeping both entries.
-7. Migrations land one at a time, in date order. The date is reserved on the Delivery board at grant time.
+7. One lander per repository lands serially. Rerun the land-check if the target tip moved after it ran.
+8. Outside thoth, pass `--no-changelog-union` unless the CTO extended D5.
+9. Migrations land one at a time, in date order. The date is reserved on the Delivery board at grant time.
 
 Do a full re-review of the refresh delta when a conflict was resolved by hand, a migration date changed, the light re-check flags an interaction, or the stage is CRITICAL.
 
@@ -97,5 +99,5 @@ Names evolve. Record model and effort in every `REVIEW` and `LANDED` comment (`m
 - An implementer never approves or merges its own work.
 - Merge is not deployment.
 - Commits are authored and committed as Javier Arias. No AI trailers.
-- PRs are opened under the `ja573` account, so review rulings are COMMENT reviews, not GitHub approvals.
+- Review rulings are COMMENT reviews (`operating-model.md` section 9.1).
 - Stop and post `HOLD` if a step needs an action the grant does not name.

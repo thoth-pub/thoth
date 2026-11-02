@@ -23,8 +23,8 @@ The land-check is a script, not a model run: `.github/scripts/land_check.py`. It
 1. The PR head equals the reviewed SHA. For HIGH and CRITICAL work it also equals the merge-authorized SHA.
 2. The merge into the target is conflict-free.
 3. The PR's changed files and the files changed on the target since the merge base do not overlap. `CHANGELOG.md` is ignored when git merges it cleanly.
-4. The target gained no migration and no dependency lockfile or manifest change since the merge base.
-5. Every migration in the PR still sorts after every migration on the target. An equal date fails.
+4. The target gained no migration and no dependency lockfile or manifest change since the merge base. Any change under the migrations directory to a dated entry counts, even an edit to an existing one. This is deliberately conservative: it costs at most one refresh. Lockfile globs without a slash (for example `Cargo.lock`) match at any depth, because nested lockfiles are real.
+5. Every migration in the PR still sorts after every migration on the target. An equal date fails. Only entries named `YYYYMMDD_*` count as migrations. A PR that modifies or deletes an existing migration is `FAIL`: post `HOLD`, because no refresh can clear it.
 6. CI is green at the reviewed head and at the target tip. The lander checks this on GitHub. The script prints "verify on GitHub; not checked by this script".
 
 Verdicts and exit codes:
@@ -33,7 +33,11 @@ Verdicts and exit codes:
 | --- | --- | --- |
 | `PASS` | 0 | Land the reviewed head. |
 | `REFRESH` | 10 | Check 3, 4 or 5 failed, or the only conflict is in `CHANGELOG.md`. |
-| `FAIL` | 20 | Check 1 failed, or a conflict outside `CHANGELOG.md`. |
+| `FAIL` | 20 | Check 1 failed, a conflict outside `CHANGELOG.md` (or any conflict whose path cannot be read), or a PR edit to an existing migration. |
+
+Decision D5 (a `CHANGELOG.md`-only conflict is a refresh, not a failure) applies to `thoth-pub/thoth`. The scripts default to it (`--changelog-union`). Other repositories pass `--no-changelog-union` unless the CTO extends D5 to them; then any `CHANGELOG.md` conflict is `FAIL`.
+
+Both scripts resolve the repository root with `git rev-parse --show-toplevel`, so they run from any directory of a checkout.
 
 Exit 2 means the script could not run (for example git older than 2.38). It is not a verdict. A re-date under check 5 is a source change, so it needs a full delta review (section 6).
 
@@ -45,7 +49,7 @@ Land the reviewed head with GitHub's PR merge API, passing the reviewed head as 
 
 Merge commits show Javi as author and GitHub as committer. This is accepted under the commit-authorship rule. Nothing is pushed directly to `develop`, `dev`, `main` or `master`.
 
-Merge is not deployment. After landing, post a `LANDED` comment (`operating-model.md` section 9.1).
+Merge is not deployment. After landing, post a `LANDED` comment (`operating-model.md` section 9.1). For HIGH and CRITICAL work it records the authorized head, the `MERGE AUTH` reference, every refresh head and the `PURE` result of each. Any optional terminal-evidence comment records the same.
 
 A red post-merge CI run on the target pauses landings in that repository and goes to the CTO. A revert is its own grant.
 
@@ -58,10 +62,12 @@ When check 3, 4 or 5 fails, or the only conflict is in `CHANGELOG.md`, refresh t
 3. Run `.github/scripts/refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new>`. `PURE` means:
    - the parents are the reviewed head and the target tip, in that order;
    - the new head's tree equals `git merge-tree --write-tree` of those parents;
-   - the one allowed difference is `CHANGELOG.md`, and only when it has no conflict markers, holds every line either side added since the merge base, and holds no line absent from the base, reviewed and target versions.
-4. On `PURE`, a Haiku light re-check of the overlapping files posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. This counts as the fresh exact-head review for the new head (decision D2).
+   - if `CHANGELOG.md` merged cleanly, no difference at all is allowed;
+   - if `CHANGELOG.md` conflicted (decision D5, thoth only), the new file must be byte-identical to `git merge-file -p --union` of the reviewed, base and target versions, in either side order, and must have no conflict markers.
+4. On `PURE`, a Haiku light re-check of the overlapping files, including rename destinations, posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. This counts as the fresh exact-head review for the new head (decision D2).
 5. A CTO merge authorization for the reviewed head carries over to a pure-merge refresh (decision D2). It carries over to nothing else.
-6. Rerun the land-check on the new head. Then land.
+6. Rerun the land-check on the new head: `--reviewed <new> --head <new> --target <ref>`. For HIGH and CRITICAL work add `--authorized <old> --refreshed-from <old>`. The script then accepts the head only if `refresh_check` logic returns `PURE` for `<old>` to `<new>`. In a chain of refreshes, `<old>` is the immediately previous head (the authorized head or a head already proved `PURE`), and each step needs its own `PURE` record. Do not pass the new SHA as `--authorized`.
+7. Then land.
 
 On `NOT PURE`, treat the new head as a changed head. Review it fully.
 
@@ -69,7 +75,7 @@ On `NOT PURE`, treat the new head as a changed head. Review it fully.
 
 Use the stage's review model (`model-selection.md`) on the refresh delta, instead of the light re-check, when any of these holds:
 
-- a conflict was resolved by hand;
+- a conflict was resolved by hand (a `CHANGELOG.md` union under D5 is not a conflict resolved by hand);
 - a migration date must change;
 - the light re-check flags an interaction between the two sides;
 - the stage is CRITICAL.
@@ -81,6 +87,8 @@ The delta is what the refresh changed relative to the reviewed head. Any head th
 1. Migration lane, by migration date, then by age.
 2. Other stages, by age.
 3. After each landing, rerun the land-check on every remaining PR for that repository.
+
+One lander per repository lands serially. The `sha` guard protects only the PR head. If the target tip moved after the land-check ran, rerun the land-check before merging.
 
 ## 8. Limits
 

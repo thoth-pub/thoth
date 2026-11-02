@@ -194,6 +194,74 @@ class LandCheckTests(Base):
         code, out, _ = self.land(head)
         self.assertEqual(code, 20, out)
 
+    def test_fail_edit_existing_migration(self):
+        head = self.pr({"thoth-api/migrations/20260101_v1.0.0/up.sql": "edited\n"})
+        self.target({"src/b.txt": "b2\n"})
+        code, out, _ = self.land(head)
+        self.assertEqual(code, 20, out)
+        self.assertIn("HOLD", out)
+
+    def test_non_dated_migration_entry_ignored(self):
+        self.repo.branch("setup", self.base)
+        self.base = self.repo.commit({"thoth-api/migrations/README.md": "r\n"}, "readme")
+        self.repo.branch("pr", self.base)
+        head = self.repo.commit({"thoth-api/migrations/20260301_v1.0.0/up.sql": "y\n"}, "pr")
+        self.repo.branch("target", self.base)
+        self.repo.commit({"thoth-api/migrations/README.md": "r2\n"}, "t")
+        code, out, _ = self.land(head)
+        self.assertEqual(code, 0, out)
+
+    def test_no_changelog_union_makes_changelog_conflict_fail(self):
+        head = self.pr({"CHANGELOG.md": changelog("pr entry")})
+        self.target({"CHANGELOG.md": changelog("target entry")})
+        code, out, _ = self.land(head, None, "--no-changelog-union")
+        self.assertEqual(code, 20, out)
+
+    def test_runs_from_subdirectory_with_diff_relative(self):
+        self.repo.git("config", "diff.relative", "true")
+        sub = os.path.join(self.tmp, "thoth-api")
+        # S1: PR migration date equal to an existing one, run below the root.
+        head = self.pr({"thoth-api/migrations/20260101_v1.1.0/up.sql": "y\n"})
+        self.target({"src/b.txt": "b2\n"})
+        proc = subprocess.run(
+            [sys.executable, LAND, "--repo-dir", sub, "--reviewed", head, "--head", head,
+             "--target", "target"], stdout=subprocess.PIPE, text=True)
+        self.assertEqual(proc.returncode, 10, proc.stdout)
+        # S2: target gains a migration, run below the root with diff.relative.
+        head = self.pr({"src/a.txt": "a2\n"})
+        self.target({"thoth-api/migrations/20260115_v1.0.0/up.sql": "z\n"})
+        proc = subprocess.run(
+            [sys.executable, LAND, "--reviewed", head, "--head", head, "--target", "target"],
+            cwd=sub, stdout=subprocess.PIPE, text=True)
+        self.assertEqual(proc.returncode, 10, proc.stdout)
+
+    def _refresh(self, reviewed, resolve=None):
+        self.repo.branch("refreshed", reviewed)
+        subprocess.run(["git", "-C", self.tmp, "merge", "--no-ff", "--no-commit", "-q", "target"],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if resolve:
+            self.repo.write(resolve)
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "refresh")
+        return self.repo.sha("HEAD")
+
+    def test_refreshed_from_accepts_pure_refresh(self):
+        reviewed = self.pr({"src/a.txt": "a2\n"})
+        self.target({"src/b.txt": "b2\n"})
+        new = self._refresh(reviewed)
+        code, out, _ = self.land(new, None, "--authorized", reviewed)
+        self.assertEqual(code, 20, out)
+        code, out, _ = self.land(new, None, "--authorized", reviewed, "--refreshed-from", reviewed)
+        self.assertEqual(code, 0, out)
+        self.assertIn("pure-merge refresh", out)
+
+    def test_refreshed_from_rejects_hand_edited_refresh(self):
+        reviewed = self.pr({"src/a.txt": "a2\n"})
+        self.target({"src/b.txt": "b2\n"})
+        new = self._refresh(reviewed, {"src/a.txt": "sneaky\n"})
+        code, out, _ = self.land(new, None, "--authorized", reviewed, "--refreshed-from", reviewed)
+        self.assertEqual(code, 20, out)
+
 
 class RefreshCheckTests(Base):
     def setUp(self):
@@ -252,7 +320,7 @@ class RefreshCheckTests(Base):
         new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": changelog("pr entry")})
         code, out, _ = self.refresh(new, reviewed, tip)
         self.assertEqual(code, 20, out)
-        self.assertIn("lost", out)
+        self.assertIn("not the git merge-file --union", out)
 
     def test_not_pure_changelog_foreign_line(self):
         reviewed = self.pr({"CHANGELOG.md": changelog("pr entry")})
@@ -261,7 +329,7 @@ class RefreshCheckTests(Base):
         new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": union})
         code, out, _ = self.refresh(new, reviewed, tip)
         self.assertEqual(code, 20, out)
-        self.assertIn("no input version", out)
+        self.assertIn("not the git merge-file --union", out)
 
     def test_not_pure_hand_edit(self):
         self.repo.branch("refreshed2", self.reviewed)
@@ -301,6 +369,55 @@ class RefreshCheckTests(Base):
         code, out, _ = self.refresh(single)
         self.assertEqual(code, 20, out)
         self.assertIn("1 parents: FAIL", out)
+
+    def test_not_pure_changelog_edit_on_clean_merge(self):
+        # C1/C5: CHANGELOG.md merged cleanly, so any difference is a hand edit.
+        base_cl = "# Changelog\n## [Unreleased]\n### Added\n  - old entry\n## [1.0.0]\n### Added\n  - released\n"
+        self.repo.branch("setup", self.base)
+        self.base = self.repo.commit({"CHANGELOG.md": base_cl}, "cl")
+        reviewed = self.pr({"CHANGELOG.md": base_cl.replace("  - old entry\n", "  - pr entry\n  - old entry\n")})
+        tip = self.target({"src/b.txt": "b3\n"})
+        moved = base_cl.replace("  - released\n", "  - released\n  - pr entry\n")
+        new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": moved})
+        code, out, _ = self.refresh(new, reviewed, tip)
+        self.assertEqual(code, 20, out)
+        self.assertIn("CHANGELOG.md differs from the clean merge", out)
+
+    def test_not_pure_changelog_permuted_or_duplicated(self):
+        # C2/C3: right lines, wrong order or duplicated headings.
+        reviewed = self.pr({"CHANGELOG.md": changelog("pr entry")})
+        tip = self.target({"CHANGELOG.md": changelog("target entry")})
+        for bad in (
+            "  - old entry\n### Added\n## [Unreleased]\n# Changelog\n  - pr entry\n  - target entry\n",
+            changelog("pr entry", "target entry") + "### Added\n  - pr entry\n",
+        ):
+            new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": bad})
+            code, out, _ = self.refresh(new, reviewed, tip)
+            self.assertEqual(code, 20, out)
+
+    def test_not_pure_when_changelog_union_disabled(self):
+        reviewed = self.pr({"CHANGELOG.md": changelog("pr entry")})
+        tip = self.target({"CHANGELOG.md": changelog("target entry")})
+        new = self.merge(reviewed, tip, resolve={"CHANGELOG.md": changelog("pr entry", "target entry")})
+        code, out, _ = run_script(
+            REFRESH, self.repo, "--reviewed", reviewed, "--target-tip", tip,
+            "--new-head", new, "--no-changelog-union")
+        self.assertEqual(code, 20, out)
+
+    def test_not_pure_hand_edit_from_subdirectory(self):
+        self.repo.git("config", "diff.relative", "true")
+        subprocess.run(
+            ["git", "-C", self.repo.path, "merge", "--no-ff", "--no-commit", "-q", self.tip],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.repo.write({"src/a.txt": "sneaky\n"})
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "x")
+        edited = self.repo.sha("HEAD")
+        proc = subprocess.run(
+            [sys.executable, REFRESH, "--repo-dir", os.path.join(self.tmp, "thoth-api"),
+             "--reviewed", self.reviewed, "--target-tip", self.tip, "--new-head", edited],
+            stdout=subprocess.PIPE, text=True)
+        self.assertEqual(proc.returncode, 20, proc.stdout)
 
 
 if __name__ == "__main__":

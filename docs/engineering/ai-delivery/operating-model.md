@@ -330,7 +330,8 @@ carry forward and fresh review is required.
 The one exception is a pure-merge refresh. When `refresh_check.py` proves that
 the new head is only the reviewed head merged with the target tip, the light
 re-check under `parallel-landing.md` section 5 is the fresh exact-head review
-for the new head. Any other head change needs a full fresh review.
+for the new head, subject to `parallel-landing.md` section 6. Any other head
+change needs a full fresh review.
 
 Do not create a commit solely to copy a review decision or approval identifier
 into the repository. That moves the head and invalidates the very review it
@@ -516,8 +517,11 @@ Gate decisions are comments of five kinds. Each starts
 | `GRANT` | CTO or control role | The bundle granted, the action list and the reserved migration date. |
 | `REVIEW` | Independent reviewer | `APPROVED`, `CHANGES REQUIRED` or `BLOCKED`, the model and effort, and findings by severity. |
 | `MERGE AUTH` | CTO | Merge authorization for the exact head. |
-| `LANDED` | Lander | The merge commit, post-merge CI and the model and effort. |
+| `LANDED` | Lander | The merge commit, post-merge CI and the model and effort. For HIGH and CRITICAL work also the authorized head, the `MERGE AUTH` reference, every refresh head and each `PURE` result. |
 | `HOLD` | Anyone | The reason work stopped and what releases it. |
+
+PRs are opened under the `ja573` account, so independent review rulings are
+posted as COMMENT reviews, not GitHub approvals.
 
 A pinned Delivery board issue in `thoth-pub/thoth` lists every active stage
 across repositories, with its state, PR and reserved migration date.

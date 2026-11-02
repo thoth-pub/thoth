@@ -5,6 +5,8 @@ Usage:
     land_check.py --reviewed <sha> --head <sha> --target <ref>
                   [--authorized <sha>] [--migrations-dir <path>]
                   [--lockfiles <glob,...>] [--repo-dir <path>]
+                  [--refreshed-from <sha>]
+                  [--changelog-union | --no-changelog-union]
 
 Runs checks 1 to 5 of docs/engineering/ai-delivery/parallel-landing.md with
 local git only (no network, no GitHub API). Prints one line per check, then a
@@ -13,6 +15,12 @@ verdict:
     PASS     exit 0   all checks hold; guarded merge of the reviewed head.
     REFRESH  exit 10  check 3, 4 or 5 failed, or only CHANGELOG.md conflicts.
     FAIL     exit 20  check 1 failed, or a conflict outside CHANGELOG.md.
+
+--refreshed-from <old>: head may differ from --authorized when head is a pure
+merge refresh of <old> (same rules as refresh_check.py). Pass the immediately
+previous authorized or PURE head; each step of a chain needs its own PURE
+record. --no-changelog-union turns off decision D5 (default on, as in thoth):
+any CHANGELOG.md conflict is then FAIL.
 
 Exit 2 means the script could not run (bad ref, git older than 2.38). That is
 not a verdict. Check 6 (CI) is not checked here; verify it on GitHub.
@@ -25,10 +33,14 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import os
 import re
 import subprocess
 import sys
 from typing import List, Optional, Sequence, Tuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import refresh_check  # noqa: E402
 
 CHANGELOG = "CHANGELOG.md"
 DEFAULT_MIGRATIONS_DIR = "thoth-api/migrations"
@@ -74,13 +86,18 @@ def require_git_version() -> None:
         )
 
 
+def toplevel(repo: str) -> str:
+    _, out = git(repo, "rev-parse", "--show-toplevel")
+    return out.strip()
+
+
 def resolve(repo: str, rev: str) -> str:
     _, out = git(repo, "rev-parse", "--verify", "--quiet", rev + "^{commit}")
     return out.strip()
 
 
 def changed_paths(repo: str, base: str, tip: str) -> List[str]:
-    _, out = git(repo, "diff", "--name-only", "--no-renames", "-z", base, tip)
+    _, out = git(repo, "diff", "--no-relative", "--name-only", "--no-renames", "-z", base, tip)
     return [p for p in out.split("\0") if p]
 
 
@@ -110,13 +127,18 @@ def glob_match(path: str, pattern: str) -> bool:
     return False
 
 
+DATED = re.compile(r"^\d{8}_")
+
+
 def migration_names(repo: str, rev: str, mig_dir: str) -> List[str]:
     code, out = git(
-        repo, "ls-tree", "--name-only", "-z", rev, mig_dir.rstrip("/") + "/", ok=(0, 128)
+        repo, "ls-tree", "--full-tree", "--name-only", "-z", rev,
+        mig_dir.rstrip("/") + "/", ok=(0, 128),
     )
     if code != 0:
         return []
-    return [p.rsplit("/", 1)[-1] for p in out.split("\0") if p]
+    names = [p.rsplit("/", 1)[-1] for p in out.split("\0") if p]
+    return [n for n in names if DATED.match(n)]
 
 
 def migration_date(name: str) -> str:
@@ -127,15 +149,21 @@ def under(path: str, directory: str) -> bool:
     return path.startswith(directory.rstrip("/") + "/")
 
 
-def pr_migration_names(paths: Sequence[str], mig_dir: str) -> List[str]:
+def dated_migration_of(path: str, mig_dir: str) -> Optional[str]:
     prefix = mig_dir.rstrip("/") + "/"
-    names = {p[len(prefix):].split("/", 1)[0] for p in paths if p.startswith(prefix)}
-    return sorted(names)
+    if not path.startswith(prefix):
+        return None
+    name = path[len(prefix):].split("/", 1)[0]
+    return name if DATED.match(name) else None
+
+
+def pr_migration_names(paths: Sequence[str], mig_dir: str) -> List[str]:
+    return sorted({n for n in (dated_migration_of(p, mig_dir) for p in paths) if n})
 
 
 def run(args: argparse.Namespace) -> int:
     require_git_version()
-    repo = args.repo_dir
+    repo = toplevel(args.repo_dir)
     reviewed = resolve(repo, args.reviewed)
     head = resolve(repo, args.head)
     target = resolve(repo, args.target)
@@ -149,19 +177,36 @@ def run(args: argparse.Namespace) -> int:
 
     # Check 1: head equals the reviewed SHA (and the authorized SHA, if given).
     problems = []
+    note = ""
     if head != reviewed:
         problems.append("head %s != reviewed %s" % (head[:12], reviewed[:12]))
     if authorized is not None and head != authorized:
-        problems.append("head %s != authorized %s" % (head[:12], authorized[:12]))
+        proved = False
+        if args.refreshed_from:
+            old = resolve(repo, args.refreshed_from)
+            _, rl = git(repo, "rev-list", "--parents", "-n", "1", head)
+            parents = rl.split()[1:]
+            if len(parents) == 2:
+                proved, _, _ = refresh_check.check_pure(
+                    repo, old, parents[1], head, args.changelog_union
+                )
+        if proved:
+            note = " (pure-merge refresh of %s)" % old[:12]
+        else:
+            problems.append("head %s != authorized %s" % (head[:12], authorized[:12]))
     if problems:
         fail = True
-    print("1 head binding: %s" % ("FAIL (%s)" % "; ".join(problems) if problems else "ok"))
+    print("1 head binding: %s" % ("FAIL (%s)" % "; ".join(problems) if problems else "ok" + note))
 
     # Check 2: conflict-free merge.
     clean, conflicts = merge_conflicts(repo, head, target)
-    other = [c for c in conflicts if c != CHANGELOG]
+    allowed = [CHANGELOG] if args.changelog_union else []
+    other = [c for c in conflicts if c not in allowed]
     if clean:
         print("2 conflict-free merge: ok")
+    elif not conflicts:
+        fail = True
+        print("2 conflict-free merge: FAIL (conflict reported but no path named)")
     elif not other:
         refresh = True
         print("2 conflict-free merge: REFRESH (only %s conflicts; union resolution)" % CHANGELOG)
@@ -184,7 +229,7 @@ def run(args: argparse.Namespace) -> int:
     gained = sorted(
         p
         for p in target_files
-        if under(p, args.migrations_dir) or any(glob_match(p, g) for g in lockfiles)
+        if dated_migration_of(p, args.migrations_dir) or any(glob_match(p, g) for g in lockfiles)
     )
     if gained:
         refresh = True
@@ -194,8 +239,16 @@ def run(args: argparse.Namespace) -> int:
 
     # Check 5: PR migrations sort after every target migration.
     mine = pr_migration_names(pr_files, args.migrations_dir)
+    existing = set(migration_names(repo, base, args.migrations_dir))
+    edited = [n for n in mine if n in existing]
     theirs = migration_names(repo, target, args.migrations_dir)
-    if not mine:
+    if edited:
+        fail = True
+        print(
+            "5 migration order: FAIL (PR modifies existing migration %s; HOLD, "
+            "a refresh cannot clear this)" % ", ".join(edited)
+        )
+    elif not mine:
         print("5 migration order: ok (PR adds no migration)")
     else:
         newest: Optional[str] = max((migration_date(n) for n in theirs), default=None)
@@ -231,6 +284,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--migrations-dir", default=DEFAULT_MIGRATIONS_DIR)
     parser.add_argument("--lockfiles", default=DEFAULT_LOCKFILES)
     parser.add_argument("--repo-dir", default=".")
+    parser.add_argument("--refreshed-from", help="previous authorized or PURE head")
+    parser.add_argument("--changelog-union", action=argparse.BooleanOptionalAction, default=True,
+                        help="apply decision D5 (thoth only); default on")
     args = parser.parse_args(argv)
     try:
         return run(args)
