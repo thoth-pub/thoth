@@ -1,6 +1,6 @@
 # Delivery Quickstart
 
-Status: APPROVED by the CTO (decisions D1-D5, #995)
+Status: APPROVED by the CTO (decisions D1-D5, #995; E1-E3, #1000)
 Owner: CTO
 
 Read this first. It is a summary, not a replacement. When it and a full document differ, the full document wins.
@@ -23,9 +23,11 @@ Base:      <repo> <branch> @ <sha>  ->  <target>
 PR:        <number or none> · branch <name>
 Surface:   <declared write surface> · Migration date: <date or none>
 Grant:     <bundle and risk>
-Review:    <state> · Codex: <state>
+Review:    <state> · Advisory bots: <state or none>
 Next:      <next action> · Owner: <who>
 ```
+
+The Delivery board is a pinned issue in the private `thoth-pub/infrastructure` repository. Stage issues stay in their own repositories; a public stage issue links to the board and never copies private detail from it.
 
 ## 3. Gate comments
 
@@ -41,13 +43,15 @@ Five kinds. Each starts `<KIND> <TASK-ID> @ <sha>: <ruling>` and stays under 15 
 
 | Risk | One grant covers | Merge |
 | --- | --- | --- |
-| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head, CI is green and Codex (where installed) has no P0 or P1 |
-| HIGH | Implementation through `APPROVED` review | SHA-bound CTO `MERGE AUTH`; may be batched per landing window |
-| CRITICAL | As HIGH, with two independent reviews, one cross-family | SHA-bound CTO `MERGE AUTH`; never batched with another CRITICAL |
+| LOW, MEDIUM | Implementation through guarded merge | Once review is `APPROVED` at the head and CI is green |
+| HIGH | Implementation through two independent `APPROVED` reviews at the same head | SHA-bound CTO `MERGE AUTH`; may be batched per landing window |
+| CRITICAL | As HIGH, with the Opus review at max effort | SHA-bound CTO `MERGE AUTH`; never batched with another CRITICAL |
 
 Never bundled, each needs its own explicit grant: release or tag; deployment; migration runs outside CI; production activation; provider reads or writes; secrets; direct pushes to `develop`, `dev`, `main` or `master`; force-push; a new integration branch; a change to an approved ADR; growth of scope or write surface.
 
 If the spec gates its own merge on the CTO, that gate applies at any risk.
+
+No gate waits for Codex or another automatic reviewer. Where one is installed it is advisory: answer a P0 or P1 it posts before merging, but never wait for a result.
 
 ## 5. Landing
 
@@ -55,7 +59,7 @@ If the spec gates its own merge on the CTO, that gate applies at any risk.
 
 1. Run `python3 .github/scripts/land_check.py --reviewed <sha> --head <sha> --target <ref> [--authorized <sha>]`. It uses git only.
 2. `PASS` (exit 0): merge the reviewed head with the PR merge API and the expected `sha`. Then post `LANDED`.
-3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new> --target <ref>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. Re-run `land_check.py --reviewed <new> --head <new> --authorized <MERGE AUTH sha> --target <ref>` (HIGH and CRITICAL). The script proves the whole refresh chain back to the authorized SHA and prints it for the `LANDED` evidence.
+3. `REFRESH` (exit 10): merge the target tip into the PR branch as Javi, with no other change. Run `refresh_check.py --reviewed <old> --target-tip <tip> --new-head <new> --target <ref>`. On `PURE`, a light re-check posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`; for HIGH it stands in for both reviews. Re-run `land_check.py --reviewed <new> --head <new> --authorized <MERGE AUTH sha> --target <ref>` (HIGH and CRITICAL). The script proves the whole refresh chain back to the authorized SHA and prints it for the `LANDED` evidence.
 4. `FAIL` (exit 20): stop. The head moved or the merge conflicts. Post `HOLD`.
 5. Check 6, CI green at the head and the target tip, is yours to verify on GitHub.
 6. In `thoth-pub/thoth`, a conflict only in `CHANGELOG.md` is resolved by keeping both entries.
@@ -78,9 +82,9 @@ Names evolve. Record model and effort in every `REVIEW` and `LANDED` comment (`m
 | Stage orchestrator; LOW and MEDIUM implementation | Sonnet 5.5, medium |
 | HIGH implementation | Opus 5.5, high |
 | CRITICAL implementation | Opus 5.5, max |
-| LOW and MEDIUM review | Fresh Sonnet 5.5, high, plus Codex |
-| HIGH review | Fresh Opus 5.5, high, plus Codex |
-| CRITICAL review | Fresh Opus 5.5 and fresh Fable 5.1, plus Codex |
+| LOW and MEDIUM review | Fresh Sonnet 5.5, high |
+| HIGH review | Fresh Opus 5.5, high, and fresh Fable 5.1, independent |
+| CRITICAL review | Fresh Opus 5.5, max, and fresh Fable 5.1, independent |
 | Land-check, refresh re-check, landing, CI watching, state block and board edits, handoffs | Haiku 5.5, low |
 
 ## 7. Token rules

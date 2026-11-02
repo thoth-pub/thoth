@@ -1,6 +1,6 @@
 # Parallel Landing
 
-Status: APPROVED by the CTO (decisions D1-D5, #995)
+Status: APPROVED by the CTO (decisions D1-D5, #995; E1-E3, #1000)
 Owner: CTO
 
 ## 1. Purpose
@@ -65,7 +65,7 @@ When check 3, 4 or 5 fails, or the only conflict is in `CHANGELOG.md`, refresh t
    - the new head's tree equals `git merge-tree --write-tree` of those parents;
    - if `CHANGELOG.md` merged cleanly, no difference at all is allowed;
    - if `CHANGELOG.md` conflicted (decision D5, thoth only), the new file must be byte-identical to `git merge-file -p --union` of the reviewed, base and target versions, in either side order, and must have no conflict markers.
-4. On `PURE`, a Haiku light re-check of the overlapping files, including rename destinations, posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. This counts as the fresh exact-head review for the new head (decision D2).
+4. On `PURE`, a Haiku light re-check of the overlapping files, including rename destinations, posts `REVIEW <TASK-ID> @ <new sha>: APPROVED (refresh of <old sha>)`. This counts as the fresh exact-head review for the new head (decision D2). For HIGH work this one re-check stands in for both independent reviews: `refresh_check` proves the PR's own content is unchanged, so both `APPROVED` reviews carry over to the new head with it.
 5. A CTO merge authorization for the reviewed head carries over to a pure-merge refresh (decision D2). It carries over to nothing else.
 6. Rerun the land-check on the new head: `land_check.py --reviewed <new> --head <new> --authorized <MERGE AUTH sha> --target <ref>`. `--authorized` is always the SHA the CTO authorized (HIGH and CRITICAL). When the head differs from it, the script walks first parents from the head back to the authorized SHA, at most 20 steps. Each step must be a two-parent merge whose second parent is on the target and which `refresh_check` rates `PURE`. If the walk does not reach the authorized SHA exactly, check 1 fails. On success check 1 prints the chain (authorized SHA, then each refresh head with its target parent). Paste it into the `LANDED` evidence.
 7. Then land.
@@ -74,7 +74,7 @@ On `NOT PURE`, treat the new head as a changed head. Review it fully.
 
 ## 6. Full re-review of the refresh delta
 
-Use the stage's review model (`model-selection.md`) on the refresh delta, instead of the light re-check, when any of these holds:
+Use the stage's review models (`model-selection.md`; both reviewers for HIGH and CRITICAL) on the refresh delta, instead of the light re-check, when any of these holds:
 
 - a conflict was resolved by hand (a `CHANGELOG.md` union under D5 is not a conflict resolved by hand);
 - a migration date must change;
