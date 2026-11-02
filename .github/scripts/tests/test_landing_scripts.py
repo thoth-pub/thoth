@@ -277,6 +277,22 @@ class LandCheckTests(Base):
         code, out, _ = self.land(n2, None, "--authorized", reviewed)
         self.assertEqual(code, 20, out)
 
+    def test_chain_bound_allows_twenty_refreshes_not_twenty_one(self):
+        # parallel-landing.md section 5 step 6: at most 20 refresh steps.
+        reviewed = self.pr({"src/a.txt": "a2\n"})
+        heads = []
+        cur = reviewed
+        for i in range(21):
+            step = self.target if i == 0 else self._advance_target
+            step({"src/c%02d.txt" % i: "c\n"})
+            cur = self._refresh(cur)
+            heads.append(cur)
+        code, out, _ = self.land(heads[19], None, "--authorized", reviewed)
+        self.assertEqual(code, 0, out)
+        code, out, _ = self.land(heads[20], None, "--authorized", reviewed)
+        self.assertEqual(code, 20, out)
+        self.assertIn("within 20 steps", out)
+
     def test_hand_edited_refresh_rejected(self):
         reviewed = self.pr({"src/a.txt": "a2\n"})
         self.target({"src/b.txt": "b2\n"})

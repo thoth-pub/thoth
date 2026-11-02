@@ -1,6 +1,6 @@
 # Branching and Release Workflow
 
-Status: Proposed until merged and approved
+Status: APPROVED by the CTO (status decision 2026-11-02, #998)
 Owner: CTO
 Workflow: GitHub Flow (`ghf`)
 Scope: `thoth-pub/thoth`

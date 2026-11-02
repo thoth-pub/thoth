@@ -173,9 +173,7 @@ def refresh_chain(
     steps: List[str] = []
     for _ in range(MAX_CHAIN):
         if cur == authorized:
-            for item in reversed(steps):
-                chain.append(item)
-            return True, " -> ".join(chain)
+            break
         _, out = git(repo, "rev-list", "--parents", "-n", "1", cur)
         parents = out.split()[1:]
         if len(parents) != 2:
@@ -189,7 +187,10 @@ def refresh_chain(
                 cur[:12], p1[:12], "; ".join(reasons))
         steps.append("%s (target parent %s)" % (cur[:12], p2[:12]))
         cur = p1
-    return False, "chain from head does not reach authorized within %d steps" % MAX_CHAIN
+    if cur != authorized:
+        return False, "chain from head does not reach authorized within %d steps" % MAX_CHAIN
+    chain.extend(reversed(steps))
+    return True, " -> ".join(chain)
 
 
 def run(args: argparse.Namespace) -> int:
