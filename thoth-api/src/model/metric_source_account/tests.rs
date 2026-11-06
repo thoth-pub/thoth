@@ -1162,7 +1162,7 @@ fn create_fails_safely_on_unknown_codes_and_reports_constraint_failures_bounded(
                 expected_publisher_id: Some(Uuid::new_v4()),
                 ..new_account("fourth", "admin_source", "key-4", empty())
             },
-            "The expected publisher of a metric source account must be an existing publisher.",
+            "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
         ),
     ];
     for (label, data, expected) in cases {
@@ -1246,7 +1246,7 @@ fn a_cloudfront_account_requires_an_existing_expected_publisher_at_creation() {
     .expect_err("an unknown publisher must be refused");
     expect_constraint_message(
         &error,
-        "The expected publisher of a metric source account must be an existing publisher.",
+        "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
         "cloudfront with unknown publisher",
     );
     assert_eq!(

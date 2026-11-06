@@ -766,7 +766,7 @@ async fn validation_and_constraint_failures_reach_the_client_bounded_and_sanitis
                 &cloudfront_literal("k5", "b", "p"),
                 "expectedPublisherId: \"5f5f0000-0000-4000-8000-0000000000ff\",",
             ),
-            "The expected publisher of a metric source account must be an existing publisher.",
+            "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
         ),
         (
             "hostname differs from externalKey",
