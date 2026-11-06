@@ -104,13 +104,46 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "metric_source_driver_key_check" => "A DRIVER metric source requires a non-blank driver key, and a non-DRIVER metric source must not carry one.",
     "metric_source_account_code_check" => "Metric source account code must not be an empty string.",
     "metric_source_account_code_key" => "A metric source account with this code already exists.",
-    "metric_source_account_expected_publisher_id_fkey" => "The expected publisher of a metric source account must be an existing publisher.",
+    "metric_source_account_expected_publisher_id_fkey" => "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
     "metric_source_account_external_key_check" => "Metric source account external key must not be an empty string.",
     "metric_source_account_platform_id_fkey" => "The metric platform of a metric source account must be an existing metric platform.",
     "metric_source_account_source_id_external_key_key" => "A metric source account with this external key already exists for this metric source.",
     "metric_source_account_source_id_fkey" => "The metric source of a metric source account must be an existing metric source.",
     "metric_source_registry_history_action_before_state_check" => "Metric source registry history is invalid: a creation must record no previous state and an update must record one.",
     "metric_source_registry_history_actor_check" => "Metric source registry history actor must not be an empty string.",
+    // Metrics foreign keys to legacy parents (MET-WP11-B-LEGACY-FK-ERRORS, #990).
+    // Every Metrics foreign key to `publisher`, `work`, `publication` or
+    // `institution` is `NO ACTION`, so the same constraint name fires both when
+    // a Metrics row is written with a missing parent and when a referenced
+    // parent is deleted, directly or through the legacy `ON DELETE CASCADE`
+    // chain publisher -> imprint -> work -> publication. Each message is
+    // therefore true in both contexts and names only the parent type. Work and
+    // publication share one message because a row that references both may
+    // report either constraint first.
+    // `metric_source_account_expected_publisher_id_fkey` above carries the
+    // same publisher message.
+    "metric_import_publisher_id_fkey" => "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
+    "metric_publisher_platform_approval_publisher_id_fkey" => "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
+    "metric_coverage_run_publisher_id_fkey" => "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.",
+    "metric_record_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_record_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_record_institution_id_fkey" => "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.",
+    "metric_rollup_work_day_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_day_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_day_institution_id_fkey" => "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.",
+    "metric_rollup_work_month_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_month_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_country_month_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_country_month_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_month_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_month_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_month_institution_id_fkey" => "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.",
+    "metric_rollup_work_month_ambiguity_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_country_year_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_country_year_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_year_work_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_year_publication_id_fkey" => "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.",
+    "metric_rollup_work_institution_year_institution_id_fkey" => "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.",
     "file_frontcover_work_unique_idx" => "A frontcover file for this work already exists.",
     "file_object_key_unique_idx" => "A file with this object key already exists.",
     "file_publication_unique_idx" => "A publication file for this publication already exists.",
@@ -460,6 +493,228 @@ mod tests {
                 assert!(
                     !message.contains(leaked),
                     "`{constraint}` message leaks `{leaked}`: {message}"
+                );
+            }
+        }
+    }
+
+    const METRICS_PUBLISHER_FK_MESSAGE: &str = "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.";
+    const METRICS_WORK_OR_PUBLICATION_FK_MESSAGE: &str = "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.";
+    const METRICS_INSTITUTION_FK_MESSAGE: &str = "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.";
+
+    /// The 23 Metrics foreign keys to a legacy parent (`MET-WP11-B-LEGACY-FK-ERRORS`,
+    /// #990), each with the referencing table, the referenced parent table and
+    /// the message its parent group must map to.
+    const METRICS_LEGACY_PARENT_FKS: [(&str, &str, &str, &str); 23] = [
+        (
+            "metric_source_account_expected_publisher_id_fkey",
+            "metric_source_account",
+            "publisher",
+            METRICS_PUBLISHER_FK_MESSAGE,
+        ),
+        (
+            "metric_import_publisher_id_fkey",
+            "metric_import",
+            "publisher",
+            METRICS_PUBLISHER_FK_MESSAGE,
+        ),
+        (
+            "metric_publisher_platform_approval_publisher_id_fkey",
+            "metric_publisher_platform_approval",
+            "publisher",
+            METRICS_PUBLISHER_FK_MESSAGE,
+        ),
+        (
+            "metric_coverage_run_publisher_id_fkey",
+            "metric_coverage_run",
+            "publisher",
+            METRICS_PUBLISHER_FK_MESSAGE,
+        ),
+        (
+            "metric_record_work_id_fkey",
+            "metric_record",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_day_work_id_fkey",
+            "metric_rollup_work_day",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_month_work_id_fkey",
+            "metric_rollup_work_month",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_country_month_work_id_fkey",
+            "metric_rollup_work_country_month",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_month_work_id_fkey",
+            "metric_rollup_work_institution_month",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_month_ambiguity_work_id_fkey",
+            "metric_rollup_work_month_ambiguity",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_country_year_work_id_fkey",
+            "metric_rollup_work_country_year",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_year_work_id_fkey",
+            "metric_rollup_work_institution_year",
+            "work",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_record_publication_id_fkey",
+            "metric_record",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_day_publication_id_fkey",
+            "metric_rollup_work_day",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_month_publication_id_fkey",
+            "metric_rollup_work_month",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_country_month_publication_id_fkey",
+            "metric_rollup_work_country_month",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_month_publication_id_fkey",
+            "metric_rollup_work_institution_month",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_country_year_publication_id_fkey",
+            "metric_rollup_work_country_year",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_year_publication_id_fkey",
+            "metric_rollup_work_institution_year",
+            "publication",
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+        ),
+        (
+            "metric_record_institution_id_fkey",
+            "metric_record",
+            "institution",
+            METRICS_INSTITUTION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_day_institution_id_fkey",
+            "metric_rollup_work_day",
+            "institution",
+            METRICS_INSTITUTION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_month_institution_id_fkey",
+            "metric_rollup_work_institution_month",
+            "institution",
+            METRICS_INSTITUTION_FK_MESSAGE,
+        ),
+        (
+            "metric_rollup_work_institution_year_institution_id_fkey",
+            "metric_rollup_work_institution_year",
+            "institution",
+            METRICS_INSTITUTION_FK_MESSAGE,
+        ),
+    ];
+
+    /// Every Metrics foreign key to a legacy parent maps to its parent group's
+    /// static message in both PostgreSQL contexts: a Metrics row written with a
+    /// missing parent, and a referenced parent being deleted (directly or
+    /// through the legacy cascade chain).
+    #[test]
+    fn metrics_legacy_parent_foreign_keys_map_to_group_messages_in_both_contexts() {
+        let mut per_parent = std::collections::HashMap::new();
+        for (constraint, child, parent, expected) in METRICS_LEGACY_PARENT_FKS {
+            *per_parent.entry(parent).or_insert(0) += 1;
+            let child_write = format!(
+                "insert or update on table \"{child}\" violates foreign key constraint \"{constraint}\""
+            );
+            let parent_delete = format!(
+                "update or delete on table \"{parent}\" violates foreign key constraint \"{constraint}\" on table \"{child}\""
+            );
+            for raw in [child_write, parent_delete] {
+                let raw: &'static str = Box::leak(raw.into_boxed_str());
+                let error = ThothError::from(Error::DatabaseError(
+                    DatabaseErrorKind::ForeignKeyViolation,
+                    error_information(raw, Some(constraint)),
+                ));
+                assert_eq!(
+                    error,
+                    ThothError::DatabaseConstraintError(Cow::Borrowed(expected)),
+                    "`{constraint}` must map to its parent group's message for: {raw}"
+                );
+                assert_eq!(format!("{error}"), expected);
+            }
+        }
+        assert_eq!(per_parent.get("publisher"), Some(&4));
+        assert_eq!(per_parent.get("work"), Some(&8));
+        assert_eq!(per_parent.get("publication"), Some(&7));
+        assert_eq!(per_parent.get("institution"), Some(&4));
+    }
+
+    /// The three Metrics legacy-parent messages carry no identifier, table,
+    /// column, constraint or SQL text.
+    #[test]
+    fn metrics_legacy_parent_messages_leak_no_database_detail() {
+        for message in [
+            METRICS_PUBLISHER_FK_MESSAGE,
+            METRICS_WORK_OR_PUBLICATION_FK_MESSAGE,
+            METRICS_INSTITUTION_FK_MESSAGE,
+        ] {
+            assert!(!message.contains('_'), "message contains `_`: {message}");
+            for leaked in [
+                "metric_",
+                "violates",
+                "foreign key",
+                "constraint",
+                "DETAIL",
+                "table",
+            ] {
+                assert!(
+                    !message.to_lowercase().contains(&leaked.to_lowercase()),
+                    "message leaks `{leaked}`: {message}"
+                );
+            }
+            for (constraint, ..) in METRICS_LEGACY_PARENT_FKS {
+                assert!(!message.contains(constraint));
+            }
+            // No UUID-shaped text: no run of 8 hex digits followed by `-`.
+            let bytes = message.as_bytes();
+            for window in bytes.windows(9) {
+                let looks_like_uuid =
+                    window[..8].iter().all(u8::is_ascii_hexdigit) && window[8] == b'-';
+                assert!(
+                    !looks_like_uuid,
+                    "message contains UUID-shaped text: {message}"
                 );
             }
         }
