@@ -11,13 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Implement the Metrics API, with 20 database migrations for metric platforms, measures, sources, imports, records, coverage and rollups
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Add superuser-only mutations and queries to manage Metrics platforms, measures, sources and source accounts
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Add mutations for a Metrics ingestion service to collect usage data, build rollups and reconcile usage reported against unknown DOIs
-  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add `metricDashboard`, `metricMeasures` and `metricPlatforms` queries for a Metrics read service, with totals and timelines filterable by publisher, imprint, series, work, work type, language and institution
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add `metricDashboard`, `metricMeasures` and `metricPlatforms` queries for a Metrics read service, with totals and timelines filterable by publisher, imprint, series, work, work type, language, and funding or affiliated institution
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Add `METRICS_INGEST_SERVICE` and `METRICS_READ_SERVICE` roles to `thoth zitadel setup`
   - [829](https://github.com/thoth-pub/thoth/pull/829) - Add `thoth publisher-services migration-backfill` command to audit and backfill publisher packages and distribution platforms
-  - Add architecture decision records and the AI-assisted delivery workflow to the engineering documentation
 
 ### Changed
-  - [1004](https://github.com/thoth-pub/thoth/pull/1004) - Prevent deleting a publisher, work, publication or institution that Metrics data refers to, with a clear error message
+  - [984](https://github.com/thoth-pub/thoth/pull/984), [1004](https://github.com/thoth-pub/thoth/pull/1004) - Prevent deleting a publisher, work, publication or institution that Metrics data refers to, with a clear error message
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Upgrade `diesel_derives` to v2.3.10
 
 ### Fixed
