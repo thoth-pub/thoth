@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
+### Added
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Implement the Metrics API, with 20 database migrations for metric platforms, measures, sources, imports, records, coverage and rollups
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add superuser-only mutations and queries to manage Metrics platforms, measures, sources and source accounts
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add mutations for a Metrics ingestion service to collect usage data, build rollups and reconcile usage reported against unknown DOIs
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add `metricDashboard`, `metricMeasures` and `metricPlatforms` queries for a Metrics read service, with totals and timelines filterable by publisher, imprint, series, work, work type, language, and funding or affiliated institution
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Add `METRICS_INGEST_SERVICE` and `METRICS_READ_SERVICE` roles to `thoth zitadel setup`
+  - [829](https://github.com/thoth-pub/thoth/pull/829) - Add `thoth publisher-services migration-backfill` command to audit and backfill publisher packages and distribution platforms
+
+### Changed
+  - [984](https://github.com/thoth-pub/thoth/pull/984), [1004](https://github.com/thoth-pub/thoth/pull/1004) - Prevent deleting a publisher, work, publication or institution that Metrics data refers to, with a clear error message
+  - [984](https://github.com/thoth-pub/thoth/pull/984) - Upgrade `diesel_derives` to v2.3.10
+
+### Fixed
+  - [934](https://github.com/thoth-pub/thoth/pull/934) - Only output accessibility metadata for digital products in Thoth ONIX 3.0 and 3.1, and reject accessibility standards entered in the wrong field
+
 ## [[1.8.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.8.0) - 2026-08-29
 ### Added
   - `API-IMPORT-ORCID-BATCH-01`: additive `contributorsByOrcids(orcids: [Orcid!]!): [Contributor!]!` query resolving a bounded set of ORCIDs to contributors with a single set-based exact-equality lookup, allowing bulk-import clients to avoid one request per ORCID (issue [851](https://github.com/thoth-pub/thoth/issues/851), parent [850](https://github.com/thoth-pub/thoth/issues/850)). Values must be supplied in Thoth's stored representation (`https://orcid.org/XXXX-XXXX-XXXX-XXXX`); matching is exact, so partial identifiers never match, unknown ORCIDs are omitted, and each matching contributor is returned at most once. At most 1000 ORCIDs per request: a larger list returns a clear field error without truncating or querying the database, and an empty list returns `[]` without querying it either. `contributors(filter:)`, `contributor(id:)`, contributor writes, ORCID uniqueness, history and authorization are unchanged.

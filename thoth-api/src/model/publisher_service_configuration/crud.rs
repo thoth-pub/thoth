@@ -325,6 +325,32 @@ fn replace_in_transaction(
     Ok(PublisherServiceConfiguration::new(updated))
 }
 
+/// Every `MIGRATION_BACKFILL` audit row for one publisher, oldest first.
+///
+/// This is a bounded, crate-private **read** helper added for the `MIG-01`
+/// administrative facade's resume classification: it inspects `source`, `actor`,
+/// `before_state` and `after_state` to recognise an application already committed
+/// by an exact reviewed plan. It is deliberately a read only. It adds no second
+/// write path and no external progress journal, and it does not broaden the
+/// canonical write coordinator's semantics or `pub(crate)` visibility.
+///
+/// The append-only history holds at most a handful of `MIGRATION_BACKFILL` rows
+/// per publisher, so this unpaginated read is bounded by design.
+pub(crate) fn migration_backfill_history(
+    connection: &mut PgConnection,
+    publisher_id: Uuid,
+) -> ThothResult<Vec<super::PublisherServiceConfigurationHistory>> {
+    publisher_service_configuration_history::table
+        .filter(publisher_service_configuration_history::publisher_id.eq(publisher_id))
+        .filter(
+            publisher_service_configuration_history::source
+                .eq(PublisherServiceConfigurationSource::MigrationBackfill),
+        )
+        .order(publisher_service_configuration_history::created_at.asc())
+        .load::<super::PublisherServiceConfigurationHistory>(connection)
+        .map_err(Into::into)
+}
+
 /// The requested platform set, deduplicated and closed under linked membership,
 /// in canonical [`DistributionPlatform::ALL`] order.
 ///

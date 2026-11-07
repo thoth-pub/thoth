@@ -1328,3 +1328,281 @@ mod crud {
         }
     }
 }
+
+#[cfg(feature = "backend")]
+mod accessibility_slots {
+    //! The accessibility slot invariant (thoth#893): the primary standard slot holds a WCAG
+    //! standard only, and the additional standard slot an EPUB Accessibility or PDF/UA standard
+    //! only, on every write through the Publication domain boundary.
+    use super::*;
+
+    use crate::model::publication::policy::PublicationPolicy;
+    use crate::model::tests::db::{
+        create_imprint, create_publisher, create_work, setup_test_db, test_context_with_user,
+        test_user_with_role,
+    };
+    use crate::model::work::Work;
+    use crate::model::Crud;
+    use crate::policy::{CreatePolicy, Role, UpdatePolicy};
+    use thoth_errors::ThothError;
+
+    const PRIMARY_STANDARDS: [AccessibilityStandard; 4] = [
+        AccessibilityStandard::Wcag21aa,
+        AccessibilityStandard::Wcag21aaa,
+        AccessibilityStandard::Wcag22aa,
+        AccessibilityStandard::Wcag22aaa,
+    ];
+    const ADDITIONAL_STANDARDS: [AccessibilityStandard; 6] = [
+        AccessibilityStandard::EpubA11y10aa,
+        AccessibilityStandard::EpubA11y10aaa,
+        AccessibilityStandard::EpubA11y11aa,
+        AccessibilityStandard::EpubA11y11aaa,
+        AccessibilityStandard::PdfUa1,
+        AccessibilityStandard::PdfUa2,
+    ];
+    const EXCEPTIONS: [AccessibilityException; 3] = [
+        AccessibilityException::MicroEnterprises,
+        AccessibilityException::DisproportionateBurden,
+        AccessibilityException::FundamentalAlteration,
+    ];
+    /// The invariant is independent of the manifestation: it holds for a digital and a print
+    /// Publication alike.
+    const PUBLICATION_TYPES: [PublicationType; 2] =
+        [PublicationType::Epub, PublicationType::Paperback];
+
+    struct Slots {
+        standard: Option<AccessibilityStandard>,
+        additional: Option<AccessibilityStandard>,
+        exception: Option<AccessibilityException>,
+    }
+
+    fn new_publication(
+        work: &Work,
+        publication_type: PublicationType,
+        slots: &Slots,
+    ) -> NewPublication {
+        NewPublication {
+            publication_type,
+            work_id: work.work_id,
+            isbn: None,
+            width_mm: None,
+            width_in: None,
+            height_mm: None,
+            height_in: None,
+            depth_mm: None,
+            depth_in: None,
+            weight_g: None,
+            weight_oz: None,
+            accessibility_standard: slots.standard,
+            accessibility_additional_standard: slots.additional,
+            accessibility_exception: slots.exception,
+            accessibility_report_url: None,
+        }
+    }
+
+    fn patch_of(publication: &Publication, slots: &Slots) -> PatchPublication {
+        PatchPublication {
+            publication_id: publication.publication_id,
+            publication_type: publication.publication_type,
+            work_id: publication.work_id,
+            isbn: publication.isbn.clone(),
+            width_mm: publication.width_mm,
+            width_in: publication.width_in,
+            height_mm: publication.height_mm,
+            height_in: publication.height_in,
+            depth_mm: publication.depth_mm,
+            depth_in: publication.depth_in,
+            weight_g: publication.weight_g,
+            weight_oz: publication.weight_oz,
+            accessibility_standard: slots.standard,
+            accessibility_additional_standard: slots.additional,
+            accessibility_exception: slots.exception,
+            accessibility_report_url: publication.accessibility_report_url.clone(),
+        }
+    }
+
+    /// Assert that both write entry points of the domain boundary - the create and the update
+    /// policies, and the `validate` they apply - give exactly `expected` for these slots.
+    fn assert_write_boundary(
+        pool: &crate::db::PgPool,
+        ctx: &crate::graphql::Context,
+        existing: &[Publication],
+        work: &Work,
+        slots: &Slots,
+        expected: &ThothResult<()>,
+    ) {
+        for publication_type in PUBLICATION_TYPES {
+            let data = new_publication(work, publication_type, slots);
+            assert_eq!(
+                &data.validate(pool),
+                expected,
+                "create validate: {publication_type}"
+            );
+            assert_eq!(
+                &PublicationPolicy::can_create(ctx, &data, ()),
+                expected,
+                "create policy: {publication_type}"
+            );
+        }
+        for publication in existing {
+            let patch = patch_of(publication, slots);
+            let label = publication.publication_type;
+            assert_eq!(&patch.validate(pool), expected, "patch validate: {label}");
+            assert_eq!(
+                &PublicationPolicy::can_update(ctx, publication, &patch, ()),
+                expected,
+                "patch policy: {label}"
+            );
+        }
+    }
+
+    /// A publisher user, a Work, and one existing Publication of each tested type to patch.
+    fn fixture() -> (
+        crate::model::tests::db::TestDbGuard,
+        std::sync::Arc<crate::db::PgPool>,
+        crate::graphql::Context,
+        Work,
+        Vec<Publication>,
+    ) {
+        let (guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher
+            .zitadel_id
+            .clone()
+            .expect("publisher missing zitadel id");
+        let user = test_user_with_role("accessibility-slot-user", Role::PublisherUser, &org_id);
+        let ctx = test_context_with_user(pool.clone(), user);
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let empty = Slots {
+            standard: None,
+            additional: None,
+            exception: None,
+        };
+        let existing = PUBLICATION_TYPES
+            .into_iter()
+            .map(|publication_type| {
+                Publication::create(
+                    pool.as_ref(),
+                    &new_publication(&work, publication_type, &empty),
+                )
+                .expect("Failed to create publication")
+            })
+            .collect();
+        (guard, pool, ctx, work, existing)
+    }
+
+    #[test]
+    fn every_standard_belongs_to_exactly_one_slot() {
+        for standard in PRIMARY_STANDARDS {
+            assert!(standard.is_primary_standard(), "{standard:?}");
+            assert!(!standard.is_additional_standard(), "{standard:?}");
+        }
+        for standard in ADDITIONAL_STANDARDS {
+            assert!(!standard.is_primary_standard(), "{standard:?}");
+            assert!(standard.is_additional_standard(), "{standard:?}");
+        }
+    }
+
+    #[test]
+    fn every_additional_standard_is_rejected_in_the_primary_slot_on_create_and_patch() {
+        let (_guard, pool, ctx, work, existing) = fixture();
+
+        for standard in ADDITIONAL_STANDARDS {
+            // Alone, beside a valid additional standard, and beside an exception: never accepted.
+            for (additional, exception) in [
+                (None, None),
+                (Some(AccessibilityStandard::PdfUa1), None),
+                (None, Some(AccessibilityException::MicroEnterprises)),
+            ] {
+                let slots = Slots {
+                    standard: Some(standard),
+                    additional,
+                    exception,
+                };
+                assert_write_boundary(
+                    pool.as_ref(),
+                    &ctx,
+                    &existing,
+                    &work,
+                    &slots,
+                    &Err(ThothError::AccessibilityStandardSlotError),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_wcag_standard_is_rejected_in_the_additional_slot_on_create_and_patch() {
+        let (_guard, pool, ctx, work, existing) = fixture();
+
+        for additional in PRIMARY_STANDARDS {
+            // Alone, beside a valid primary standard, and beside an exception: never accepted.
+            for (standard, exception) in [
+                (None, None),
+                (Some(AccessibilityStandard::Wcag21aa), None),
+                (None, Some(AccessibilityException::FundamentalAlteration)),
+            ] {
+                let slots = Slots {
+                    standard,
+                    additional: Some(additional),
+                    exception,
+                };
+                assert_write_boundary(
+                    pool.as_ref(),
+                    &ctx,
+                    &existing,
+                    &work,
+                    &slots,
+                    &Err(ThothError::AccessibilityAdditionalStandardSlotError),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_wrong_value_in_both_slots_is_rejected_for_the_primary_slot_first() {
+        let (_guard, pool, ctx, work, existing) = fixture();
+        let slots = Slots {
+            standard: Some(AccessibilityStandard::EpubA11y11aa),
+            additional: Some(AccessibilityStandard::Wcag22aa),
+            exception: None,
+        };
+
+        assert_write_boundary(
+            pool.as_ref(),
+            &ctx,
+            &existing,
+            &work,
+            &slots,
+            &Err(ThothError::AccessibilityStandardSlotError),
+        );
+    }
+
+    /// The slot invariant decides the slot of a standard, nothing else: it rejects no correctly
+    /// slotted combination - null, alone, together, or beside each EAA exception. Which of these a
+    /// given Publication type may persist remains the pre-existing database rules' decision
+    /// (`check_accessibility_standard_rules`, `check_standard_or_exception`), unchanged here.
+    #[test]
+    fn the_slot_invariant_rejects_no_correctly_slotted_combination() {
+        let (_guard, pool, ctx, work, existing) = fixture();
+        let standards = std::iter::once(None).chain(PRIMARY_STANDARDS.map(Some));
+        let additionals: Vec<_> = std::iter::once(None)
+            .chain(ADDITIONAL_STANDARDS.map(Some))
+            .collect();
+        let exceptions: Vec<_> = std::iter::once(None).chain(EXCEPTIONS.map(Some)).collect();
+
+        for standard in standards {
+            for additional in &additionals {
+                for exception in &exceptions {
+                    let slots = Slots {
+                        standard,
+                        additional: *additional,
+                        exception: *exception,
+                    };
+                    assert_write_boundary(pool.as_ref(), &ctx, &existing, &work, &slots, &Ok(()));
+                }
+            }
+        }
+    }
+}

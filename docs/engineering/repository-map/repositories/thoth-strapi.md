@@ -17,11 +17,15 @@ Private.
 GitHub default/release: `main`
 Active development: `develop`
 Other observed branches: `feature/import-export-plugin`, `feature/series`
-Target-policy state: normalization required if this repository is brought
-under the `develop -> master` target topology in
-`docs/engineering/repository-map/branch-topology.md`; no normalization task is
-authorized by this record. Verify the current branch and PR target directly
-before branching.
+Established `<release-branch>`: `main`, **preserved**
+Target-policy state: under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established
+release/default branch and is preserved, so no release-branch conversion is
+required by the shared target topology in
+`docs/engineering/repository-map/branch-topology.md`. Any future topology or
+readiness work remains separate and must account for this repository's
+publication-capable pull-request workflow recorded under "CI and release"; no
+normalization task is authorized by this record. Verify the current branch and
+PR target directly before branching.
 
 ## Stack
 

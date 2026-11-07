@@ -202,5 +202,14 @@ pub struct ReplacePublisherServiceConfigurationInput {
 
 #[cfg(feature = "backend")]
 pub mod crud;
+/// The `MIG-01` administrative audit/backfill facade.
+///
+/// This is a deliberately narrow, workspace-visible public item, required
+/// because the root `thoth` administrative CLI is a separate Cargo crate. It is
+/// the only public route to the crate-private canonical coordinator for a
+/// `MIGRATION_BACKFILL` write; it exposes no generic configuration writer and no
+/// authorization bypass. See its module documentation.
+#[cfg(feature = "backend")]
+pub mod migration_backfill;
 #[cfg(all(test, feature = "backend"))]
 mod tests;

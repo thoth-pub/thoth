@@ -1,7 +1,7 @@
 # Repository Control Gaps
 
 Status: ACTIVE FINDINGS
-Evidence date: 2026-07-29
+Evidence date: 2026-07-29; CG-03 and CG-04 branch-topology language reconciled 2026-09-09 under `ADR-0011`; CG-04 `metrics-dashboard` development-branch language reconciled 2026-09-21 under `BR-DASH-01C-CONTROL-RECONCILIATION` ([#931](https://github.com/thoth-pub/thoth/issues/931))
 
 ## Foundation closeout
 
@@ -42,13 +42,29 @@ protections and no provisioned runtime. Its `develop` now carrying
 repository-local agent instructions does not make it implementation-ready and
 does not satisfy this gap's closure criteria.
 
-Complete BR-SPHINX-01 (branch normalization) and SPHINX-BOOT-01 (implementation
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and
+is preserved, so BR-SPHINX-01 no longer creates `master` or switches the default
+branch. **That removes a rename, not a gap.** CG-03 remains OPEN in full: branch
+protection for `main` and `develop`, `develop` alignment with the approved
+bootstrap base, repository-local control reconciliation, and the entire
+implementation bootstrap are all still outstanding and unimplemented.
+
+Complete BR-SPHINX-01 (branch readiness) and SPHINX-BOOT-01 (implementation
 bootstrap) before WP6 or driver work. Both remain separate, separately
-authorized and unimplemented tasks.
+authorized and unimplemented tasks, and BR-SPHINX-01 must be re-specified
+against `ADR-0011` once that decision is repository-authoritative.
 
 ### CG-04 - Branch topology differs
 
-Use verified actual branches until normalization or explicit exceptions complete. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
+CG-04 is **OPEN**.
+
+Use verified actual branches until the remaining readiness work or an explicit exception completes. Publisher Services uses standard task branches. Metrics uses repository-local integration branches only after readiness.
+
+Under [`ADR-0011`](../decisions/ADR-0011-preserve-established-release-branch-names.md) the shared target policy standardizes the **role** of the release branch, written `<release-branch>`, not its spelling. Each repository's established release/default branch is preserved: `main` stays `main` and `master` stays `master`, and neither is created, renamed, moved or substituted merely because another repository uses it. Release-branch conversion is therefore **removed** from BR-APP-01, BR-DIS-01, BR-SPHINX-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01.
+
+That narrows what the divergence consists of; it does not close this gap. What remains open and unchanged is the genuinely justified work: development-branch normalization where `dev` is still active (App, widget, Pyramid; not `metrics-dashboard`, see below), branch protection everywhere it is absent, CI filter and coverage gaps under [CG-11](#cg-11---ci-gaps), provider and deployment verification for the Vercel-backed projects, npm and crate publication readiness, and Sphinx bootstrap under [CG-03](#cg-03---thoth-sphinx-is-bootstrap-only). Nor does it lower any task's risk: each risk statement in [`branch-topology.md`](./branch-topology.md) section 5 is reassessed from the task's remaining CI, provider, deployment, publishing and external-write effects, and BR-APP-01, BR-DIS-01, BR-DASH-01 and BR-WIDGET-01 all remain HIGH.
+
+For `metrics-dashboard` the development-branch question is settled rather than open: `dev` is its approved permanent development/integration branch and `main` its release/default branch (`feature/* -> dev -> main`), so no `dev -> develop` normalization is planned. CG-04 remains open for that repository's other work: cleanup of the stale legacy `develop` ref, which is not a workflow branch, has **not** been deleted and may be deleted only under separate authorization; branch protection for `main` and `dev`; Vercel provider verification; and its CI, test and lint gaps under [CG-11](#cg-11---ci-gaps). See [`branch-topology.md`](./branch-topology.md) sections 3.3 and 5.
 
 ### CG-05 - Related repositories lack complete instructions (RESOLVED 2026-08-16)
 
@@ -95,10 +111,10 @@ preserve the merged file rather than add one as though absent.
 This closes the **instruction item only**, for each listed repository, and
 nothing else. In particular it does not close, weaken or make ready:
 
-- CG-03, which remains **OPEN** for Sphinx branch normalization and bootstrap
-  readiness; BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately
-  authorized and unimplemented;
-- branch-topology normalization in any repository, including BR-APP-01,
+- CG-03, which remains **OPEN** for Sphinx branch readiness and bootstrap;
+  BR-SPHINX-01 and SPHINX-BOOT-01 remain separate, separately authorized and
+  unimplemented;
+- branch-topology readiness in any repository, including BR-APP-01,
   BR-DIS-01, BR-DASH-01, BR-WIDGET-01 and BR-LIC-01 (see CG-04);
 - the CG-11 CI gaps, which remain **OPEN** in full apart from the specific
   Pyramid `dev` trigger repair recorded there, or Strapi's Docker/Node CI
@@ -198,9 +214,66 @@ repository integration only and no deployment, migration execution, backfill
 or distribution activation. CG-11 and CG-13 are unchanged by the ADR-01
 implementation, by this closeout and by the BE-02 merge.
 
-### CG-08 - Metrics readiness open
+### CG-08 - Metrics readiness (RESOLVED 2026-08-26 for WP1 entry)
 
-Issue #766 exists. Sphinx normalization/bootstrap, Diesel control, branch readiness and service-role decisions remain prerequisites.
+CG-08 is **RESOLVED for WP1 entry** as of 2026-08-26.
+
+CG-08 was specifically the Thoth WP1 entry-readiness gap: its closure rule was
+that it closes when the whole WP1 entry path is complete. All four entry
+components are now satisfied:
+
+- `MET-CTRL-01` closure (issue
+  [#832](https://github.com/thoth-pub/thoth/issues/832)): **satisfied** — the
+  programme-control reconciliation was delivered through PR
+  [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable from
+  `develop`;
+- the approved shared architecture/schema controls: **satisfied** — ADR-0001
+  and ADR-0002 approved and merged, ADR-0003 repository-authoritative through
+  merged PR [#778](https://github.com/thoth-pub/thoth/pull/778) (CG-12
+  resolved), and ADR-0008 repository-authoritative within its approved scope;
+- separately authorized creation of the repository-local `feature/metrics`
+  integration branch from a verified `develop` head: **satisfied** — the
+  branch exists under the SHA-bound authorization recorded in programme
+  master issue [#766](https://github.com/thoth-pub/thoth/issues/766), with
+  its ref spelling for slice branches governed by
+  [ADR-0009](../decisions/ADR-0009-programme-integration-branch-namespace.md);
+- one approved bounded WP1 child specification: **satisfied** — the
+  `MET-WP1-01` registry-foundation specification (issue
+  [#836](https://github.com/thoth-pub/thoth/issues/836)) was independently
+  reviewed and explicitly CTO-approved.
+
+Two state transitions stay distinct: specification approval satisfied the
+final CG-08 WP1-entry prerequisite and made CG-08 logically resolved, and the
+merge of the bounded `MET-WP1-01` registry-foundation slice into
+`feature/metrics` made WP1 itself `IN PROGRESS` at that point. The later
+Metrics foundation slices were each delivered under their own approved
+specifications; integration of `feature/metrics` into `develop` is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981) through the separately
+gated A -> A2 -> B stages, and every later work package, release, deployment
+and activation remains governed by its own gates.
+
+**Later gates**, owned by their dependent work rather than by WP1 entry,
+remain exactly as recorded:
+
+- `BR-SPHINX-01` / `SPHINX-BOOT-01` gate WP6 and later Sphinx work (see
+  CG-03);
+- client branch/CI readiness (`BR-DASH-01`, `BR-WIDGET-01`, `BR-APP-01`)
+  gates the applicable client-dependent work packages (see CG-04 and CG-11);
+- exact Metrics machine-role codes, permissions/operation matrices and
+  credential/provisioning arrangements are WP5-owned bounded decisions within
+  the ADR-0008 convention;
+- source fixtures and COUNTER mappings gate the applicable
+  drivers/import/migration work (see CG-09);
+- OPERAS inbound completeness gates the applicable WP9/inbound behaviour (see
+  CG-10).
+
+This resolution resolves none of those later gates and weakens no other
+control gap: CG-03, CG-04, CG-09, CG-10, CG-11 and CG-13 remain exactly as
+recorded. This record authorizes no Metrics implementation: the slices
+already merged after `MET-WP1-01` were separately specified, independently
+reviewed and authorized; each #981 integration stage is separately gated and
+requires its applicable specification, independent review and explicit CTO
+action authorization before execution.
 
 ## Production-slice controls
 
@@ -236,7 +309,7 @@ successful post-merge `push` run on `dev`.
 That resolution is about **trigger coverage only**. It does not assert that
 Pyramid's CI coverage is adequate, and it does not close the repository's
 broader CI-quality, formatting, dependency/build or codegen concerns, nor its
-branch normalization, all of which remain separate and open.
+branch readiness, all of which remain separate and open.
 
 ### CG-12 - Thoth schema generation (RESOLVED via Architecture A)
 

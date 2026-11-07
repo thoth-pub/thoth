@@ -9,9 +9,12 @@ Embeddable React/JavaScript metrics package published to npm.
 GitHub default/release: `main`
 Development: `dev`
 CI branch filters: `main`, `dev`
-Target: `develop -> master`
+Established `<release-branch>`: `main`, **preserved**
+Target development branch: `develop`
 
-BR-WIDGET-01 must normalize branch names and preserve release automation.
+Under [`ADR-0011`](../../decisions/ADR-0011-preserve-established-release-branch-names.md) `main` is this repository's established release/default branch and is preserved. No `master` branch is created and no `main` to `master` conversion is required for naming consistency.
+
+BR-WIDGET-01 must complete the remaining readiness — development-branch normalization from `dev` to `develop`, CI filter updates and npm release protection — while preserving release automation. It remains a separate, separately authorized and unimplemented task, and remains HIGH risk because the release path publishes a public package.
 
 ## Stack
 

@@ -2,30 +2,48 @@
 
 Status: ACTIVE
 Owner: CTO
-Last updated: 2026-08-14
+Last updated: 2026-09-30
 
 | ADR | Decision | Status | Programmes | Approval blocker |
 |---|---|---|---|---|
 | `ADR-0001` | Publisher package capability model | APPROVED | Publisher Services, Thoth Metrics, OAI-PMH | Satisfied - CTO approved the final package matrix, OASIS/OBELISK collection distinction and upgrade/downgrade/export semantics on 2026-07-28; independently reviewed PR [#772](https://github.com/thoth-pub/thoth/pull/772) merged into `develop` on 2026-07-29 as `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4` |
 | `ADR-0002` | Distribution and metrics platform domain boundaries | APPROVED | Publisher Services, Thoth Metrics | Satisfied - CTO approved strict type separation and no initial cross-domain mapping on 2026-07-27 through PR [#769](https://github.com/thoth-pub/thoth/pull/769) |
-| `ADR-0003` | Repository-authoritative Diesel schema contract | APPROVED | Shared Repository Controls, Publisher Services, Thoth Metrics | Satisfied - CTO selected Architecture A on 2026-08-05; recorded and implemented with its directly related cleanup by `THOTH-DB-CTRL-02` through PR [#778](https://github.com/thoth-pub/thoth/pull/778). Becomes repository-authoritative on merge into `develop`; the merge remains subject to independent exact-head review and explicit CTO merge authorization |
+| `ADR-0003` | Repository-authoritative Diesel schema contract | APPROVED AND REPOSITORY-AUTHORITATIVE | Shared Repository Controls, Publisher Services, Thoth Metrics | Satisfied - CTO selected Architecture A on 2026-08-05; recorded and implemented with its directly related cleanup by `THOTH-DB-CTRL-02` through PR [#778](https://github.com/thoth-pub/thoth/pull/778), which merged into `develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`, making `ADR-0003` repository-authoritative |
 | `ADR-0004` | Distribution platform inventory | APPROVED AND REPOSITORY-AUTHORITATIVE | Publisher Services | Satisfied - the ADR-0004 and final `DistributionPlatform` inventory content at exact head `44e6f821535fbee56c830dd6eda237fc6d06fbfd` was independently reviewed under review `4881233664` (`APPROVED`) and explicitly approved by Javi, CTO, under review `4881279067` on 2026-08-07, together with the complete [evidence matrix](../../publisher-services/adr-01-evidence-matrix.md) and the approved [final inventory](../../publisher-services/platform-inventory.md). The approval-state head `82874c2bfb0c211198252e4f4a0b669d31e14836` received final independent exact-head review `4881832108` (`APPROVED`) and CTO merge authorization `4881847699`, and ADR-01 implementation PR [#783](https://github.com/thoth-pub/thoth/pull/783) merged into `develop` as `299b0eff3b9ac10cc0a3a7024ab311ddb135b7eb` on 2026-08-07T10:02:34Z, making `ADR-0004` repository-authoritative. `BE-02`'s ADR-01 dependency is satisfied; `BE-02` remains blocked and unauthorized pending its own approved bounded specification and explicit implementation authorization |
 | `ADR-0005` | [Terminal merge evidence and non-recursive closeout](ADR-0005-terminal-merge-evidence.md) | APPROVED | Shared Engineering Control; all programmes using the AI-led delivery controls | Satisfied - CTO-approved Shared Engineering Control decision under [issue #786](https://github.com/thoth-pub/thoth/issues/786), 2026-08-07. Repository-authoritative when the exact approved ADR content is reachable from `develop`; the policy is not effective from an unmerged branch. Live independent-review, merge-authorization, CI and merge evidence is the GitHub pull-request record. Governs lifecycle evidence only: the GitHub review, authorization, CI and merge record is terminal task evidence; approval-state-only commits are prohibited when their sole purpose is copying GitHub review or approval metadata into repository files; no post-merge PR is required merely to record that a PR merged. Every substantive control is retained - exact-head review, no implementer self-approval, guarded merge, HIGH-risk and explicitly gated CTO merge authorization, separate production activation, and bounded PRs for material post-merge corrections. Documentation and control only; no runtime, schema, migration, API, workflow, settings or production effect |
 | `ADR-0006` | [Request-scoped GraphQL batching and set-based child loading](ADR-0006-request-scoped-graphql-batching.md) | SUPERSEDED | Shared Thoth GraphQL / Backend Architecture; Publisher Services and Distribution Configuration; any programme resolving `thoth-api` GraphQL child fields | Superseded by `ADR-0007` (CTO approval 2026-08-11); the A2 look-ahead/store architecture and its batching-specific mutation-guard coupling are no longer the current batching direction, while the section 4.12.6 duplicate-mutation-execution finding remains a live, separately controlled concern. Historical approval record - the CTO explicitly approved the exact `ADR-0006` architecture merged through PR [#789](https://github.com/thoth-pub/thoth/pull/789) on 2026-08-08. Under the ADR authority rule, this decision is repository-authoritative when this approval-state content is reachable from `develop`; a branch carrying `APPROVED` is not authoritative before it merges. The approval covers the final F2 response-key-scoping architecture and the central mutation guard. It does **not** authorize [`THOTH-GQL-BATCH-01`](../ai-delivery/tasks/THOTH-GQL-BATCH-01.md) implementation, which remains `DRAFT` and `NOT AUTHORIZED`, nor either production activation. The ADR carries a **central mutation request guard** rejecting duplicate executable top-level mutation response keys, without which its mutation-isolation invariant does not hold on pinned Juniper. That guard changes the set of accepted GraphQL requests, so it was escalated for the CTO's own decision rather than treated as a consequence of the previously recorded direction; the 2026-08-08 approval covers it explicitly. It carries an explicit `OFF`/`OBSERVE`/`ENFORCE` lifecycle: the foundation would merge with the guard `OFF` and the loader store unavailable, so merge changes no production behaviour and adds no request-path overhead. **Both** `OFF -> OBSERVE` and `OBSERVE -> ENFORCE` require their own explicit CTO production activation approval, distinct from merge authorization and from each other, because in `OBSERVE`/`ENFORCE` the eligibility gate parses and selects an operation for **every** GraphQL request. Production activation is currently BLOCKED pending runtime-operations evidence (open control gap CG-13) and verified monitoring signals and activation thresholds |
 | `ADR-0007` | [Conventional request-scoped GraphQL DataLoader and async resolver execution](ADR-0007-conventional-request-scoped-graphql-dataloader.md) | APPROVED | Shared Thoth GraphQL / Backend Architecture; Publisher Services and Distribution Configuration; Thoth Metrics; any programme resolving `thoth-api` GraphQL child fields | Satisfied - the CTO explicitly approved the exact `ADR-0007` architecture on 2026-08-11, following the independently reviewed `THOTH-GQL-DATALOADER-SPIKE-02` outcome (`APPROVED - B0 FEASIBLE`). `ADR-0007` supersedes `ADR-0006`: the shared batching architecture is the conventional request-scoped **non-cached DataLoader** on the pinned Juniper 0.16.x **async** execution path, with the binding loader-first adoption rule, `try_load`-only access, total batch functions, set-based SQL and the approved blocking Diesel boundary. Under the ADR authority rule, the decision is repository-authoritative only when the exact approved content is independently reviewed and reachable from `develop`; a branch carrying `APPROVED` is not authoritative before it merges. Architecture approval is **not** implementation authorization: no B0 foundation, BE-02 or Metrics implementation is authorized by the approval, and **no production activation of any kind is authorized**. The pinned-Juniper duplicate-top-level-mutation-execution finding is retained as a **separate** GraphQL execution concern whose eventual protection mechanism is dispositioned separately; the mutation guard is neither activated nor removed by this decision |
 | `ADR-0008` | [Machine roles and durable job primitives](ADR-0008-machine-roles-and-durable-job-primitives.md) | APPROVED | Shared Engineering Control / Shared Backend Architecture; Publisher Services; Thoth Metrics; future affected programmes | CTO decision approved 2026-08-14. Machine/service authorization in `thoth` uses dedicated, **least-privilege, domain-specific** project roles; no generic `SERVICE`/`MACHINE`/`WORKER`/`SERVICE_ACCOUNT` catch-all role is established, an unscoped machine role is permitted only for a genuinely global workload, every machine role requires an explicit policy guard, an explicit authorization matrix and least privilege, and `SUPERUSER` authority does not automatically imply machine-role authority. That `SUPERUSER`/machine-role boundary is the whole of what `ADR-0008` decides about how roles relate: it states no general role-composition, role-aggregation or role-inheritance rule, leaving whether one machine role may imply or compose with another to the owning approved authorization matrix or to a later explicit architecture decision. Those requirements are the whole of the approved cross-programme machine-role rule: enumerated permitted-operation lists, enumerated forbidden-operation lists and separate provisioning/credential controls are **not** approved `ADR-0008` architecture, and apply only where existing repository, deployment or identity-provider controls or an adopting task's own approved specification independently require them; `ADR-0008` decides no provisioning mechanism, credential store, rotation policy or identity-provider arrangement. `DISSEMINATION_WORKER` is approved as a **Publisher-Services-specific** machine role for the BE-04/DIS-02 durable distribution workflow; its operation-level authorization matrix remains owned by the BE-04 specification, which still requires its own independent review and approval. Exactly seven durable-job and concurrency conventions are approved — PostgreSQL durability, explicit state machines, database uniqueness, leases, claim tokens, deterministic idempotency and `FOR UPDATE SKIP LOCKED` where justified — as shared **conventions**, creating neither a shared generic job framework nor a reusable cross-programme job API: an approved convention is not a mandatory mechanism, and `SKIP LOCKED` in particular must still be justified by the adopting task. Other concurrency or retry mechanisms remain governed by existing repository controls and the adopting task's own approved specification; they are not approved here as additional cross-programme conventions. BE-04's `distribution_job`, `distribution_job_target` and `distribution_job_attempt` tables, Rust domain types and lifecycle APIs remain **programme-local** and must not be reused by Metrics or another programme by analogy; a future reusable generic job or queue abstraction requires its own explicit cross-programme ADR before implementation. Approved Decision 5 is that this ruling must be recorded in a shared repository ADR before `BE-04` implementation is authorized; separately, and as an existing repository-process control rather than approved decision content, repository authority requires independent exact-head review and merge of the exact approved content into `develop`, and a branch carrying `APPROVED` is not authoritative before it merges. **No implementation authorization follows automatically**: this decision authorizes no runtime, `policy.rs`, machine-role-creation, identity-provider, provisioning, migration, `schema.rs`, GraphQL, worker-deployment, job-creation, deployment or production action. It must be repository-authoritative before `BE-04` implementation may be authorized, and that is a necessary and not a sufficient condition; `BE-04` implementation and Thoth Metrics `WP5` implementation both remain unauthorized, and `WP5` remains `CRITICAL` and `BLOCKED` under WP4 and its own approved bounded slice specifications |
+| `ADR-0009` | [Programme-integration branch namespace](ADR-0009-programme-integration-branch-namespace.md) | APPROVED | Shared Engineering Control; Thoth Metrics; any programme adopting the shared programme-integration workflow | CTO decision approved 2026-08-26 under [issue #837](https://github.com/thoth-pub/thoth/issues/837) (comment `5426997804`), following independent review round 1 `CHANGES REQUIRED` (`5426849829`) and the fresh amended review `APPROVED` (`5426855358`). Programme integration branches remain `feature/<programme>`; `PROGRAMME_INTEGRATION` slice branches are **siblings** spelled `feature/<programme>--<slice>`; `--` is the reserved programme/slice separator and may not appear inside a governed identifier; governed programme, area, slice and task identifiers are non-empty single Git path segments; `STANDARD` task branches remain `feature/<area>/<task>`; and a symmetric fail-closed live namespace preflight is required before any governed ref is created. The descendant form `feature/<programme>/<slice>` is rejected because Git cannot hold a ref and a ref namespace at the same path, which is the exact HTTP 422 failure that blocked #836; the single-hyphen form `feature/<programme>-<slice>` is rejected because `-` is not reserved and recreates the live `metrics` / `metrics-control` collision class. Existing branches are not renamed, deleted or moved, and historical lifecycle evidence is not rewritten. Documentation and control only: no runtime, schema, migration, API, auth, workflow, settings or production effect. Under the repository's existing process controls the decision is repository-authoritative only when this `APPROVED` content receives independent exact-head review and is reachable from `develop`; a branch carrying `APPROVED` is **not** authoritative before it merges. Decision approval is not merge authorization and is not implementation authorization for any consumer: `MET-WP1-01` [#836](https://github.com/thoth-pub/thoth/issues/836) remains HOLD and does not resume from this approval or from merge alone — it requires its own task-specific amendment to `feature/metrics--wp1-registry-foundation`, fresh HOLD-sensitive verification, fresh required review and fresh bounded implementation authorization |
+| `ADR-0010` | [Staff Operations Console and canonical publisher-service operations](ADR-0010-staff-operations-console.md) | APPROVED | Staff Operations Console; Publisher Services and Distribution Configuration; OAI-PMH; Thoth Metrics; shared backend/authorization architecture | Satisfied - Javi, CTO approved the exact written decision on 2026-08-28, and the independently reviewed decision was merged into `develop` through PR [#847](https://github.com/thoth-pub/thoth/pull/847) under programme issue [#846](https://github.com/thoth-pub/thoth/issues/846). Implementation remains separately gated: the decision authorizes no implementation, migration, provider/runtime action, external write, replay, deployment, release or production activation, and every adopting task still requires its own specification, independent review and explicit authorization. |
+| `ADR-0011` | [Preserve established repository release branch names](ADR-0011-preserve-established-release-branch-names.md) | APPROVED | Shared Engineering Control; Thoth Metrics; Publisher Services and Distribution Configuration; any programme using the shared branch-topology controls | CTO decision approved 2026-09-09 under [issue #897](https://github.com/thoth-pub/thoth/issues/897) (comment `5604021690`), following Specification Amendment 1 (`5603738964`) and independent specification review `APPROVED` (`5603985920`); bounded implementation authorization is comment `5604141046`. Shared doctrine standardizes the **role** of the release branch, written `<release-branch>`, not whether it is spelled `main` or `master`. The conceptual flows become `feature/<area>/<task> -> <development-branch> -> <release-branch>` and `feature/<programme>--<slice> -> feature/<programme> -> <development-branch> -> <release-branch>`. Each repository's `<release-branch>` is its own verified established release/default branch: a repository established on `main` remains on `main`, one established on `master` remains on `master`, and neither name may be created, renamed, moved or substituted merely because another repository uses it. `thoth`'s own `develop -> master` flow is unchanged. Changing an established release branch requires a separately scoped repository-local decision justified by something other than naming consistency; development-branch normalization remains independent; and protections, CI, release automation, deployment and publication configuration bind to the verified repository release branch rather than a globally assumed spelling. Removing a rename from a `BR-` readiness task does **not** lower that task's risk, which must be reassessed from its remaining CI, provider, deployment, publishing and external-write effects. `ADR-0009` is unchanged in substance and historical lifecycle evidence is not rewritten. Documentation and control only: no runtime, schema, migration, API, auth, workflow, settings, provider or production effect, and no branch is created, deleted, renamed or moved. Under the repository's existing process controls the decision is repository-authoritative only when this `APPROVED` content receives independent exact-head review and is reachable from `develop`; a branch carrying `APPROVED` is **not** authoritative before it merges. Decision approval is not merge authorization and is not implementation authorization for any consumer: `BR-SPHINX-01` is the immediate consumer and must be re-specified against the authoritative policy, with its own review and authorization |
+| `ADR-0013` | [Programme-integration reliance on approved decisions](ADR-0013-programme-integration-decision-reliance.md) | APPROVED | Shared Engineering Control; THOTH-ASYNC-01 as first intended opt-in consumer; future explicitly adopting programmes | CTO-approved decision dated 2026-09-30. Repository authority remains unchanged: an ADR is repository-authoritative only under its normal authority condition, including reachability from `develop`. ADR-0013 defines a narrower, opt-in programme-integration reliance state for one exact `APPROVED` and independently reviewed ADR version only after that exact version is merged into an explicitly designated `feature/<programme>` integration branch. The mechanism is available only when ADR-0013 itself is `APPROVED`, independently reviewed and repository-authoritative, and the programme has explicitly opted in; existing programmes do not adopt it implicitly or retroactively; every relying task still needs its own specification, exact base, explicit authorization and independent review; cross-repository consumers require pinned preview/dependency evidence; and no migration execution, provider/IAM/runtime action, deployment, release or production activation is authorized by programme-local reliance. |
 
 ## Merge and implementation rules
 
 These ADRs may be committed as part of the engineering-control foundation while `PROPOSED`.
 
-No implementation task may rely on them until:
+By default, no implementation task may rely on an ADR until:
 
 1. the CTO explicitly approves the relevant decision;
 2. the ADR status is changed to `APPROVED`;
 3. the approval date and approver are recorded;
 4. the changed ADR receives independent review;
 5. the approved version is merged into `develop`.
+
+A controlled exception exists only when ADR-0013 itself is `APPROVED`,
+independently reviewed and repository-authoritative, and a programme has
+explicitly opted into its programme-integration reliance mechanism. Under that
+exception, a separately authorized task inside the designated
+`feature/<programme>` integration line may rely on one exact `APPROVED`,
+independently reviewed ADR version after that exact version is merged into the
+designated programme integration branch. Programme-integration reliance does
+not make that ADR repository-authoritative, does not bind unrelated programmes
+or normal `develop` work, and authorizes no production or provider action.
+
+Until ADR-0013 is `APPROVED`, independently reviewed and
+repository-authoritative, the exception is unavailable and the default
+five-step rule above is unchanged.
 
 ## Approval sequence
 
@@ -78,10 +96,10 @@ the then-current exact `develop` head.
 repository-authoritative, manually maintained Diesel schema contract, and the
 Diesel CLI and root `diesel.toml` are retired from the supported workflow. The
 CTO selected it on 2026-08-05 and authorized recording it with its directly
-related cleanup in one PR. `THOTH-DB-CTRL-02` delivers the decision through PR
-[#778](https://github.com/thoth-pub/thoth/pull/778); it becomes
-repository-authoritative through `develop` when that PR merges, which remains
-subject to independent exact-head review and explicit CTO merge authorization.
+related cleanup in one PR. `THOTH-DB-CTRL-02` delivered the decision through PR
+[#778](https://github.com/thoth-pub/thoth/pull/778), which merged into
+`develop` as `37b802776ae6853affe19d90156f3c1e0654ebe3`; `ADR-0003` is
+repository-authoritative.
 `ADR-0003` supersedes the `THOTH-DB-CTRL-01` structural-synchronizer approach,
 whose implementation PR
 [#777](https://github.com/thoth-pub/thoth/pull/777) was closed unmerged.
@@ -320,3 +338,71 @@ candidate is not approved by `ADR-0008`. `BE-04` implementation, Thoth Metrics
 `WP5` implementation, machine-role creation, role provisioning,
 identity-provider change, worker deployment, durable job creation and every
 production action all remain unauthorized.
+
+`ADR-0009` corrects the shared programme-integration branch namespace. Merged
+doctrine prescribed the slice branch as a descendant of the integration branch,
+`feature/<programme>/<slice>`, which cannot be created while
+`feature/<programme>` exists: Git stores a branch at `refs/heads/<name>`, and one
+path cannot be both a ref and a ref namespace. That is the exact HTTP 422
+`Reference update failed` that blocked `MET-WP1-01`
+[#836](https://github.com/thoth-pub/thoth/issues/836). The approved grammar makes
+the slice a sibling, `feature/<programme>--<slice>`, with `--` reserved as the
+programme/slice separator, keeps `STANDARD` task branches at
+`feature/<area>/<task>`, and requires a symmetric fail-closed live namespace
+preflight before any governed ref is created.
+
+The CTO approved the decision under
+[issue #837](https://github.com/thoth-pub/thoth/issues/837) on 2026-08-26. It is
+delivered by `CTRL-BRANCH-NAMESPACE-01`. The decision is repository-authoritative
+when the exact approved content is independently reviewed at its exact head and
+reachable from `develop`; it is not effective from an unmerged branch. Live
+independent-review, merge-authorization, CI and merge evidence is the GitHub
+pull-request record.
+
+`ADR-0009` standardizes the repository ref spelling of programme slices. It does
+**not** amend the substantive Thoth Metrics architecture: each affected
+repository still owns its own `feature/metrics` integration branch, focused
+children are still created from it and merged back into it, and they still do
+not target `develop` directly. It creates no branch. `feature/metrics` is not
+renamed, deleted or moved, existing valid branches are untouched, and historical
+lifecycle evidence is preserved as written rather than rewritten to the new
+spelling. #836 remains HOLD and does not resume from this approval or from merge
+alone.
+
+`ADR-0011` separates the release branch's **role** from its spelling. The shared
+target policy previously standardized every managed repository on
+`develop -> master`, which classified every repository legitimately established
+on `main` as requiring release-branch normalization. That normalization would
+have created `master`, switched GitHub defaults, re-pointed protections, CI
+filters, Vercel production routing and package publication in eight
+repositories, several of them at HIGH risk, purely to standardize a name.
+
+The approved decision writes the role as `<release-branch>`, resolves it from
+each repository's own verified live state, and preserves what is already
+established: `main` stays `main` in `thoth-app`, `thoth-dissemination`,
+`thoth-sphinx`, `metrics-dashboard`, `metrics-widget`, `cc-license`,
+`thoth-pyramid` and `thoth-strapi`; `master` stays `master` in `thoth`, the
+standalone `thoth-client` and `baboon`. Neither name may be created, renamed,
+moved or substituted merely because another repository uses it, and changing an
+established release branch requires a separately scoped repository-local
+decision justified by something other than naming consistency.
+
+The CTO approved the decision under
+[issue #897](https://github.com/thoth-pub/thoth/issues/897) on 2026-09-09. It is
+delivered by `CTRL-BRANCH-RELEASE-01`. The decision is repository-authoritative
+when the exact approved content is independently reviewed at its exact head and
+reachable from `develop`; it is not effective from an unmerged branch. Live
+independent-review, merge-authorization, CI and merge evidence is the GitHub
+pull-request record.
+
+`ADR-0011` removes release-branch renaming from `BR-APP-01`, `BR-DIS-01`,
+`BR-SPHINX-01`, `BR-DASH-01`, `BR-WIDGET-01` and `BR-LIC-01`. It does **not**
+close those tasks, and it does not lower their risk: development-branch
+normalization, branch protection, CI, provider routing, publication readiness
+and external-write review remain exactly as they were, and each task's risk must
+be reassessed from those remaining effects. It creates, deletes, renames and
+moves no branch, changes no repository setting, and amends neither `ADR-0009`'s
+programme/slice namespace grammar nor `thoth`'s own `develop -> master` release
+flow. `BR-SPHINX-01` is the immediate consumer; it must be re-specified against
+the authoritative policy and does not resume from this approval or from merge
+alone.

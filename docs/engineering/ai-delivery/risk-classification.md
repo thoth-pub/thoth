@@ -63,7 +63,7 @@ Required controls:
 
 - approved design and task specification;
 - high or maximum implementation reasoning;
-- independent cross-model review;
+- two independent reviews on two different models (`model-selection.md` section 6);
 - migration tests on empty and populated databases where applicable;
 - failure-path and authorization tests;
 - rollout and rollback plan;
@@ -88,7 +88,7 @@ Required controls:
 - explicit CTO-approved specification;
 - architecture review;
 - implementation by the strongest appropriate coding model at maximum practical reasoning;
-- at least one independent cross-model review;
+- two independent reviews on two different models, the Opus review at maximum effort (`model-selection.md` section 6);
 - rehearsal in a production-like environment;
 - verified backup/restore or recovery path;
 - dry run and comparison report;

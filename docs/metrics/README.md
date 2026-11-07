@@ -1,6 +1,6 @@
 # Thoth Metrics
 
-Status: CONTROL FOUNDATION IN PROGRESS
+Status: INACTIVE METRICS FOUNDATION MERGED ON THE `feature/metrics` PROGRAMME LINE - FINAL INTEGRATION INTO `develop` GOVERNED BY #981 (A -> A2 -> B) - EVERY FURTHER ACTION REQUIRES ITS OWN APPROVED SPECIFICATION AND AUTHORIZATION
 Programme owner: CTO
 
 Primary repositories:
@@ -39,6 +39,10 @@ Sphinx:
 - normalizes source data;
 - submits bounded idempotent batches to Thoth;
 - applies restartable orchestration;
+- orchestrates normal rollup claim/completion while Thoth maintains both
+  work-day and affected monthly projections transactionally;
+- orchestrates the separately authorized initial/exceptional monthly rebuild
+  and periodic reconciliation workflow through protected Thoth operations;
 - delivers eligible OPERAS exports;
 - imports only allowed OPERAS-only mappings;
 - records reconciliation outcomes in Thoth.
@@ -51,20 +55,37 @@ Dashboard and widget clients stop querying OPERAS directly and use authenticated
 
 Thoth alone decides whether an observation becomes canonical.
 
-It owns metrics tables and constraints, identifier resolution, registries, publisher approvals, import state, hashes, duplicates, revisions, conflicts, coverage, rollups, authorization, entitlements, OPERAS ledgers and reconciliation records.
+It owns metrics tables and constraints, identifier resolution, registries,
+publisher approvals, import state, hashes, duplicates, revisions, conflicts,
+coverage, rollups, authorization, entitlements, OPERAS ledgers and
+reconciliation records. Thoth also owns all work-day/monthly projection
+arithmetic, the durable rollup frontier and the actual execution of any full
+derived-state rebuild.
 
 ### Sphinx
 
-Sphinx is stateless orchestration and interoperability.
+Sphinx is stateless orchestration and interoperability. It may decide when to
+invoke approved Thoth Metrics operations — including normal rollup completion,
+the initial/exceptional full monthly rebuild and periodic reconciliation — but
+the state transition and projection semantics stay inside Thoth.
 
 It must not:
 
 - write directly to PostgreSQL;
+- calculate or supply work-day/monthly projection values, or implement a
+  second rebuild algorithm outside Thoth;
 - keep canonical state in local SQLite or S3;
 - decide canonical conflict winners outside Thoth;
 - send driver output directly to OPERAS;
 - store browser-facing service credentials;
 - claim guaranteed OPERAS inbound completeness without a complete discovery mechanism.
+
+A full monthly rebuild is not a recurring monthly job. Normal monthly
+projections are maintained continuously by Thoth as Sphinx completes rollup
+deltas. Full rebuild is reserved for initial historical population and
+separately authorized repair/recovery. Periodic reconciliation may be
+scheduled independently; a mismatch must not silently auto-rebuild derived
+state.
 
 ### Clients
 
@@ -100,40 +121,143 @@ The initial programme does not store raw clickstream events in Thoth, create a s
 ## 6. Current programme decision
 
 ```text
-BLOCKED FOR IMPLEMENTATION
+INACTIVE METRICS FOUNDATION MERGED ON THE feature/metrics PROGRAMME LINE
+FINAL INTEGRATION INTO develop GOVERNED BY #981: A -> A2 -> B
+EVERY FURTHER ACTION REQUIRES ITS OWN APPROVED SPECIFICATION AND AUTHORIZATION
 ```
 
-Achieved:
+The Publisher Services -> Metrics pivot is complete (recorded in
+[#766](https://github.com/thoth-pub/thoth/issues/766) comment `5412873595`),
+and the shared controls below are settled.
 
-- `ADR-0001` publisher package capabilities is `APPROVED AND MERGED` (Javi, CTO,
-  2026-07-28, approval PR
-  [#772](https://github.com/thoth-pub/thoth/pull/772)). The independently
-  reviewed approval record merged on 2026-07-29 as
-  `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`. The shared
-  package-capability dependency is satisfied without activating metrics
-  collection, entitlement enforcement, serving, imports or exports.
-- `ADR-0002` platform domain boundaries is `APPROVED` (CTO, 2026-07-27, approval
-  PR [#769](https://github.com/thoth-pub/thoth/pull/769)) and is no longer a
-  blocking control. `MetricPlatform` remains separate from `DistributionPlatform`
-  with no initial cross-domain mapping. Approval removes one shared-ADR
-  dependency and does not make any work package ready.
+Completed shared/global controls:
 
-Blocking controls:
+- the shared engineering-control foundation is closed: PR #764 merged, and its
+  closeout PR #767 was independently `APPROVED` and merged as
+  `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01;
+- `ADR-0001` publisher package capabilities is `APPROVED AND MERGED` (Javi,
+  CTO, 2026-07-28, approval PR
+  [#772](https://github.com/thoth-pub/thoth/pull/772), merged 2026-07-29 as
+  `b2c91ff25b95ab0e10a477ff21dbd4702f5db8d4`). The shared package-capability
+  dependency is satisfied without activating metrics collection, entitlement
+  enforcement, serving, imports or exports;
+- `ADR-0002` platform domain boundaries is `APPROVED` and merged (CTO,
+  2026-07-27, approval PR
+  [#769](https://github.com/thoth-pub/thoth/pull/769)). `MetricPlatform`
+  remains separate from `DistributionPlatform` with no initial cross-domain
+  mapping;
+- the Diesel/schema-control blocker is resolved: `ADR-0003` (Architecture A)
+  is repository-authoritative through `THOTH-DB-CTRL-02` and merged PR
+  [#778](https://github.com/thoth-pub/thoth/pull/778) (merge commit
+  `37b802776ae6853affe19d90156f3c1e0654ebe3`). `THOTH-DB-CTRL-01` is
+  `SUPERSEDED`;
+- `ADR-0008` machine roles and durable job primitives is `APPROVED` and
+  repository-authoritative within its approved scope: it establishes the
+  shared domain-specific least-privilege machine-role convention and seven
+  durable-job conventions, and deliberately selects no Metrics role name,
+  entitlement model, credential model or operation matrix;
+- the Metrics programme-control reconciliation `MET-CTRL-01` (issue
+  [#832](https://github.com/thoth-pub/thoth/issues/832)) is
+  `MERGED - COMPLETE`: it was delivered through PR
+  [#833](https://github.com/thoth-pub/thoth/pull/833) and is reachable from
+  `develop`. The `MET-CTRL-01` dependency is satisfied and is no longer a
+  Thoth WP1 entry gate. PR #833 is the parent lifecycle anchor; exact review
+  and authorization provenance is retained in the owning task and closeout
+  evidence, and this active tracker does not restate it.
 
-1. The shared engineering-control foundation is closed: PR #764 merged, and its
-   closeout PR #767 was independently `APPROVED` and merged as
-   `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing P0-01. The Metrics
-   programme control task `MET-CTRL-01` nevertheless remains `CHANGES REQUIRED`
-   and is not yet closed.
-2. `thoth-sphinx` is placeholder-only and has not been bootstrapped.
-3. Thoth Diesel generation procedure is unresolved.
-4. Branch topology differs in Sphinx and client repositories.
-5. Service-role codes require approval before WP5.
-6. Representative source fixtures and COUNTER mappings are missing for source-specific work.
-7. Guaranteed OPERAS inbound discovery is unavailable.
+The Thoth-local WP1 entry gates are satisfied:
 
-Discovery, benchmarking, fixture collection and task specification may continue.
-ADR-0001 approval does not mark WP1 or any later work package ready.
+1. the repository-local `feature/metrics` integration branch exists, created
+   from a verified `develop` head under the SHA-bound authorization recorded
+   in [#766](https://github.com/thoth-pub/thoth/issues/766); slice branches
+   use the `feature/metrics--<slice>` spelling required by
+   [`ADR-0009`](../engineering/decisions/ADR-0009-programme-integration-branch-namespace.md);
+2. the first bounded WP1 child specification, `MET-WP1-01` (issue
+   [#836](https://github.com/thoth-pub/thoth/issues/836)), was independently
+   reviewed and CTO-approved, and its registry-foundation slice — the
+   `metric_platform`, `metric_measure` and `metric_platform_measure` registry
+   schema, Rust domain foundation and the two approved seed measures — is
+   merged into `feature/metrics` as an additive, inactive foundation.
+
+WP1 entry was therefore satisfied, and the Thoth Metrics foundation has since
+been delivered as bounded, independently reviewed slices merged into
+`feature/metrics`, each under its own approved specification and recorded
+under `[Unreleased]` in the repository `CHANGELOG.md`: the schema and domain
+foundations, registry and source/source-account administration, the Metrics
+service-role contract, canonical ingestion with rollup and delta application,
+protected `metricDashboard` read surfaces with derived monthly and yearly
+serving state, identifier quarantine and reconciliation, and the coverage-run
+foundation. That foundation is additive and inactive. Protected Metrics
+GraphQL surfaces therefore exist on the programme line; their integration into
+`develop`, release, deployment and activation are separately gated stages, and
+none is implied by this record. No production Metrics collection, Sphinx
+schedule, historical rebuild, client cutover or OPERAS cutover is authorized.
+
+Current Thoth programme flow and authority: the final integration of the Thoth
+`feature/metrics` line into `develop` is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981), reconciled on programme
+master issue [#766](https://github.com/thoth-pub/thoth/issues/766), through three
+separately gated stages — A, a develop-reconciliation slice merged into
+`feature/metrics` by an ordinary history-preserving merge; A2, the inventory
+and retirement of every `feature/metrics--*` slice ref; and B, a true merge of
+`feature/metrics` into `develop` — each with its own independent review and
+explicit CTO authorization. After A2 no normal new `feature/metrics--<slice>`
+is created; the only exceptions, neither of which is a standing authorization,
+are a separately authorized develop-refresh recovery under #981 and the single
+one-time CI-correction slice `feature/metrics--wp11-b-clippy` governed by
+[thoth-pub/thoth#981](https://github.com/thoth-pub/thoth/issues/981) /
+[thoth-pub/thoth#985](https://github.com/thoth-pub/thoth/issues/985), which is
+not a develop refresh and imports no `develop` commit. After that corrective
+slice merges into `feature/metrics`, the exact-list A2 inventory, independent
+review, retirement authorization, guarded retirement and completion receipt
+are repeated against the resulting `feature/metrics` head before B may
+proceed, and B keeps its own independent CRITICAL review and explicit CTO
+merge authorization under
+#981. Before B, one further finite pre-B source-correction stage is governed
+by [#981](https://github.com/thoth-pub/thoth/issues/981) and its owning issues
+[#987](https://github.com/thoth-pub/thoth/issues/987),
+[#988](https://github.com/thoth-pub/thoth/issues/988) and
+[#989](https://github.com/thoth-pub/thoth/issues/989): exactly three sibling
+slices, `feature/metrics--wp11-b-corr-h1`, `feature/metrics--wp11-b-corr-h2`
+and `feature/metrics--wp11-b-corr-h3`, created in that order, each from the
+then-current `feature/metrics` head its predecessor's merge produced, and each
+merged back into `feature/metrics` by a separately authorized true merge after
+its own independent exact-head review and its own separate readiness and merge
+permissions. That stage imports no `develop` commit, creates no other slice,
+and defers the retirement of those three merged refs to one stage-terminal A2
+inventory, independent review, exact-name retirement authorization, guarded
+retirement and completion receipt against the resulting `feature/metrics`
+head, after which B keeps its own fresh cumulative CRITICAL review and explicit
+CTO merge authorization. It is a bounded exception recorded on #981, not a
+standing authorization, and it leaves the earlier one-time
+`feature/metrics--wp11-b-clippy` exception as recorded; after the final
+integration, later Thoth-side Metrics work follows the
+STANDARD `feature/<area>/<task> -> develop` flow. The completed shared-control
+and WP1-entry lists above, and the "Later gates" list below, are the historical
+WP1 entry-gate record as it stood at entry; the present state of each later
+gate (Sphinx, clients, fixtures and mappings, WP5 service roles) is held in its
+owning GitHub issue, not in this list.
+
+Later gates, owned by their later work packages rather than blocking Thoth
+WP1 entry:
+
+- `thoth-sphinx` readiness (`BR-SPHINX-01`, `SPHINX-BOOT-01`) gates WP6 and
+  later Sphinx work;
+- client branch/CI readiness (`BR-DASH-01`, `BR-WIDGET-01`, `BR-APP-01`)
+  gates the work packages that depend on those clients;
+- representative source fixtures, COUNTER mappings and guaranteed OPERAS
+  inbound discovery gate the applicable source-specific/driver/inbound work;
+- exact Metrics service-role codes, permissions and credential/provisioning
+  arrangements remain unapproved WP5-owned bounded decisions.
+
+Discovery, benchmarking, fixture collection and task specification may
+continue. This record authorizes no Metrics implementation, integration,
+release, deployment or activation: the merged inactive foundation and the
+approved #981 parent specification do not by themselves authorize any A, A2
+or B action, later work package or task. Each such stage or action is
+separately gated and may proceed only after its applicable specification,
+independent review and explicit action-authorization requirements are
+satisfied.
 
 ## 7. Files
 

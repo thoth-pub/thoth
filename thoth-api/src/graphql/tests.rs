@@ -23,7 +23,10 @@ use crate::model::{
     locale::LocaleCode,
     location::{Location, LocationPlatform, NewLocation, PatchLocation},
     price::{CurrencyCode, NewPrice, PatchPrice, Price},
-    publication::{NewPublication, PatchPublication, Publication, PublicationType},
+    publication::{
+        AccessibilityException, AccessibilityStandard, NewPublication, PatchPublication,
+        Publication, PublicationType,
+    },
     publisher::{NewPublisher, PatchPublisher, Publisher},
     r#abstract::{Abstract, AbstractType, NewAbstract, PatchAbstract},
     reference::{NewReference, PatchReference, Reference},
@@ -3198,6 +3201,340 @@ fn graphql_create_publication_rejects_invalid_isbn_before_db_constraint() {
     );
 }
 
+const PRIMARY_ACCESSIBILITY_STANDARDS: [AccessibilityStandard; 4] = [
+    AccessibilityStandard::Wcag21aa,
+    AccessibilityStandard::Wcag21aaa,
+    AccessibilityStandard::Wcag22aa,
+    AccessibilityStandard::Wcag22aaa,
+];
+const ADDITIONAL_ACCESSIBILITY_STANDARDS: [AccessibilityStandard; 6] = [
+    AccessibilityStandard::EpubA11y10aa,
+    AccessibilityStandard::EpubA11y10aaa,
+    AccessibilityStandard::EpubA11y11aa,
+    AccessibilityStandard::EpubA11y11aaa,
+    AccessibilityStandard::PdfUa1,
+    AccessibilityStandard::PdfUa2,
+];
+
+fn make_new_accessible_publication(
+    work_id: Uuid,
+    publication_type: PublicationType,
+    standard: Option<AccessibilityStandard>,
+    additional: Option<AccessibilityStandard>,
+    exception: Option<AccessibilityException>,
+) -> NewPublication {
+    NewPublication {
+        publication_type,
+        work_id,
+        isbn: None,
+        width_mm: None,
+        width_in: None,
+        height_mm: None,
+        height_in: None,
+        depth_mm: None,
+        depth_in: None,
+        weight_g: None,
+        weight_oz: None,
+        accessibility_standard: standard,
+        accessibility_additional_standard: additional,
+        accessibility_exception: exception,
+        accessibility_report_url: None,
+    }
+}
+
+/// A new Monograph Work of the seeded imprint, to hold the Publications of one test.
+fn create_accessibility_test_work(schema: &Schema, context: &Context, seed: &SeedData) -> Uuid {
+    let doi = Doi::from_str(&format!(
+        "https://doi.org/10.1234/{}",
+        unique("publication-accessibility-slots")
+    ))
+    .expect("Failed to build DOI");
+    let work = create_with_data(
+        schema,
+        context,
+        "createWork",
+        "NewWork",
+        "workId",
+        make_new_work(seed.imprint_id, WorkType::Monograph, doi),
+    );
+    json_uuid(&work["workId"])
+}
+
+/// Run a publication write the API must refuse, and return the message it refuses it with.
+fn refused_publication_write<T>(
+    schema: &Schema,
+    context: &Context,
+    mutation: &str,
+    input_type: &str,
+    data: T,
+) -> String
+where
+    T: ToInputValue<DefaultScalarValue>,
+{
+    let query =
+        format!("mutation($data: {input_type}!) {{ {mutation}(data: $data) {{ publicationId }} }}");
+    let mut vars = Variables::new();
+    insert_var(&mut vars, "data", data);
+    let (value, errors) = block_on_graphql(juniper::execute(&query, None, schema, &vars, context))
+        .expect("GraphQL execution should succeed with field errors");
+    let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+    assert!(
+        !errors.is_empty(),
+        "Expected {mutation} to be refused, got: {payload:?}"
+    );
+    assert!(
+        payload.get(mutation).is_none() || payload[mutation].is_null(),
+        "Expected no {mutation} payload when refused, got: {payload:?}"
+    );
+    errors[0].error().message().to_string()
+}
+
+#[test]
+fn graphql_publication_writes_reject_every_wrong_slot_accessibility_standard() {
+    use crate::schema::publication::dsl as publication_dsl;
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-slot-rejection");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+    // An EPUB with no accessibility state, for every refused update to target.
+    let existing = create_with_data(
+        &schema,
+        &context,
+        "createPublication",
+        "NewPublication",
+        "publicationId",
+        make_new_accessible_publication(work_id, PublicationType::Epub, None, None, None),
+    );
+    let existing = Publication::from_id(pool.as_ref(), &json_uuid(&existing["publicationId"]))
+        .expect("Failed to fetch publication");
+
+    let primary_error = thoth_errors::ThothError::AccessibilityStandardSlotError.to_string();
+    let additional_error =
+        thoth_errors::ThothError::AccessibilityAdditionalStandardSlotError.to_string();
+    let wrong_slot_writes = ADDITIONAL_ACCESSIBILITY_STANDARDS
+        .into_iter()
+        .map(|standard| (Some(standard), None, &primary_error))
+        .chain(
+            PRIMARY_ACCESSIBILITY_STANDARDS
+                .into_iter()
+                .map(|additional| (None, Some(additional), &additional_error)),
+        );
+
+    for (standard, additional, expected) in wrong_slot_writes {
+        // Created as a PDF, which the work does not hold yet, so nothing but the slot can refuse it.
+        let create = refused_publication_write(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            make_new_accessible_publication(
+                work_id,
+                PublicationType::Pdf,
+                standard,
+                additional,
+                None,
+            ),
+        );
+        assert_eq!(
+            &create, expected,
+            "createPublication {standard:?} {additional:?}"
+        );
+
+        let mut patch = patch_publication(&existing);
+        patch.accessibility_standard = standard;
+        patch.accessibility_additional_standard = additional;
+        let update = refused_publication_write(
+            &schema,
+            &context,
+            "updatePublication",
+            "PatchPublication",
+            patch,
+        );
+        assert_eq!(
+            &update, expected,
+            "updatePublication {standard:?} {additional:?}"
+        );
+    }
+
+    // Nothing was persisted: the work holds the one EPUB, still without accessibility state.
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let publications = publication_dsl::publication
+        .filter(publication_dsl::work_id.eq(work_id))
+        .load::<Publication>(&mut connection)
+        .expect("Failed to query publications for work");
+    assert_eq!(publications.len(), 1);
+    assert_eq!(publications[0].accessibility_standard, None);
+    assert_eq!(publications[0].accessibility_additional_standard, None);
+}
+
+#[test]
+fn graphql_publication_writes_persist_every_accessibility_value_in_its_own_slot() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-slot-acceptance");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+
+    // Each additional standard on the one e-publication type the database lets carry it, and
+    // every WCAG standard beside it: every enum member reaches its own slot through the API.
+    let additional_types = [
+        (AccessibilityStandard::EpubA11y10aa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y10aaa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y11aa, PublicationType::Epub),
+        (AccessibilityStandard::EpubA11y11aaa, PublicationType::Epub),
+        (AccessibilityStandard::PdfUa1, PublicationType::Pdf),
+        (AccessibilityStandard::PdfUa2, PublicationType::Pdf),
+    ];
+    for (index, (additional, publication_type)) in additional_types.into_iter().enumerate() {
+        let standard =
+            PRIMARY_ACCESSIBILITY_STANDARDS[index % PRIMARY_ACCESSIBILITY_STANDARDS.len()];
+
+        // Created with both slots filled.
+        let created = create_with_data(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            "publicationId",
+            make_new_accessible_publication(
+                work_id,
+                publication_type,
+                Some(standard),
+                Some(additional),
+                None,
+            ),
+        );
+        let created = Publication::from_id(pool.as_ref(), &json_uuid(&created["publicationId"]))
+            .expect("Failed to fetch publication");
+        assert_eq!(created.accessibility_standard, Some(standard));
+        assert_eq!(created.accessibility_additional_standard, Some(additional));
+
+        // Updated through every WCAG standard, alone and beside the additional standard.
+        for primary in PRIMARY_ACCESSIBILITY_STANDARDS {
+            for with_additional in [None, Some(additional)] {
+                let mut patch = patch_publication(&created);
+                patch.accessibility_standard = Some(primary);
+                patch.accessibility_additional_standard = with_additional;
+                update_with_data(
+                    &schema,
+                    &context,
+                    "updatePublication",
+                    "PatchPublication",
+                    "publicationId",
+                    patch,
+                );
+                let stored = Publication::from_id(pool.as_ref(), &created.publication_id)
+                    .expect("Failed to fetch publication");
+                assert_eq!(stored.accessibility_standard, Some(primary));
+                assert_eq!(stored.accessibility_additional_standard, with_additional);
+            }
+        }
+
+        // Free the work's one publication of this type for the next case.
+        let stored = Publication::from_id(pool.as_ref(), &created.publication_id)
+            .expect("Failed to fetch publication");
+        stored
+            .delete(pool.as_ref())
+            .expect("Failed to delete publication");
+    }
+
+    // Each EAA exception persists, and the slot invariant introduces no exclusivity of its own.
+    for exception in [
+        AccessibilityException::MicroEnterprises,
+        AccessibilityException::DisproportionateBurden,
+        AccessibilityException::FundamentalAlteration,
+    ] {
+        let created = create_with_data(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            "publicationId",
+            make_new_accessible_publication(
+                work_id,
+                PublicationType::Epub,
+                None,
+                None,
+                Some(exception),
+            ),
+        );
+        let created = Publication::from_id(pool.as_ref(), &json_uuid(&created["publicationId"]))
+            .expect("Failed to fetch publication");
+        assert_eq!(created.accessibility_exception, Some(exception));
+        created
+            .delete(pool.as_ref())
+            .expect("Failed to delete publication");
+    }
+}
+
+#[test]
+fn graphql_slot_valid_accessibility_states_the_database_forbids_are_still_refused_by_it() {
+    let (_guard, pool) = test_db::setup_test_db();
+    let schema = create_schema();
+    let superuser = test_db::test_superuser("user-publication-accessibility-db-rules");
+    let context = test_db::test_context_with_user(pool.clone(), superuser);
+    let seed = seed_data(&schema, &context);
+    let work_id = create_accessibility_test_work(&schema, &context, &seed);
+    let slot_errors = [
+        thoth_errors::ThothError::AccessibilityStandardSlotError.to_string(),
+        thoth_errors::ThothError::AccessibilityAdditionalStandardSlotError.to_string(),
+    ];
+
+    // Correctly slotted, but outside the pre-existing database rules this task leaves unchanged:
+    // a standard beside an exception, an additional standard without a primary one, and a
+    // standard on a print Publication.
+    for (publication_type, standard, additional, exception, constraint) in [
+        (
+            PublicationType::Epub,
+            Some(AccessibilityStandard::Wcag21aa),
+            Some(AccessibilityStandard::EpubA11y11aa),
+            Some(AccessibilityException::MicroEnterprises),
+            "check_standard_or_exception",
+        ),
+        (
+            PublicationType::Epub,
+            None,
+            Some(AccessibilityStandard::EpubA11y11aa),
+            None,
+            "check_standard_or_exception",
+        ),
+        (
+            PublicationType::Paperback,
+            Some(AccessibilityStandard::Wcag21aa),
+            None,
+            None,
+            "check_accessibility_standard_rules",
+        ),
+    ] {
+        let message = refused_publication_write(
+            &schema,
+            &context,
+            "createPublication",
+            "NewPublication",
+            make_new_accessible_publication(
+                work_id,
+                publication_type,
+                standard,
+                additional,
+                exception,
+            ),
+        );
+        assert!(
+            !slot_errors.contains(&message),
+            "The slot invariant must not refuse a correctly slotted state, got: {message}"
+        );
+        assert!(
+            message.contains(constraint),
+            "Expected the database's {constraint} to refuse it, got: {message}"
+        );
+    }
+}
+
 #[test]
 fn graphql_mutations_cover_all() {
     let (_guard, pool) = test_db::setup_test_db();
@@ -4472,5 +4809,346 @@ mod contributors_by_orcids {
             .map(|entry| json_uuid(&entry["contributorId"]))
             .collect();
         assert_eq!(ids, vec![contributor.contributor_id]);
+    }
+}
+
+/// `MET-WP11-B-LEGACY-FK-ERRORS` (#990): every Metrics foreign key to a legacy
+/// parent is `NO ACTION`, so a referenced publisher, imprint, work, publication
+/// or institution cannot be deleted. These tests prove the refusal reaches the
+/// GraphQL client as the static parent-group message, that nothing is deleted
+/// (including through the legacy `ON DELETE CASCADE` chain), and that
+/// authorization is still decided before the database is reached.
+///
+/// No seed creates a file, pending upload, additional-resource or
+/// featured-video file row, and no seed imprint has hosting columns, so the
+/// cleanup plan of a refused `deleteWork` or `deletePublication` is empty and
+/// no external storage call can follow even a wrongly successful delete.
+mod metrics_legacy_parent_deletes {
+    use super::*;
+    use crate::model::metric_platform::tests::{scalar_i64, setup_registry_db};
+    use crate::model::metric_record::tests::{insert_record_fixture, RecordFixture};
+    use diesel::sql_types::{Nullable, Text, Uuid as SqlUuid};
+    use diesel::{sql_query, RunQueryDsl};
+
+    const PUBLISHER_MESSAGE: &str = "Metrics data can only refer to an existing publisher, and a publisher that Metrics data refers to cannot be deleted.";
+    const WORK_OR_PUBLICATION_MESSAGE: &str = "Metrics data can only refer to an existing work or publication, and a work or publication that Metrics data refers to cannot be deleted, directly or by deleting its work, imprint or publisher.";
+    const INSTITUTION_MESSAGE: &str = "Metrics data can only refer to an existing institution, and an institution that Metrics data refers to cannot be deleted.";
+
+    /// One legacy `publisher -> imprint -> work -> publication -> location`
+    /// chain. The imprint has no hosting columns.
+    struct Chain {
+        publisher_id: Uuid,
+        imprint_id: Uuid,
+        work_id: Uuid,
+        publication_id: Uuid,
+        location_id: Uuid,
+    }
+
+    fn chain(pool: &crate::db::PgPool) -> Chain {
+        let publisher = test_db::create_publisher(pool);
+        let imprint = test_db::create_imprint(pool, &publisher);
+        let work = test_db::create_work(pool, &imprint);
+        let publication = test_db::create_publication(pool, &work);
+        let location = Location::create(pool, &make_new_location(publication.publication_id, true))
+            .expect("Failed to create location");
+        Chain {
+            publisher_id: publisher.publisher_id,
+            imprint_id: imprint.imprint_id,
+            work_id: work.work_id,
+            publication_id: publication.publication_id,
+            location_id: location.location_id,
+        }
+    }
+
+    /// Insert one canonical Metrics record that references exactly the given
+    /// legacy rows, and return its id.
+    fn insert_metric_record(
+        pool: &crate::db::PgPool,
+        fixture: &RecordFixture,
+        work_id: Uuid,
+        publication_id: Option<Uuid>,
+        institution_id: Option<Uuid>,
+    ) -> Uuid {
+        let record_id = Uuid::new_v4();
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, publication_id, institution_id, platform_id, \
+                  measure_id, period_start, period_end, reporting_grain, winning_source_account_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, DATE '2026-07-01', DATE '2026-08-01', 'MONTH', $8)",
+        )
+        .bind::<SqlUuid, _>(record_id)
+        .bind::<Text, _>(format!("h4-{record_id}"))
+        .bind::<SqlUuid, _>(work_id)
+        .bind::<Nullable<SqlUuid>, _>(publication_id)
+        .bind::<Nullable<SqlUuid>, _>(institution_id)
+        .bind::<SqlUuid, _>(fixture.platform_id)
+        .bind::<SqlUuid, _>(fixture.measure_id)
+        .bind::<SqlUuid, _>(fixture.source_account_id)
+        .execute(&mut connection)
+        .expect("Failed to insert metric_record seed");
+        record_id
+    }
+
+    /// Insert one publisher-level Metrics row (a platform approval).
+    fn insert_publisher_approval(
+        pool: &crate::db::PgPool,
+        fixture: &RecordFixture,
+        publisher_id: Uuid,
+    ) {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(
+            "INSERT INTO metric_publisher_platform_approval \
+                 (publisher_id, platform_id, usage_submission_enabled, sales_submission_enabled, \
+                  approval_status) \
+             VALUES ($1, $2, FALSE, FALSE, 'PENDING')",
+        )
+        .bind::<SqlUuid, _>(publisher_id)
+        .bind::<SqlUuid, _>(fixture.platform_id)
+        .execute(&mut connection)
+        .expect("Failed to insert metric_publisher_platform_approval seed");
+    }
+
+    fn count(pool: &crate::db::PgPool, table: &str, column: &str, id: Uuid) -> i64 {
+        scalar_i64(
+            pool,
+            &format!("(SELECT COUNT(*) FROM {table} WHERE {column} = '{id}')"),
+        )
+    }
+
+    fn assert_chain_intact(pool: &crate::db::PgPool, chain: &Chain, label: &str) {
+        for (table, column, id) in [
+            ("publisher", "publisher_id", chain.publisher_id),
+            ("imprint", "imprint_id", chain.imprint_id),
+            ("work", "work_id", chain.work_id),
+            ("publication", "publication_id", chain.publication_id),
+            ("location", "location_id", chain.location_id),
+        ] {
+            assert_eq!(
+                count(pool, table, column, id),
+                1,
+                "{label}: {table} was deleted"
+            );
+        }
+    }
+
+    /// Run a delete the API must refuse, and return the refusal's message and
+    /// error type. Modelled on `refused_publication_write`: `delete_with_id`
+    /// panics on any GraphQL error.
+    fn refused_delete(
+        schema: &Schema,
+        context: &Context,
+        mutation: &str,
+        arg_name: &str,
+        id: Uuid,
+        return_field: &str,
+    ) -> (String, Option<String>) {
+        let query =
+            format!("mutation($id: Uuid!) {{ {mutation}({arg_name}: $id) {{ {return_field} }} }}");
+        let mut vars = Variables::new();
+        insert_var(&mut vars, "id", id);
+        let (value, errors) =
+            block_on_graphql(juniper::execute(&query, None, schema, &vars, context))
+                .expect("GraphQL execution should succeed with field errors");
+        let payload = serde_json::to_value(value).expect("Failed to serialize GraphQL response");
+        assert!(
+            !errors.is_empty(),
+            "Expected {mutation} to be refused, got: {payload:?}"
+        );
+        assert!(
+            payload.get(mutation).is_none() || payload[mutation].is_null(),
+            "Expected no {mutation} payload when refused, got: {payload:?}"
+        );
+        let error = serde_json::to_value(&errors[0]).expect("Failed to serialize GraphQL error");
+        (
+            errors[0].error().message().to_string(),
+            error["extensions"]["type"].as_str().map(str::to_string),
+        )
+    }
+
+    #[test]
+    fn metrics_references_refuse_legacy_deletes_with_static_messages() {
+        let (_guard, pool) = setup_registry_db();
+        let db = pool.as_ref();
+        let schema = create_schema();
+        let context = test_db::test_context_with_user(
+            pool.clone(),
+            test_db::test_superuser("user-h4-metrics-fk"),
+        );
+        let fixture = insert_record_fixture(db);
+
+        // deleteWork, blocked directly by a record on the work alone.
+        let work_case = chain(db);
+        let work_record = insert_metric_record(db, &fixture, work_case.work_id, None, None);
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deleteWork",
+            "workId",
+            work_case.work_id,
+            "workId",
+        );
+        assert_eq!(message, WORK_OR_PUBLICATION_MESSAGE);
+        assert_chain_intact(db, &work_case, "deleteWork");
+        assert_eq!(count(db, "metric_record", "record_id", work_record), 1);
+
+        // deletePublication, blocked directly by a record on the publication;
+        // its work is not being deleted, so only the publication key fires.
+        let publication_case = chain(db);
+        let publication_record = insert_metric_record(
+            db,
+            &fixture,
+            publication_case.work_id,
+            Some(publication_case.publication_id),
+            None,
+        );
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deletePublication",
+            "publicationId",
+            publication_case.publication_id,
+            "publicationId",
+        );
+        assert_eq!(message, WORK_OR_PUBLICATION_MESSAGE);
+        assert_chain_intact(db, &publication_case, "deletePublication");
+        assert_eq!(
+            count(db, "metric_record", "record_id", publication_record),
+            1
+        );
+
+        // deleteInstitution, blocked by a record on an unrelated work.
+        let institution = test_db::create_institution(db);
+        let institution_record = insert_metric_record(
+            db,
+            &fixture,
+            fixture.work_id,
+            None,
+            Some(institution.institution_id),
+        );
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deleteInstitution",
+            "institutionId",
+            institution.institution_id,
+            "institutionId",
+        );
+        assert_eq!(message, INSTITUTION_MESSAGE);
+        assert_eq!(
+            count(
+                db,
+                "institution",
+                "institution_id",
+                institution.institution_id
+            ),
+            1
+        );
+        assert_eq!(
+            count(db, "metric_record", "record_id", institution_record),
+            1
+        );
+
+        // deletePublisher, blocked directly by a publisher-level row; the
+        // publisher has no imprint, so no other key can fire.
+        let publisher = test_db::create_publisher(db);
+        insert_publisher_approval(db, &fixture, publisher.publisher_id);
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deletePublisher",
+            "publisherId",
+            publisher.publisher_id,
+            "publisherId",
+        );
+        assert_eq!(message, PUBLISHER_MESSAGE);
+        assert_eq!(
+            count(db, "publisher", "publisher_id", publisher.publisher_id),
+            1
+        );
+        assert_eq!(
+            count(
+                db,
+                "metric_publisher_platform_approval",
+                "publisher_id",
+                publisher.publisher_id
+            ),
+            1
+        );
+
+        // deleteImprint, blocked through the cascade by a record on a work in
+        // its chain.
+        let imprint_case = chain(db);
+        let imprint_record = insert_metric_record(db, &fixture, imprint_case.work_id, None, None);
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deleteImprint",
+            "imprintId",
+            imprint_case.imprint_id,
+            "imprintId",
+        );
+        assert_eq!(message, WORK_OR_PUBLICATION_MESSAGE);
+        assert_chain_intact(db, &imprint_case, "deleteImprint");
+        assert_eq!(count(db, "metric_record", "record_id", imprint_record), 1);
+
+        // deletePublisher, blocked through the cascade by a record on a work in
+        // its chain, with no publisher-level row.
+        let publisher_case = chain(db);
+        let publisher_record =
+            insert_metric_record(db, &fixture, publisher_case.work_id, None, None);
+        let (message, _) = refused_delete(
+            &schema,
+            &context,
+            "deletePublisher",
+            "publisherId",
+            publisher_case.publisher_id,
+            "publisherId",
+        );
+        assert_eq!(message, WORK_OR_PUBLICATION_MESSAGE);
+        assert_chain_intact(db, &publisher_case, "deletePublisher cascade");
+        assert_eq!(count(db, "metric_record", "record_id", publisher_record), 1);
+    }
+
+    #[test]
+    fn metrics_references_do_not_preempt_delete_authorization() {
+        let (_guard, pool) = setup_registry_db();
+        let db = pool.as_ref();
+        let schema = create_schema();
+        let outsider = test_db::test_context_with_user(
+            pool.clone(),
+            test_db::test_user_with_role(
+                "user-h4-other-org",
+                Role::PublisherAdmin,
+                &format!("org-{}", Uuid::new_v4()),
+            ),
+        );
+        let fixture = insert_record_fixture(db);
+        let protected = chain(db);
+        let record = insert_metric_record(db, &fixture, protected.work_id, None, None);
+
+        for (mutation, arg_name, id) in [
+            ("deletePublisher", "publisherId", protected.publisher_id),
+            ("deleteWork", "workId", protected.work_id),
+        ] {
+            let (message, kind) =
+                refused_delete(&schema, &outsider, mutation, arg_name, id, arg_name);
+            // The legacy delete resolvers return `FieldResult` and convert
+            // `ThothError::Unauthorised` with the conventional projection: its
+            // `Display` text and no extensions. `tests/support::assert_no_access`
+            // accepts this form alongside the explicit `Unauthorized` /
+            // `NO_ACCESS` one.
+            assert_eq!(
+                message,
+                thoth_errors::ThothError::Unauthorised.to_string(),
+                "{mutation}"
+            );
+            assert_eq!(message, "Invalid credentials.", "{mutation}");
+            assert_eq!(kind, None, "{mutation}");
+            assert_ne!(message, PUBLISHER_MESSAGE, "{mutation}");
+            assert_ne!(message, WORK_OR_PUBLICATION_MESSAGE, "{mutation}");
+            assert_chain_intact(db, &protected, mutation);
+            assert_eq!(count(db, "metric_record", "record_id", record), 1);
+        }
     }
 }

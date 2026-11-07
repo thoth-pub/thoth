@@ -10,11 +10,65 @@ Add schema before behavior, keep accounts/schedules/serving/export disabled init
 
 ## 2. Stage 0 - Control/readiness
 
-Require PR #764, approved ADRs, master issue, Sphinx bootstrap, branch decisions, Diesel procedure and role decision before WP5.
+Stage 0 distinguishes completed shared controls from the remaining gates, and
+attaches each remaining gate to the work it actually blocks.
+
+Completed shared/global controls:
+
+- engineering-control foundation: PR #764 merged and P0-01 closed through
+  merged closeout PR #767;
+- master issue [#766](https://github.com/thoth-pub/thoth/issues/766) exists
+  and the Publisher Services -> Metrics pivot is recorded;
+- shared ADRs approved and merged: ADR-0001 (package capabilities), ADR-0002
+  (platform domain boundaries), ADR-0003 (repository-authoritative schema
+  contract, resolving the Diesel procedure through merged PR #778) and
+  ADR-0008 (shared machine-role and durable-job conventions);
+- Metrics programme-control reconciliation `MET-CTRL-01`, delivered through
+  merged PR #833 and reachable from `develop`; its dependency is satisfied and
+  it is no longer a WP1 entry gate.
+
+The Thoth-local WP1 entry gates are satisfied:
+
+- repository-local `feature/metrics` exists, created from a verified
+  `develop` head under the SHA-bound authorization recorded in
+  [#766](https://github.com/thoth-pub/thoth/issues/766);
+- the first approved bounded WP1 child specification, `MET-WP1-01`
+  ([#836](https://github.com/thoth-pub/thoth/issues/836)), is delivered: its
+  registry-foundation slice is merged into `feature/metrics`, so Stage 1
+  began there. Each further WP1 slice required its own approved bounded
+  specification.
+
+Later gates, owned by the work they block (they do not gate Thoth WP1 entry
+and are not made ready by it):
+
+- Sphinx/WP6 readiness: BR-SPHINX-01 and SPHINX-BOOT-01 before WP6 or driver
+  work;
+- client-specific readiness: BR-DASH-01, BR-WIDGET-01 and BR-APP-01 (branch
+  and CI readiness) before the client-dependent work packages;
+- source/driver-specific readiness: representative fixtures, COUNTER
+  mappings, finalization settings and OPERAS completeness before the
+  applicable driver/import/inbound work;
+- WP5 service-role work: exact Metrics role codes, permissions/operation
+  matrix and credential/provisioning arrangements, decided under WP5's own
+  approved bounded specification within the ADR-0008 convention.
 
 ## 3. Stage 1 - Canonical schema
 
 Deliver WP1 slices additively. Registries/accounts/routes/export stay disabled. Prove migrations, constraints, seeds, rollback and query baseline.
+
+Stage 1 status: the first slice, the `MET-WP1-01` registry foundation
+([#836](https://github.com/thoth-pub/thoth/issues/836)), is merged into
+`feature/metrics` — additive and inactive, with proven forward/latest-only
+rollback/reapply migration behaviour, constraints and the two approved seed
+measures, and with no platform rows, mappings, routes or exports. The
+remaining WP1 foundation slices followed the same bounded path, each under its
+own approved specification and independent review, and are merged into
+`feature/metrics` as additive, inactive `v1.9.0` migrations and domain code,
+recorded under `[Unreleased]` in the repository `CHANGELOG.md`. Their
+integration into `develop`, release, production migration execution and
+activation are separately gated under
+[#981](https://github.com/thoth-pub/thoth/issues/981); none is active or
+authorized by this plan.
 
 ## 4. Stage 2 - Ingestion
 
@@ -22,7 +76,12 @@ Deliver WP2 against fixtures and disposable environments. Use bounded batches, c
 
 ## 5. Stage 3 - Rollups/protected queries
 
-Deliver WP4/WP5 behind inactive flags. Prove correctness, p95, coverage, authorization, capability checks and rebuild.
+Deliver WP4/WP5 behind inactive flags. Normal rollup processing is continuous:
+Sphinx claims/completes bounded rollup work while Thoth atomically maintains
+the work-day projection and the affected monthly projection keys. Prove
+correctness, p95, coverage, authorization, capability checks and deterministic
+full rebuild. Full rebuild is exceptional/on-demand — initial historical
+population or separately authorized repair/recovery — not a monthly batch job.
 
 ## 6. Stage 4 - Sphinx core
 
@@ -50,7 +109,18 @@ Compare selected publishers/periods/measures/dimensions/coverage and known legac
 
 ## 12. Stage 10 - Migration/operations
 
-Use the migration inventory, versioned normalizers, CloudFront recomputation, no accidental export, restore readiness, monitoring, runbooks and reconciliation. Production requires CTO approval.
+Use the migration inventory, versioned normalizers, CloudFront recomputation,
+no accidental export, restore readiness, monitoring, runbooks and
+reconciliation. For the `MET-WP4-03A` monthly projections, test/production
+deployment runs pending migrations through `thoth init`; the deployment
+authorization must explicitly include that expected database side effect. The
+03A migration creates the monthly projections empty. Sphinx then orchestrates
+the separately authorized protected Thoth historical rebuild and independent
+reconciliation at an exact work-day frontier before 03B serving/client cutover
+may activate. Thereafter Sphinx may orchestrate periodic reconciliation, but a
+mismatch must not silently trigger a full rebuild. Production requires explicit
+CTO approval for each applicable deployment, rebuild, reconciliation acceptance
+and activation gate.
 
 ## 13. Observation/cleanup
 

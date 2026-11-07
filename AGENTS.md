@@ -85,21 +85,34 @@ Keep domain rules in the owning domain layer. Do not duplicate validation or aut
 
 ## 5. Branch and pull-request workflow
 
-Normal work:
+Branch naming is workflow-specific. `STANDARD` tasks and `PROGRAMME_INTEGRATION`
+slices do not share a naming form. See
+[`ADR-0009`](docs/engineering/decisions/ADR-0009-programme-integration-branch-namespace.md).
+
+`STANDARD` work:
 
 ```text
 develop -> feature/<area>/<task> -> develop
 ```
 
-Approved large programme work:
+Approved large programme work (`PROGRAMME_INTEGRATION`):
 
 ```text
 develop
   -> feature/<programme>
-  -> feature/<programme>/<slice>
+  -> feature/<programme>--<slice>
   -> feature/<programme>
   -> develop
 ```
+
+A programme slice branch is a **sibling** of its integration branch, not a
+descendant of it. `feature/<programme>/<slice>` is not usable while
+`feature/<programme>` exists as a branch, because Git cannot hold a ref and a
+ref namespace at the same path.
+
+`--` is the reserved programme/slice separator. Governed `<programme>`,
+`<area>`, `<slice>` and `<task>` identifiers must each be non-empty, must each
+be a single Git path segment, and must not themselves contain `--`.
 
 Release:
 
@@ -116,6 +129,33 @@ Rules:
 - delete a task/slice branch after merge;
 - keep programme branches current at approved checkpoints;
 - do not rewrite shared branch history after others depend on it.
+
+### 5.1 Fail-closed namespace preflight
+
+Before creating any new governed ref, verify against live remote refs, not
+against assumption. The check is symmetric.
+
+Before creating a new governed **flat** ref such as `feature/<programme>`:
+
+- the exact ref does not already exist;
+- no descendant ref beneath that path already exists, because such a descendant
+  requires the flat ref's location to be a ref namespace.
+
+Before creating or using a governed **descendant** ref such as
+`feature/<area>/<task>`:
+
+- no flat parent ref `feature/<area>` already occupies that location.
+
+Before creating a programme slice `feature/<programme>--<slice>`:
+
+- the exact ref is absent;
+- the identifiers satisfy the reserved-token rule above;
+- no incompatible descendant occupancy exists beneath that prospective flat ref.
+
+If preflight fails, HOLD. Never resolve a namespace collision by deleting,
+renaming or moving another branch. An active task whose authorized branch name
+is invalid or superseded must HOLD and receive a task-specific specification
+amendment plus fresh review and authorization before proceeding.
 
 ## 6. Granular action authorization
 

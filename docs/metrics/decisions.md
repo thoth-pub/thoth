@@ -1,7 +1,7 @@
 # Thoth Metrics Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-07-28
+Last updated: 2026-10-30
 Owner: CTO
 
 The approved technical design and approved ADRs remain authoritative.
@@ -101,11 +101,72 @@ make any Metrics work package ready.
 
 `ADR-0002` is `APPROVED` (CTO, 2026-07-27, approval PR [#769](https://github.com/thoth-pub/thoth/pull/769)) as written, and is required for metric platform implementation. `MetricPlatform` remains a separate domain type from `DistributionPlatform`, with no name-based conversion and no initial cross-domain mapping.
 
+`ADR-0003` is `APPROVED` and repository-authoritative through
+`THOTH-DB-CTRL-02` and merged PR
+[#778](https://github.com/thoth-pub/thoth/pull/778):
+`thoth-api/src/schema.rs` is the repository-authoritative, manually maintained
+Diesel schema contract (Architecture A), and schema-bearing Metrics slices
+must atomically change migrations, `schema.rs`, models and database-backed
+tests in one bounded task. The previously open Diesel-generation question is
+resolved.
+
+`ADR-0008` is `APPROVED` and repository-authoritative within its approved
+scope: machine/service authorization uses dedicated, least-privilege,
+domain-specific project roles with explicit policy guards and authorization
+matrices; `SUPERUSER` authority does not imply machine-role authority; and
+exactly seven durable-job conventions are shared as conventions, not as a
+framework. `ADR-0008` selects no Metrics role name, entitlement model,
+credential model or operation matrix.
+
+### Canonical reporting grain is immutable for its v1 identity (`MET-WP11-B-CORR-H3`)
+
+Decision (issue [#989](https://github.com/thoth-pub/thoth/issues/989), a
+pre-B correction under #981 Amendment 8 as corrected by Amendment 8-C1 and
+#989 correction 1): the v1 canonical identity hash deliberately excludes the
+reporting grain, so a `DAY` observation and a one-day `REPORTING_PERIOD`
+observation (or a `MONTH` observation and a one-month `REPORTING_PERIOD`
+observation) of the same cell and period share one canonical identity. The
+grain persisted on `metric_record` by first arrival is the record's grain for
+as long as that identity exists. Later evidence for the same v1 identity with
+a different grain is never silently accepted:
+
+- the shared canonical application authority compares the incoming grain with
+  the persisted grain under the existing `metric_record` row lock, before any
+  content-duplicate, source-conflict or revision decision, and a mismatch is
+  the distinct internal outcome `ReportingGrainMismatch`, which rewrites no
+  canonical grain, revises no canonical content, emits no rollup delta,
+  chooses no new winner and is never classified as a duplicate or a conflict;
+- ordinary ingestion records the observation as `REJECTED` with the additive
+  closed-vocabulary reason `REPORTING_GRAIN_MISMATCH` (bounded field
+  `reporting_grain`, static sanitized message) through the existing
+  rejected-provenance, import-error and `invalid_count` paths, keeping their
+  cardinality and replay semantics;
+- automatic unresolved-DOI reconciliation maps the same outcome to the
+  existing retryable `BLOCKED_INCONSISTENT_EVIDENCE` state, whose meaning is
+  extended to include a canonical reporting-grain mismatch, under the
+  unchanged capped 1h, 2h, 4h, 8h, 16h, 24h schedule; it never mutates the
+  original quarantine evidence, provenance, import counters, status or
+  coverage, and no new persisted state or reason is introduced.
+
+Explicitly not decided here: no v1 hash byte, golden vector or `hash.rs` line
+changes; no historical record is normalized, no committed historical outcome
+is altered and no committed batch replay changes; first-arrival grain
+selection stays; source grains are not distinguished in identity; and there is
+no hash v2, repair migration or schema change. The additive GraphQL enum value
+is not automatically compatible with a closed-enum consumer: Sphinx
+`REQUIRES CHANGE` through thoth-pub/thoth-sphinx#38 against the merged
+producer contract before any collection against it.
+
 ## 3. Decisions still required
 
-### Service-role codes
+### Service-role codes (WP5-owned)
 
-Proposed:
+The shared machine-role convention itself is decided by `ADR-0008` and is no
+longer open. Still required — as WP5-owned bounded decisions under WP5's own
+approved specification — are the exact Metrics role codes, scope, the
+permissions/operation matrix, credential/provisioning and rotation
+arrangements, audit ownership and whether rollup/reconciliation needs
+separate roles. The codes previously sketched for discussion:
 
 ```text
 METRICS_READ_SERVICE
@@ -113,11 +174,16 @@ METRICS_INGEST_SERVICE
 METRICS_SYNC_SERVICE
 ```
 
-Approve exact codes, scope, rotation, audit ownership and whether rollup/reconciliation needs separate roles. Do not use `SUPERUSER` as a machine-service shortcut.
+remain proposals only and are not approved by `ADR-0008` or by this summary.
+Do not use `SUPERUSER` as a machine-service shortcut.
 
-### Lease/job primitive reuse
+### Lease/job primitive reuse (decided by ADR-0008)
 
-Recommendation: share conventions and utility patterns, but keep distribution jobs and metric checkpoints/import/export claims domain-specific. A new ADR is required before one universal persisted job framework.
+Decided as recommended: conventions and utility patterns are shared, while
+distribution jobs and metric checkpoints/import/export claims stay
+domain-specific. BE-04's job tables, domain types and lifecycle APIs are
+programme-local and must not be reused by Metrics by analogy. A new explicit
+cross-programme ADR is required before one universal persisted job framework.
 
 ### CloudFront multi-country sessions
 
@@ -146,3 +212,6 @@ Select report types and metric mappings only after representative reports are su
 11. OBELISK collection failures and missing configuration do not block unrelated
     operations.
 12. Missing or unavailable metric data is never fabricated or treated as zero.
+13. An existing canonical record's reporting grain is immutable for its v1
+    identity; mismatched later evidence is rejected or blocked, never silently
+    accepted, and never changes the record.
