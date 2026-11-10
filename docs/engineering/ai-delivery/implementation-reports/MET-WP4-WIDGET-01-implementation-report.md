@@ -11,9 +11,10 @@ Actual base commit: `cab25eba415386f3dced1571c9f6468e1fa536f1`
 PR target: `develop`
 Programme integration branch: none
 Task branch: `feature/metrics-widget/met-wp4-widget-01`
-Head commit: the commit that adds this report (see the draft PR); the
-implementation commits are listed in section 3
-Pull request: DRAFT, opened by the orchestrator (not by the implementing agent)
+Head commit: recorded on the pull request; the PR head is the authority. The
+commits are listed in section 3
+Pull request: thoth-pub/thoth#1011, opened as a draft by the orchestrator (not
+by the implementing agent); its live state is recorded on GitHub
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: Claude Opus 5.5
@@ -38,10 +39,19 @@ Out-of-scope changes made: NONE
 - `81004348e112fa287862e0946fb9d95f3ef12b81` - Add the public metricWidget read
 - `09273a3cb37193c9d4543f3ce24659c39b351f40` - Add the THOTH_METRIC_WIDGET switch, off by default
 - `493aa2fdc8977d5bd791448809b5b78132524ca0` - Record the public metricWidget contract
-- the head commit - Add the MET-WP4-WIDGET-01 implementation report
+- `f58d0905dea45d8bbb3ae73426a7e927e9445893` - Add the MET-WP4-WIDGET-01 implementation report
 
-The gates (fmt, clippy, workspace tests) were run on the final tree, which
-the head commit carries.
+Review fix pass (section 16):
+
+- `8e5f62f0322d3cfedec4c417185a03926ef2f664` - Take widget slots with a compare-exchange loop
+- `4ecd79eb978f6a60419924d3dcc3313a509c9339` - Refuse a repeated child row in the widget resolution
+- `39b2bfbcdd3e1dc684cc6acd6a2f06d699da7f3f` - Test widget cross pairs, engine deadlines and the frontier check
+- `e220981ab1c65495227e82e7fa28bd6c45a6efa6` - Re-wrap the metricWidget clause in the contracts map
+- the commit that carries this revision of the report - Update the MET-WP4-WIDGET-01 implementation report for the review fixes
+
+The gates in section 9 were run on the tree of `e220981a` (tree
+`5d194af80ad4fc7d76273153cc2db514736c48de`); the report commit after it
+changes only this file.
 
 Every commit is authored and committed as Javier Arias
 <javier@jarias.org>, with no trailers.
@@ -141,7 +151,7 @@ PASS. `git diff --stat cab25eba` lists only budget paths (section 9).
   worktree)
 - commit: yes
 - push: yes
-- PR creation/update: no (the orchestrator opens the draft PR)
+- PR creation/update: no (the orchestrator opened the draft PR, thoth-pub/thoth#1011)
 - issue/comment mutation: no
 - manual CI dispatch/rerun: no
 - provider/runtime read: no
@@ -157,8 +167,9 @@ Unauthorized actions performed: NONE
 
 ## 4.3 Automatic and manual external effects
 
-Automatic CI/provider effects observed: none yet; PR CI runs when the draft PR
-is opened and on each push.
+Automatic CI/provider effects: PR CI (`build-test-and-check`) runs on each
+push to the pull request; its runs and results are recorded on the pull
+request (section 11).
 
 Manually initiated external actions: NONE
 
@@ -188,7 +199,13 @@ External writes/publication: NONE
    pure value; lines are written with the `log` crate already in use. No line
    field can hold a package value.
 7. The slot limiter is one process-wide `static AtomicUsize` with a drop
-   guard; checkout uses `PgPool::get_timeout(1 s)`.
+   guard; a slot is taken with a `compare_exchange_weak` loop that never
+   takes one when `METRIC_WIDGET_SLOTS` are in use; checkout uses
+   `PgPool::get_timeout(1 s)`.
+8. Step 10 refuses a child ID that the resolution returns twice as
+   `INTERNAL_ERROR` (`UnexpectedRow`). `work_relation_relator_related_uniq`
+   (`UNIQUE (relator_work_id, related_work_id)`) rules such a row out, so
+   the 500-child bound is a row count and never rests on deduplication.
 
 Deviation from the specification requiring authorization: NONE
 
@@ -242,7 +259,9 @@ rate rule is an activation precondition.
 All commands were run from the worktree with
 `TEST_DATABASE_URL=postgres://thoth:thoth@localhost:5432/thoth_test` (a local
 disposable PostgreSQL 16 cluster), `THOTH_EXPORT_API=https://export.thoth.pub`
-and `TEST_REDIS_URL=redis://localhost:6379` (local), as CI sets them.
+and `TEST_REDIS_URL=redis://localhost:6379` (local), as CI sets them. The
+results below are for the fix pass's code tree (section 3) unless a line says
+otherwise.
 
 ### Formatting
 
@@ -258,8 +277,23 @@ Result: exit 0, no output.
 cargo clippy --all --all-targets --all-features -- -D warnings
 ```
 
-Result: exit 0 (`Finished`); only the pre-existing future-incompatibility note
-for `proc-macro-error2`.
+| Tree | Toolchain | Result |
+| --- | --- | --- |
+| `f58d0905` | local default: `rustc 1.97.0 (2d8144b78 2026-07-07)`, `clippy 0.1.97 (2d8144b788 2026-07-07)` | exit 0 |
+| `f58d0905` | CI `lint` job, the runner's preinstalled stable (the job does not print its version) | failed: `use of deprecated method std::sync::atomic::Atomic::<usize>::fetch_update: renamed to try_update for consistency` at `thoth-api/src/model/metric_widget/mod.rs:833:10`, made an error by `-D warnings` |
+| fix pass | local default: `rustc 1.97.0 (2d8144b78 2026-07-07)`, `clippy 0.1.97 (2d8144b788 2026-07-07)` | exit 0 |
+| fix pass | current stable: `rustc 1.99.1 (58cf8f9c3 2026-10-13)`, `clippy 0.1.99 (58cf8f9c35 2026-10-13)`, run as `cargo +1.99.1 clippy ...` with a separate target directory | exit 0 |
+
+Every passing run printed only the pre-existing future-incompatibility note
+for `proc-macro-error2`. `AtomicUsize::fetch_update` is deprecated on 1.99.1
+but not on 1.97.0, and the repository pins no toolchain, so the local run at
+`f58d0905` could not show the CI failure. A probe compiled with
+`-D warnings` confirms it: the same `fetch_update` call compiles on 1.97.0 and
+fails on 1.99.1 with the CI message. The fix (section 16, F1) replaces the
+call with a `compare_exchange_weak` loop, which compiles without warnings on
+both; it adds no `#[allow(deprecated)]` and does not use `try_update`, since
+CI's toolchain is unpinned. The 1.99.1 run flags nothing else in the
+workspace.
 
 ### Full workspace
 
@@ -272,7 +306,7 @@ Result:
 ```text
 thoth (lib)                       ok. 0 passed
 thoth (bin src/bin/thoth.rs)      ok. 40 passed; 0 failed
-thoth_api (lib)                   ok. 2218 passed; 0 failed; 3 ignored
+thoth_api (lib)                   ok. 2222 passed; 0 failed; 3 ignored
 thoth_api tests/graphql_permissions ok. 13 passed; 0 failed
 thoth_api_server (lib)            ok. 5 passed; 0 failed
 thoth_client (lib)                ok. 4 passed; 0 failed
@@ -283,11 +317,14 @@ doc-tests                         thoth_client 6 passed; thoth_export_server 2 p
 exit status 0
 ```
 
+The fix pass adds four `thoth_api` tests (2218 at `f58d0905`, 2222 at the fix
+pass).
+
 ### Focused widget and regression tests
 
 ```text
 cargo test --workspace --lib -p thoth-api -- model::metric_widget::
-  ok. 49 passed; 0 failed
+  ok. 53 passed; 0 failed
 cargo test --workspace --lib -p thoth-api -- graphql::metric_widget_tests::
   ok. 9 passed; 0 failed
 cargo test --workspace --lib -p thoth-api -- model::metric_dashboard::
@@ -297,17 +334,23 @@ cargo test --workspace --lib -p thoth-api -- graphql::metric_dashboard_tests::
   ok. 20 passed; 0 failed
 cargo test --workspace --lib -p thoth-api -- graphql::metric_registry_tests::
   ok. 12 passed; 0 failed
-cargo test --workspace --bin thoth -- metric_widget_control
-  ok. 9 passed; 0 failed
-cargo test -p thoth-api-server
-  ok. 5 passed; 0 failed (including a_widget_refusal_is_http_200_with_an_errors_entry
-  and an_invalid_widget_date_is_http_400)
 ```
+
+With `--workspace`, cargo runs the lib tests of every workspace crate with
+the filter; the counts above are the `thoth_api` lib binary's, and every
+other crate's lib binary ran 0 tests. The switch control tests
+(`metric_widget_control`, 9) and the `thoth-api-server` status tests
+(`a_widget_refusal_is_http_200_with_an_errors_entry`,
+`an_invalid_widget_date_is_http_400`) ran and passed in the full workspace run
+above.
 
 ### Other required checks
 
-- `git diff --check`: no output.
+- `git diff --check cab25eba`: no output.
 - `git diff --stat cab25eba`: only budget paths.
+- `metric_dashboard/tests.rs` is byte-identical to `cab25eba`
+  (`git diff --quiet cab25eba -- thoth-api/src/model/metric_dashboard/tests.rs`
+  exits 0).
 - Statement ceiling: the longest path's captured sequence is exactly
   `CHECKOUT_CHECK, BEGIN, CUSTOM_PLANS_SQL,
   METRIC_WIDGET_STATEMENT_TIMEOUT_SQL, PROJECTION_LOCK_SQL,
@@ -337,9 +380,12 @@ cargo test -p thoth-api-server
      comment updated.
   `metric_dashboard/tests.rs` is unmodified.
 - Coverage-run identities (four budget files are manifest entries; the
-  manifests are unchanged, the content identities change as expected):
+  manifests are unchanged, the content identities change as expected). The
+  fix pass changes no manifest entry, so its identities equal those of
+  `f58d0905`; both were recomputed from the manifests with the test's
+  formula:
 
-| | Before (`cab25eba`) | After |
+| | Before (`cab25eba`) | After (`f58d0905` and the fix pass) |
 | --- | --- | --- |
 | Producer manifest | `eba01150ba2fcb72711bc495ed5d761752b582db3781eb32ff4b9761bb97b013` | unchanged |
 | Producer identity | `14eb74146962c1ac782ccf90fedd8c1721da17555583935f1db3ddf1f5d6e115` | `f7b39bdb86f5b3d3af6f1681a90d6cd4aacd730eaa8610375b73b9e87e4413a3` |
@@ -355,9 +401,13 @@ Evidence: section 9.
 
 ## 11. CI
 
-CI status: PENDING (runs when the orchestrator opens the draft PR).
+CI status: recorded on the pull request at the exact head; GitHub is the live
+authority.
 Checks: build-test-and-check.
-Failures or warnings: none known.
+Recorded history: at `f58d0905` the `lint` job failed on the deprecated
+`AtomicUsize::fetch_update` under the runner's newer stable toolchain
+(section 9); the fix pass replaces the call (section 16, F1).
+Failures or warnings at any later head: recorded on the pull request.
 
 ## 12. Rollout and rollback
 
@@ -392,7 +442,9 @@ error lines for `INTERNAL_ERROR`.
 
 ## 14. Unresolved issues
 
-- NONE
+- None known to the implementing agent at the fix pass. Review findings and
+  their dispositions are in section 16; later review state is on the pull
+  request.
 
 ## 15. Agent self-assessment
 
@@ -402,4 +454,23 @@ Suggested review focus: the `evaluate` extraction and pair mode in
 `metric_dashboard/mod.rs` (dashboard semantics unchanged; the unmodified
 `metric_dashboard/tests.rs` passes), the deadline admission points and the
 error mapping, the step 3 claim counter under fragments, and the
-equivalence oracle test.
+equivalence oracle test, including the fix pass's cross-pair case.
+
+## 16. Review fixes
+
+The exact-head reviews of `f58d0905` (an Opus 5.5 max leg, findings F1-F6,
+and a Fable leg, findings F-01 to F-07) both required changes. Each finding
+and its disposition:
+
+| Finding | Severity | Disposition | Commit |
+| --- | --- | --- | --- |
+| Opus F1 / Fable F-01: CI `lint` fails on the deprecated `AtomicUsize::fetch_update` | P1 | Fixed. `try_take_slot` takes a slot with a `compare_exchange_weak` loop that never takes one when `METRIC_WIDGET_SLOTS` are in use. No `#[allow(deprecated)]` and no `try_update`. The slot tests pass unchanged; clippy passes on 1.97.0 and 1.99.1 (section 9). | `8e5f62f0` |
+| Fable F-02: the 500-child bound applies after deduplication | P2 | The premise does not hold: `work_relation_relator_related_uniq UNIQUE (relator_work_id, related_work_id)` (`thoth-api/migrations/20250000_v1.0.0/up.sql:3932`) allows one `has-child` row per child of a relator, so the deduplicated count equals the row count. Hardened anyway: a repeated child ID is `INTERNAL_ERROR` (`UnexpectedRow`), so the bound never rests on deduplication. Pure unit test `a_repeated_child_row_is_internal_never_deduplicated`. The SQL is unchanged. | `4ecd79eb` |
+| Opus F2 / Fable F-03: the equivalence oracle has no unserved cross pair | P2 | Fixed. `a_served_pair_beside_an_unserved_cross_pair_equals_its_single_pair_read` serves (platform, sessions) and (other platform, units), each completely covered with countries, and puts an unapplied delta, a `PARTIAL` coverage assertion and unresolved identifier evidence on the unserved cross pair (platform, units). A single-pair read of the cross pair shows all three (lag, partial and unresolved-identifier warnings). The widget serves exactly the two diagonal pairs in coverage, totals, timeline and countries; each equals its single-pair `metricDashboard` read (shared oracle helper, countries on, institutions off); the section is not partial and its `dataThrough` is 2026-03-31, the aggregation over the two served pairs only. | `39b2bfbc` |
+| Opus F3: the engine deadline is tested only at the first engine statement | P3 | Fixed. `a_deadline_passing_between_engine_statements_is_busy_before_the_next_one` holds `metric_source_account`, releases it from a thread after 1.5 s, and reads with a 1 s deadline and the production 5 s statement timeout: `METRIC_WIDGET_BUSY` (`DeadlinePassed`), captured statements ending `PUBLISHERS_SQL`, `ACCOUNTS_SQL`, `ROLLBACK` with no `CANONICAL_SQL`, step 13, section `work`, last statement `ACCOUNTS_SQL`. The debug reason line carries no last statement (section 4.8 puts it on the error line only), so the test reads it from the facts the read records. | `39b2bfbc` |
+| Fable F-04: no test reaches `FrontierMismatch` | P3 | Fixed without a new production path, hook or `cfg(test)` branch. A whole read cannot produce the mismatch, since the labels statement and the engine read `transaction_timestamp()` and the frontier row in one repeatable-read snapshot. `an_engine_frontier_other_than_the_labels_frontier_is_internal` runs the existing step 13 function directly in such a transaction: with the labels' frontier the section is served; with `asOf` or the watermark one second later it is `INTERNAL_ERROR` (`FrontierMismatch`). | `39b2bfbc` |
+| Opus F4: a test comment says "No database" | P3 | Fixed. The comment now says the capture log stays empty and every hook panics. | `39b2bfbc` |
+| Opus F5 / Fable F-07: this report's lint and CI sections | P3 | Fixed in this revision: toolchains with each lint result, the CI failure at `f58d0905` and its fix (section 9), and durable wording in sections 1, 3, 4.3, 11 and 14. | the report commit (section 3) |
+| Fable F-05: an over-long line in `contracts.md` | P3 | Fixed. The edited clause is re-wrapped to the paragraph's width; its wording is unchanged and nothing else in the file changes. | `e220981a` |
+| Fable F-06: the orchestrator-side report's focused test commands | P3 | Fixed outside the repository, in the orchestrator's report. | none |
+| Opus F6: the `CHANGELOG.md` #1008 line reads stale beside #1007 | P3 note | No change in this PR; it is for release preparation. | none |
