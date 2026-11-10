@@ -1813,6 +1813,38 @@ fn five_hundred_child_works_are_served_and_five_hundred_and_one_refused_whole() 
 }
 
 #[test]
+fn a_repeated_child_row_is_internal_never_deduplicated() {
+    // No database: step 10 runs over the resolution rows alone.
+    let request = validate(&input_for(BOOK_BARE), today()).expect("valid");
+    let (work_id, publisher_id) = (Uuid::new_v4(), Uuid::new_v4());
+    let row = |child_id: Uuid| ResolutionRow {
+        work_id,
+        work_type: "monograph".to_string(),
+        publisher_id,
+        subscription_package: ThothPackage::Sphinx,
+        child_id: Some(child_id),
+        child_doi: None,
+        child_publisher_id: Some(publisher_id),
+    };
+    let served = |rows: &[ResolutionRow]| {
+        select_children(&request, rows, false, publisher_id).map(|children| children.served)
+    };
+    let (first, second) = (Uuid::new_v4(), Uuid::new_v4());
+    assert_eq!(
+        served(&[row(first), row(second)]),
+        Ok(sorted(&[first, second]))
+    );
+    // The bound never rests on deduplication: a child returned twice is a
+    // row the resolution cannot produce, so the read fails.
+    let failure = served(&[row(first), row(first)]).expect_err("a repeated child");
+    assert_eq!(
+        failure,
+        Failure::new(MetricWidgetError::Internal, WidgetReason::UnexpectedRow)
+    );
+    assert_eq!(failure.error.code(), "INTERNAL_ERROR");
+}
+
+#[test]
 fn chapter_dois_on_a_chapter_is_refused_before_any_other_child_check() {
     let (_guard, fx) = widget_setup();
     let imprint = imprint_of(&fx.pool, fx.works[0]);

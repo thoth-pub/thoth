@@ -1192,7 +1192,16 @@ fn select_children(
     for row in rows {
         match (row.child_id, row.child_publisher_id) {
             (Some(child_id), Some(child_publisher)) => {
-                children.insert(child_id, (row.child_doi.clone(), child_publisher));
+                // `work_relation_relator_related_uniq` allows one row per child.
+                if children
+                    .insert(child_id, (row.child_doi.clone(), child_publisher))
+                    .is_some()
+                {
+                    return Err(Failure::new(
+                        MetricWidgetError::Internal,
+                        WidgetReason::UnexpectedRow,
+                    ));
+                }
             }
             (None, None) => {}
             _ => {
