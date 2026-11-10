@@ -27,13 +27,14 @@ use uuid::Uuid;
 use super::*;
 use crate::graphql::{create_schema, Context, GraphQLRequest};
 use crate::model::metric_dashboard::tests::{
-    apply_all, capturing_pool, commit, commit_dims, cover, d, day_n, exec, insert_institution,
-    insert_measure, publisher_sql, request, setup, statement_text, text, works_sql, Dims, Fixture,
+    account_sql, apply_all, capturing_pool, commit, commit_dims, cover, coverage_sql, d, day_n,
+    exec, import_sql, insert_institution, insert_measure, publisher_sql, quarantine, request,
+    setup, source_sql, statement_text, text, works_sql, Dims, Fixture,
 };
 use crate::model::metric_dashboard::{
-    metric_dashboard, ACCOUNTS_SQL, ASSERTIONS_SQL, CANONICAL_SQL, DAY_SECTIONS_SQL, DAY_SUMS_SQL,
-    DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL, KNOWN_SQL, MONTHS_SQL, PUBLISHERS_SQL,
-    REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
+    metric_dashboard, MetricWarningCode, ACCOUNTS_SQL, ASSERTIONS_SQL, CANONICAL_SQL,
+    DAY_SECTIONS_SQL, DAY_SUMS_SQL, DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL, KNOWN_SQL,
+    MONTHS_SQL, PUBLISHERS_SQL, REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
 };
 use crate::model::tests::db::{test_context_anonymous, test_db_url, TestDbGuard};
 
@@ -515,7 +516,9 @@ fn an_unknown_doi_and_an_unentitled_publisher_are_one_refusal_after_one_statemen
 
 #[test]
 fn the_switch_off_and_input_failures_run_no_statement_and_take_no_slot() {
-    // No database: a pool whose every checkout fails would fail loudly.
+    // The capture log stays empty and every hook panics, so neither the
+    // switch-off nor an input failure reaches a slot, a checkout or a
+    // statement.
     let (pool, log) = capturing_pool();
     let (result, lines) = resolve_with(
         &pool,
@@ -1480,6 +1483,74 @@ fn an_engine_statement_started_before_the_deadline_and_failing_after_it_is_inter
     assert_eq!(error.last_statement, Some("ACCOUNTS_SQL"));
 }
 
+/// The facts a resolution starts from, as [`resolve`] builds them.
+fn fresh_facts() -> WidgetFacts {
+    WidgetFacts {
+        switch: MetricWidgetSwitch::On,
+        previous_claims: Some(0),
+        error: None,
+        reason: None,
+        step: WidgetStep::Switch,
+        elapsed_ms: 0,
+        doi: None,
+        work: None,
+        chapters: None,
+        engine_section: None,
+        last_statement: None,
+    }
+}
+
+#[test]
+fn a_deadline_passing_between_engine_statements_is_busy_before_the_next_one() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    // ACCOUNTS_SQL, the engine's second statement, is admitted before the
+    // deadline and waits on this lock, which is released after the deadline
+    // but well inside the production statement timeout (5 s). The statement
+    // completes; the engine's next admission is refused.
+    let mut holder = hold_lock("LOCK TABLE public.metric_source_account IN ACCESS EXCLUSIVE MODE");
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(1500));
+        holder.batch_execute("ROLLBACK;").expect("release the lock");
+    });
+    let mut late = profile(&no_hook);
+    late.deadline = Duration::from_secs(1);
+    let (pool, log) = capturing_pool();
+    // The read itself, not `resolve`, so the facts it records are visible:
+    // the debug reason line carries no last statement (section 4.8).
+    let mut facts = fresh_facts();
+    let started = Instant::now();
+    let result = super::read(&pool, &input_for(BOOK_BARE), &late, &mut facts);
+    let elapsed = started.elapsed();
+    release.join().expect("the lock holder");
+    let names = widget_statement_names(&log.lock().expect("the statement log"));
+
+    let failure = result.map(|_| ()).expect_err("busy");
+    assert_eq!(
+        failure,
+        Failure::new(MetricWidgetError::Busy, WidgetReason::DeadlinePassed)
+    );
+    assert_eq!(failure.error.code(), "METRIC_WIDGET_BUSY");
+    assert!(elapsed >= Duration::from_secs(1), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(5), "{elapsed:?}");
+    assert_eq!(names[3], "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL");
+    assert!(
+        names.ends_with(&["PUBLISHERS_SQL", "ACCOUNTS_SQL", "ROLLBACK"]),
+        "{names:?}"
+    );
+    assert!(!names.contains(&"CANONICAL_SQL"), "{names:?}");
+    assert_eq!(
+        names
+            .iter()
+            .filter(|name| **name == "PUBLISHERS_SQL")
+            .count(),
+        1
+    );
+    assert_eq!(facts.step, WidgetStep::Engine);
+    assert_eq!(facts.engine_section, Some(WidgetSection::Work));
+    assert_eq!(facts.last_statement, Some("ACCOUNTS_SQL"));
+}
+
 #[test]
 fn a_rebuild_holding_the_projections_makes_the_read_busy_never_zero() {
     let (_guard, fx) = widget_setup();
@@ -2246,72 +2317,215 @@ fn each_served_pair_equals_its_single_pair_dashboard_read() {
         ),
     ];
     for (section, works) in sections {
-        let mut partial = false;
-        let mut through = Vec::new();
-        assert!(!section.coverage.is_empty());
-        for item in &section.coverage {
-            let (platform, measure) = (item.platform_id, item.measure_id);
-            let (start, end) = march();
-            let mut input = request(
-                fx.publisher_id,
+        assert_each_served_pair_equals_its_dashboard_read(&fx, section, &works);
+    }
+}
+
+/// The single-pair `metricDashboard` read the oracle compares a served pair
+/// with: the publisher, the section's works, one platform and one measure,
+/// monthly, countries on and institutions off.
+fn single_pair_read(
+    fx: &Fixture,
+    works: &[Uuid],
+    platform: Uuid,
+    measure: Uuid,
+) -> MetricDashboard {
+    let (start, end) = march();
+    let mut input = request(
+        fx.publisher_id,
+        start,
+        end,
+        &[platform],
+        &[measure],
+        Some(MetricTimelineGrain::Month),
+    );
+    input.selector.work_ids = Some(works.to_vec());
+    input.include_countries = Some(true);
+    input.include_institutions = Some(false);
+    metric_dashboard(&fx.pool, &input).expect("the oracle read")
+}
+
+/// The equivalence oracle over one section: each served pair's totals,
+/// timeline, countries and coverage item equal its single-pair read, and the
+/// section's `dataThrough` and `isPartial` are the register s4.1 aggregation
+/// over exactly the served pairs.
+fn assert_each_served_pair_equals_its_dashboard_read(
+    fx: &Fixture,
+    section: &MetricWidgetSection,
+    works: &[Uuid],
+) {
+    let mut partial = false;
+    let mut through = Vec::new();
+    assert!(!section.coverage.is_empty());
+    for item in &section.coverage {
+        let (platform, measure) = (item.platform_id, item.measure_id);
+        let dashboard = single_pair_read(fx, works, platform, measure);
+        let label = format!("{works:?} {platform} {measure}");
+        assert_eq!(
+            section
+                .totals
+                .iter()
+                .filter(|t| (t.platform_id, t.measure_id) == (platform, measure))
+                .cloned()
+                .collect::<Vec<_>>(),
+            dashboard.totals,
+            "{label}"
+        );
+        assert_eq!(
+            section
+                .timeline
+                .iter()
+                .filter(|b| (b.platform_id, b.measure_id) == (platform, measure))
+                .cloned()
+                .collect::<Vec<_>>(),
+            dashboard.timeline,
+            "{label}"
+        );
+        assert_eq!(
+            section
+                .countries
+                .iter()
+                .filter(|c| (c.platform_id, c.measure_id) == (platform, measure))
+                .cloned()
+                .collect::<Vec<_>>(),
+            dashboard.countries,
+            "{label}"
+        );
+        let oracle = &dashboard.coverage.items[0];
+        assert_eq!(
+            (item.status, item.data_through, item.country_coverage),
+            (oracle.status, oracle.data_through, oracle.country_coverage),
+            "{label}"
+        );
+        partial |= dashboard.is_partial;
+        through.push(oracle.data_through);
+    }
+    // The register s4.1 aggregation over exactly the served pairs.
+    let expected_through = through
+        .into_iter()
+        .collect::<Option<Vec<NaiveDate>>>()
+        .and_then(|dates| dates.into_iter().min());
+    assert_eq!(section.data_through, expected_through);
+    assert_eq!(section.is_partial, partial);
+}
+
+#[test]
+fn a_served_pair_beside_an_unserved_cross_pair_equals_its_single_pair_read() {
+    let (_guard, fx) = widget_setup();
+    let (start, end) = march();
+    // The served pairs, (platform, sessions) with a country breakdown and
+    // (other platform, units), each completely covered with countries; the
+    // other platform gets its own eligible account for that.
+    let gb = Dims {
+        country: Some("GB"),
+        ..Dims::default()
+    };
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        gb,
+        3,
+    );
+    diagonal(&fx);
+    cover_march(&fx, fx.sessions);
+    let (source, account, import) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}{}{}",
+            source_sql(source, "DRIVER", true),
+            account_sql(
+                account,
+                source,
+                fx.other_platform_id,
+                Some(fx.publisher_id),
+                true
+            ),
+            import_sql(import, account, "COMPLETED", "'2026-04-10T00:00:00Z'"),
+            coverage_sql(
+                account,
+                import,
+                fx.other_platform_id,
+                fx.units,
                 start,
                 end,
-                &[platform],
-                &[measure],
-                Some(MetricTimelineGrain::Month),
-            );
-            input.selector.work_ids = Some(works.clone());
-            input.include_countries = Some(true);
-            input.include_institutions = Some(false);
-            let dashboard = metric_dashboard(&fx.pool, &input).expect("the oracle read");
-            let label = format!("{works:?} {platform} {measure}");
-            assert_eq!(
-                section
-                    .totals
-                    .iter()
-                    .filter(|t| (t.platform_id, t.measure_id) == (platform, measure))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-                dashboard.totals,
-                "{label}"
-            );
-            assert_eq!(
-                section
-                    .timeline
-                    .iter()
-                    .filter(|b| (b.platform_id, b.measure_id) == (platform, measure))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-                dashboard.timeline,
-                "{label}"
-            );
-            assert_eq!(
-                section
-                    .countries
-                    .iter()
-                    .filter(|c| (c.platform_id, c.measure_id) == (platform, measure))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-                dashboard.countries,
-                "{label}"
-            );
-            let oracle = &dashboard.coverage.items[0];
-            assert_eq!(
-                (item.status, item.data_through, item.country_coverage),
-                (oracle.status, oracle.data_through, oracle.country_coverage),
-                "{label}"
-            );
-            partial |= dashboard.is_partial;
-            through.push(oracle.data_through);
-        }
-        // The register s4.1 aggregation over exactly the served pairs.
-        let expected_through = through
-            .into_iter()
-            .collect::<Option<Vec<NaiveDate>>>()
-            .and_then(|dates| dates.into_iter().min());
-        assert_eq!(section.data_through, expected_through);
-        assert_eq!(section.is_partial, partial);
+                "COMPLETE",
+                true,
+                true
+            ),
+        ),
+    );
+    // The unserved cross pair (platform, units): an unapplied delta (rollup
+    // lag), a partial coverage assertion and unresolved identifier evidence.
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(9), 6);
+    cover(
+        &fx,
+        fx.units,
+        start,
+        end,
+        "PARTIAL",
+        "COMPLETED",
+        "'2026-04-10T00:00:00Z'",
+    );
+    quarantine(
+        &fx,
+        fx.publisher_id,
+        fx.platform_id,
+        fx.units,
+        day_n(9),
+        day_n(10),
+        "DAY",
+    );
+    // The cross pair's own read carries all three, so they are live.
+    let cross = single_pair_read(&fx, &[fx.works[0]], fx.platform_id, fx.units);
+    assert!(cross.is_partial);
+    for code in [
+        MetricWarningCode::PartialCoverage,
+        MetricWarningCode::UnresolvedIdentifiers,
+        MetricWarningCode::RollupLag,
+    ] {
+        assert!(
+            cross.warnings.iter().any(|warning| warning.code == code),
+            "{code:?}"
+        );
     }
+
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(widget.chapters, None);
+    let section = &widget.work;
+    let served = sorted(&[
+        (fx.platform_id, fx.sessions),
+        (fx.other_platform_id, fx.units),
+    ]);
+    // Exactly the two diagonal pairs, in every list of the section.
+    assert_eq!(pairs_of(section), served);
+    let pair_of_total = |t: &MetricTotal| (t.platform_id, t.measure_id);
+    assert_eq!(
+        section.totals.iter().map(pair_of_total).collect::<Vec<_>>(),
+        served
+    );
+    let mut timeline: Vec<(Uuid, Uuid)> = section
+        .timeline
+        .iter()
+        .map(|b| (b.platform_id, b.measure_id))
+        .collect();
+    timeline.dedup();
+    assert_eq!(timeline, served);
+    assert!(!section.countries.is_empty());
+    assert!(section
+        .countries
+        .iter()
+        .all(|c| served.contains(&(c.platform_id, c.measure_id))));
+    // Each served pair equals its single-pair read; dataThrough and
+    // isPartial aggregate over those two pairs only, so the cross pair's lag,
+    // assertion and identifier evidence neither make the section partial nor
+    // move its dataThrough.
+    assert_each_served_pair_equals_its_dashboard_read(&fx, section, &[fx.works[0]]);
+    assert!(!section.is_partial);
+    assert_eq!(section.data_through, Some(d(2026, 3, 31)));
 }
 
 #[test]
@@ -2342,6 +2556,73 @@ fn a_missing_frontier_or_label_is_internal() {
             WidgetReason::LabelMissing
         ))
     );
+}
+
+#[test]
+fn an_engine_frontier_other_than_the_labels_frontier_is_internal() {
+    // A whole read cannot produce the mismatch: the labels statement and the
+    // engine read `transaction_timestamp()` and the frontier row in one
+    // repeatable-read snapshot. So step 13 runs here on its own, inside such
+    // a transaction, given the labels' frontier and then a different one.
+    let (_guard, fx) = widget_setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 3);
+    apply_all(&fx.pool);
+    let request = validate(&input_for(BOOK_BARE), today()).expect("valid");
+    let (works, pairs) = ([fx.works[0]], [(fx.platform_id, fx.sessions)]);
+    let platforms = BTreeSet::from([fx.platform_id]);
+    let measures = BTreeSet::from([fx.sessions]);
+    let mut connection = fx.pool.get().expect("a connection");
+    connection
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            diesel::sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
+            diesel::sql_query(METRIC_WIDGET_STATEMENT_TIMEOUT_SQL).execute(connection)?;
+            diesel::sql_query(PROJECTION_LOCK_SQL).execute(connection)?;
+            let labels: Vec<LabelRow> = diesel::sql_query(METRIC_WIDGET_LABELS_SQL)
+                .bind::<Array<SqlUuid>, _>(platforms.iter().copied().collect::<Vec<Uuid>>())
+                .bind::<Array<SqlUuid>, _>(measures.iter().copied().collect::<Vec<Uuid>>())
+                .load(connection)?;
+            let ((as_of, watermark), _, _) =
+                interpret_labels(labels, &platforms, &measures).expect("the labels");
+            let deadline = MetricReadDeadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
+            let mut engine = |frontier: (Timestamp, Timestamp)| {
+                let mut facts = fresh_facts();
+                let section = engine_section(
+                    connection,
+                    WidgetSection::Work,
+                    fx.publisher_id,
+                    &works,
+                    &pairs,
+                    &request,
+                    frontier,
+                    &deadline,
+                    &mut facts,
+                );
+                (section, facts)
+            };
+            // The labels' own frontier: served.
+            let (section, _) = engine((as_of, watermark));
+            assert_eq!(
+                section.map(|section| pairs_of(&section)),
+                Ok(pairs.to_vec())
+            );
+            // Any other `asOf` or watermark: INTERNAL_ERROR.
+            let later = |at: Timestamp| Timestamp(at.0 + chrono::TimeDelta::seconds(1));
+            for frontier in [(later(as_of), watermark), (as_of, later(watermark))] {
+                let (section, facts) = engine(frontier);
+                let failure = section.map(|_| ()).expect_err("a frontier mismatch");
+                assert_eq!(
+                    failure,
+                    Failure::new(MetricWidgetError::Internal, WidgetReason::FrontierMismatch)
+                );
+                assert_eq!(failure.error.code(), "INTERNAL_ERROR");
+                assert_eq!(facts.engine_section, Some(WidgetSection::Work));
+            }
+            Ok::<(), diesel::result::Error>(())
+        })
+        .expect("the engine step's transaction");
 }
 
 #[test]
