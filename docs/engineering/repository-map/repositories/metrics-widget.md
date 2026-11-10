@@ -62,6 +62,6 @@ A published GitHub release:
 - Preserve React and vanilla-JavaScript consumers.
 - Preserve public package exports and CSS isolation.
 - Do not embed machine credentials.
-- The future authenticated path must be compatible with third-party embedding.
+- The future Metrics path is the public, capability-gated `metricWidget` read (`ADR-0014`): no credential, compatible with third-party embedding.
 - Add tests for data failure, coverage and partial response semantics before cutover.
 - A release is high risk because it publishes a public package.
