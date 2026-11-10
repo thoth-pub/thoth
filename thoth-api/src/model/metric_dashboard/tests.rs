@@ -7329,11 +7329,14 @@ fn the_coverage_run_read_selects_exactly_the_raw_winners() {
     ];
     // Imports, some sharing a completion time so the import id decides, some
     // non-terminal, failed or without a completion time, and some scoped to
-    // another publisher or none.
+    // another publisher or none. Their ids are fixed, from a second seeded
+    // generator, so the winner ranking is the same in every run and import
+    // id order is unrelated to insertion order.
+    let mut import_ids = Rng(20_261_110);
     let mut imports: Vec<(Uuid, Uuid)> = Vec::new();
     let mut statements = String::new();
     for _ in 0..60 {
-        let import_id = Uuid::new_v4();
+        let import_id = Uuid::from_u64_pair(import_ids.next(), import_ids.next());
         let account = accounts[rng.below(3) as usize];
         let publisher = match rng.below(10) {
             0 => "NULL".to_string(),
@@ -7391,7 +7394,12 @@ fn the_coverage_run_read_selects_exactly_the_raw_winners() {
         ));
     }
     exec(&fx.pool, &statements);
-    assert!(scalar_i64(&fx.pool, "(SELECT COUNT(*) FROM metric_coverage_run)") > 100);
+    // The fixture is the same in every run, so its run count is exact.
+    assert_eq!(
+        scalar_i64(&fx.pool, "(SELECT COUNT(*) FROM metric_coverage_run)"),
+        113,
+        "the fixture's coverage runs"
+    );
 
     let platforms = [fx.platform_id, fx.other_platform_id];
     let measures = [fx.sessions, fx.units];
