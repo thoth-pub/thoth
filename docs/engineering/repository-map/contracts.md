@@ -74,13 +74,15 @@ unsubscribed work. See
 `metrics-dashboard` and `metrics-widget` record their **currently verified**
 direct dependency on the public Thoth GraphQL API. The approved Thoth Metrics
 architecture separately identifies both repositories as primary Metrics
-client repositories and requires their **future** authenticated data path to
-go through a protected Metrics GraphQL surface / BFF rather than the current
-direct public-API call. That future architecture is not yet implemented and
-does not change what is verified today: as of this record, both repositories
-call the public Thoth GraphQL API directly, and a breaking change to that
-public schema requires impact assessment for both today, independent of when
-the protected Metrics path lands.
+client repositories, with different **future** data paths:
+`metrics-dashboard` goes through a protected Metrics GraphQL surface behind a
+Thoth-owned server route (BFF), and `metrics-widget` reads the public,
+capability-gated `metricWidget` operation directly from the browser, with no
+credential (`ADR-0014`). Neither client uses its future path yet, and the
+`metricWidget` read is not implemented; that does not change what is verified
+today: as of this record, both repositories call the public Thoth GraphQL API
+directly, and a breaking change to that public schema requires impact
+assessment for both today, independent of when the Metrics paths land.
 
 ### 2.2 Strapi CMS content contracts
 

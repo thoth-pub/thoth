@@ -1,11 +1,12 @@
 # Package Capability Matrix
 
 Status: APPROVED
-Normative owner: `ADR-0001`
+Normative owner: `ADR-0001`, except the `METRICS_WIDGET` row of section 2, whose normative owner is [`ADR-0014`](ADR-0014-public-widget-metrics.md)
 Decision owner: CTO
 Approved by: Javi, CTO
 Approval date: 2026-07-28
 Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
+`METRICS_WIDGET` row of section 2: approved by Javi, CTO, on 2026-11-10 under `ADR-0014`; the 2026-07-28 approval and PR #772 do not cover that row's current text
 
 ## 1. Package order
 
@@ -30,7 +31,7 @@ This matrix does not make package selection imply distribution-platform assignme
 | `METRICS_COLLECT` | Thoth-managed drivers may collect and retain canonical metrics when a source account and platform/measure configuration are enabled |
 | `METRICS_IMPORT` | Publisher users may submit approved publisher-controlled usage or sales reports |
 | `METRICS_DASHBOARD` | A Thoth-owned authenticated service may serve publisher dashboard metrics |
-| `METRICS_WIDGET` | A Thoth-owned authenticated service may serve bounded work-level widget metrics |
+| `METRICS_WIDGET` | Thoth may serve bounded, public, work-level widget metrics for this publisher's works to anonymous callers through the public API (`ADR-0014`) |
 | `METRICS_OPERAS_EXPORT` | Eligible finalized canonical metrics may create and deliver OPERAS export claims |
 
 Capability codes are stable API identifiers. Display labels are separate.
@@ -205,3 +206,5 @@ The CTO must explicitly confirm:
 Approved by: Javi, CTO
 
 Approval date: 2026-07-28
+
+The `METRICS_WIDGET` row of section 2 is owned by `ADR-0014` and was approved by Javi, CTO, on 2026-11-10; the approval above does not cover that row's current text.
