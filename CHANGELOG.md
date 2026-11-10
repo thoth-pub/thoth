@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [960](https://github.com/thoth-pub/thoth/pull/960) - Add ADR-0012, the shared architecture for asynchronous events and background jobs
 
+### Changed
+  - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
+
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
 ### Added
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Implement the Metrics API, with 20 database migrations for metric platforms, measures, sources, imports, records, coverage and rollups

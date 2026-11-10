@@ -47,7 +47,7 @@ Sphinx:
 - imports only allowed OPERAS-only mappings;
 - records reconciliation outcomes in Thoth.
 
-Dashboard and widget clients stop querying OPERAS directly and use authenticated Thoth-owned server routes.
+Dashboard and widget clients stop querying OPERAS directly. The dashboard uses an authenticated Thoth-owned server route; the widget reads the public, capability-gated `metricWidget` operation ([`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md)).
 
 ## 3. Canonical boundaries
 
@@ -91,10 +91,16 @@ state.
 
 Dashboard and widget browser code must not hold Thoth machine credentials.
 
-Use:
+Dashboard:
 
 ```text
 Browser -> Thoth-owned server route -> authenticated Thoth GraphQL operation
+```
+
+Widget ([`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md); decided, not yet implemented):
+
+```text
+Browser -> public Thoth GraphQL API -> metricWidget (no credential; gated by METRICS_WIDGET)
 ```
 
 ## 4. Core invariants

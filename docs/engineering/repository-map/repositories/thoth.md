@@ -164,8 +164,10 @@ against the public GraphQL API, independent of any Metrics-specific
 architecture — `thoth-pub/metrics-dashboard` and `thoth-pub/metrics-widget`.
 See `docs/engineering/repository-map/contracts.md` for verified consumers and
 required compatibility handling, including the distinction between that
-current direct GraphQL dependency and the approved future protected
-Metrics-GraphQL/BFF data path for those two repositories.
+current direct GraphQL dependency and the approved future Metrics data paths
+for those two repositories: a protected Metrics GraphQL/BFF path for
+`metrics-dashboard`, and the public, capability-gated `metricWidget` read for
+`metrics-widget` (`ADR-0014`).
 
 The `thoth-client` workspace member listed above is an **internal** Rust
 crate, depended on only by `thoth-export-server` within this same workspace.
