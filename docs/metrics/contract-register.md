@@ -1713,11 +1713,21 @@ Contract properties consumers may rely on:
   to the identifier-quality query within 20 seconds of being granted its
   slot. Otherwise it rolls back and fails as `INTERNAL_ERROR` with the fixed
   message of section 4.2; `COMMIT` is not checked. The pool checkout waits at
-  most the lesser of the pool's connection timeout and the time left. A
-  statement already started still runs under the 30-second statement
-  timeout, so a read holds its slot for at most about 50 seconds. A busy
-  refusal and a deadline expiry are logged with fixed text and no request
-  detail.
+  most the lesser of the pool's connection timeout and the time left, and a
+  checkout the deadline cuts short is a deadline expiry. A statement already
+  started still runs under the 30-second statement timeout, so a read holds
+  its slot for at most about 50 seconds. A busy refusal and a deadline expiry
+  are logged with fixed text and no request detail.
+- **Rebuild under read load.** A `rebuildMetricRollupMonths` that has to
+  truncate waits at most its own 5-second `lock_timeout` for its
+  `ACCESS EXCLUSIVE` lock. A dashboard read holds `ACCESS SHARE` on the six
+  projection tables from step 0 until its transaction ends: it starts no
+  statement after its 20-second deadline, and each statement runs under the
+  30-second statement timeout, so one read holds the locks for at most about
+  50 seconds. Reads that arrive while the rebuild waits queue behind it. If
+  the rebuild fails on its lock timeout, it has rolled back and changed
+  nothing. Retry it when dashboard read traffic is low, so that no running
+  read outlasts that 5-second wait.
 - **Statement ceilings.** Step 0 is the section 4.2 sequence, unchanged.
   Every statement on the read connection counts, the pool's checkout
   `SELECT 1` included, and a failed read is not a ceiling example. With
@@ -1726,12 +1736,16 @@ Contract properties consumers may rely on:
   Amendment 3 section 4A (issue #980) defines them:
 
   ```text
-  aligned MONTH or YEAR                  <= 14
-  aligned DAY                            <= 15
-  clipped / omitted-section              <= 16
-  clipped MONTH or YEAR with sections    <= 17
+  aligned MONTH or YEAR                      <= 14
+  aligned DAY                                <= 15
+  aligned DAY with a base cell to resolve    <= 16
+  clipped / omitted-section                  <= 16
+  clipped MONTH or YEAR with sections        <= 17
+  clipped DAY with sections                  <= 17
   ```
 
+  The two DAY rows at 16 and 17 run the same day reads as the other form
+  with the same ceiling.
   "Aligned" means both dates are the first of a month. A request in which
   both pair queries run carries exactly one more statement, and no form may
   exceed its own ceiling. The longest path is exactly the eighteen statements
