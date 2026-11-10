@@ -124,7 +124,7 @@ pub enum PublisherCapability {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "A Thoth-owned authenticated service may serve bounded work-level widget metrics"
+            description = "Thoth may serve bounded, public, work-level widget metrics for this publisher's works to anonymous callers through the public API"
         )
     )]
     MetricsWidget,

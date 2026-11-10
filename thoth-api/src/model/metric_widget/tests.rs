@@ -1,0 +1,2325 @@
+//! `MET-WP4-WIDGET-01` evidence for the public widget read.
+//!
+//! These tests drive the read directly, through [`resolve`] with a test
+//! profile, against the dashboard's disposable-database fixture: the order of
+//! operations and the captured statement sequence (every assertion naming an
+//! engine statement, a captured sequence or the statement ceiling lives in
+//! this file), the slots, the deadline and the projection lock, the public
+//! scope, the sections and their child works, the pair bound, pair mode and
+//! its equivalence to single-pair dashboard reads, the snapshot, the error
+//! mapping and the log decision. Several selections in one GraphQL document
+//! are proven here too, through the real schema, because they assert
+//! captured statements.
+//!
+//! The SDL contract and the API-boundary behaviour are proven in
+//! `crate::graphql::metric_widget_tests`.
+
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use diesel::connection::SimpleConnection;
+use diesel::{Connection, PgConnection};
+use serde_json::{json, Value as JsonValue};
+use uuid::Uuid;
+
+use super::*;
+use crate::graphql::{create_schema, Context, GraphQLRequest};
+use crate::model::metric_dashboard::tests::{
+    apply_all, capturing_pool, commit, commit_dims, cover, d, day_n, exec, insert_institution,
+    insert_measure, publisher_sql, request, setup, statement_text, text, works_sql, Dims, Fixture,
+};
+use crate::model::metric_dashboard::{
+    metric_dashboard, ACCOUNTS_SQL, ASSERTIONS_SQL, CANONICAL_SQL, DAY_SECTIONS_SQL, DAY_SUMS_SQL,
+    DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL, KNOWN_SQL, MONTHS_SQL, PUBLISHERS_SQL,
+    REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
+};
+use crate::model::tests::db::{test_context_anonymous, test_db_url, TestDbGuard};
+
+// ==========================================================================
+// Fixture
+// ==========================================================================
+
+/// The embedded book: the fixture's first work.
+const BOOK_DOI: &str = "https://doi.org/10.5555/widget-book";
+/// The same DOI as a consumer sends it.
+const BOOK_BARE: &str = "10.5555/widget-book";
+
+/// The read's month: March 2026, the dashboard fixture's default window.
+fn march() -> (NaiveDate, NaiveDate) {
+    (d(2026, 3, 1), d(2026, 4, 1))
+}
+
+/// A fixed "today" well after the fixture's data, so no test depends on the
+/// wall clock.
+fn today() -> NaiveDate {
+    d(2026, 11, 10)
+}
+
+/// The dashboard fixture, with the first work given [`BOOK_DOI`].
+fn widget_setup() -> (TestDbGuard, Fixture) {
+    let (guard, fx) = setup();
+    set_doi(&fx.pool, fx.works[0], BOOK_DOI);
+    (guard, fx)
+}
+
+fn set_doi(pool: &PgPool, work_id: Uuid, doi: &str) {
+    exec(
+        pool,
+        &format!("UPDATE work SET doi = '{doi}' WHERE work_id = '{work_id}';"),
+    );
+}
+
+fn imprint_of(pool: &PgPool, work_id: Uuid) -> Uuid {
+    #[derive(diesel::QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = SqlUuid)]
+        imprint_id: Uuid,
+    }
+    let mut connection = pool.get().expect("a connection");
+    diesel::sql_query(format!(
+        "SELECT imprint_id FROM work WHERE work_id = '{work_id}'"
+    ))
+    .get_result::<Row>(&mut connection)
+    .expect("the work's imprint")
+    .imprint_id
+}
+
+/// One child work under `parent`, in `imprint`, with both relation rows.
+fn child_sql(
+    parent: Uuid,
+    imprint: Uuid,
+    child: Uuid,
+    work_type: &str,
+    doi: Option<&str>,
+    ordinal: usize,
+) -> String {
+    let edition = if work_type == "book-chapter" {
+        "NULL"
+    } else {
+        "1"
+    };
+    let doi = doi.map_or("NULL".to_string(), |doi| format!("'{doi}'"));
+    format!(
+        "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition, doi) \
+         VALUES ('{child}', '{work_type}', 'forthcoming', '{imprint}', {edition}, {doi}); \
+         INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, \
+                                    relation_ordinal) \
+         VALUES ('{parent}', '{child}', 'has-child', {ordinal}), \
+                ('{child}', '{parent}', 'is-child-of', 1);"
+    )
+}
+
+/// Add one chapter under `parent` and return its id.
+fn add_chapter(
+    pool: &PgPool,
+    parent: Uuid,
+    imprint: Uuid,
+    doi: Option<&str>,
+    ordinal: usize,
+) -> Uuid {
+    let child = Uuid::new_v4();
+    exec(
+        pool,
+        &child_sql(parent, imprint, child, "book-chapter", doi, ordinal),
+    );
+    child
+}
+
+/// Add `count` chapters (no DOI) under `parent` in one batch.
+fn add_chapters(pool: &PgPool, parent: Uuid, imprint: Uuid, count: usize) -> Vec<Uuid> {
+    let children: Vec<Uuid> = (0..count).map(|_| Uuid::new_v4()).collect();
+    let sql: String = children
+        .iter()
+        .enumerate()
+        .map(|(index, child)| child_sql(parent, imprint, *child, "book-chapter", None, index + 1))
+        .collect();
+    exec(pool, &sql);
+    children
+}
+
+/// One active native-grain canonical record (no rollup delta: the projection
+/// admits only `DAY` records).
+fn native_record(fx: &Fixture, work_id: Uuid, platform_id: Uuid, measure_id: Uuid) {
+    let (record_id, revision_id) = (Uuid::new_v4(), Uuid::new_v4());
+    let (start, end) = march();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, platform_id, measure_id, period_start, \
+                  period_end, reporting_grain, winning_source_account_id) \
+             VALUES ('{record_id}', 'native-{record_id}', '{work_id}', '{platform_id}', \
+                     '{measure_id}', '{start}', '{end}', 'MONTH', '{account}'); \
+             INSERT INTO metric_record_revision \
+                 (record_revision_id, record_id, revision_number, import_id, value, \
+                  content_hash, status) \
+             VALUES ('{revision_id}', '{record_id}', 1, '{import}', 50, \
+                     'content-{revision_id}', 'CURRENT'); \
+             UPDATE metric_record SET current_revision_id = '{revision_id}' \
+              WHERE record_id = '{record_id}';",
+            account = fx.account_id,
+            import = fx.canonical_import,
+        ),
+    );
+}
+
+/// Complete coverage of `measure` on the fixture platform for March.
+fn cover_march(fx: &Fixture, measure_id: Uuid) {
+    let (start, end) = march();
+    cover(
+        fx,
+        measure_id,
+        start,
+        end,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-04-10T00:00:00Z'",
+    );
+}
+
+fn input_for(doi: &str) -> MetricWidgetInput {
+    let (start, end) = march();
+    MetricWidgetInput {
+        doi: Doi(doi.to_string()),
+        chapter_dois: None,
+        start_date: start,
+        end_date: end,
+    }
+}
+
+fn with_chapters(doi: &str, chapters: &[&str]) -> MetricWidgetInput {
+    MetricWidgetInput {
+        chapter_dois: Some(chapters.iter().map(|doi| Doi(doi.to_string())).collect()),
+        ..input_for(doi)
+    }
+}
+
+fn no_hook(_: WidgetStep) {}
+
+/// The production profile with a fixed date and an optional hook.
+fn profile(hook: &dyn Fn(WidgetStep)) -> Profile<'_> {
+    Profile {
+        statement_timeout_sql: METRIC_WIDGET_STATEMENT_TIMEOUT_SQL,
+        deadline: METRIC_WIDGET_DEADLINE,
+        checkout_timeout: METRIC_WIDGET_CHECKOUT_TIMEOUT,
+        today: today(),
+        hook,
+    }
+}
+
+/// One resolution with a fresh claim counter and a recording log sink.
+fn resolve_with(
+    pool: &PgPool,
+    switch: MetricWidgetSwitch,
+    input: &MetricWidgetInput,
+    profile: &Profile<'_>,
+) -> (Result<MetricWidget, MetricWidgetError>, Vec<WidgetLogLine>) {
+    let claims = AtomicUsize::new(0);
+    let mut lines = Vec::new();
+    let result = resolve(pool, switch, &claims, input, profile, &mut |emitted| {
+        lines.extend_from_slice(emitted)
+    });
+    (result, lines)
+}
+
+/// One resolution with the switch on and the test profile.
+fn read(pool: &PgPool, input: &MetricWidgetInput) -> Result<MetricWidget, MetricWidgetError> {
+    resolve_with(pool, MetricWidgetSwitch::On, input, &profile(&no_hook)).0
+}
+
+/// One resolution on a capturing pool: the result, its log lines and every
+/// statement it sent.
+fn captured(
+    input: &MetricWidgetInput,
+    profile: &Profile<'_>,
+) -> (
+    Result<MetricWidget, MetricWidgetError>,
+    Vec<WidgetLogLine>,
+    Vec<&'static str>,
+) {
+    let (pool, log) = capturing_pool();
+    let (result, lines) = resolve_with(&pool, MetricWidgetSwitch::On, input, profile);
+    let statements = log.lock().expect("the statement log").clone();
+    (result, lines, widget_statement_names(&statements))
+}
+
+/// Every engine statement, by name.
+const ENGINE_STATEMENTS: [(&str, &str); 12] = [
+    ("PUBLISHERS_SQL", PUBLISHERS_SQL),
+    ("WORKS_SQL", WORKS_SQL),
+    ("KNOWN_SQL", KNOWN_SQL),
+    ("REPRESENTED_SQL", REPRESENTED_SQL),
+    ("ACCOUNTS_SQL", ACCOUNTS_SQL),
+    ("CANONICAL_SQL", CANONICAL_SQL),
+    ("MONTHS_SQL", MONTHS_SQL),
+    ("DAY_SUMS_SQL", DAY_SUMS_SQL),
+    ("DIMENSION_CELLS_SQL", DIMENSION_CELLS_SQL),
+    ("DAY_SECTIONS_SQL", DAY_SECTIONS_SQL),
+    ("ASSERTIONS_SQL", ASSERTIONS_SQL),
+    ("IDENTIFIER_QUALITY_SQL", IDENTIFIER_QUALITY_SQL),
+];
+
+/// The widget's own statement naming: transaction control, the prelude, the
+/// widget-owned statements and the engine's, each matched on its exact text.
+/// A statement timeout other than the widget's is the test-only one.
+fn widget_statement_names(statements: &[String]) -> Vec<&'static str> {
+    statements
+        .iter()
+        .map(|statement| {
+            let sql = statement_text(statement);
+            if statement.starts_with("SELECT 1") {
+                return "CHECKOUT_CHECK";
+            }
+            for (prefix, name) in [
+                ("BEGIN", "BEGIN"),
+                ("COMMIT", "COMMIT"),
+                ("ROLLBACK", "ROLLBACK"),
+            ] {
+                if statement.starts_with(prefix) {
+                    return name;
+                }
+            }
+            let owned = [
+                ("CUSTOM_PLANS_SQL", CUSTOM_PLANS_SQL),
+                (
+                    "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+                    METRIC_WIDGET_STATEMENT_TIMEOUT_SQL,
+                ),
+                ("PROJECTION_LOCK_SQL", PROJECTION_LOCK_SQL),
+                ("METRIC_WIDGET_RESOLUTION_SQL", METRIC_WIDGET_RESOLUTION_SQL),
+                ("METRIC_WIDGET_PAIRS_SQL", METRIC_WIDGET_PAIRS_SQL),
+                ("METRIC_WIDGET_LABELS_SQL", METRIC_WIDGET_LABELS_SQL),
+            ];
+            if let Some((name, _)) = owned
+                .iter()
+                .chain(ENGINE_STATEMENTS.iter())
+                .find(|(_, text)| sql == *text)
+            {
+                return name;
+            }
+            if sql.starts_with("SET LOCAL statement_timeout = '") {
+                return "TEST_STATEMENT_TIMEOUT_SQL";
+            }
+            panic!("an unnamed statement was executed: {statement}")
+        })
+        .collect()
+}
+
+/// The six statements one pair-mode engine run executes.
+const ENGINE_RUN: [&str; 6] = [
+    "PUBLISHERS_SQL",
+    "ACCOUNTS_SQL",
+    "CANONICAL_SQL",
+    "MONTHS_SQL",
+    "ASSERTIONS_SQL",
+    "IDENTIFIER_QUALITY_SQL",
+];
+
+fn pairs_of(section: &MetricWidgetSection) -> Vec<(Uuid, Uuid)> {
+    section
+        .coverage
+        .iter()
+        .map(|item| (item.platform_id, item.measure_id))
+        .collect()
+}
+
+fn total(section: &MetricWidgetSection, platform_id: Uuid, measure_id: Uuid) -> Option<String> {
+    section
+        .totals
+        .iter()
+        .find(|total| total.platform_id == platform_id && total.measure_id == measure_id)
+        .and_then(|total| text(&total.value))
+}
+
+fn sorted<T: Ord + Clone>(values: &[T]) -> Vec<T> {
+    let mut values = values.to_vec();
+    values.sort();
+    values
+}
+
+/// A book with two chapters and two served pairs in each section, so both
+/// sections run the engine: the longest path.
+fn longest_path(fx: &Fixture) -> (Uuid, Uuid) {
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let first = add_chapter(
+        &fx.pool,
+        fx.works[0],
+        imprint,
+        Some("https://doi.org/10.5555/widget-chapter-1"),
+        1,
+    );
+    let second = add_chapter(
+        &fx.pool,
+        fx.works[0],
+        imprint,
+        Some("https://doi.org/10.5555/widget-chapter-2"),
+        2,
+    );
+    cover_march(fx, fx.sessions);
+    cover_march(fx, fx.units);
+    for work in [fx.works[0], first, second] {
+        commit(fx, work, fx.platform_id, fx.sessions, day_n(3), 4);
+        commit(fx, work, fx.platform_id, fx.units, day_n(5), 2);
+    }
+    apply_all(&fx.pool);
+    (first, second)
+}
+
+// ==========================================================================
+// Statement sequence, ceiling and prelude
+// ==========================================================================
+
+#[test]
+fn the_longest_path_runs_exactly_the_bounded_statement_sequence() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    let widget = result.expect("the longest path is served");
+    assert_eq!(pairs_of(&widget.work).len(), 2);
+    assert_eq!(
+        pairs_of(widget.chapters.as_ref().expect("chapters are served")).len(),
+        2
+    );
+
+    let mut expected = vec![
+        "CHECKOUT_CHECK",
+        "BEGIN",
+        "CUSTOM_PLANS_SQL",
+        "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+        "PROJECTION_LOCK_SQL",
+        "METRIC_WIDGET_RESOLUTION_SQL",
+        "METRIC_WIDGET_PAIRS_SQL",
+        "METRIC_WIDGET_PAIRS_SQL",
+        "METRIC_WIDGET_LABELS_SQL",
+    ];
+    expected.extend(ENGINE_RUN);
+    expected.extend(ENGINE_RUN);
+    expected.push("COMMIT");
+    assert_eq!(names, expected);
+    // The ceiling: 19 named statements, 22 captured.
+    assert_eq!(names.len(), 22);
+    let named = names
+        .iter()
+        .filter(|name| !["CHECKOUT_CHECK", "BEGIN", "COMMIT"].contains(name))
+        .count();
+    assert_eq!(named, 19, "the statement ceiling is 19 named statements");
+    // One connection and one transaction: one checkout, one BEGIN, one COMMIT.
+    for control in ["CHECKOUT_CHECK", "BEGIN", "COMMIT"] {
+        assert_eq!(names.iter().filter(|name| **name == control).count(), 1);
+    }
+    // The engine never runs its discovery or day statements in pair mode.
+    for absent in [
+        "WORKS_SQL",
+        "KNOWN_SQL",
+        "REPRESENTED_SQL",
+        "DAY_SUMS_SQL",
+        "DIMENSION_CELLS_SQL",
+        "DAY_SECTIONS_SQL",
+    ] {
+        assert!(!names.contains(&absent), "{absent} must not run");
+    }
+}
+
+#[test]
+fn the_prelude_is_exact_and_precedes_the_first_query() {
+    let (_guard, _fx) = widget_setup();
+    let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    result.expect("an entitled book with no data is served");
+    assert_eq!(
+        names[..6],
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+            "METRIC_WIDGET_RESOLUTION_SQL",
+        ]
+    );
+    // The widget's own timeout, not the dashboard's.
+    assert_eq!(
+        METRIC_WIDGET_STATEMENT_TIMEOUT_SQL,
+        "SET LOCAL statement_timeout = '5s'"
+    );
+    assert_ne!(METRIC_WIDGET_STATEMENT_TIMEOUT_SQL, STATEMENT_TIMEOUT_SQL);
+}
+
+#[test]
+fn the_profile_values_are_the_specified_bounds() {
+    assert_eq!(METRIC_WIDGET_MAX_RANGE_MONTHS, 12);
+    assert_eq!(METRIC_WIDGET_MAX_CHAPTER_DOIS, 500);
+    assert_eq!(METRIC_WIDGET_MAX_CHILD_WORKS, 500);
+    assert_eq!(METRIC_WIDGET_MAX_PAIRS, 40);
+    assert_eq!(METRIC_WIDGET_SLOTS, 2);
+    assert_eq!(METRIC_WIDGET_CHECKOUT_TIMEOUT, Duration::from_secs(1));
+    assert_eq!(METRIC_WIDGET_DEADLINE, Duration::from_secs(10));
+    assert_eq!(METRIC_WIDGET_END_DATE_CEILING_DAYS, 366);
+    let production = Profile::production();
+    assert_eq!(
+        production.statement_timeout_sql,
+        METRIC_WIDGET_STATEMENT_TIMEOUT_SQL
+    );
+    assert_eq!(production.deadline, METRIC_WIDGET_DEADLINE);
+    assert_eq!(production.checkout_timeout, METRIC_WIDGET_CHECKOUT_TIMEOUT);
+}
+
+#[test]
+fn an_unknown_doi_and_an_unentitled_publisher_are_one_refusal_after_one_statement() {
+    let (_guard, fx) = widget_setup();
+    let obelisk = Uuid::new_v4();
+    let obelisk_work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(obelisk, "OBELISK"),
+            works_sql(obelisk, &[obelisk_work])
+        ),
+    );
+    set_doi(
+        &fx.pool,
+        obelisk_work,
+        "https://doi.org/10.5555/widget-obelisk",
+    );
+    let expected = [
+        "CHECKOUT_CHECK",
+        "BEGIN",
+        "CUSTOM_PLANS_SQL",
+        "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+        "PROJECTION_LOCK_SQL",
+        "METRIC_WIDGET_RESOLUTION_SQL",
+        "ROLLBACK",
+    ];
+    let mut reasons = Vec::new();
+    for doi in ["10.5555/widget-unknown", "10.5555/widget-obelisk"] {
+        let (result, lines, names) = captured(&input_for(doi), &profile(&no_hook));
+        assert_eq!(result, Err(MetricWidgetError::Unavailable), "{doi}");
+        assert_eq!(names, expected, "{doi}");
+        let reason = lines
+            .iter()
+            .find(|line| line.kind == WidgetLineKind::Reason)
+            .expect("a reason line");
+        assert_eq!(reason.step, WidgetStep::Entitlement);
+        reasons.push(reason.reason);
+    }
+    assert_eq!(
+        reasons,
+        [
+            Some(WidgetReason::UnknownWork),
+            Some(WidgetReason::NotEntitled)
+        ]
+    );
+}
+
+#[test]
+fn the_switch_off_and_input_failures_run_no_statement_and_take_no_slot() {
+    // No database: a pool whose every checkout fails would fail loudly.
+    let (pool, log) = capturing_pool();
+    let (result, lines) = resolve_with(
+        &pool,
+        MetricWidgetSwitch::Off,
+        &input_for(BOOK_BARE),
+        &profile(&|step| panic!("step {step:?} reached with the switch off")),
+    );
+    assert_eq!(result, Err(MetricWidgetError::Unavailable));
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].level, log::Level::Debug);
+
+    let mut bad = input_for(BOOK_BARE);
+    bad.end_date = d(2027, 4, 1);
+    let (result, _) = resolve_with(
+        &pool,
+        MetricWidgetSwitch::On,
+        &bad,
+        &profile(&|step| panic!("step {step:?} reached after an input failure")),
+    );
+    assert_eq!(
+        result,
+        Err(MetricWidgetError::QueryLimitExceeded(RANGE_MESSAGE))
+    );
+    assert!(log.lock().expect("the statement log").is_empty());
+}
+
+// ==========================================================================
+// Several selections in one request (section 4.1 step 3)
+// ==========================================================================
+
+const SELECTION: &str = "metricWidget(input: {doi: \"10.5555/widget-book\", \
+     startDate: \"2026-03-01\", endDate: \"2026-04-01\"}) \
+     { excludedChildCount work { totals { value } } }";
+
+async fn execute(context: &Context, query: &str) -> JsonValue {
+    let request: GraphQLRequest =
+        serde_json::from_value(json!({ "query": query })).expect("a GraphQL request");
+    serde_json::to_value(request.execute(&create_schema(), context).await)
+        .expect("a serialized response")
+}
+
+/// Execute one document with a fresh context, the switch on, on a capturing
+/// pool: the response and the statements it sent.
+async fn execute_captured(query: &str) -> (JsonValue, Vec<&'static str>) {
+    let (pool, log) = capturing_pool();
+    let context = test_context_anonymous(Arc::new(pool)).with_metric_widget(MetricWidgetSwitch::On);
+    let response = execute(&context, query).await;
+    let statements = log.lock().expect("the statement log").clone();
+    (response, widget_statement_names(&statements))
+}
+
+fn error_types(response: &JsonValue) -> Vec<String> {
+    response["errors"]
+        .as_array()
+        .map(|errors| {
+            errors
+                .iter()
+                .map(|error| {
+                    error["extensions"]["type"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string()
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn transactions(names: &[&str]) -> usize {
+    names.iter().filter(|name| **name == "BEGIN").count()
+}
+
+fn served_fixture(fx: &Fixture) {
+    cover_march(fx, fx.sessions);
+    commit(fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 3);
+    apply_all(&fx.pool);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_second_selection_under_an_alias_or_the_same_key_is_refused() {
+    let (_guard, fx) = widget_setup();
+    served_fixture(&fx);
+    for query in [
+        format!("{{ a: {SELECTION} b: {SELECTION} }}"),
+        format!("{{ {SELECTION} {SELECTION} }}"),
+    ] {
+        let (response, names) = execute_captured(&query).await;
+        assert_eq!(
+            error_types(&response),
+            ["METRIC_QUERY_LIMIT_EXCEEDED"],
+            "{query}: {response}"
+        );
+        assert_eq!(
+            response["errors"][0]["message"],
+            json!(ONE_SELECTION_MESSAGE)
+        );
+        assert_eq!(response["data"], JsonValue::Null, "{response}");
+        assert_eq!(transactions(&names), 1, "{query}: {names:?}");
+        assert_eq!(
+            names
+                .iter()
+                .filter(|name| **name == "METRIC_WIDGET_RESOLUTION_SQL")
+                .count(),
+            1
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn repeated_fragments_serve_the_first_read_and_refuse_the_rest() {
+    let (_guard, fx) = widget_setup();
+    served_fixture(&fx);
+    for query in [
+        format!("{{ ...F ...F ...F }} fragment F on QueryRoot {{ {SELECTION} }}"),
+        format!(
+            "{{ ... on QueryRoot {{ {SELECTION} }} ... on QueryRoot {{ {SELECTION} }} \
+             ... on QueryRoot {{ {SELECTION} }} }}"
+        ),
+    ] {
+        let (response, names) = execute_captured(&query).await;
+        assert_eq!(
+            error_types(&response),
+            ["METRIC_QUERY_LIMIT_EXCEEDED", "METRIC_QUERY_LIMIT_EXCEEDED"],
+            "{query}: {response}"
+        );
+        assert_eq!(
+            response["data"]["metricWidget"]["work"]["totals"][0]["value"],
+            json!("3"),
+            "{response}"
+        );
+        assert_eq!(transactions(&names), 1, "{query}: {names:?}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_single_refused_selection_in_a_named_fragment_leaves_data_without_it() {
+    let (_guard, _fx) = widget_setup();
+    let query = "{ ...F } fragment F on QueryRoot { metricWidget(input: \
+                 {doi: \"10.5555/widget-unknown\", startDate: \"2026-03-01\", \
+                 endDate: \"2026-04-01\"}) { excludedChildCount } }";
+    let (response, names) = execute_captured(query).await;
+    assert_eq!(
+        error_types(&response),
+        ["METRIC_WIDGET_UNAVAILABLE"],
+        "{response}"
+    );
+    assert_eq!(response["data"], json!({}), "{response}");
+    assert_eq!(transactions(&names), 1);
+}
+
+// ==========================================================================
+// Log decision (section 4.8)
+// ==========================================================================
+
+fn facts(error: Option<MetricWidgetError>, step: WidgetStep) -> WidgetFacts {
+    WidgetFacts {
+        switch: MetricWidgetSwitch::On,
+        previous_claims: Some(0),
+        error,
+        reason: None,
+        step,
+        elapsed_ms: 12,
+        doi: Some(Doi::from_str(BOOK_BARE).expect("a DOI")),
+        work: Some(SectionSize {
+            pairs: 2,
+            cross_product: 4,
+        }),
+        chapters: None,
+        engine_section: None,
+        last_statement: None,
+    }
+}
+
+fn levels(lines: &[WidgetLogLine]) -> Vec<(log::Level, WidgetLineKind)> {
+    lines.iter().map(|line| (line.level, line.kind)).collect()
+}
+
+#[test]
+fn a_served_resolution_is_one_info_outcome_line_with_the_doi_and_sizes() {
+    let lines = log_decision(&facts(None, WidgetStep::Commit));
+    assert_eq!(
+        levels(&lines),
+        [(log::Level::Info, WidgetLineKind::Outcome)]
+    );
+    let line = &lines[0];
+    assert_eq!(line.error, None);
+    assert_eq!(line.elapsed_ms, 12);
+    assert!(line.doi.is_some());
+    assert_eq!(
+        line.work,
+        Some(SectionSize {
+            pairs: 2,
+            cross_product: 4
+        })
+    );
+    let message = line.message();
+    assert!(message.contains("outcome=OK"), "{message}");
+    assert!(message.contains("work_pairs/cross=2/4"), "{message}");
+    assert!(
+        message.contains("doi=https://doi.org/10.5555/widget-book"),
+        "{message}"
+    );
+}
+
+#[test]
+fn the_first_second_selection_refusal_is_info_and_later_ones_debug() {
+    let mut refused = facts(
+        Some(MetricWidgetError::QueryLimitExceeded(ONE_SELECTION_MESSAGE)),
+        WidgetStep::Claim,
+    );
+    refused.doi = None;
+    refused.work = None;
+    for (previous, level) in [
+        (1, log::Level::Info),
+        (2, log::Level::Debug),
+        (7, log::Level::Debug),
+    ] {
+        refused.previous_claims = Some(previous);
+        let lines = log_decision(&refused);
+        assert_eq!(
+            levels(&lines),
+            [(level, WidgetLineKind::Outcome)],
+            "{previous}"
+        );
+    }
+}
+
+#[test]
+fn nothing_above_debug_is_written_with_the_switch_off() {
+    let mut off = facts(Some(MetricWidgetError::Unavailable), WidgetStep::Switch);
+    off.switch = MetricWidgetSwitch::Off;
+    off.previous_claims = None;
+    off.reason = Some(WidgetReason::SwitchOff);
+    let lines = log_decision(&off);
+    assert_eq!(
+        levels(&lines),
+        [(log::Level::Debug, WidgetLineKind::Reason)]
+    );
+    assert_eq!(lines[0].reason, Some(WidgetReason::SwitchOff));
+}
+
+#[test]
+fn unavailable_and_busy_reasons_are_debug_with_the_doi_only_after_step_8() {
+    for error in [MetricWidgetError::Unavailable, MetricWidgetError::Busy] {
+        for (step, outcome_doi, reason_doi) in [
+            (WidgetStep::Slot, false, false),
+            (WidgetStep::Resolution, false, false),
+            (WidgetStep::Entitlement, false, true),
+            (WidgetStep::Engine, true, true),
+        ] {
+            let mut refused = facts(Some(error), step);
+            refused.reason = Some(WidgetReason::NoSlot);
+            let lines = log_decision(&refused);
+            assert_eq!(
+                levels(&lines),
+                [
+                    (log::Level::Info, WidgetLineKind::Outcome),
+                    (log::Level::Debug, WidgetLineKind::Reason)
+                ],
+                "{error:?} {step:?}"
+            );
+            assert_eq!(lines[0].doi.is_some(), outcome_doi, "{error:?} {step:?}");
+            assert_eq!(lines[1].doi.is_some(), reason_doi, "{error:?} {step:?}");
+            assert_eq!(lines[1].reason, Some(WidgetReason::NoSlot));
+            assert_eq!(lines[0].reason, None, "the outcome line carries no reason");
+        }
+    }
+}
+
+#[test]
+fn a_checkout_failure_is_also_a_warn_line() {
+    let mut refused = facts(Some(MetricWidgetError::Busy), WidgetStep::Checkout);
+    refused.reason = Some(WidgetReason::CheckoutFailed);
+    assert_eq!(
+        levels(&log_decision(&refused)),
+        [
+            (log::Level::Info, WidgetLineKind::Outcome),
+            (log::Level::Debug, WidgetLineKind::Reason),
+            (log::Level::Warn, WidgetLineKind::Pool),
+        ]
+    );
+}
+
+#[test]
+fn an_internal_error_is_an_error_line_with_section_step_statement_and_time() {
+    let mut failed = facts(Some(MetricWidgetError::Internal), WidgetStep::Engine);
+    failed.reason = Some(WidgetReason::EngineUnavailable);
+    failed.engine_section = Some(WidgetSection::Chapters);
+    failed.last_statement = Some("ASSERTIONS_SQL");
+    let lines = log_decision(&failed);
+    assert_eq!(
+        levels(&lines),
+        [
+            (log::Level::Info, WidgetLineKind::Outcome),
+            (log::Level::Error, WidgetLineKind::Internal),
+        ]
+    );
+    let error = &lines[1];
+    assert_eq!(error.reason, Some(WidgetReason::EngineUnavailable));
+    assert_eq!(error.engine_section, Some(WidgetSection::Chapters));
+    assert_eq!(error.step, WidgetStep::Engine);
+    assert_eq!(error.last_statement, Some("ASSERTIONS_SQL"));
+    assert_eq!(error.elapsed_ms, 12);
+    assert!(error.doi.is_some());
+    let message = error.message();
+    for part in [
+        "outcome=INTERNAL_ERROR",
+        "step=13",
+        "elapsed_ms=12",
+        "reason=EngineUnavailable",
+        "section=chapters",
+        "last_statement=ASSERTIONS_SQL",
+    ] {
+        assert!(message.contains(part), "{message}");
+    }
+    // An internal error before step 9 carries no DOI.
+    let mut early = facts(Some(MetricWidgetError::Internal), WidgetStep::Prelude);
+    early.reason = Some(WidgetReason::Database);
+    assert!(log_decision(&early).iter().all(|line| line.doi.is_none()));
+}
+
+#[test]
+fn an_input_failure_is_one_info_outcome_line_without_the_doi() {
+    let lines = log_decision(&facts(
+        Some(MetricWidgetError::QueryInvalid(DATES_MESSAGE)),
+        WidgetStep::Input,
+    ));
+    assert_eq!(
+        levels(&lines),
+        [(log::Level::Info, WidgetLineKind::Outcome)]
+    );
+    assert!(lines[0].doi.is_none());
+    assert!(lines[0].message().contains("outcome=METRIC_QUERY_INVALID"));
+}
+
+#[test]
+fn the_resolver_decides_its_log_lines_once_per_resolution() {
+    // No database is reached: the counter refuses at step 3, or the input is
+    // invalid at step 4.
+    let (pool, log) = capturing_pool();
+    let mut bad = input_for(BOOK_BARE);
+    bad.start_date = d(2026, 3, 2);
+    for (previous, level, kind, step) in [
+        (
+            0,
+            log::Level::Info,
+            WidgetLineKind::Outcome,
+            WidgetStep::Input,
+        ),
+        (
+            1,
+            log::Level::Info,
+            WidgetLineKind::Outcome,
+            WidgetStep::Claim,
+        ),
+        (
+            2,
+            log::Level::Debug,
+            WidgetLineKind::Outcome,
+            WidgetStep::Claim,
+        ),
+    ] {
+        let claims = AtomicUsize::new(previous);
+        let mut calls = Vec::new();
+        let result = resolve(
+            &pool,
+            MetricWidgetSwitch::On,
+            &claims,
+            &bad,
+            &profile(&no_hook),
+            &mut |lines| calls.push(lines.to_vec()),
+        );
+        assert!(result.is_err());
+        assert_eq!(calls.len(), 1, "one decision per resolution");
+        assert_eq!(levels(&calls[0]), [(level, kind)], "previous {previous}");
+        assert_eq!(calls[0][0].step, step);
+        assert_eq!(claims.load(Ordering::SeqCst), previous + 1);
+    }
+    // With the switch off the counter is not claimed.
+    let claims = AtomicUsize::new(0);
+    let mut calls = 0;
+    let _ = resolve(
+        &pool,
+        MetricWidgetSwitch::Off,
+        &claims,
+        &bad,
+        &profile(&no_hook),
+        &mut |_| calls += 1,
+    );
+    assert_eq!(calls, 1);
+    assert_eq!(claims.load(Ordering::SeqCst), 0);
+    assert!(log.lock().expect("the statement log").is_empty());
+}
+
+// ==========================================================================
+// Error mapping (section 4.8)
+// ==========================================================================
+
+/// Every message the engine can produce: its message constants and its
+/// variant messages.
+fn engine_messages() -> Vec<&'static str> {
+    use crate::model::metric_dashboard::*;
+    let mut messages = vec![
+        PUBLISHER_CARDINALITY,
+        DUPLICATE_PUBLISHER,
+        UNKNOWN_PUBLISHER,
+        DUPLICATE_IMPRINT,
+        DUPLICATE_SERIES,
+        DUPLICATE_WORK,
+        DUPLICATE_WORK_TYPE,
+        DUPLICATE_LANGUAGE,
+        DUPLICATE_FUNDING,
+        DUPLICATE_AFFILIATION,
+        TOO_MANY_IMPRINTS,
+        TOO_MANY_SERIES,
+        TOO_MANY_WORKS,
+        TOO_MANY_WORK_TYPES,
+        TOO_MANY_LANGUAGES,
+        TOO_MANY_FUNDING,
+        TOO_MANY_AFFILIATION,
+        UNKNOWN_IMPRINT,
+        UNKNOWN_SERIES,
+        UNKNOWN_WORK,
+        UNKNOWN_FUNDING,
+        UNKNOWN_AFFILIATION,
+        TOO_MANY_RESOLVED_WORKS,
+        TOO_MANY_INSTITUTIONS,
+        DATE_ORDER,
+        RANGE_TOO_LONG,
+        DUPLICATE_MEASURE,
+        DUPLICATE_PLATFORM,
+        TOO_MANY_MEASURES,
+        TOO_MANY_PLATFORMS,
+        UNKNOWN_MEASURE,
+        UNKNOWN_PLATFORM,
+        NON_ADDITIVE_MEASURE,
+        TOO_MANY_COMBINATIONS,
+        TOO_MANY_CELLS,
+        AGGREGATE_OUT_OF_RANGE,
+    ];
+    messages.extend(engine_variants().iter().map(MetricReadError::message));
+    messages
+}
+
+/// Today's `MetricReadError` variants, listed as values (no exhaustive
+/// `match`, so a later variant needs no change here).
+fn engine_variants() -> Vec<MetricReadError> {
+    use crate::model::metric_dashboard::{TOO_MANY_CELLS, UNKNOWN_WORK};
+    vec![
+        MetricReadError::Unauthorised,
+        MetricReadError::QueryInvalid(UNKNOWN_WORK),
+        MetricReadError::QueryLimitExceeded(AGGREGATE_OUT_OF_RANGE),
+        MetricReadError::QueryLimitExceeded(TOO_MANY_CELLS),
+        MetricReadError::RegistryLimitExceeded,
+        MetricReadError::SourceScopeAmbiguous,
+        MetricReadError::DimensionScopeAmbiguous,
+        MetricReadError::UnsupportedSourceGrain,
+        MetricReadError::Unavailable,
+    ]
+}
+
+/// Every widget error value.
+fn widget_errors() -> Vec<MetricWidgetError> {
+    let mut errors = vec![
+        MetricWidgetError::Unavailable,
+        MetricWidgetError::Busy,
+        MetricWidgetError::Internal,
+    ];
+    for message in [
+        INVALID_DOI_MESSAGE,
+        DATES_MESSAGE,
+        DUPLICATE_CHAPTER_DOI_MESSAGE,
+        NOT_A_CHILD_MESSAGE,
+    ] {
+        errors.push(MetricWidgetError::QueryInvalid(message));
+    }
+    for message in [
+        ONE_SELECTION_MESSAGE,
+        DATE_DOMAIN_MESSAGE,
+        RANGE_MESSAGE,
+        TOO_MANY_CHAPTER_DOIS_MESSAGE,
+        TOO_MANY_CHILDREN_MESSAGE,
+        TOO_MANY_PAIRS_MESSAGE,
+        AGGREGATE_MESSAGE,
+    ] {
+        errors.push(MetricWidgetError::QueryLimitExceeded(message));
+    }
+    errors
+}
+
+#[test]
+fn every_engine_error_maps_to_its_widget_classification() {
+    let expected = [
+        (
+            MetricWidgetError::Unavailable,
+            Some(WidgetReason::EngineUnauthorised),
+        ),
+        (
+            MetricWidgetError::Internal,
+            Some(WidgetReason::EngineRejected),
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(AGGREGATE_MESSAGE),
+            None,
+        ),
+        (
+            MetricWidgetError::Internal,
+            Some(WidgetReason::EngineRejected),
+        ),
+        (
+            MetricWidgetError::Internal,
+            Some(WidgetReason::EngineRejected),
+        ),
+        (
+            MetricWidgetError::Unavailable,
+            Some(WidgetReason::SourceScopeAmbiguous),
+        ),
+        (
+            MetricWidgetError::Unavailable,
+            Some(WidgetReason::DimensionScopeAmbiguous),
+        ),
+        (
+            MetricWidgetError::Unavailable,
+            Some(WidgetReason::UnsupportedSourceGrain),
+        ),
+        (
+            MetricWidgetError::Internal,
+            Some(WidgetReason::EngineUnavailable),
+        ),
+    ];
+    let variants = engine_variants();
+    assert_eq!(variants.len(), expected.len());
+    for (variant, (error, reason)) in variants.iter().zip(expected) {
+        let failure = engine_failure(variant, false);
+        assert_eq!(failure.error, error, "{variant:?}");
+        assert_eq!(failure.reason, reason, "{variant:?}");
+        // The deadline flag decides BUSY alone, whatever the variant.
+        assert_eq!(
+            engine_failure(variant, true),
+            Failure::new(MetricWidgetError::Busy, WidgetReason::DeadlinePassed),
+            "{variant:?}"
+        );
+    }
+}
+
+#[test]
+fn every_widget_error_has_its_fixed_type_and_message() {
+    let table = [
+        (
+            MetricWidgetError::Unavailable,
+            "METRIC_WIDGET_UNAVAILABLE",
+            "Metrics are not available for this work.",
+        ),
+        (
+            MetricWidgetError::Busy,
+            "METRIC_WIDGET_BUSY",
+            "Metrics are busy. Try again shortly.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(ONE_SELECTION_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "Only one metricWidget field may be requested at a time.",
+        ),
+        (
+            MetricWidgetError::QueryInvalid(INVALID_DOI_MESSAGE),
+            "METRIC_QUERY_INVALID",
+            "doi and chapterDois must be valid DOIs.",
+        ),
+        (
+            MetricWidgetError::QueryInvalid(DATES_MESSAGE),
+            "METRIC_QUERY_INVALID",
+            "startDate and endDate must be first days of months, with startDate before endDate.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(DATE_DOMAIN_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "startDate must be on or after 2000-01-01, and endDate at most 366 days after today (UTC).",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(RANGE_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "The date range may cover at most 12 months.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(TOO_MANY_CHAPTER_DOIS_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "chapterDois may hold at most 500 DOIs.",
+        ),
+        (
+            MetricWidgetError::QueryInvalid(DUPLICATE_CHAPTER_DOI_MESSAGE),
+            "METRIC_QUERY_INVALID",
+            "chapterDois must not repeat a DOI.",
+        ),
+        (
+            MetricWidgetError::QueryInvalid(NOT_A_CHILD_MESSAGE),
+            "METRIC_QUERY_INVALID",
+            "chapterDois must list child works of doi.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(TOO_MANY_CHILDREN_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "This work has more child works than the widget supports.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(TOO_MANY_PAIRS_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "This work has more platform and measure combinations than the widget supports.",
+        ),
+        (
+            MetricWidgetError::QueryLimitExceeded(AGGREGATE_MESSAGE),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+            "Metrics for this work exceed the supported range.",
+        ),
+        (
+            MetricWidgetError::Internal,
+            "INTERNAL_ERROR",
+            "Metrics could not be read.",
+        ),
+    ];
+    for (error, code, message) in table {
+        assert_eq!(error.code(), code);
+        assert_eq!(error.message(), message);
+        let field_error = error.into_field_error();
+        assert_eq!(field_error.message(), message);
+        assert_eq!(
+            field_error.extensions(),
+            &graphql_value!({ "type": code }),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn no_widget_error_carries_an_engine_message_sql_or_a_package_value() {
+    let engine = engine_messages();
+    for error in widget_errors() {
+        let message = error.message();
+        for engine_message in &engine {
+            assert_ne!(message, *engine_message, "{error:?}");
+            assert!(!message.contains(engine_message), "{error:?}");
+        }
+        for forbidden in [
+            "SELECT",
+            "LOCK",
+            "SET ",
+            "SPHINX",
+            "PYRAMID",
+            "OBELISK",
+            "OASIS",
+            "METRICS_WIDGET",
+            "THOTH_",
+            "package",
+            "capability",
+        ] {
+            assert!(!message.contains(forbidden), "{error:?}: {forbidden}");
+        }
+    }
+}
+
+// ==========================================================================
+// Input validation (section 4.1 step 4)
+// ==========================================================================
+
+fn validated(input: &MetricWidgetInput) -> Result<ValidatedInput, MetricWidgetError> {
+    validate(input, today()).map_err(|failure| failure.error)
+}
+
+#[test]
+fn dates_must_be_whole_months_inside_the_domain_and_at_most_twelve() {
+    let with_dates = |start: NaiveDate, end: NaiveDate| MetricWidgetInput {
+        start_date: start,
+        end_date: end,
+        ..input_for(BOOK_BARE)
+    };
+    let invalid = Err(MetricWidgetError::QueryInvalid(DATES_MESSAGE));
+    assert_eq!(
+        validated(&with_dates(d(2026, 3, 2), d(2026, 4, 1))),
+        invalid
+    );
+    assert_eq!(
+        validated(&with_dates(d(2026, 3, 1), d(2026, 4, 2))),
+        invalid
+    );
+    assert_eq!(
+        validated(&with_dates(d(2026, 3, 1), d(2026, 3, 1))),
+        invalid
+    );
+    assert_eq!(
+        validated(&with_dates(d(2026, 4, 1), d(2026, 3, 1))),
+        invalid
+    );
+
+    let domain = Err(MetricWidgetError::QueryLimitExceeded(DATE_DOMAIN_MESSAGE));
+    assert_eq!(
+        validated(&with_dates(d(1999, 12, 1), d(2000, 2, 1))),
+        domain
+    );
+    assert!(validated(&with_dates(d(2000, 1, 1), d(2000, 2, 1))).is_ok());
+    // 366 days after 2026-11-10 is 2027-11-11.
+    assert!(validated(&with_dates(d(2027, 1, 1), d(2027, 11, 1))).is_ok());
+    assert_eq!(
+        validated(&with_dates(d(2027, 1, 1), d(2027, 12, 1))),
+        domain
+    );
+
+    assert!(validated(&with_dates(d(2025, 3, 1), d(2026, 3, 1))).is_ok());
+    assert_eq!(
+        validated(&with_dates(d(2025, 3, 1), d(2026, 4, 1))),
+        Err(MetricWidgetError::QueryLimitExceeded(RANGE_MESSAGE))
+    );
+}
+
+#[test]
+fn chapter_dois_are_bounded_parsed_and_unique_in_canonical_form() {
+    let many: Vec<String> = (0..501).map(|n| format!("10.5555/c-{n}")).collect();
+    let refs: Vec<&str> = many.iter().map(String::as_str).collect();
+    assert_eq!(
+        validated(&with_chapters(BOOK_BARE, &refs)),
+        Err(MetricWidgetError::QueryLimitExceeded(
+            TOO_MANY_CHAPTER_DOIS_MESSAGE
+        ))
+    );
+    assert!(validated(&with_chapters(BOOK_BARE, &refs[..500])).is_ok());
+    assert_eq!(
+        validated(&with_chapters(BOOK_BARE, &["10.5555/ok", "not a doi"])),
+        Err(MetricWidgetError::QueryInvalid(INVALID_DOI_MESSAGE))
+    );
+    assert_eq!(
+        validated(&with_chapters(
+            BOOK_BARE,
+            &["10.5555/Chapter", "https://doi.org/10.5555/CHAPTER"]
+        )),
+        Err(MetricWidgetError::QueryInvalid(
+            DUPLICATE_CHAPTER_DOI_MESSAGE
+        ))
+    );
+}
+
+#[test]
+fn the_first_input_failure_in_step_4_order_is_returned() {
+    // A bad DOI wins over bad dates, bad dates over the domain, the domain
+    // over the range, the range over the entry count, the count over entry
+    // parsing, and parsing over duplicates.
+    let mut input = with_chapters("nonsense", &["also nonsense"]);
+    input.start_date = d(1990, 1, 2);
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryInvalid(INVALID_DOI_MESSAGE))
+    );
+    input.doi = Doi(BOOK_BARE.to_string());
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryInvalid(DATES_MESSAGE))
+    );
+    input.start_date = d(1990, 1, 1);
+    input.end_date = d(1990, 2, 1);
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryLimitExceeded(DATE_DOMAIN_MESSAGE))
+    );
+    input.start_date = d(2020, 1, 1);
+    input.end_date = d(2022, 1, 1);
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryLimitExceeded(RANGE_MESSAGE))
+    );
+    input.end_date = d(2020, 2, 1);
+    input.chapter_dois = Some((0..501).map(|_| Doi("also nonsense".to_string())).collect());
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryLimitExceeded(
+            TOO_MANY_CHAPTER_DOIS_MESSAGE
+        ))
+    );
+    input.chapter_dois = Some(vec![
+        Doi("10.5555/a".to_string()),
+        Doi("10.5555/a".to_string()),
+        Doi("also nonsense".to_string()),
+    ]);
+    assert_eq!(
+        validated(&input),
+        Err(MetricWidgetError::QueryInvalid(INVALID_DOI_MESSAGE))
+    );
+}
+
+#[test]
+fn the_three_doi_spellings_parse_to_one_lookup_key() {
+    let keys: Vec<String> = [
+        "10.1234/abc",
+        "https://doi.org/10.1234/abc",
+        "HTTP://DX.DOI.ORG/10.1234/ABC",
+    ]
+    .iter()
+    .map(|doi| {
+        validated(&input_for(doi))
+            .expect("a valid DOI")
+            .doi
+            .to_lowercase_string()
+    })
+    .collect();
+    assert_eq!(keys, ["https://doi.org/10.1234/abc"; 3]);
+}
+
+// ==========================================================================
+// Slots, checkout, deadline and the projection lock
+// ==========================================================================
+
+#[test]
+fn with_both_slots_held_a_third_read_is_busy_without_a_checkout() {
+    let (_guard, fx) = widget_setup();
+    let first = try_take_slot().expect("a first slot");
+    let second = try_take_slot().expect("a second slot");
+    assert!(try_take_slot().is_none());
+    let (result, lines, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    assert_eq!(result, Err(MetricWidgetError::Busy));
+    assert!(names.is_empty(), "no checkout and no statement: {names:?}");
+    assert!(lines
+        .iter()
+        .any(|line| line.reason == Some(WidgetReason::NoSlot)));
+    drop((first, second));
+    assert_eq!(SLOTS_IN_USE.load(Ordering::SeqCst), 0);
+    read(&fx.pool, &input_for(BOOK_BARE)).expect("a slot is free again");
+}
+
+#[test]
+fn slots_and_the_connection_are_released_on_success_error_and_panic() {
+    let (_guard, fx) = widget_setup();
+    let (pool, _log) = capturing_pool();
+    // Success.
+    read(&pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(SLOTS_IN_USE.load(Ordering::SeqCst), 0);
+    // An error after checkout.
+    assert_eq!(
+        read(&pool, &input_for("10.5555/widget-unknown")),
+        Err(MetricWidgetError::Unavailable)
+    );
+    assert_eq!(SLOTS_IN_USE.load(Ordering::SeqCst), 0);
+    // A panic inside the transaction.
+    let panicked = catch_unwind(AssertUnwindSafe(|| {
+        resolve_with(
+            &pool,
+            MetricWidgetSwitch::On,
+            &input_for(BOOK_BARE),
+            &profile(&|step| {
+                if step == WidgetStep::Children {
+                    panic!("injected");
+                }
+            }),
+        )
+    }));
+    assert!(panicked.is_err());
+    assert_eq!(SLOTS_IN_USE.load(Ordering::SeqCst), 0);
+    // The one-connection pool serves the next read: the connection came back.
+    read(&pool, &input_for(BOOK_BARE)).expect("the connection was released");
+    drop(fx);
+}
+
+#[test]
+fn a_checkout_timeout_is_busy() {
+    let (_guard, _fx) = widget_setup();
+    let (pool, _log) = capturing_pool();
+    let held = pool.get().expect("the only connection");
+    let mut quick = profile(&no_hook);
+    quick.checkout_timeout = Duration::from_millis(100);
+    let (result, lines) =
+        resolve_with(&pool, MetricWidgetSwitch::On, &input_for(BOOK_BARE), &quick);
+    assert_eq!(result, Err(MetricWidgetError::Busy));
+    assert!(lines
+        .iter()
+        .any(|line| line.level == log::Level::Warn && line.kind == WidgetLineKind::Pool));
+    drop(held);
+}
+
+#[test]
+fn a_passed_deadline_at_a_widget_step_is_busy_and_runs_no_further_statement() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let mut late = profile(&|step| {
+        if step == WidgetStep::Pairs {
+            std::thread::sleep(Duration::from_millis(1500));
+        }
+    });
+    late.deadline = Duration::from_secs(1);
+    let (result, lines, names) = captured(&input_for(BOOK_BARE), &late);
+    assert_eq!(result, Err(MetricWidgetError::Busy));
+    assert_eq!(
+        names,
+        [
+            "CHECKOUT_CHECK",
+            "BEGIN",
+            "CUSTOM_PLANS_SQL",
+            "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+            "PROJECTION_LOCK_SQL",
+            "METRIC_WIDGET_RESOLUTION_SQL",
+            "ROLLBACK",
+        ]
+    );
+    assert!(lines
+        .iter()
+        .any(|line| line.reason == Some(WidgetReason::DeadlinePassed)));
+}
+
+#[test]
+fn a_passed_deadline_inside_the_engine_is_busy_through_the_deadline_flag() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let mut late = profile(&|step| {
+        if step == WidgetStep::Engine {
+            std::thread::sleep(Duration::from_millis(1500));
+        }
+    });
+    late.deadline = Duration::from_secs(1);
+    let (result, lines, names) = captured(&input_for(BOOK_BARE), &late);
+    assert_eq!(result, Err(MetricWidgetError::Busy));
+    // The engine admitted nothing: no engine statement ran.
+    assert_eq!(names.last(), Some(&"ROLLBACK"));
+    assert!(names.contains(&"METRIC_WIDGET_LABELS_SQL"));
+    for (name, _) in ENGINE_STATEMENTS {
+        assert!(!names.contains(&name), "{name} ran after the deadline");
+    }
+    let reason = lines
+        .iter()
+        .find(|line| line.kind == WidgetLineKind::Reason)
+        .expect("a reason line");
+    assert_eq!(reason.reason, Some(WidgetReason::DeadlinePassed));
+    assert_eq!(reason.step, WidgetStep::Engine);
+}
+
+/// A second connection holding `lock` in its own open transaction.
+fn hold_lock(lock: &str) -> PgConnection {
+    let mut connection = PgConnection::establish(&test_db_url()).expect("a lock holder");
+    connection
+        .batch_execute(&format!("BEGIN; {lock};"))
+        .expect("the lock is taken");
+    connection
+}
+
+#[test]
+fn an_engine_statement_started_before_the_deadline_and_failing_after_it_is_internal() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    // ACCOUNTS_SQL, the engine's second statement, waits on this lock until
+    // the test-only statement timeout fires after the deadline has passed.
+    let mut holder = hold_lock("LOCK TABLE public.metric_source_account IN ACCESS EXCLUSIVE MODE");
+    let mut slow = profile(&no_hook);
+    slow.statement_timeout_sql = "SET LOCAL statement_timeout = '3s'";
+    slow.deadline = Duration::from_secs(2);
+    let started = Instant::now();
+    let (result, lines, names) = captured(&input_for(BOOK_BARE), &slow);
+    holder.batch_execute("ROLLBACK;").expect("release the lock");
+    assert!(started.elapsed() >= Duration::from_secs(2));
+    assert_eq!(result, Err(MetricWidgetError::Internal));
+    assert_eq!(names[3], "TEST_STATEMENT_TIMEOUT_SQL");
+    assert!(names.ends_with(&["PUBLISHERS_SQL", "ACCOUNTS_SQL", "ROLLBACK"]));
+    let error = lines
+        .iter()
+        .find(|line| line.level == log::Level::Error)
+        .expect("an error line");
+    assert_eq!(error.reason, Some(WidgetReason::EngineUnavailable));
+    assert_eq!(error.engine_section, Some(WidgetSection::Work));
+    assert_eq!(error.step, WidgetStep::Engine);
+    assert_eq!(error.last_statement, Some("ACCOUNTS_SQL"));
+}
+
+#[test]
+fn a_rebuild_holding_the_projections_makes_the_read_busy_never_zero() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let mut holder =
+        hold_lock("LOCK TABLE public.metric_rollup_work_month IN ACCESS EXCLUSIVE MODE");
+    let mut short = profile(&no_hook);
+    short.statement_timeout_sql = "SET LOCAL statement_timeout = '300ms'";
+    let (result, lines, names) = captured(&input_for(BOOK_BARE), &short);
+    holder.batch_execute("ROLLBACK;").expect("release the lock");
+    assert_eq!(result, Err(MetricWidgetError::Busy));
+    assert!(lines
+        .iter()
+        .any(|line| line.reason == Some(WidgetReason::LockFailed)));
+    assert!(!names.contains(&"METRIC_WIDGET_RESOLUTION_SQL"));
+    // Without the holder the same read is served, with its values.
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(
+        total(&widget.work, fx.platform_id, fx.sessions),
+        Some("4".to_string())
+    );
+}
+
+// ==========================================================================
+// Public scope (section 4.2)
+// ==========================================================================
+
+#[test]
+fn only_public_enabled_additive_measures_on_enabled_platforms_are_served() {
+    let (_guard, fx) = widget_setup();
+    let book = fx.works[0];
+    cover_march(&fx, fx.units);
+    // A public SALES measure, with a negative value.
+    commit(&fx, book, fx.platform_id, fx.units, day_n(2), -5);
+    commit(&fx, book, fx.platform_id, fx.units, day_n(3), 2);
+    // A non-public USAGE measure and a non-public SALES measure.
+    let hidden = insert_measure(&fx.pool, "widget_hidden_usage", true, true);
+    let hidden_sales = insert_measure(&fx.pool, "widget_hidden_sales", true, true);
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_measure SET public_visibility = FALSE \
+              WHERE measure_id IN ('{hidden}', '{hidden_sales}'); \
+             UPDATE metric_measure SET category = 'SALES' WHERE measure_id = '{hidden_sales}';"
+        ),
+    );
+    // Non-additive measures.
+    let not_across_time = insert_measure(&fx.pool, "widget_not_across_time", false, true);
+    let not_across_works = insert_measure(&fx.pool, "widget_not_across_works", true, false);
+    // A measure disabled after its data was committed.
+    let disabled = insert_measure(&fx.pool, "widget_disabled", true, true);
+    for measure in [
+        hidden,
+        hidden_sales,
+        not_across_time,
+        not_across_works,
+        disabled,
+    ] {
+        commit(&fx, book, fx.platform_id, measure, day_n(4), 9);
+    }
+    // A platform disabled after its data was committed.
+    commit(&fx, book, fx.other_platform_id, fx.sessions, day_n(4), 9);
+    apply_all(&fx.pool);
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_measure SET enabled = FALSE WHERE measure_id = '{disabled}'; \
+             UPDATE metric_platform SET enabled = FALSE \
+              WHERE platform_id = '{}';",
+            fx.other_platform_id
+        ),
+    );
+
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("ineligible data never fails");
+    assert_eq!(pairs_of(&widget.work), [(fx.platform_id, fx.units)]);
+    assert_eq!(
+        total(&widget.work, fx.platform_id, fx.units),
+        Some("-3".to_string())
+    );
+    assert_eq!(
+        widget
+            .measures
+            .iter()
+            .map(|measure| measure.code.as_str())
+            .collect::<Vec<_>>(),
+        ["net_units"]
+    );
+    assert_eq!(widget.platforms.len(), 1);
+    assert_eq!(widget.platforms[0].platform_id, fx.platform_id);
+}
+
+#[test]
+fn no_eligible_measure_gives_empty_sections_and_no_engine_statement() {
+    let (_guard, fx) = widget_setup();
+    let hidden = insert_measure(&fx.pool, "widget_hidden_only", true, true);
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_measure SET public_visibility = FALSE WHERE measure_id = '{hidden}';"
+        ),
+    );
+    commit(&fx, fx.works[0], fx.platform_id, hidden, day_n(2), 5);
+    apply_all(&fx.pool);
+    let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    let widget = result.expect("served, empty");
+    assert_eq!(widget.work, empty_section());
+    assert!(widget.platforms.is_empty() && widget.measures.is_empty());
+    for (name, _) in ENGINE_STATEMENTS {
+        assert!(!names.contains(&name), "{name} ran with nothing to serve");
+    }
+}
+
+// ==========================================================================
+// Empty sections (section 4.6)
+// ==========================================================================
+
+#[test]
+fn empty_sections_are_partial_with_nothing_served_and_a_frontier() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    // A book with no rows in range and no children.
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(widget.work, empty_section());
+    assert!(widget.work.is_partial);
+    assert_eq!(widget.chapters, None);
+
+    // Both sections empty: the frontier still comes from the labels.
+    add_chapter(&fx.pool, fx.works[0], imprint, None, 1);
+    let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    let widget = result.expect("served");
+    assert_eq!(widget.work, empty_section());
+    assert_eq!(widget.chapters, Some(empty_section()));
+    assert!(names.contains(&"METRIC_WIDGET_LABELS_SQL"));
+    for (name, _) in ENGINE_STATEMENTS {
+        assert!(!names.contains(&name));
+    }
+    let watermark = state_watermark(&fx.pool);
+    assert_eq!(widget.rollup_watermark, watermark);
+
+    // Rows for the book, none for its chapters.
+    served_fixture(&fx);
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(pairs_of(&widget.work), [(fx.platform_id, fx.sessions)]);
+    assert_eq!(widget.chapters, Some(empty_section()));
+}
+
+fn state_watermark(pool: &PgPool) -> Timestamp {
+    #[derive(diesel::QueryableByName)]
+    struct Row {
+        #[diesel(sql_type = Timestamptz)]
+        watermark_at: Timestamp,
+    }
+    let mut connection = pool.get().expect("a connection");
+    diesel::sql_query("SELECT watermark_at FROM metric_rollup_work_day_state WHERE state_id = 1")
+        .get_result::<Row>(&mut connection)
+        .expect("the frontier")
+        .watermark_at
+}
+
+// ==========================================================================
+// Work and child works (section 4.3)
+// ==========================================================================
+
+#[test]
+fn a_chapter_is_served_alone_and_refuses_chapter_dois() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let chapter = add_chapter(
+        &fx.pool,
+        fx.works[0],
+        imprint,
+        Some("https://doi.org/10.5555/widget-chapter"),
+        1,
+    );
+    // A chapter's own has-child rows are ignored.
+    add_chapter(&fx.pool, chapter, imprint, None, 1);
+    cover_march(&fx, fx.sessions);
+    commit(&fx, chapter, fx.platform_id, fx.sessions, day_n(2), 6);
+    apply_all(&fx.pool);
+
+    let widget = read(&fx.pool, &input_for("10.5555/widget-chapter")).expect("served");
+    assert_eq!(widget.chapters, None);
+    assert_eq!(widget.excluded_child_count, 0);
+    assert_eq!(
+        total(&widget.work, fx.platform_id, fx.sessions),
+        Some("6".to_string())
+    );
+    assert_eq!(
+        read(
+            &fx.pool,
+            &with_chapters("10.5555/widget-chapter", &["10.5555/widget-chapter"])
+        ),
+        Err(MetricWidgetError::QueryInvalid(NOT_A_CHILD_MESSAGE))
+    );
+    assert!(read(&fx.pool, &with_chapters("10.5555/widget-chapter", &[])).is_ok());
+}
+
+fn without_as_of(mut widget: MetricWidget) -> MetricWidget {
+    widget.as_of = widget.rollup_watermark;
+    widget
+}
+
+#[test]
+fn child_selection_exclusion_and_counting_follow_section_4_3() {
+    let (_guard, fx) = widget_setup();
+    let book = fx.works[0];
+    let imprint = imprint_of(&fx.pool, book);
+    let foreign_imprint = imprint_of(&fx.pool, fx.other_work);
+    let own_a = add_chapter(
+        &fx.pool,
+        book,
+        imprint,
+        Some("https://doi.org/10.5555/own-a"),
+        1,
+    );
+    let own_b = add_chapter(
+        &fx.pool,
+        book,
+        imprint,
+        Some("https://doi.org/10.5555/own-b"),
+        2,
+    );
+    let own_no_doi = add_chapter(&fx.pool, book, imprint, None, 3);
+    add_chapter(
+        &fx.pool,
+        book,
+        foreign_imprint,
+        Some("https://doi.org/10.5555/foreign"),
+        4,
+    );
+    add_chapter(&fx.pool, book, foreign_imprint, None, 5);
+    cover_march(&fx, fx.sessions);
+    for (work, value) in [(own_a, 1), (own_b, 10), (own_no_doi, 100)] {
+        commit(&fx, work, fx.platform_id, fx.sessions, day_n(2), value);
+    }
+    apply_all(&fx.pool);
+    let chapters_total = |widget: &MetricWidget| {
+        widget
+            .chapters
+            .as_ref()
+            .and_then(|section| total(section, fx.platform_id, fx.sessions))
+    };
+
+    // Omitted and [] select every child: both foreign children are counted.
+    let omitted = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    let empty = read(&fx.pool, &with_chapters(BOOK_BARE, &[])).expect("served");
+    assert_eq!(without_as_of(omitted.clone()), without_as_of(empty));
+    assert_eq!(omitted.excluded_child_count, 2);
+    assert_eq!(chapters_total(&omitted), Some("111".to_string()));
+
+    // An explicit list of every DOI-bearing child drops the DOI-less ones,
+    // so the count and the values differ from omitted.
+    let explicit = read(
+        &fx.pool,
+        &with_chapters(
+            BOOK_BARE,
+            &[
+                "10.5555/own-a",
+                "10.5555/OWN-B",
+                "https://doi.org/10.5555/foreign",
+            ],
+        ),
+    )
+    .expect("served");
+    assert_eq!(explicit.excluded_child_count, 1);
+    assert_eq!(chapters_total(&explicit), Some("11".to_string()));
+
+    // An unselected foreign child is not counted.
+    let one = read(&fx.pool, &with_chapters(BOOK_BARE, &["10.5555/own-a"])).expect("served");
+    assert_eq!(one.excluded_child_count, 0);
+    assert_eq!(chapters_total(&one), Some("1".to_string()));
+
+    // Every selected child excluded: chapters is null.
+    let foreign_only =
+        read(&fx.pool, &with_chapters(BOOK_BARE, &["10.5555/foreign"])).expect("served");
+    assert_eq!(foreign_only.excluded_child_count, 1);
+    assert_eq!(foreign_only.chapters, None);
+
+    // A DOI that is not a child, even an existing work's.
+    assert_eq!(
+        read(
+            &fx.pool,
+            &with_chapters(BOOK_BARE, &["10.5555/widget-book"])
+        ),
+        Err(MetricWidgetError::QueryInvalid(NOT_A_CHILD_MESSAGE))
+    );
+    // A case-insensitive duplicate.
+    assert_eq!(
+        read(
+            &fx.pool,
+            &with_chapters(BOOK_BARE, &["10.5555/own-a", "10.5555/OWN-A"])
+        ),
+        Err(MetricWidgetError::QueryInvalid(
+            DUPLICATE_CHAPTER_DOI_MESSAGE
+        ))
+    );
+}
+
+#[test]
+fn five_hundred_child_works_are_served_and_five_hundred_and_one_refused_whole() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    add_chapters(&fx.pool, fx.works[0], imprint, 500);
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("500 children are served");
+    assert_eq!(widget.chapters, Some(empty_section()));
+
+    let _extra = add_chapter(
+        &fx.pool,
+        fx.works[0],
+        imprint,
+        Some("https://doi.org/10.5555/child-501"),
+        501,
+    );
+    let refused = Err(MetricWidgetError::QueryLimitExceeded(
+        TOO_MANY_CHILDREN_MESSAGE,
+    ));
+    assert_eq!(read(&fx.pool, &input_for(BOOK_BARE)), refused);
+    // Whatever chapterDois selects, a non-child entry included: the bound is
+    // checked before the entries (step 10 order).
+    assert_eq!(
+        read(&fx.pool, &with_chapters(BOOK_BARE, &["10.5555/child-501"])),
+        refused
+    );
+    assert_eq!(
+        read(
+            &fx.pool,
+            &with_chapters(BOOK_BARE, &["10.5555/not-a-child"])
+        ),
+        refused
+    );
+}
+
+#[test]
+fn chapter_dois_on_a_chapter_is_refused_before_any_other_child_check() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let chapter = add_chapter(
+        &fx.pool,
+        fx.works[0],
+        imprint,
+        Some("https://doi.org/10.5555/many-chapter"),
+        1,
+    );
+    // The chapter has 501 has-child rows of its own; they are not counted.
+    add_chapters(&fx.pool, chapter, imprint, 501);
+    assert_eq!(
+        read(
+            &fx.pool,
+            &with_chapters("10.5555/many-chapter", &["10.5555/whatever"])
+        ),
+        Err(MetricWidgetError::QueryInvalid(NOT_A_CHILD_MESSAGE))
+    );
+    assert!(read(&fx.pool, &input_for("10.5555/many-chapter")).is_ok());
+}
+
+// ==========================================================================
+// Served pairs and bounds (section 4.4)
+// ==========================================================================
+
+#[test]
+fn a_pair_with_only_coverage_is_not_served() {
+    let (_guard, fx) = widget_setup();
+    cover_march(&fx, fx.sessions);
+    cover_march(&fx, fx.units);
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(2), 1);
+    apply_all(&fx.pool);
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(pairs_of(&widget.work), [(fx.platform_id, fx.units)]);
+}
+
+#[test]
+fn forty_pairs_are_served_and_forty_one_refused_never_truncated() {
+    let (_guard, fx) = widget_setup();
+    // 40 pairs on the fixture platform: the two seeded measures and 38 more.
+    let mut measures = vec![fx.sessions, fx.units];
+    for n in 0..38 {
+        measures.push(insert_measure(
+            &fx.pool,
+            &format!("widget_bound_{n}"),
+            true,
+            true,
+        ));
+    }
+    for measure in &measures {
+        commit(&fx, fx.works[0], fx.platform_id, *measure, day_n(2), 1);
+    }
+    apply_all(&fx.pool);
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("40 pairs are served");
+    assert_eq!(widget.work.totals.len(), 40);
+    assert_eq!(widget.measures.len(), 40);
+
+    commit(
+        &fx,
+        fx.works[0],
+        fx.other_platform_id,
+        fx.sessions,
+        day_n(2),
+        1,
+    );
+    apply_all(&fx.pool);
+    assert_eq!(
+        read(&fx.pool, &input_for(BOOK_BARE)),
+        Err(MetricWidgetError::QueryLimitExceeded(
+            TOO_MANY_PAIRS_MESSAGE
+        ))
+    );
+}
+
+#[test]
+fn twelve_months_are_served_and_output_is_ordered() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let chapter = add_chapter(&fx.pool, fx.works[0], imprint, None, 1);
+    for (platform, measure) in [
+        (fx.platform_id, fx.sessions),
+        (fx.platform_id, fx.units),
+        (fx.other_platform_id, fx.sessions),
+        (fx.other_platform_id, fx.units),
+    ] {
+        for (day, country) in [(day_n(2), "GB"), (day_n(3), "US"), (d(2026, 5, 4), "DE")] {
+            for work in [fx.works[0], chapter] {
+                commit(&fx, work, platform, measure, day, 2);
+                commit_dims(
+                    &fx,
+                    work,
+                    platform,
+                    measure,
+                    day,
+                    Dims {
+                        country: Some(country),
+                        ..Dims::default()
+                    },
+                    2,
+                );
+            }
+        }
+    }
+    apply_all(&fx.pool);
+    let mut input = input_for(BOOK_BARE);
+    input.start_date = d(2026, 1, 1);
+    input.end_date = d(2027, 1, 1);
+    let widget = read(&fx.pool, &input).expect("12 months are served");
+    let platform_ids: Vec<Uuid> = widget.platforms.iter().map(|p| p.platform_id).collect();
+    assert_eq!(platform_ids, sorted(&platform_ids));
+    let measure_ids: Vec<Uuid> = widget.measures.iter().map(|m| m.measure_id).collect();
+    assert_eq!(measure_ids, sorted(&measure_ids));
+    for section in [&widget.work, widget.chapters.as_ref().expect("chapters")] {
+        let totals: Vec<(Uuid, Uuid)> = section
+            .totals
+            .iter()
+            .map(|total| (total.platform_id, total.measure_id))
+            .collect();
+        assert_eq!(totals.len(), 4);
+        assert_eq!(totals, sorted(&totals));
+        assert_eq!(pairs_of(section), totals);
+        let timeline: Vec<(Uuid, Uuid, NaiveDate)> = section
+            .timeline
+            .iter()
+            .map(|bucket| (bucket.platform_id, bucket.measure_id, bucket.start_date))
+            .collect();
+        assert_eq!(timeline.len(), 4 * 12);
+        assert_eq!(timeline, sorted(&timeline));
+        let countries: Vec<(Uuid, Uuid, String)> = section
+            .countries
+            .iter()
+            .map(|row| (row.platform_id, row.measure_id, row.country_code.clone()))
+            .collect();
+        assert_eq!(countries.len(), 4 * 3);
+        assert_eq!(countries, sorted(&countries));
+    }
+    input.end_date = d(2027, 2, 1);
+    assert_eq!(
+        read(&fx.pool, &input),
+        Err(MetricWidgetError::QueryLimitExceeded(RANGE_MESSAGE))
+    );
+}
+
+// ==========================================================================
+// Capability parameter
+// ==========================================================================
+
+#[test]
+fn the_pair_entry_checks_the_capability_it_is_given() {
+    let (_guard, fx) = widget_setup();
+    let obelisk = Uuid::new_v4();
+    let work = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            publisher_sql(obelisk, "OBELISK"),
+            works_sql(obelisk, &[work])
+        ),
+    );
+    let (start, end) = march();
+    let pairs = [(fx.platform_id, fx.sessions)];
+    let run = |publisher: Uuid, works: &[Uuid], capability: PublisherCapability| {
+        let mut connection = fx.pool.get().expect("a connection");
+        connection
+            .build_transaction()
+            .read_only()
+            .repeatable_read()
+            .run(|connection| {
+                Ok::<_, diesel::result::Error>(metric_pair_read(
+                    connection,
+                    &MetricPairRead::new(publisher, works, &pairs, start, end)
+                        .with_timeline_grain(MetricTimelineGrain::Month)
+                        .with_capability(capability),
+                    None,
+                ))
+            })
+            .expect("a transaction")
+    };
+    // No package separates METRICS_WIDGET from METRICS_DASHBOARD, so an
+    // OBELISK publisher shows the parameter is what is checked.
+    assert!(run(obelisk, &[work], PublisherCapability::MetricsCollect).is_ok());
+    assert_eq!(
+        run(obelisk, &[work], PublisherCapability::MetricsWidget).map(|_| ()),
+        Err(MetricReadError::Unauthorised)
+    );
+    assert!(run(
+        fx.publisher_id,
+        &[fx.works[0]],
+        PublisherCapability::MetricsWidget
+    )
+    .is_ok());
+}
+
+#[test]
+fn the_widget_checks_metrics_widget_at_step_9_and_passes_it_to_the_engine() {
+    let source = include_str!("mod.rs");
+    let source = source
+        .split("#[cfg(test)]\nmod tests;")
+        .next()
+        .expect("the module source");
+    assert_eq!(
+        source.matches("PublisherCapability::MetricsWidget").count(),
+        2
+    );
+    assert!(source.contains(".has_capability(PublisherCapability::MetricsWidget)"));
+    assert!(source.contains(".with_capability(PublisherCapability::MetricsWidget)"));
+    assert!(!source.contains("PublisherCapability::MetricsDashboard"));
+    // The widget never reaches the engine's dashboard entry points or its
+    // statement timeout, and has no exhaustive match on an engine enum.
+    for absent in [
+        "metric_dashboard(",
+        "metric_dashboard_with_statement_timeout",
+        " STATEMENT_TIMEOUT_SQL",
+        "(STATEMENT_TIMEOUT_SQL",
+        "MetricReadError::RegistryLimitExceeded",
+        "MetricReadError::QueryInvalid",
+        "MetricTimelineGrain::Day",
+        "MetricTimelineGrain::Auto",
+        "Work::from_doi",
+        "db.get()",
+    ] {
+        assert!(!source.contains(absent), "{absent}");
+    }
+}
+
+// ==========================================================================
+// Pair mode (section 4.5)
+// ==========================================================================
+
+/// Served pairs (platform, sessions) and (other platform, units).
+fn diagonal(fx: &Fixture) {
+    commit(fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 3);
+    commit(fx, fx.works[0], fx.other_platform_id, fx.units, day_n(2), 5);
+    apply_all(&fx.pool);
+}
+
+#[test]
+fn a_native_record_on_a_served_cross_pair_makes_the_widget_unavailable() {
+    let (_guard, fx) = widget_setup();
+    diagonal(&fx);
+    read(&fx.pool, &input_for(BOOK_BARE)).expect("served before the native record");
+    native_record(&fx, fx.works[0], fx.platform_id, fx.units);
+    let (result, lines) = resolve_with(
+        &fx.pool,
+        MetricWidgetSwitch::On,
+        &input_for(BOOK_BARE),
+        &profile(&no_hook),
+    );
+    assert_eq!(result, Err(MetricWidgetError::Unavailable));
+    assert!(lines
+        .iter()
+        .any(|line| line.reason == Some(WidgetReason::UnsupportedSourceGrain)));
+}
+
+#[test]
+fn a_native_only_pair_off_the_served_platforms_is_absent() {
+    let (_guard, fx) = widget_setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 3);
+    apply_all(&fx.pool);
+    native_record(&fx, fx.works[0], fx.other_platform_id, fx.sessions);
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(pairs_of(&widget.work), [(fx.platform_id, fx.sessions)]);
+}
+
+#[test]
+fn a_total_ambiguous_pair_is_served_counted_and_makes_the_widget_unavailable() {
+    let (_guard, fx) = widget_setup();
+    let institution = insert_institution(&fx.pool);
+    for dims in [
+        Dims {
+            country: Some("GB"),
+            ..Dims::default()
+        },
+        Dims {
+            institution: Some(institution),
+            ..Dims::default()
+        },
+    ] {
+        commit_dims(
+            &fx,
+            fx.works[0],
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            dims,
+            1,
+        );
+    }
+    apply_all(&fx.pool);
+    // Discovery serves it (and so counts it toward the bound).
+    let request = validate(&input_for(BOOK_BARE), today()).expect("valid");
+    let mut connection = fx.pool.get().expect("a connection");
+    let deadline = MetricReadDeadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
+    let pairs =
+        served_pairs(&mut connection, &[fx.works[0]], &request, &deadline).expect("discovery");
+    assert_eq!(pairs, [(fx.platform_id, fx.sessions)]);
+    drop(connection);
+    let (result, lines) = resolve_with(
+        &fx.pool,
+        MetricWidgetSwitch::On,
+        &input_for(BOOK_BARE),
+        &profile(&no_hook),
+    );
+    assert_eq!(result, Err(MetricWidgetError::Unavailable));
+    assert!(lines
+        .iter()
+        .any(|line| line.reason == Some(WidgetReason::DimensionScopeAmbiguous)));
+}
+
+#[test]
+fn a_country_row_on_an_unserved_cross_pair_is_not_served() {
+    let (_guard, fx) = widget_setup();
+    diagonal(&fx);
+    let (start, _) = march();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_country_month \
+                 (rollup_work_country_month_id, work_id, publication_id, platform_id, \
+                  measure_id, month_start, country_code, value, \
+                  requires_institution_coverage, watermark) \
+             VALUES ('{}', '{}', NULL, '{}', '{}', '{start}', 'FR', 7, FALSE, 1);",
+            Uuid::new_v4(),
+            fx.works[0],
+            fx.platform_id,
+            fx.units,
+        ),
+    );
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert!(widget
+        .work
+        .countries
+        .iter()
+        .all(|row| (row.platform_id, row.measure_id) != (fx.platform_id, fx.units)));
+    assert_eq!(
+        sorted(&pairs_of(&widget.work)),
+        sorted(&[
+            (fx.platform_id, fx.sessions),
+            (fx.other_platform_id, fx.units)
+        ])
+    );
+}
+
+// ==========================================================================
+// Equivalence oracle and snapshot
+// ==========================================================================
+
+#[test]
+fn each_served_pair_equals_its_single_pair_dashboard_read() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let first = add_chapter(&fx.pool, fx.works[0], imprint, None, 1);
+    let second = add_chapter(&fx.pool, fx.works[0], imprint, None, 2);
+    cover_march(&fx, fx.sessions);
+    let gb = Dims {
+        country: Some("GB"),
+        ..Dims::default()
+    };
+    // The book: sessions with a country breakdown, and units partly covered.
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 4);
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        day_n(2),
+        gb,
+        4,
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(9), -2);
+    cover(
+        &fx,
+        fx.units,
+        d(2026, 3, 1),
+        d(2026, 3, 15),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-04-10T00:00:00Z'",
+    );
+    // The chapters: sessions on both platforms, one unapplied delta.
+    commit(&fx, first, fx.platform_id, fx.sessions, day_n(3), 7);
+    commit(&fx, second, fx.other_platform_id, fx.sessions, day_n(4), 11);
+    apply_all(&fx.pool);
+    commit(&fx, second, fx.platform_id, fx.sessions, day_n(5), 13);
+
+    let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
+    let widget = result.expect("served");
+    // One connection, one transaction: the snapshot.
+    assert_eq!(transactions(&names), 1);
+    assert_eq!(widget.rollup_watermark, state_watermark(&fx.pool));
+
+    let sections = [
+        (&widget.work, vec![fx.works[0]]),
+        (
+            widget.chapters.as_ref().expect("chapters"),
+            vec![first, second],
+        ),
+    ];
+    for (section, works) in sections {
+        let mut partial = false;
+        let mut through = Vec::new();
+        assert!(!section.coverage.is_empty());
+        for item in &section.coverage {
+            let (platform, measure) = (item.platform_id, item.measure_id);
+            let (start, end) = march();
+            let mut input = request(
+                fx.publisher_id,
+                start,
+                end,
+                &[platform],
+                &[measure],
+                Some(MetricTimelineGrain::Month),
+            );
+            input.selector.work_ids = Some(works.clone());
+            input.include_countries = Some(true);
+            input.include_institutions = Some(false);
+            let dashboard = metric_dashboard(&fx.pool, &input).expect("the oracle read");
+            let label = format!("{works:?} {platform} {measure}");
+            assert_eq!(
+                section
+                    .totals
+                    .iter()
+                    .filter(|t| (t.platform_id, t.measure_id) == (platform, measure))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                dashboard.totals,
+                "{label}"
+            );
+            assert_eq!(
+                section
+                    .timeline
+                    .iter()
+                    .filter(|b| (b.platform_id, b.measure_id) == (platform, measure))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                dashboard.timeline,
+                "{label}"
+            );
+            assert_eq!(
+                section
+                    .countries
+                    .iter()
+                    .filter(|c| (c.platform_id, c.measure_id) == (platform, measure))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                dashboard.countries,
+                "{label}"
+            );
+            let oracle = &dashboard.coverage.items[0];
+            assert_eq!(
+                (item.status, item.data_through, item.country_coverage),
+                (oracle.status, oracle.data_through, oracle.country_coverage),
+                "{label}"
+            );
+            partial |= dashboard.is_partial;
+            through.push(oracle.data_through);
+        }
+        // The register s4.1 aggregation over exactly the served pairs.
+        let expected_through = through
+            .into_iter()
+            .collect::<Option<Vec<NaiveDate>>>()
+            .and_then(|dates| dates.into_iter().min());
+        assert_eq!(section.data_through, expected_through);
+        assert_eq!(section.is_partial, partial);
+    }
+}
+
+#[test]
+fn a_missing_frontier_or_label_is_internal() {
+    let ids = BTreeSet::from([Uuid::new_v4()]);
+    let none = BTreeSet::new();
+    assert_eq!(
+        interpret_labels(Vec::new(), &none, &none).map(|_| ()),
+        Err(Failure::new(
+            MetricWidgetError::Internal,
+            WidgetReason::FrontierMissing
+        ))
+    );
+    let frontier = LabelRow {
+        kind: "FRONTIER".to_string(),
+        id: None,
+        code: None,
+        display_name: None,
+        description: None,
+        unit: None,
+        as_of: Some(Timestamp(Utc::now())),
+        watermark_at: Some(Timestamp(Utc::now())),
+    };
+    assert_eq!(
+        interpret_labels(vec![frontier], &ids, &none).map(|_| ()),
+        Err(Failure::new(
+            MetricWidgetError::Internal,
+            WidgetReason::LabelMissing
+        ))
+    );
+}
+
+#[test]
+fn the_switch_parses_exactly_off_and_on() {
+    assert_eq!("OFF".parse(), Ok(MetricWidgetSwitch::Off));
+    assert_eq!("ON".parse(), Ok(MetricWidgetSwitch::On));
+    for invalid in ["", "off", "on", "1", "ON "] {
+        assert!(invalid.parse::<MetricWidgetSwitch>().is_err(), "{invalid}");
+    }
+    assert_eq!(MetricWidgetSwitch::default(), MetricWidgetSwitch::Off);
+    assert_eq!(MetricWidgetSwitch::On.to_string(), "ON");
+    assert_eq!(MetricWidgetSwitch::Off.to_string(), "OFF");
+}

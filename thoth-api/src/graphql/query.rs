@@ -40,6 +40,7 @@ use crate::model::{
     metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
     metric_source::{crud::metric_source_by_code, MetricSource},
     metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
+    metric_widget::{metric_widget as read_metric_widget, MetricWidget, MetricWidgetInput},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -2294,5 +2295,31 @@ impl QueryRoot {
             .map_err(MetricReadError::from)
             .and_then(|_| list_metric_platforms(&context.db))
             .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Public widget read (`MET-WP4-WIDGET-01`, ADR-0014)
+    //
+    // Public and capability-gated: no role is required and the caller's
+    // identity is never read. The read is served only while the server switch
+    // is on and only for a work whose publisher holds `METRICS_WIDGET`; every
+    // check, bound and statement lives in `model::metric_widget`.
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "Public, read-only Metrics for one work and, optionally, its child works, for the embeddable Metrics widget. No login is needed. Served only while the server enables it and only for works whose publisher is entitled to the Metrics widget. Covers at most 12 whole months, and only one metricWidget field may be requested at a time"
+    )]
+    fn metric_widget(
+        context: &Context,
+        #[graphql(description = "The work, optional child works and the month range")]
+        input: MetricWidgetInput,
+    ) -> FieldResult<MetricWidget> {
+        read_metric_widget(
+            &context.db,
+            context.metric_widget,
+            &context.metric_widget_claims,
+            &input,
+        )
+        .map_err(IntoFieldError::into_field_error)
     }
 }
