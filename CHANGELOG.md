@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - Allow `metricDashboard` to omit `startDate` to read all Metrics history before `endDate`, and return the served `startDate`, `endDate` and `timelineGrain`
+  - Add a `YEAR` timeline grain to `metricDashboard`
+  - Limit each API process to three concurrent `metricDashboard` reads, and add the retryable `METRIC_READ_BUSY` error for a read that waits more than a second for one
+
+### Changed
+  - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
+  - Raise the `metricDashboard` limits to 100 publishers, 25,000 resolved works and 100,000 institution rows
+  - Give each `metricDashboard` read a 20-second deadline to start its statements
 
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
 ### Added
