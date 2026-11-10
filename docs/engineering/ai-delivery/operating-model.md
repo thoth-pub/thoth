@@ -1,6 +1,6 @@
 # AI-led Engineering Operating Model
 
-Status: Proposed until merged and approved
+Status: APPROVED by the CTO (status decision 2026-11-02, #998)
 Owner: CTO
 
 ## 1. Purpose
@@ -319,13 +319,22 @@ Implementation cannot enter review until:
 
 ### Gate 4 - Independent review
 
-The independent reviewer applies `independent-review-template.md`.
+The independent reviewer applies `independent-review-template.md`. HIGH and
+CRITICAL work needs two independent `APPROVED` reviews at the same head
+(section 9.2).
 
 Narrative claims do not replace inspection of code, migrations and test evidence.
 
 Review is bound to an exact PR head. If the reviewed head changes for any
 repository commit, substantive or not, the previous exact-head review does not
 carry forward and fresh review is required.
+
+The one exception is a pure-merge refresh. When `refresh_check.py` proves that
+the new head is only the reviewed head merged with the target tip, the light
+re-check under `parallel-landing.md` section 5 stands in for every required
+exact-head review at the new head (both, for HIGH), subject to
+`parallel-landing.md` section 6. Any other head
+change needs a full fresh review.
 
 Do not create a commit solely to copy a review decision or approval identifier
 into the repository. That moves the head and invalidates the very review it
@@ -461,6 +470,9 @@ Parallel tasks are permitted only when:
 
 Do not run competing agents on alternative implementations of the same approved task unless the task is explicitly a time-boxed design spike.
 
+Lanes, the migration lane, the land-check and refresh rules are in
+`parallel-landing.md`.
+
 ## 8. Production safety defaults
 
 Prefer:
@@ -478,3 +490,82 @@ Prefer:
 - observation before cleanup.
 
 High-risk production activation requires explicit CTO approval.
+
+## 9. Ledger and authorization bundles
+
+### 9.1 Ledger
+
+The owning GitHub issue is the ledger (Gate 1). Keep it short.
+
+The stage issue body opens with a state block. Edit it in place; do not append
+a new block. Template:
+
+```text
+Stage:     <TASK-ID> · Risk <LEVEL> · Programme: <programme>
+Gate:      <current gate>
+Spec:      <issue body or committed spec>
+Base:      <repo> <branch> @ <sha>  ->  <target>
+PR:        <number or none> · branch <name>
+Surface:   <declared write surface> · Migration date: <date or none>
+Grant:     <bundle and risk>
+Review:    <state> · Advisory bots: <state or none>
+Next:      <next action> · Owner: <who>
+```
+
+Gate decisions are comments of five kinds. Each starts
+`<KIND> <TASK-ID> @ <sha>: <ruling>` and stays under 15 lines.
+
+| Kind | Posted by | Records |
+| --- | --- | --- |
+| `GRANT` | CTO or control role | The bundle granted, the action list and the reserved migration date. |
+| `REVIEW` | Independent reviewer | `APPROVED`, `CHANGES REQUIRED` or `BLOCKED`, the model and effort, and findings by severity. |
+| `MERGE AUTH` | CTO | Merge authorization for the exact head. |
+| `LANDED` | Lander | The merge commit, post-merge CI and the model and effort. For HIGH and CRITICAL work also the authorized head, the `MERGE AUTH` reference, every refresh head and each `PURE` result. |
+| `HOLD` | Anyone | The reason work stopped and what releases it. |
+
+PRs are opened under the `ja573` account, so independent review rulings are
+posted as COMMENT reviews, not GitHub approvals.
+
+A pinned Delivery board issue in the private `thoth-pub/infrastructure`
+repository lists every active stage across repositories, with its state, PR and
+reserved migration date. Stage issues stay in their own repositories. A stage
+issue in a public repository links to the board but never copies private detail
+from it, such as production facts or credential names.
+
+Resume from the state block, the last three comments, the PR head and CI. If
+they conflict with chat history, they win (section 3.2).
+
+### 9.2 Authorization bundles
+
+A bundle names actions explicitly. Anything not named stays denied (section 2.4).
+
+| Risk | Bundle |
+| --- | --- |
+| LOW, MEDIUM | One grant covers implementation through guarded merge. The merge happens once the independent review is `APPROVED` at the head and CI is green. There is no separate merge card. A specification may gate its own merge on CTO approval; then that gate applies. |
+| HIGH | One grant covers implementation through two independent `APPROVED` reviews. A merge authorization bound to the exact head follows. Merge authorizations may be batched for one landing window. |
+| CRITICAL | As HIGH, with the Opus review at max effort. A CRITICAL merge authorization is never batched with another. |
+
+Independent review by risk: LOW and MEDIUM get one fresh Sonnet 5.5 review at
+high effort. HIGH gets two independent fresh reviews, Opus 5.5 at high effort
+and Fable 5.1. CRITICAL gets two independent fresh reviews, Opus 5.5 at max
+effort and Fable 5.1. In a dual review neither reviewer sees the other's ruling
+before giving its own, and both must be `APPROVED` at the same head.
+
+No gate waits for an automatic third-party reviewer such as Codex. Where one is
+installed it is advisory: a P0 or P1 finding it posts before the merge is
+answered first, by a fix or a rebuttal on its thread, but a missing or slow
+result never blocks.
+
+These are never bundled. Each needs its own explicit authorization:
+
+- release or tag;
+- deployment;
+- migration runs outside CI;
+- production activation;
+- provider reads or writes;
+- secrets;
+- direct pushes to `develop`, `dev`, `main` or `master`;
+- force-push;
+- a new integration branch;
+- a change to an approved ADR;
+- growth of scope or write surface.

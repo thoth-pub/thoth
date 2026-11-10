@@ -70,6 +70,11 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
         // `WORK_LIFECYCLE` and `CDN_WRITE` are absent from this list, which is a
         // pre-existing gap recorded for a separate task rather than repaired
         // here.
+        //
+        // The two Metrics service roles (`MET-WP5-01`, #907) are declared here
+        // as inert repository configuration only. This bootstrap declaration
+        // adds no Metrics role grant, and `MET-WP5-01` wires no GraphQL
+        // operation to either role.
         let roles = [
             ("SUPERUSER", "Superuser", "Superusers"),
             ("PUBLISHER_ADMIN", "Publisher Admin", "Publisher admins"),
@@ -78,6 +83,16 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                 "DISSEMINATION_WORKER",
                 "Dissemination Worker",
                 "Dissemination workers",
+            ),
+            (
+                "METRICS_INGEST_SERVICE",
+                "Metrics Ingest Service",
+                "Metrics services",
+            ),
+            (
+                "METRICS_READ_SERVICE",
+                "Metrics Read Service",
+                "Metrics services",
             ),
         ];
         for (role_key, display_name, group) in roles {

@@ -10,6 +10,57 @@ the branch strategy reconciled to the approved permanent `metrics-dashboard`
 `feature/* -> dev -> main` topology, with each repository's Metrics flow
 resolved through its own verified `<development-branch>`. Task statuses, risks,
 WP entry gates and the other repositories' rows are unchanged). Previously
+2026-09-12 (`MET-WP1-13`, issue
+[#904](https://github.com/thoth-pub/thoth/issues/904): the protected Metrics
+source and source-account administration GraphQL foundation slice is
+implemented on its slice branch `feature/metrics--wp1-source-admin`; the exact
+authorized base of this slice is `feature/metrics @
+e814983a1d893fa93be4aa8b4c76fa628c5d690b` (incorporated by an ordinary merge
+into the published slice branch) with observed `develop @
+395cc16ac770bc8bbf8a708662a1b31d85b15398`; it adds a SUPERUSER-only
+administrative surface over exactly `metric_source` and
+`metric_source_account` — the four mutations `createMetricSource`,
+`updateMetricSource`, `createMetricSourceAccount` and
+`updateMetricSourceAccount` and the two bounded lookups `metricSourceByCode`
+and `metricSourceAccountByCode` — every one authorized through the
+repository-authoritative `require_superuser()` guard before any
+operation-specific database read, row lock or write, with no Metrics service
+role, `ThothError` variant or GraphQL error type introduced and no checkpoint
+administration; rows are addressed by exact stable `TEXT` codes with no
+normalisation, account creation names its source and platform by code, `code`,
+`acquisitionType` and `driverKey` on a source and `code`, source, platform,
+`externalKey` and `expectedPublisherId` on an account are immutable and absent
+from the replacement-not-patch inputs; migration `20260912_v1.9.0` adds the
+named `metric_source_driver_key_check` (a `DRIVER` source requires a non-blank
+`driver_key`, every other acquisition type requires `NULL`, enforced
+identically by the coordinator over one explicit locale-independent
+whitespace set, the Unicode `White_Space` code points) and the parallel append-only
+`metric_source_registry_history` audit with its two closed enums (`SOURCE`,
+`SOURCE_ACCOUNT`; `CREATE`, `UPDATE`), leaving `MET-WP1-12`'s closed
+`metric_registry_history` unextended; source-account configuration is exposed
+only through the closed typed representation frozen by Specification
+Amendment 1 (`EMPTY` persisting semantic `{}`, `CLOUDFRONT_LEGACY_S3_V1`
+persisting exactly the `cloudfront-source-account/1` / `LEGACY_S3` shape with
+the caller's exact non-blank hostname, bucket and prefix, hostname equal to the
+immutable `externalKey`, bound to a resolved `DRIVER` source with
+`driver_key = cloudfront` and to `EMPTY` for every other source, and — per
+Specification Amendment 2 — creatable only with a non-null
+`expectedPublisherId` naming an existing publisher, the safety pin the merged
+`MET-WP2-01B` managed `DRIVER` ingestion coordinator requires), pre-existing
+stored configuration passes a fail-closed decoder before it may be returned,
+updated or copied into audit `before_state` and otherwise yields one sanitized
+failure with no disclosure, no update and no audit row; every committed
+create/update writes canonical row and audit row in one transaction with exact
+persisted before/after state, no-ops decided by semantic JSONB equality write
+nothing, and concurrency is serialized last-write-wins with exactly one
+canonical-row `FOR UPDATE` lock and no parent-row lock; the GraphQL change is
+strictly additive, and `MET-WP1-12`'s point-in-time schema guards were
+reconciled to admit exactly these six operations under Implementation
+Authorization Amendment 1; additive and inactive: no source, account, platform
+or checkpoint row is seeded, no private `CF-GATE-01` provider value or
+credential enters the repository, and no CloudFront driver, Sphinx, ingestion
+or collection behaviour exists or is activated. Exact review and authorization
+provenance is retained in the owning issue. WP1 remains `IN PROGRESS`). Previously
 2026-09-09 (`CTRL-BRANCH-RELEASE-01`, issue
 [#897](https://github.com/thoth-pub/thoth/issues/897): branch-readiness rows
 reconciled to `ADR-0011`, which preserves each repository's established
@@ -30,6 +81,20 @@ A work package is not one implementation task. Each must be decomposed into boun
 | Task | Repository | Risk | Status | Base / target | Dependencies | Issue |
 |---|---|---:|---|---|---|---|
 | MET-CTRL-01 Programme controls | `thoth` | LOW | MERGED - COMPLETE | `develop` -> `develop` | Programme-control reconciliation delivered through PR [#833](https://github.com/thoth-pub/thoth/pull/833) and reachable from `develop`. The `MET-CTRL-01` dependency is satisfied and no longer gates WP1 entry. Shared foundation closed (P0-01 closeout PR #767 merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`). PR #833 is the parent lifecycle anchor; exact review and authorization provenance is retained in the owning task and closeout evidence, and this active tracker does not restate it | [#832](https://github.com/thoth-pub/thoth/issues/832) |
+| MET-WP1-01 Metrics registry foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - FIRST WP1 SLICE | `feature/metrics--wp1-registry-foundation` -> `feature/metrics` | Adds the `metric_platform`, `metric_measure` and `metric_platform_measure` registry tables, their four registry enums, the manually maintained `schema.rs` contract, Rust domain types, focused database/model tests and exactly the two approved seed measures (`title_sessions`, `net_units`), additive and inactive: no platform rows, no platform-measure mappings, no source mappings, no GraphQL/admin surface, no production migration. Exact review and authorization provenance is retained in the owning issue | [#836](https://github.com/thoth-pub/thoth/issues/836) |
+| MET-WP1-02 Metrics source-state foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - SECOND WP1 SLICE | `feature/metrics--wp1-source-state` -> `feature/metrics` | Adds the `metric_source`, `metric_source_account` and `metric_source_checkpoint` source-state tables and the closed `metric_source_acquisition_type` enum, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no source, account or checkpoint rows, no source/platform mappings, no lease/claim concurrency behaviour, no GraphQL/admin surface, no production migration. Depends on the merged `MET-WP1-01` registry (`metric_platform` FK). Exact review and authorization provenance is retained in the owning issue | [#841](https://github.com/thoth-pub/thoth/issues/841) |
+| MET-WP1-03 Metrics import-state foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - THIRD WP1 SLICE | `feature/metrics--wp1-import-state` -> `feature/metrics` | Adds the `metric_import` and `metric_import_error` tables and the closed `metric_import_status` and `metric_import_error_severity` enums, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no import or import-error rows, no upload/claim/complete API, no status-transition, lease, retry or queue behaviour, no idempotent-return runtime path, no GraphQL/admin surface, no production migration. The two design-fixed idempotency paths are enforced as mutually exclusive partial unique indexes, and both evidence columns stay nullable. Depends on the merged `MET-WP1-02` source state (`metric_source_account` FK) and the canonical `publisher`. Exact review and authorization provenance is retained in the owning issue | [#863](https://github.com/thoth-pub/thoth/issues/863) |
+| MET-MIG-V1.9-RECON-01 Metrics migration-identity reconciliation | `thoth` | MEDIUM | MERGED TO `feature/metrics` - COMPLETE | `feature/metrics--v1.9-migration-reconcile` -> `feature/metrics` | Reconciles the three merged Metrics migration directories to the `v1.9.0` release suffix they belong to, so the durable migration identities on `feature/metrics` are `20260826_v1.9.0`, `20260827_v1.9.0` and `20260828_v1.9.0`. Diesel derives a migration's version from the text before the first underscore, so the rename is ledger-neutral: no migration is replayed and none becomes pending. No schema, data, seed, model or runtime behaviour changed. Exact review and authorization provenance is retained in the owning issue | [#868](https://github.com/thoth-pub/thoth/issues/868) |
+| MET-WP1-04 Metrics record-history foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - FOURTH WP1 SLICE DELIVERED | `feature/metrics--wp1-record-schema` -> `feature/metrics` | Adds the `metric_record`, `metric_record_revision` and `metric_record_provenance` canonical history tables and the closed `metric_record_revision_status` and `metric_record_provenance_classification` enums, the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no record, revision or provenance rows, no identity or content hashing, no normalized-observation validation or identifier resolution, no first-arrival, duplicate, revision, conflict or retraction transaction, no managed-source revision authorization, no publisher finality, no rollup delta, no period-overlap detection or concurrency primitive, no GraphQL/admin surface, no production migration. The intentionally circular record/current-revision relationship and the same-record `supersedes` invariant are enforced declaratively by composite foreign keys without triggers or new dependencies. Metrics alpha-2 country storage is a separate `CHAR(2)` representation and does not reuse or change the existing bibliographic alpha-3 `CountryCode`. Depends on the merged `MET-WP1-01` registry (`metric_platform`, `metric_measure` and `metric_reporting_grain`), `MET-WP1-02` source state (`metric_source_account`), `MET-WP1-03` import state (`metric_import`) and the canonical `work`, `publication` and `institution` entities. Delivered to `feature/metrics` through PR [#873](https://github.com/thoth-pub/thoth/pull/873). Exact review, CI and authorization provenance is retained in the owning issue | [#872](https://github.com/thoth-pub/thoth/issues/872) |
+| MET-WP1-05 Metrics coverage foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - FIFTH WP1 SLICE DELIVERED | `feature/metrics--wp1-coverage` -> `feature/metrics` | Adds the `metric_coverage` table and the closed `metric_coverage_status` enum (`COMPLETE`, `PARTIAL`, `UNKNOWN`), the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no coverage row is seeded, no coverage calculation, finalization or zero-versus-unknown behaviour, no normalized ingestion or `ingestMetricBatch` transaction, no GraphQL/admin surface, no production migration. Direct non-cascading foreign keys to `metric_source_account`, `metric_import`, `metric_platform` and `metric_measure`; half-open period ordering (`period_end > period_start`); no coverage uniqueness beyond the primary key and no speculative secondary index. Depends on the merged `MET-WP1-01` registry (`metric_platform`, `metric_measure`), `MET-WP1-02` source state (`metric_source_account`) and `MET-WP1-03` import state (`metric_import`). Delivered to `feature/metrics` through PR [#876](https://github.com/thoth-pub/thoth/pull/876), merge commit `1392f236d5c2749605261ceb70f659d0c9615f9d`. Exact review and authorization provenance is retained in the owning issue | [#875](https://github.com/thoth-pub/thoth/issues/875) |
+| MET-WP1-06 Metrics publisher-platform approval foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - SIXTH WP1 SLICE DELIVERED | `feature/metrics--wp1-publisher-approval` -> `feature/metrics` | Adds the `metric_publisher_platform_approval` table and the closed `metric_publisher_platform_approval_status` enum (`PENDING`, `APPROVED`, `REVOKED`), the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no approval row is seeded, no approval creation/transition/revocation service, no `PUBLISHER_CONTROLLED` platform-ownership enforcement, no package/capability entitlement check, no publisher-import authorization, no GraphQL/admin surface, no production migration. Direct non-cascading foreign keys to canonical `publisher` and `metric_platform`; `UNIQUE(publisher_id, platform_id)`; `approved_by` stays nullable `UUID` with deliberately no foreign key or actor-identity semantics, deferred to a later separately reviewed administrative write-path specification; no speculative secondary index beyond the primary key and pair-uniqueness index. Depends on the canonical `publisher` and the merged `MET-WP1-01` registry (`metric_platform`). Delivered to `feature/metrics` through PR [#879](https://github.com/thoth-pub/thoth/pull/879), merge commit `6a768a5bf60ad9fa00757b19faea633e1ca21c08`. Exact review and authorization provenance is retained in the owning issue | [#878](https://github.com/thoth-pub/thoth/issues/878) |
+| MET-WP1-07 Metrics rollup-delta persistence foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - SEVENTH WP1 SLICE DELIVERED | `feature/metrics--wp1-rollup-delta` -> `feature/metrics` | Adds the `metric_rollup_delta` table — the durable accounting bridge between one canonical metric-record revision and the rebuildable work-level rollup projections — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no delta row is seeded, no delta generation from ingestion, no first-arrival/revision/retraction transaction, no delta claiming, lease, retry, backoff or stale-claim recovery, no `FOR UPDATE SKIP LOCKED` application loop, no delta application, no rollup projection table, no rebuild generation or active-watermark behaviour, no `claimMetricRollupDeltas`/`completeMetricRollupDeltas` mutation, no dashboard query, no GraphQL/admin surface, no production migration. `delta_value` is a signed `BIGINT` with deliberately no non-negative CHECK, because a revision contributes `new - old` and a retraction subtracts the previously applied value; `status` is required `TEXT` with no PostgreSQL enum, no CHECK enumerating values and no trigger, because the approved design defines no closed status vocabulary; `applied_at` is nullable with no cross-column invariant tying it to `status`. A single non-cascading composite foreign key over `(record_id, revision_id)` against the merged `MET-WP1-04` `metric_record_revision (record_id, record_revision_id)` unique key prevents a delta naming a revision owned by another record and blocks cascading deletion of durable evidence; `UNIQUE(revision_id)` permits at most one delta per canonical revision; no operational claim index is added before the WP4 claim protocol and query-plan evidence are approved. The four rebuildable rollup projection tables (`metric_rollup_work_day`, `metric_rollup_work_month`, `metric_rollup_work_country_month`, `metric_rollup_work_institution_month`) remain approved future architecture and are deliberately out of this slice. Depends on the merged `MET-WP1-04` record history (`metric_record_revision` same-record composite key). Delivered to `feature/metrics` through PR [#881](https://github.com/thoth-pub/thoth/pull/881), merge commit `6093f0ca7f3b7221c656bf514d71b5812e39ac45`. Exact review and authorization provenance is retained in the owning issue | [#880](https://github.com/thoth-pub/thoth/issues/880) |
+| MET-WP1-08 Metrics OPERAS mapping persistence foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - EIGHTH WP1 SLICE DELIVERED | `feature/metrics--wp1-operas-mapping` -> `feature/metrics` | Adds the `metric_operas_mapping` table — the canonical durable configuration naming, for one registered Metrics platform/measure pair, the OPERAS `event_uri`, `measure_uri` and `uploader_uri` to use and whether that mapping is `enabled` — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no mapping row is seeded, no real OPERAS event/measure/uploader URI or platform/measure mapping value is approved or guessed, no `metric_operas_export`, `metric_operas_import`, `metric_reconciliation_run` or `metric_reconciliation_issue` ledger, no OPERAS payload construction or delivery, no claiming, lease, attempt, retry, backoff or status state machine, no remote event ID, request hash or delivery error, no inbound synchronization, loop prevention, reconciliation or cursor/snapshot discovery, no outbound eligibility or `METRICS_OPERAS_EXPORT` capability enforcement, no GraphQL/admin surface, no Sphinx change, no production migration. `mapping_id` is a surrogate `UUID` primary key with the repository-standard Metrics UUID default, supplying the referential target implied by the design's later `metric_operas_export.mapping_id`; `UNIQUE(platform_id, measure_id)` keeps at most one canonical mapping per registered pair so enabled-state and later `mapping_id` selection stay unambiguous; a single non-cascading composite foreign key over `(platform_id, measure_id)` against the merged `MET-WP1-01` `metric_platform_measure (platform_id, measure_id)` unique key prevents a mapping naming a real platform and a real measure that are not registered together and blocks cascading deletion of interoperability configuration, with no redundant single-column key; `event_uri`, `measure_uri` and `uploader_uri` carry only the existing nonblank required-text CHECK, with no URI scheme, parser, normalization, host or uniqueness semantics invented; `enabled` has no database default; no timestamp and no duplicated `direct_collection` column is added, that flag remaining authoritative on `metric_platform_measure`; the index set is exactly the primary key and the pair-uniqueness index. ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Depends on the merged `MET-WP1-01` registry (`metric_platform_measure` pair unique key). Delivered to `feature/metrics` through PR [#883](https://github.com/thoth-pub/thoth/pull/883), merge commit `d4980e6fb3ff6a08acebb95c7cb87306750469f2`. Exact review and authorization provenance is retained in the owning issue | [#882](https://github.com/thoth-pub/thoth/issues/882) |
+| MET-WP1-09 Metrics OPERAS export ledger persistence foundation | `thoth` | HIGH | MERGED TO `feature/metrics` - NINTH WP1 SLICE DELIVERED | `feature/metrics--wp1-operas-export` -> `feature/metrics` | Adds the `metric_operas_export` table — the canonical durable record of one outbound OPERAS export for one canonical metric-record revision, using one configured `MET-WP1-08` OPERAS mapping, and the durable idempotency/audit boundary a later external OPERAS write must be reconciled against — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no export row is seeded or created at runtime, no outbound eligibility, source-period finalization or `METRICS_OPERAS_EXPORT` capability enforcement, no export status vocabulary or transition graph, no claim owner, lease, claim token, retry schedule, backoff, stale-claim recovery or attempt-increment behaviour, no `FOR UPDATE SKIP LOCKED` claim logic, no payload construction, normalization or hashing, no OPERAS network call or remote event recording, no correction/divergence handling, no inbound synchronization or reconciliation, no `metric_operas_import`, `metric_reconciliation_run` or `metric_reconciliation_issue` ledger, no GraphQL/admin surface, no Sphinx change, no production migration. The table carries exactly the ten design-named fields. `export_id` is a surrogate `UUID` primary key with the repository-standard Metrics UUID default; `UNIQUE(record_revision_id)` permits at most one durable export row per canonical revision, because outbound eligibility is defined in singular terms and the approved design retries or claims one durable row rather than creating a row per attempt; unlike the `MET-WP1-07` and `MET-WP1-08` composite keys, both relationships are ordinary single-column non-cascading foreign keys — to `metric_record_revision (record_revision_id)` and to `metric_operas_mapping (mapping_id)`, the surrogate identity `MET-WP1-08` introduced for exactly this purpose — so deleting canonical revision history or OPERAS mapping configuration while durable export evidence exists fails instead of erasing it. `status` is required `TEXT` with only the nonblank required-text CHECK and no PostgreSQL enum, closed vocabulary, default, trigger or cross-column rule; `attempt_count` is required `INTEGER` with `CHECK (attempt_count >= 0)` and no default; `remote_event_id` and `request_hash` are nullable opaque `TEXT`, nonblank when supplied but with no invented syntax, algorithm, encoding, length or uniqueness rule; `last_error` is nullable with no format or retention semantics; `created_at` uses the repository-standard current-time default and `completed_at` is nullable with no default and no status tie; the index set is exactly the primary key and the revision-uniqueness index. The approved design's section 6.14 names no retry-time field while its section 14.4 refers to export indexes on status and retry time; that reviewed inconsistency is a deliberate deferral to WP9, which owns the eventual claim/retry representation and its query/index contract, so no `retry_at`, `next_attempt_at`, lease or claim column and no speculative status/retry index is introduced. Mapping-to-revision platform/measure correspondence remains a later fail-closed enqueue/eligibility validation: the export row deliberately does not duplicate `record_id`, `platform_id` or `measure_id` and adds no trigger. Depends on the merged `MET-WP1-04` canonical revision history (`metric_record_revision`) and `MET-WP1-08` OPERAS mapping registry (`metric_operas_mapping`). ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Delivered to `feature/metrics` through PR [#886](https://github.com/thoth-pub/thoth/pull/886), merge commit `f66048fcc3f4eacf8c5ce1ac9c07e9fa3179eb0f`. Exact review and authorization provenance is retained in the owning issue | [#884](https://github.com/thoth-pub/thoth/issues/884) |
+| MET-WP1-10 Metrics OPERAS import ledger persistence foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-operas-import` | `feature/metrics--wp1-operas-import` -> `feature/metrics` | Adds the `metric_operas_import` table — the canonical durable record of one remote OPERAS event observed on one remote OPERAS instance, the identity of the payload that event carried, and an optional link to the canonical `MET-WP1-03` import that normalized it, which the approved design requires to be stored *before* normalization — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no inbound-ledger row is seeded or created at runtime, no OPERAS network or API access, no provider or runtime inspection, no discovery cursor, rolling scan or snapshot import, no remote polling or scheduling, no normalization or canonical ingestion, no automatic creation or completion of a `metric_import`, no `direct_collection` eligibility enforcement, no configured-uploader matching, no Thoth-export echo detection, linking or skipping, no loop-prevention behaviour, no payload-divergence handling, no `metric_reconciliation_run` or `metric_reconciliation_issue` ledger, no inbound status vocabulary or transition graph, no worker claim, lease, retry or `FOR UPDATE SKIP LOCKED` logic, no GraphQL/admin surface, no Sphinx change, no production migration. The table carries exactly the six design-named fields. Identity is the composite `PRIMARY KEY (remote_instance, remote_event_id)` and nothing else: the approved design names no surrogate inbound-ledger ID and deliberately carries `remote_instance` alongside `remote_event_id`, so one remote event observed repeatedly resolves to the same durable row, the same `remote_event_id` stays representable for two distinct remote instances, and no global event-ID uniqueness is established. `remote_instance`, `remote_event_id`, `payload_hash` and `status` are required `TEXT` carrying only the existing nonblank required-text CHECK, with no URI, hostname, tenant or environment rule, no event-ID syntax or length rule, no hash algorithm, encoding or case rule, and no PostgreSQL enum, closed vocabulary, default, trigger, state machine or cross-column rule; `payload_hash` is deliberately non-unique, so two genuinely different remote events may carry equal payload content. `import_id` is nullable and non-unique with a single-column non-cascading foreign key to `metric_import (import_id)`: nullable because remote-event evidence must be recorded before normalization and a linked or skipped event may never need a canonical import of its own, non-unique because one import may represent a batch containing many distinct remote events, and non-cascading so deleting a referenced canonical import fails rather than erasing the evidence. `created_at` uses the repository-standard current-time default and is deliberately the only timestamp. The index set is exactly the composite primary-key index: the approved design's generic import status/creation-time indexing requirement is already satisfied by the merged `metric_import_status_created_at_idx` on `metric_import`, so there is no outstanding OPERAS-import operational index requirement and WP9 may add one only from actual query-plan evidence. There is deliberately no foreign key or stored relationship to `metric_operas_export` and no duplicated export, platform, measure or mapping identifier, because loop prevention remains WP9 runtime and reconciliation logic. Creating this ledger does not imply guaranteed inbound discovery: the design's section 15.5 completeness blocker remains externally unresolved without an adequate cursor/created-at stream, replication, a complete snapshot or export, or an equivalent reliable incremental mechanism, so no cursor, remote-created-at, scan or snapshot field is added and WP9 retains ownership of discovery modes, loop prevention, reconciliation and completeness reporting. Depends on the merged `MET-WP1-03` import state (`metric_import`). ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Exact review and authorization provenance is retained in the owning issue | [#888](https://github.com/thoth-pub/thoth/issues/888) |
+| MET-WP1-11 Metrics reconciliation ledger persistence foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-reconciliation-ledger` | `feature/metrics--wp1-reconciliation-ledger` -> `feature/metrics` | Adds the two tightly coupled `metric_reconciliation_run` and `metric_reconciliation_issue` tables — one durable reconciliation execution and the machine-readable findings belonging to it, which the approved design places in Thoth as the sole canonical owner of durable reconciliation outcomes while Sphinx performs orchestration — the manually maintained `schema.rs` contract, Rust domain types and focused database/model tests, additive and inactive: no reconciliation row is seeded or created at runtime, no reconciliation execution, no comparison of source manifests, canonical records, rollups or OPERAS ledgers, no runtime scope decision, no issue classification, no status, issue-type or severity vocabulary or transition rules, no resolution or reopening workflow, no OPERAS loop prevention, no payload-divergence handling, no snapshot or rolling scan, no completeness determination, no claim, lease, retry or backoff behaviour, no `recordMetricReconciliation` or other GraphQL/admin surface, no Sphinx change, no production migration. They land together because an issue belongs to exactly one run and the two objects form one durable audit unit; splitting them would add a migration and review cycle without creating an independently useful persistence boundary. `metric_reconciliation_run` carries exactly the six design-named fields. `run_id` is a surrogate `UUID` primary key with the repository-standard UUID default and no invented natural-key uniqueness; `scope` is required `JSONB` with no database-level schema and no default, because a run must state what it covered and reconciliation may cover different combinations of source, canonical, rollup and OPERAS state; `status` is required `TEXT` carrying only the existing nonblank required-text CHECK, with no PostgreSQL enum, closed vocabulary, default, trigger or transition graph; `started_at` is required `TIMESTAMPTZ` with deliberately no database default, departing from the repository-standard current-time `created_at` idiom because it is the actual reconciliation-execution start supplied by the writer and the design does not establish that Thoth's insertion time and the execution start are the same event, so an insert omitting it fails and an explicitly supplied value round-trips exactly; `completed_at` is nullable with no default and no status-dependent CHECK, because the status state machine is not design-fixed; `summary` is required `JSONB` defaulting to `'{}'` with no required keys. `metric_reconciliation_issue` carries exactly the eight design-named fields. `issue_id` is a surrogate `UUID` primary key with the standard default and no uniqueness over `(run_id, issue_type, record_id, remote_event_id)`, because runtime deduplication and reopening semantics are not design-fixed; `run_id` is required with a single-column non-cascading foreign key to `metric_reconciliation_run (run_id)`, so deleting a run while its durable issue evidence exists fails rather than cascading; `issue_type` and `severity` are required opaque `TEXT` with only the nonblank CHECK, because the design's section 15.6 prose examples are illustrative rather than an exhaustive enum and its operational mention of high-severity alerts defines no closed severity domain; `record_id` is nullable with a single-column non-cascading foreign key to `metric_record (record_id)`, nullable because unexpected remote records, unmapped measures and unresolved works can exist before or without a canonical record and referentially enforced when supplied, and with no key to `metric_record_revision` because the approved shorthand names `record_id`; `remote_event_id` is nullable opaque `TEXT`, nonblank when supplied, and deliberately carries no foreign key and no global uniqueness, because `MET-WP1-10` established canonical remote identity as the composite `(remote_instance, remote_event_id)` and a bare remote event identifier is not globally unique, while reconciliation may also refer to outbound or legacy remote evidence, so no `remote_instance`, `operas_import_id`, `export_id`, `mapping_id` or `record_revision_id` column is added to manufacture a relationship the design does not name; `details` is required `JSONB` defaulting to `'{}'`; `resolved_at` is the design-named optional resolution timestamp with no `resolved_by`, `resolution`, issue `status`, reopening counter or cross-column invariant. The complete index inventory is exactly the two primary keys: no secondary index is created on `run_id`, `record_id`, `remote_event_id`, `issue_type`, `severity` or `resolved_at`, because PostgreSQL needs no child-side referencing index to enforce these foreign keys, the merged `metric_import_error (import_id)` precedent likewise carries none, the design's section 14.4 names no reconciliation index and no reconciliation query plan exists yet; WP9 may add operational indexes only from actual access patterns with query-plan evidence. Persisting reconciliation state does not solve the design's section 15.5 OPERAS inbound-completeness blocker, which remains externally unresolved and WP9-owned, so no completeness, coverage, cursor, scan or snapshot field is added and no completeness is determined. Depends on the merged `MET-WP1-04` canonical record schema (`metric_record`). ADR-0001 remains the entitlement authority, so no Metrics-specific entitlement table is created and WP5 remains responsible for protected-operation capability enforcement. Exact review and authorization provenance is retained in the owning issue | [#890](https://github.com/thoth-pub/thoth/issues/890) |
+| MET-WP1-12 Metrics registry administration GraphQL foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-registry-admin` | `feature/metrics--wp1-registry-admin` -> `feature/metrics` | Adds the protected SUPERUSER-only administrative GraphQL surface for exactly the three `MET-WP1-01` registries `metric_platform`, `metric_measure` and `metric_platform_measure`: six create/update mutations and three bounded by-code administrative lookups, all nine authorized through the repository-authoritative `require_superuser()` guard before any mutation-specific database read, row lock or write. Adds migration `20260908_v1.9.0` creating the two closed audit enums and the append-only `metric_registry_history` table, written atomically with every committed create/update and carrying the exact persisted before/after state and the authenticated actor; rejected, unauthorized, failed and genuine no-op requests write nothing. Administration uses exact stable `TEXT` codes with no normalisation, `Patch...` inputs are complete replacements rather than sparse patches, immutable identity and canonical-semantic fields are not expressible in them, and there is no delete mutation. Concurrency is serialized last-write-wins with exactly one application-requested canonical-row `FOR UPDATE` lock per update and no joined multi-table lock. Strictly additive SDL change with no existing type, field, nullability, enum-variant or authorization behaviour altered, and no audit surface exposed. Additive and inactive: no platform, mapping, source, source-account or OPERAS seed, and no collection, ingestion, rollup, synchronization, dashboard or production behaviour. Publisher-approval and source-account administration, the later service/dashboard registry queries and all delete/bulk operations remain deferred to separately specified work. ADR-0001 remains the entitlement authority and WP5 retains protected-operation capability enforcement, so no Metrics service role or entitlement table is created. Exact review and authorization provenance is retained in the owning issue | [#894](https://github.com/thoth-pub/thoth/issues/894) |
+| MET-WP1-13 Metrics source and source-account administration GraphQL foundation | `thoth` | HIGH | IMPLEMENTED ON `feature/metrics--wp1-source-admin` | `feature/metrics--wp1-source-admin` -> `feature/metrics` | Adds the protected SUPERUSER-only administrative GraphQL surface for exactly `metric_source` and `metric_source_account`: four create/update mutations and two bounded by-code administrative lookups, all six authorized through the repository-authoritative `require_superuser()` guard before any operation-specific database read, row lock or write, and no checkpoint administration. Adds migration `20260912_v1.9.0` creating the named `metric_source_driver_key_check` CHECK (a `DRIVER` source requires a non-blank `driver_key`; every other acquisition type requires `NULL`; enforced identically at the application boundary and validated against existing rows on apply without rewriting them) and the parallel append-only `metric_source_registry_history` audit with its two closed enums, written atomically with every committed create/update and carrying the exact persisted before/after state and the authenticated actor; `MET-WP1-12`'s closed `metric_registry_history` is not extended. Administration uses exact stable `TEXT` codes with no normalisation, account creation names source and platform by code, `Patch...` inputs are complete replacements of exactly the approved mutable fields, and source `code`/`acquisitionType`/`driverKey` and account `code`/source/platform/`externalKey`/`expectedPublisherId` are immutable and not expressible. Source-account configuration is exposed only as the closed typed representation frozen by Specification Amendment 1 — `EMPTY` (semantic `{}`) or `CLOUDFRONT_LEGACY_S3_V1` (exactly the `cloudfront-source-account/1` / `LEGACY_S3` shape with the caller's exact non-blank hostname, bucket and prefix, hostname equal to the immutable `externalKey`, and creatable only with a non-null `expectedPublisherId` naming an existing publisher per Specification Amendment 2) — bound by the closed compatibility matrix to the resolved source's immutable `acquisition_type` and `driver_key`; stored values pass a fail-closed decoder before return, update or audit serialization, otherwise yielding one sanitized failure with no disclosure, no update and no audit row. No-ops are decided by semantic JSONB equality; concurrency is serialized last-write-wins with exactly one canonical-row `FOR UPDATE` lock and no parent-row lock. Strictly additive SDL, with `MET-WP1-12`'s point-in-time guards reconciled under Implementation Authorization Amendment 1 to admit exactly these six operations. Additive and inactive: no source, account, platform or checkpoint seed, no private `CF-GATE-01` value or credential, and no CloudFront driver, Sphinx, ingestion, checkpoint or collection behaviour. Exact review and authorization provenance is retained in the owning issue | [#904](https://github.com/thoth-pub/thoth/issues/904) |
 | ADR-0001 Package capability model | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-28; approval PR [#772](https://github.com/thoth-pub/thoth/pull/772) | #766 |
 | ADR-0002 Platform boundaries | `thoth` | MEDIUM | APPROVED | `develop` - proposal introduced by merged PR #764 | CTO approved 2026-07-27; approval PR [#769](https://github.com/thoth-pub/thoth/pull/769) | #766 |
 | CTRL-BRANCH-RELEASE-01 Preserve established release branch names | `thoth` | MEDIUM | APPROVED | `develop` at `4546cb632428872b961ad6c17282984d298e3ade` -> `develop` | Delivers [`ADR-0011`](../engineering/decisions/ADR-0011-preserve-established-release-branch-names.md). The exact ADR-0011 decision and task specification hold CTO approval under [#897](https://github.com/thoth-pub/thoth/issues/897). `APPROVED` is the durable decision state; it does **not** make ADR-0011 repository-authoritative. Repository authority additionally requires independent exact-head source review, separate merge authorization, and merge into and reachability from `develop`. Documentation/control only: no runtime, schema, migration, API, auth, workflow, settings, provider or production effect. GitHub remains authoritative for live pull-request, CI and merge state | [#897](https://github.com/thoth-pub/thoth/issues/897) |
@@ -45,7 +110,7 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 | WP | Scope | Repositories | Risk | Status | Blocking dependencies | Issue |
 |---|---|---|---:|---|---|---|
-| WP1 | Domain and database foundation | `thoth` | HIGH | BLOCKED | separately authorized `feature/metrics` creation; approved bounded WP1 child specification (the MET-CTRL-01 dependency is satisfied) | #766 |
+| WP1 | Domain and database foundation | `thoth` | HIGH | IN PROGRESS | entry gates satisfied; registry foundation (`MET-WP1-01`), source-state foundation (`MET-WP1-02`), import-state foundation (`MET-WP1-03`), record-history foundation (`MET-WP1-04`) and coverage foundation (`MET-WP1-05`) merged/delivered to `feature/metrics`; publisher-platform approval foundation (`MET-WP1-06`), rollup-delta persistence foundation (`MET-WP1-07`), OPERAS mapping persistence foundation (`MET-WP1-08`) and OPERAS export ledger persistence foundation (`MET-WP1-09`) merged to `feature/metrics`; OPERAS import ledger persistence foundation (`MET-WP1-10`) implemented on its slice branch `feature/metrics--wp1-operas-import`; reconciliation ledger persistence foundation (`MET-WP1-11`) implemented on its slice branch `feature/metrics--wp1-reconciliation-ledger`; registry administration GraphQL foundation (`MET-WP1-12`) implemented on its slice branch `feature/metrics--wp1-registry-admin`; source and source-account administration GraphQL foundation (`MET-WP1-13`) implemented on its slice branch `feature/metrics--wp1-source-admin`; each remaining slice requires its own approved bounded specification and separate authorization | #766 |
 | WP2 | Canonical ingestion | `thoth` | CRITICAL | BLOCKED | WP1 | #766 |
 | WP3 | Upload API and publisher UI | `thoth`, app | HIGH | BLOCKED | WP1/WP2; BR-APP-01; approved bounded slice specifications | #766 |
 | WP4 | Rollups and GraphQL | `thoth` | HIGH | BLOCKED | WP1/WP2; benchmark dataset | #766 |
@@ -60,14 +125,21 @@ A work package is not one implementation task. Each must be decomposed into boun
 
 The shared architectural dependencies (ADR-0001, ADR-0002, ADR-0003,
 ADR-0008) are satisfied and the Diesel/schema-control blocker is resolved.
-The `MET-CTRL-01` programme-control dependency is also satisfied. WP1 remains
-blocked only on its two remaining entry gates: separately authorized
-`feature/metrics` creation and one approved bounded WP1 child specification.
-Every later work package remains blocked by its own
-listed repository-readiness, design, fixture, contract and
-bounded-specification dependencies, which stay attached to those work
-packages rather than blocking WP1 entry. No Metrics implementation package is
-ready or authorized.
+The `MET-CTRL-01` programme-control dependency is also satisfied, and both
+WP1 entry gates are complete: `feature/metrics` exists under the SHA-bound
+authorization recorded in
+[#766](https://github.com/thoth-pub/thoth/issues/766), and the approved
+`MET-WP1-01` registry foundation, `MET-WP1-02` source-state foundation,
+`MET-WP1-03` import-state foundation and `MET-WP1-04` record-history
+foundation are merged/delivered to `feature/metrics`; the first three
+migration identities were reconciled to the `v1.9.0` release suffix by the
+completed `MET-MIG-V1.9-RECON-01`. WP1 is
+`IN PROGRESS` and not complete: every remaining WP1 slice requires its own
+approved bounded specification and separate implementation authorization.
+Every later work package remains blocked by its own listed
+repository-readiness, design, fixture, contract and bounded-specification
+dependencies, which stay attached to those work packages rather than blocking
+WP1. No later work package is ready or authorized.
 
 ### 3.1 WP5 and the shared machine-role convention
 
@@ -116,6 +188,54 @@ queue abstraction would require its own explicit cross-programme ADR.
 depends on WP4 and on its own approved bounded slice specifications, and no
 Metrics implementation is authorized — by `ADR-0008` or otherwise.
 
+### 3.2 Current WP4 monthly-projection operations control
+
+As of 2026-09-25, `MET-WP4-03A` and `MET-WP4-03B` source are merged on the
+`feature/metrics` programme integration branch. Production serving from the
+03A monthly projections remains blocked by
+`MET-WP4-03A-OPS-01` ([#949](https://github.com/thoth-pub/thoth/issues/949)),
+a CRITICAL operational-control task.
+
+Specification Amendment 1 on #949 freezes the ownership model:
+
+- normal monthly projections are **continuous incremental state**, not a
+  monthly rebuild job;
+- `thoth-sphinx` orchestrates bounded rollup claim/completion, while Thoth
+  atomically maintains the work-day projection and affected monthly keys;
+- full historical rebuild is exceptional/on-demand: initial cutover or
+  separately authorized repair/recovery;
+- the full rebuild executes inside Thoth from
+  `metric_rollup_work_day` under Thoth's frontier/transaction semantics;
+- Sphinx will orchestrate the future protected Thoth rebuild contract and
+  periodic reconciliation, but never writes PostgreSQL or supplies projected
+  values;
+- a reconciliation mismatch alerts/HOLDs and must not silently auto-rebuild;
+- test/production Thoth deployment is expected to run pending migrations
+  through `thoth init`; deployment authorization must name that migration
+  side effect explicitly.
+
+This is now a cross-repository dependency. Implementation must be decomposed:
+
+```text
+thoth
+  protected rebuild/reconciliation contract
+  -> independent review
+  -> merge
+
+thoth-sphinx
+  consume exact merged Thoth contract
+  -> orchestration/reconciliation implementation
+  -> independent review
+
+integration review
+  -> exact-frontier initial rebuild/reconciliation
+  -> later serving/activation gate
+```
+
+The Thoth contract must be merged before Sphinx consumes it. #949 currently
+authorizes no implementation, production/shared database access, deployment,
+rebuild or activation.
+
 ## 4. Branch strategy
 
 ```text
@@ -130,11 +250,50 @@ Metrics implementation is authorized — by `ADR-0008` or otherwise.
 development branch as recorded in
 [`branch-topology.md`](../engineering/repository-map/branch-topology.md); it is
 not assumed from `thoth`'s spelling. In `thoth` it is `develop`, so the Thoth
-flow is:
+programme-integration flow is:
 
 ```text
 develop -> feature/metrics -> feature/metrics--<slice> -> feature/metrics -> develop
 ```
+
+For `thoth` only: the final integration of the Thoth `feature/metrics` line
+into `develop` is governed by [#981](https://github.com/thoth-pub/thoth/issues/981)
+through separately gated stages A (a develop-reconciliation slice merged into
+`feature/metrics`), A2 (inventory and retirement of every `feature/metrics--*`
+slice ref) and B (a true merge of `feature/metrics` into `develop`), each with
+its own independent review and explicit CTO authorization. After A2 no normal
+new `feature/metrics--<slice>` is created; the only exceptions, neither of
+which is a standing authorization, are a separately authorized develop-refresh
+recovery under #981 and the single one-time CI-correction slice
+`feature/metrics--wp11-b-clippy` governed by
+[thoth-pub/thoth#981](https://github.com/thoth-pub/thoth/issues/981) /
+[thoth-pub/thoth#985](https://github.com/thoth-pub/thoth/issues/985), which is
+not a develop refresh and imports no `develop` commit. After that corrective
+slice merges into `feature/metrics`, the exact-list A2 inventory, independent
+review, retirement authorization, guarded retirement and completion receipt
+are repeated against the resulting `feature/metrics` head before B may
+proceed, and B keeps its own independent CRITICAL review and explicit CTO
+merge authorization under #981. Before B, one further finite pre-B
+source-correction stage is governed by
+[#981](https://github.com/thoth-pub/thoth/issues/981) and its owning issues
+[#987](https://github.com/thoth-pub/thoth/issues/987),
+[#988](https://github.com/thoth-pub/thoth/issues/988) and
+[#989](https://github.com/thoth-pub/thoth/issues/989): exactly three sibling
+slices, `feature/metrics--wp11-b-corr-h1`, `feature/metrics--wp11-b-corr-h2`
+and `feature/metrics--wp11-b-corr-h3`, created in that order, each from the
+then-current `feature/metrics` head its predecessor's merge produced, and each
+merged back into `feature/metrics` by a separately authorized true merge after
+its own independent exact-head review and its own separate readiness and merge
+permissions. That stage imports no `develop` commit, creates no other slice,
+and defers the retirement of those three merged refs to one stage-terminal A2
+inventory, independent review, exact-name retirement authorization, guarded
+retirement and completion receipt against the resulting `feature/metrics`
+head, after which B keeps its own fresh cumulative CRITICAL review and explicit
+CTO merge authorization. It is a bounded exception recorded on #981, not a
+standing authorization, and it leaves the earlier one-time
+`feature/metrics--wp11-b-clippy` exception as recorded; after the final
+integration, later Thoth Metrics tasks use the STANDARD
+`feature/<area>/<task> -> develop` flow.
 
 In `metrics-dashboard` it is `dev`, that repository's approved permanent
 development branch.
@@ -168,7 +327,15 @@ permanent development branch, no `dev -> develop` reconciliation precedes it.
 The stale `develop` ref has not been deleted; its deletion is a separately
 authorized action.
 
-## 5. Immediate next actions
+## 5. Immediate next actions (historical WP1 entry-gate snapshot)
+
+Status note: the numbered checklist below is a historical WP1-entry and
+Sphinx-readiness snapshot from the WP1-entry period, retained as evidence; it
+is not a current instruction list. Current Thoth Metrics coordination,
+including the #981 A -> A2 -> B final-integration path, is held on
+[#766](https://github.com/thoth-pub/thoth/issues/766) and
+[#981](https://github.com/thoth-pub/thoth/issues/981); each task's authorization
+and lifecycle evidence remains in its owning GitHub issue.
 
 1. The shared foundation closeout is complete: PR #767 was independently
    `APPROVED` and merged as `bac598e32abbd0d7e69ff467c82945ee00df02ba`, closing
@@ -189,12 +356,28 @@ authorized action.
    `MERGED - COMPLETE` through PR
    [#833](https://github.com/thoth-pub/thoth/pull/833); its dependency is
    satisfied and no further programme-control gate stands before WP1 entry.
-5. Enter WP1 only through its two remaining gates: verify the fresh `develop`
-   head and separately authorize creation of repository-local
-   `feature/metrics` from that exact head; then create and approve one
-   bounded repository-local WP1 child issue/specification and implement that
-   slice on a child branch targeting `feature/metrics`. Neither the branch nor
-   the child specification exists, and neither is authorized by this record.
+5. WP1 entry is complete: repository-local `feature/metrics` was separately
+   authorized and created (SHA-bound authorization recorded in
+   [#766](https://github.com/thoth-pub/thoth/issues/766)), the bounded
+   `MET-WP1-01` registry-foundation specification (issue
+   [#836](https://github.com/thoth-pub/thoth/issues/836)) was independently
+   reviewed and CTO-approved, and its slice is merged into `feature/metrics`
+   from the `ADR-0009` sibling slice branch. The `MET-WP1-02` source-state
+   foundation (issue
+   [#841](https://github.com/thoth-pub/thoth/issues/841)) and the
+   `MET-WP1-03` import-state foundation (issue
+   [#863](https://github.com/thoth-pub/thoth/issues/863)) followed the same
+   bounded path and are merged into `feature/metrics`. The completed
+   `MET-MIG-V1.9-RECON-01` reconciliation (issue
+   [#868](https://github.com/thoth-pub/thoth/issues/868)) then aligned those
+   three merged migration directories with the `v1.9.0` release suffix,
+   ledger-neutrally. The `MET-WP1-04` record-history foundation (issue
+   [#872](https://github.com/thoth-pub/thoth/issues/872)) followed the same
+   bounded specification path and is merged/delivered to `feature/metrics`
+   through PR [#873](https://github.com/thoth-pub/thoth/pull/873). Decompose
+   each further WP1 slice into its own bounded child issue/specification before
+   any additional implementation; none exists, and none is authorized by this
+   record.
 6. Scope SPHINX-BOOT-01 (with BR-SPHINX-01) for WP6 and later Sphinx work, on
    its own path; it does not gate Thoth WP1 entry. The Sphinx lane order is:
 
