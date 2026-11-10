@@ -100,6 +100,7 @@ use std::time::{Duration as StdDuration, Instant};
 
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use diesel::pg::{Pg, PgConnection};
+use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::{
     Array, BigInt as SqlBigInt, Bool, Date, Nullable, Text, Timestamptz, Uuid as SqlUuid,
 };
@@ -2631,7 +2632,8 @@ fn metric_dashboard_with_statement_timeout(
 /// the pooled connection, so a waiting request holds no connection and the
 /// slot is given back only after the connection is. The checkout waits at
 /// most the lesser of the pool's own connection timeout and the time left
-/// before the deadline.
+/// before the deadline, and one the deadline cuts short fails as a deadline
+/// expiry ([`checkout`]).
 pub(crate) fn metric_dashboard_with_controls(
     db: &PgPool,
     input: &MetricDashboardInput,
@@ -2640,7 +2642,7 @@ pub(crate) fn metric_dashboard_with_controls(
     let request = validate(input, controls.today)?;
     let _permit = controls.guard.acquire(controls.slot_wait)?;
     let deadline = ReadDeadline::new(Instant::now() + controls.read_deadline);
-    let mut connection = db.get_timeout(db.connection_timeout().min(deadline.remaining()))?;
+    let mut connection = checkout(db, &deadline)?;
     deadline.check()?;
     connection
         .build_transaction()
@@ -2653,6 +2655,25 @@ pub(crate) fn metric_dashboard_with_controls(
                 controls.statement_timeout_sql,
                 &deadline,
             )
+        })
+}
+
+/// Check out the read's one pooled connection, waiting at most the lesser of
+/// the pool's own connection timeout and the time left before `deadline`.
+///
+/// A checkout that fails is [`MetricReadError::Unavailable`] either way.
+/// When the deadline has passed by then, because it was the shorter bound,
+/// the failure goes through [`ReadDeadline::check`]: it is logged once as a
+/// deadline expiry and recorded on the deadline. A pool timeout that fires
+/// while the deadline still has time left is the pool's own failure.
+fn checkout(
+    db: &PgPool,
+    deadline: &ReadDeadline,
+) -> Result<PooledConnection<ConnectionManager<PgConnection>>, MetricReadError> {
+    db.get_timeout(db.connection_timeout().min(deadline.remaining()))
+        .map_err(|error| match deadline.check() {
+            Err(expired) => expired,
+            Ok(()) => MetricReadError::from(error),
         })
 }
 

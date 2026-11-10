@@ -9106,47 +9106,48 @@ fn corner_probe(fx: &Fixture, measure_id: Uuid, start: NaiveDate, end: NaiveDate
 }
 
 /// Evidence of every kind, all in 2024, on the fixture's platform and
-/// sessions measure: a work-day row, a coverage run, a terminal-import
-/// corner probe and unresolved identifier evidence. The later outstanding
-/// rollup work is [`later_lag`], added last.
-fn later_evidence(fx: &Fixture) {
+/// `measure_id`: a work-day row, a coverage run, a terminal-import corner
+/// probe and unresolved identifier evidence. The later outstanding rollup
+/// work is [`later_lag`], added last.
+fn later_evidence(fx: &Fixture, measure_id: Uuid) {
     commit(
         fx,
         fx.works[0],
         fx.platform_id,
-        fx.sessions,
+        measure_id,
         d(2024, 5, 5),
         6,
     );
     apply_all(&fx.pool);
     cover(
         fx,
-        fx.sessions,
+        measure_id,
         d(2024, 1, 1),
         d(2025, 1, 1),
         "COMPLETE",
         "COMPLETED",
         "'2025-01-02T00:00:00Z'",
     );
-    corner_probe(fx, fx.sessions, d(2024, 2, 1), d(2024, 3, 1));
+    corner_probe(fx, measure_id, d(2024, 2, 1), d(2024, 3, 1));
     quarantine(
         fx,
         fx.publisher_id,
         fx.platform_id,
-        fx.sessions,
+        measure_id,
         d(2024, 6, 1),
         d(2024, 6, 2),
         "DAY",
     );
 }
 
-/// A later unapplied work-day delta, leaving the frontier lagging.
-fn later_lag(fx: &Fixture) {
+/// A later unapplied work-day delta on `measure_id`, leaving the frontier
+/// lagging.
+fn later_lag(fx: &Fixture, measure_id: Uuid) {
     commit(
         fx,
         fx.works[1],
         fx.platform_id,
-        fx.sessions,
+        measure_id,
         d(2024, 7, 7),
         1,
     );
@@ -9283,9 +9284,9 @@ fn an_omitted_start_begins_at_the_earliest_evidence_of_every_kind() {
     ] {
         for filtered in [false, true] {
             let (_guard, fx) = setup();
-            later_evidence(&fx);
+            later_evidence(&fx, fx.sessions);
             place_first_evidence(&fx, kind, first_evidence_day());
-            later_lag(&fx);
+            later_lag(&fx, fx.sessions);
             let explicit_pair = all_time(&request(
                 fx.publisher_id,
                 d1(),
@@ -9342,6 +9343,79 @@ fn an_omitted_start_begins_at_the_earliest_evidence_of_every_kind() {
     }
 }
 
+/// A3 section 11.6, R1 parity: `kind` placed as the only evidence of the
+/// fixture's platform and sessions pair, with every later evidence, and the
+/// later outstanding rollup work, on net units instead. The all-time request
+/// omits platforms and measures, so only the represented-pairs query, read
+/// with no lower date bound, can serve the sessions pair.
+fn only_evidence_of_its_pair(
+    kind: FirstEvidence,
+) -> (
+    TestDbGuard,
+    Fixture,
+    Result<MetricDashboard, MetricReadError>,
+) {
+    let (guard, fx) = setup();
+    later_evidence(&fx, fx.units);
+    place_first_evidence(&fx, kind, first_evidence_day());
+    later_lag(&fx, fx.units);
+    let input = omitted_pairs(&all_time(&request(
+        fx.publisher_id,
+        d1(),
+        day_n(5),
+        &[fx.platform_id],
+        &[fx.sessions],
+        None,
+    )));
+    // A3 section 11.7: the equivalence obligation holds on these fixtures
+    // too.
+    let result = assert_all_time_equivalence(&fx, &input);
+    (guard, fx, result)
+}
+
+/// The pair whose only evidence is `kind` is represented and served, and
+/// the all-time start is that evidence's day.
+fn assert_served_from_its_only_evidence(kind: FirstEvidence) {
+    let (_guard, fx, result) = only_evidence_of_its_pair(kind);
+    let served = result.unwrap_or_else(|error| panic!("{kind:?}: {error:?}"));
+    assert_eq!(
+        served_pairs(&served).into_iter().collect::<BTreeSet<_>>(),
+        BTreeSet::from([(fx.platform_id, fx.sessions), (fx.platform_id, fx.units)]),
+        "{kind:?}: the pair is represented and served"
+    );
+    assert_eq!(
+        served.start_date,
+        first_evidence_day(),
+        "{kind:?}: S is the day of the pair's only evidence"
+    );
+    assert_eq!(
+        total(&served, fx.platform_id, fx.sessions),
+        None,
+        "{kind:?}: no value is projected for the pair"
+    );
+}
+
+#[test]
+fn an_omitted_start_represents_a_pair_whose_only_evidence_is_a_total_ambiguous_month() {
+    let (_guard, _fx, result) = only_evidence_of_its_pair(FirstEvidence::AmbiguousMonth);
+    // Represented through the monthly ambiguity branch alone, the pair is
+    // served, so its ambiguous month refuses the whole request.
+    assert_eq!(
+        result.map(|_| ()),
+        Err(MetricReadError::DimensionScopeAmbiguous)
+    );
+}
+
+#[test]
+fn an_omitted_start_represents_a_pair_whose_only_evidence_is_a_terminal_import_corner_probe() {
+    assert_served_from_its_only_evidence(FirstEvidence::CornerProbe);
+}
+
+#[test]
+fn an_omitted_start_represents_a_pair_whose_only_evidence_is_unresolved_identifier_evidence() {
+    assert_served_from_its_only_evidence(FirstEvidence::Quarantine);
+}
+
 #[test]
 fn omitted_start_evidence_dated_before_2000_is_refused_and_never_clamped() {
     for day in [d(1999, 12, 31), d(1, 1, 1)] {
@@ -9353,9 +9427,9 @@ fn omitted_start_evidence_dated_before_2000_is_refused_and_never_clamped() {
             FirstEvidence::Lag,
         ] {
             let (_guard, fx) = setup();
-            later_evidence(&fx);
+            later_evidence(&fx, fx.sessions);
             place_first_evidence(&fx, kind, day);
-            later_lag(&fx);
+            later_lag(&fx, fx.sessions);
             let input = all_time(&window(&fx, &[fx.sessions]));
             for (form, input) in [
                 ("filtered", input.clone()),
@@ -11067,6 +11141,54 @@ fn a_read_past_its_deadline_rolls_back_and_a_read_whose_statements_all_started_i
     );
     assert_eq!(pool.state().idle_connections, 1);
     assert_eq!(guard.held(), 0);
+}
+
+#[test]
+fn a_checkout_the_deadline_cuts_short_fails_through_the_deadline_and_a_pool_timeout_does_not() {
+    let (_guard, fx) = setup();
+    let input = complete_month(&fx);
+    let guard = ReadGuard::new(METRIC_DASHBOARD_MAX_CONCURRENT_READS);
+    let short = StdDuration::from_millis(300);
+
+    // The pool's one connection is held past a short deadline, and the pool
+    // itself would wait its thirty-second default: the deadline ends the
+    // checkout, which fails through the deadline check.
+    let (pool, _log) = capturing_pool();
+    let held = pool.get().expect("the pool's one connection");
+    let deadline = ReadDeadline::new(Instant::now() + short);
+    let started = Instant::now();
+    assert_eq!(
+        checkout(&pool, &deadline).err(),
+        Some(MetricReadError::Unavailable)
+    );
+    assert!(started.elapsed() < pool.connection_timeout());
+    assert!(
+        deadline.expired(),
+        "the checkout failed as a deadline expiry"
+    );
+    // Through the entry point: the same classification, and the slot is
+    // given back.
+    let controls = private_controls(&guard, METRIC_DASHBOARD_SLOT_WAIT, short);
+    assert_eq!(
+        metric_dashboard_with_controls(&pool, &input, &controls),
+        Err(MetricReadError::Unavailable)
+    );
+    assert_eq!(guard.held(), 0);
+    drop(held);
+
+    // A pool timeout that fires while the deadline still has time left is
+    // the pool's own failure: the same classification, and no deadline
+    // expiry.
+    let unreachable = failing_pool();
+    let deadline = ReadDeadline::new(Instant::now() + SYNC_DEADLINE);
+    assert_eq!(
+        checkout(&unreachable, &deadline).err(),
+        Some(MetricReadError::Unavailable)
+    );
+    assert!(
+        !deadline.expired(),
+        "a pool timeout is not a deadline expiry"
+    );
 }
 
 // --------------------------------------------------------------------------
