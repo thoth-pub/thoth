@@ -829,12 +829,19 @@ impl Drop for SlotGuard {
 
 /// Take a slot without waiting, or `None` when every slot is taken.
 fn try_take_slot() -> Option<SlotGuard> {
-    SLOTS_IN_USE
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |taken| {
-            (taken < METRIC_WIDGET_SLOTS).then_some(taken + 1)
-        })
-        .ok()
-        .map(|_| SlotGuard)
+    let mut taken = SLOTS_IN_USE.load(Ordering::SeqCst);
+    while taken < METRIC_WIDGET_SLOTS {
+        match SLOTS_IN_USE.compare_exchange_weak(
+            taken,
+            taken + 1,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            Ok(_) => return Some(SlotGuard),
+            Err(current) => taken = current,
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
