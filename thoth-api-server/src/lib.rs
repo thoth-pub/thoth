@@ -19,7 +19,7 @@ use thoth_api::{
     graphql::{
         create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
     },
-    model::distribution_job::DistributionJobCreation,
+    model::{distribution_job::DistributionJobCreation, metric_widget::MetricWidgetSwitch},
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
 use zitadel::{
@@ -89,7 +89,7 @@ async fn graphql_schema(st: Data<Arc<Schema>>) -> HttpResponse {
 
 #[post("/graphql")]
 // Every parameter is an Actix extractor the handler genuinely needs: the schema,
-// the pool, the two storage clients, the two request-scoped control values and
+// the pool, the two storage clients, the three request-scoped control values and
 // the request body. Grouping them would only hide the extraction.
 #[allow(clippy::too_many_arguments)]
 async fn graphql(
@@ -99,6 +99,7 @@ async fn graphql(
     cloudfront_client: Data<CloudFrontClient>,
     guard_mode: Data<MutationGuardMode>,
     distribution_job_creation: Data<DistributionJobCreation>,
+    metric_widget: Data<MetricWidgetSwitch>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
@@ -107,6 +108,9 @@ async fn graphql(
     // configuration coordinator takes it as an explicit parameter and makes no
     // ambient environment lookup of its own.
     let job_creation = *distribution_job_creation.into_inner().as_ref();
+    // The public widget read's switch (`MET-WP4-WIDGET-01`) also reaches the
+    // resolver, through the request context; it is read once at start.
+    let metric_widget = *metric_widget.into_inner().as_ref();
 
     // Both paths produce ONE `GraphQLResponse`, which then flows through the
     // single existing status branch below. A guard rejection is an ordinary
@@ -132,7 +136,8 @@ async fn graphql(
                 s3_client.into_inner(),
                 cloudfront_client.into_inner(),
                 job_creation,
-            );
+            )
+            .with_metric_widget(metric_widget);
             data.execute(&st, &ctx).await
         }
     };
@@ -158,6 +163,7 @@ pub async fn start_server(
     zitadel_url: String,
     mutation_guard_mode: MutationGuardMode,
     distribution_job_creation: DistributionJobCreation,
+    metric_widget: MetricWidgetSwitch,
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_region: String,
@@ -201,6 +207,7 @@ pub async fn start_server(
             .app_data(Data::new(Arc::new(create_schema())))
             .app_data(Data::new(mutation_guard_mode))
             .app_data(Data::new(distribution_job_creation))
+            .app_data(Data::new(metric_widget))
             .service(index)
             .service(graphql_index)
             .service(graphql)
@@ -275,6 +282,9 @@ mod tests {
                 // and registers the merged default here so these tests keep
                 // exercising the production-default configuration.
                 .app_data(Data::new(DistributionJobCreation::default()))
+                // `MET-WP4-WIDGET-01`: the public widget read's switch, at its
+                // default `OFF`, so no widget request here reaches the database.
+                .app_data(Data::new(MetricWidgetSwitch::default()))
                 .service(graphql),
         )
         .await
@@ -410,6 +420,54 @@ mod tests {
         assert!(
             body.contains(r#""data""#),
             "a successful response carries a `data` key; got: {body}"
+        );
+    }
+
+    /// A `metricWidget` selection with valid coercible arguments.
+    const WIDGET_QUERY: &str = concat!(
+        "{ metricWidget(input: {doi: \"10.1234/widget-http\", ",
+        "startDate: \"2026-01-01\", endDate: \"2026-02-01\"}) { excludedChildCount } }"
+    );
+
+    /// The same selection with a `Date` that does not coerce.
+    const WIDGET_INVALID_DATE_QUERY: &str = concat!(
+        "{ metricWidget(input: {doi: \"10.1234/widget-http\", ",
+        "startDate: \"not-a-date\", endDate: \"2026-02-01\"}) { excludedChildCount } }"
+    );
+
+    #[actix_web::test]
+    async fn a_widget_refusal_is_http_200_with_an_errors_entry() {
+        // `MET-WP4-WIDGET-01` section 3: a widget error is a resolver error.
+        // With the switch at its default `OFF` the resolver refuses before any
+        // slot, connection or statement, so no database is reached.
+        let (status, body) = post(MutationGuardMode::Off, WIDGET_QUERY).await;
+        assert_eq!(status, StatusCode::OK, "body: {body}");
+        assert!(
+            body.contains(r#""errors":["#),
+            "a widget refusal is an errors entry; got: {body}"
+        );
+        assert!(
+            body.contains(r#""type":"METRIC_WIDGET_UNAVAILABLE""#),
+            "expected the uniform unavailable refusal; got: {body}"
+        );
+        assert!(
+            body.contains("Metrics are not available for this work."),
+            "expected the fixed widget message; got: {body}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn an_invalid_widget_date_is_http_400() {
+        // Coercion fails before the resolver runs (section 4.1 step 1).
+        let (status, body) = post(MutationGuardMode::Off, WIDGET_INVALID_DATE_QUERY).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+        assert!(
+            body.starts_with(r#"{"errors":["#),
+            "an invalid Date is an ordinary request-level error; got: {body}"
+        );
+        assert!(
+            !body.contains("METRIC_WIDGET"),
+            "the resolver never ran; got: {body}"
         );
     }
 }
