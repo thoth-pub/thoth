@@ -1097,8 +1097,10 @@ Semantics: OR within lists, AND between dimensions, exclusive end date, bounded 
 `MET-WP4-02` (issue #910) delivers the MOM-1 read surface: one coverage-aware
 dashboard query and the two registry lists a service needs to form its UUID
 filters. `MET-WP4-03B` (section 4.2) completes the dashboard contract
-additively: every property below still holds except where section 4.2
-states how it is extended.
+additively, and `MET-WP4-03C-B2` (section 4.3) extends it to a publisher's
+whole history: every property below still holds except where section 4.2 or
+section 4.3 states how it is extended. The SDL below already shows the
+section 4.3 changes to the types it declares.
 
 Operations, each requiring exactly `METRICS_READ_SERVICE` through
 `PolicyContext::require_metrics_read_service()` before any Metrics-specific
@@ -1115,7 +1117,7 @@ scalar BigInt
 
 input MetricDashboardInput {
   selector: MetricSelectorInput!
-  startDate: Date!
+  startDate: Date
   endDate: Date!
   measures: [Uuid!]
   platforms: [Uuid!]
@@ -1126,7 +1128,7 @@ input MetricSelectorInput {
   publisherIds: [Uuid!]
 }
 
-enum MetricTimelineGrain { AUTO DAY MONTH }
+enum MetricTimelineGrain { AUTO DAY MONTH YEAR }
 
 type MetricDashboard {
   totals: [MetricTotal!]!
@@ -1137,6 +1139,9 @@ type MetricDashboard {
   rollupWatermark: Timestamp!
   warnings: [MetricWarning!]!
   isPartial: Boolean!
+  startDate: Date!
+  endDate: Date!
+  timelineGrain: MetricTimelineGrain!
 }
 
 type MetricTotal { platformId: Uuid! measureId: Uuid! value: BigInt }
@@ -1181,18 +1186,19 @@ Contract properties consumers may rely on:
   publisher per request: none, several or an unknown ID was
   `METRIC_QUERY_INVALID`, never a first-item choice, a truncation or a
   combination. `MET-WP4-03B` replaces that milestone restriction with the
-  reviewed one-to-three publisher entitlement and aggregation contract of
-  section 4.2.
+  reviewed publisher entitlement and aggregation contract of section 4.2.
 - **Attribution.** Works are attributed to publishers through current
   `work -> imprint -> publisher` metadata at read time. A moved work's
   projected history follows it; nothing is rewritten.
 - **Request bounds.** Half-open `[startDate, endDate)` with
-  `startDate < endDate`; at most 366 days; at most 10 unique measures and 10
-  unique platforms, whether explicit or resolved; at most 25 platform/measure
-  combinations (the cross product of the served platforms and measures); at
-  most 5,000 timeline cells (combinations x buckets). A bound is never met by
-  truncation. Duplicate IDs are refused, and so is an explicit unknown
-  measure or platform. Disabled registry identities stay addressable.
+  `startDate < endDate`; at most 366 days for a `DAY` timeline, and no
+  maximum range for a `MONTH` or `YEAR` timeline inside the date domain of
+  section 4.3; at most 10 unique measures and 10 unique platforms, whether
+  explicit or resolved; at most 25 platform/measure combinations (the cross
+  product of the served platforms and measures); at most 5,000 timeline cells
+  (combinations x buckets). A bound is never met by truncation. Duplicate IDs
+  are refused, and so is an explicit unknown measure or platform. Disabled
+  registry identities stay addressable.
 - **Omitted filters.** An omitted or empty `measures` or `platforms` resolves
   to every identity represented for the selected publishers and range in the
   work-day projection, terminal coverage from an eligible managed account, or
@@ -1207,8 +1213,9 @@ Contract properties consumers may rely on:
   `METRIC_QUERY_INVALID`; the measure is never summed or dropped.
   `metricMeasures` still lists such measures.
 - **Grains.** `DAY` gives one bucket per requested day. `MONTH` gives calendar
-  months clipped to the range, each the exact sum of its daily rows. `AUTO` is
-  `DAY`.
+  months clipped to the range, each the exact sum of its daily rows. `YEAR`
+  gives calendar years clipped to the range (section 4.3). `AUTO` chooses
+  `DAY`, then `MONTH`, then `YEAR` as section 4.3 states.
 - **Dimensional representation (Specification Amendment 6).** The projection
   keeps optional publication, country and institution dimensions. For each
   base cell `(work, platform, measure, day)`, an undimensioned row is the
@@ -1286,7 +1293,9 @@ Contract properties consumers may rely on:
 - **Errors.** Every failure carries a fixed message and one `extensions.type`
   among `NO_ACCESS`, `METRIC_QUERY_INVALID`, `METRIC_QUERY_LIMIT_EXCEEDED`,
   `METRIC_REGISTRY_LIMIT_EXCEEDED`, `MOM1_SOURCE_SCOPE_AMBIGUOUS` and
-  `MOM1_DIMENSION_SCOPE_AMBIGUOUS`. An
+  `MOM1_DIMENSION_SCOPE_AMBIGUOUS`, plus
+  `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` (section 4.2) and the retryable
+  `METRIC_READ_BUSY` (section 4.3). An
   aggregate outside the representable range is `METRIC_QUERY_LIMIT_EXCEEDED`.
   An unexpected database failure is `INTERNAL_ERROR` without detail. No SQL,
   database diagnostic, token or source configuration is returned.
@@ -1369,13 +1378,13 @@ The one new error classification is `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`.
 
 Contract properties consumers may rely on:
 
-- **Publishers.** `publisherIds` holds one to three unique IDs. None, more
-  than three or a duplicate is `METRIC_QUERY_INVALID`, and so is an unknown
-  publisher. Every selected publisher must independently hold
-  `METRICS_DASHBOARD`; one that does not makes the whole request `NO_ACCESS`,
-  even when the selector would exclude its works. There is no entitled-subset
-  response, no `SUPERUSER` shortcut and no new role: the resolver still
-  requires exactly `METRICS_READ_SERVICE` first.
+- **Publishers.** `publisherIds` holds one to 100 unique IDs. None, a
+  duplicate or an unknown publisher is `METRIC_QUERY_INVALID`; more than 100
+  is `METRIC_QUERY_LIMIT_EXCEEDED`. Every selected publisher must
+  independently hold `METRICS_DASHBOARD`; one that does not makes the whole
+  request `NO_ACCESS`, even when the selector would exclude its works. There
+  is no entitled-subset response, no `SUPERUSER` shortcut and no new role:
+  the resolver still requires exactly `METRICS_READ_SERVICE` first.
 - **Selector.** Values within one list are alternatives (OR); different
   lists must all match (AND); an omitted or empty optional list does not
   restrict. Works are resolved from current metadata, before any Metrics
@@ -1395,7 +1404,7 @@ Contract properties consumers may rely on:
   or matches none of the other selected works, is valid and may resolve to
   no works. Unknown `WorkType` or `LanguageCode` values are refused by
   GraphQL input coercion before the resolver. A selection resolving to more
-  than 2,000 works is `METRIC_QUERY_LIMIT_EXCEEDED`. No bound is met by
+  than 25,000 works is `METRIC_QUERY_LIMIT_EXCEEDED`. No bound is met by
   truncation.
 - **Represented publishers.** After resolution only the publishers owning at
   least one resolved work take part in source accounts, coverage, lag,
@@ -1434,11 +1443,13 @@ Contract properties consumers may rely on:
   without re-resolving or re-ranking them; the clipped leading and trailing
   days are read from `metric_rollup_work_day` and resolved per base cell as
   section 4.1 and section 3.6 resolve them. Totals, countries and
-  institutions add both parts. `AUTO` remains `DAY`. A `DAY` timeline reads
-  every day from the work-day projection; a `MONTH` timeline takes a complete
-  month's bucket from the monthly projection and a clipped bucket from its
-  days. The values equal the section 4.1 day-by-day values for the same
-  resolved request, which the tests prove against an independent oracle.
+  institutions add both parts. A `DAY` timeline reads every day from the
+  work-day projection; a `MONTH` timeline takes a complete month's bucket
+  from the monthly projection and a clipped bucket from its days, and a
+  `YEAR` timeline regroups the same reads by calendar year. `AUTO` and the
+  yearly section reads are as section 4.3 states. The values equal the
+  section 4.1 day-by-day values for the same resolved request, which the
+  tests prove against an independent oracle.
 - **Countries and institutions.** Only known values are listed: no synthetic
   unknown country or institution, and no zero for an absent one. Country
   values use the target-dimension rule of section 3.6 (the unique least
@@ -1448,9 +1459,12 @@ Contract properties consumers may rely on:
   Thoth institution read set-wise in the same snapshot. Countries are ordered
   by `(platformId, measureId, countryCode)` and institutions by
   `(platformId, measureId, institutionId)`, never by display text. At most
-  2,000 institution rows are returned; more is
-  `METRIC_QUERY_LIMIT_EXCEEDED`, never a truncated list. Country rows are
-  bounded by the combinations and the alpha-2 code space.
+  100,000 institution rows are returned; more is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never a truncated list. Each of the at most
+  two statements that read institution rows stops after 100,001 grouped rows,
+  and the request fails when the distinct institution rows across both exceed
+  100,000. Country rows are bounded by the combinations and the alpha-2 code
+  space.
 - **Section inclusion.** `includeCountries` and `includeInstitutions`
   default to true. A section that is false returns no rows, cannot fail the
   request through its own ambiguity and cannot downgrade the shared coverage
@@ -1482,13 +1496,15 @@ Contract properties consumers may rely on:
 - **Native grains.** The projections serve `DAY` canonical records only. If
   a canonical record of `MONTH` or `REPORTING_PERIOD` grain for a resolved
   work, served platform and served measure overlaps `[startDate, endDate)`
-  and its `current_revision_id` names a `CURRENT` revision, the whole request
-  fails with `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` and a fixed message;
+  (with `startDate` omitted, starts before `endDate`) and its
+  `current_revision_id` names a `CURRENT` revision, the whole request fails
+  with `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` and a fixed message;
   nothing is silently omitted. A record whose pointer names a `RETRACTED`
   revision, with no `CURRENT` revision, is withdrawn and does not fail it.
   Contradictory committed state — no pointer, a pointer to a `SUPERSEDED`
   revision, or a `RETRACTED` pointer beside a `CURRENT` revision — fails
-  closed as `INTERNAL_ERROR`.
+  closed as `INTERNAL_ERROR`. The check's predicate matches the partial
+  index `metric_record_native_grain_idx`, which changes only its cost.
 - **Lag scope.** `ROLLUP_LAG` and the lag part of `dataThrough` count only
   unapplied work-day deltas above the frontier for the resolved works,
   range, served platforms and served measures. Identifier quality does not
@@ -1499,9 +1515,10 @@ Contract properties consumers may rely on:
   non-query statements in this order: `SET LOCAL plan_cache_mode =
   force_custom_plan`, so each statement is planned for its actual arrays and
   bounds; `SET LOCAL statement_timeout = '30s'`, a limit on each later
-  statement individually, not a whole-request deadline; and one `LOCK TABLE`
-  on exactly the six derived projection tables the exceptional rebuild
-  truncates — `metric_rollup_work_month`, `metric_rollup_work_country_month`,
+  statement individually (the whole-read deadline of section 4.3 is
+  separate); and one `LOCK TABLE` on exactly the six derived projection
+  tables the exceptional rebuild truncates — `metric_rollup_work_month`,
+  `metric_rollup_work_country_month`,
   `metric_rollup_work_institution_month`, `metric_rollup_work_month_ambiguity`,
   `metric_rollup_work_country_year` and `metric_rollup_work_institution_year`,
   in the order the verifier of section 3.7 locks them — `IN ACCESS SHARE
@@ -1513,10 +1530,11 @@ Contract properties consumers may rely on:
   checkout, whatever the number of publishers, works, days, months, countries,
   institutions or quarantine rows: the frontier is read with the publishers,
   explicit selector IDs are checked while the works are resolved, native
-  grains and lag share one statement, each monthly and edge-day section
-  statement runs at most once, and no work or institution is looked up
-  individually. The per-publisher coverage day series is a `MATERIALIZED`
-  CTE.
+  grains, lag and the all-time start share one statement, each monthly and
+  edge-day section statement runs at most once, and no work or institution is
+  looked up individually. Section 4.3 gives the ceiling of each request form.
+  Coverage is read as eligible coverage runs clipped to the served range: no
+  statement expands the days of the range.
 - **Snapshot protection and contention.** PostgreSQL's `TRUNCATE` is not
   MVCC-safe: a `REPEATABLE READ` snapshot frozen before a concurrent
   `rebuildMetricRollupMonths` truncate would see the projection tables it had
@@ -1537,17 +1555,18 @@ Contract properties consumers may rely on:
   while a `TRUNCATE` is queued waits behind it under PostgreSQL's lock
   ordering, bounded the same way. No wait is indefinite, and no fairness or
   whole-request latency is promised.
-- **Bounded failure.** A statement timeout, a lock wait that reaches it, or
-  any other SQL failure aborts the whole read, rolls its transaction back,
-  returns the connection to the pool and fails as `INTERNAL_ERROR` with the
-  fixed message `The Metrics read could not be completed.`; no partial
-  response and no fabricated zero is ever returned.
-- **Deferred B2 reconciliation.** The deferred `MET-WP4-03C-B2` reader
-  cutover (issue #980) prescribes one combined settings statement and its own
-  statement ceilings. This current-reader contract neither amends nor
-  satisfies them: before B2 resumes, its approved settings sequence and count
-  acceptance must be explicitly reconciled under #980 with this lock and the
-  actual reader instrumentation.
+- **Bounded failure.** A statement timeout, a lock wait that reaches it, a
+  read past its whole-read deadline (section 4.3), or any other SQL failure
+  aborts the whole read, rolls its transaction back, returns the connection
+  to the pool and fails as `INTERNAL_ERROR` with the fixed message `The
+  Metrics read could not be completed.`; no partial response and no
+  fabricated zero is ever returned.
+- **Step 0 under `MET-WP4-03C-B2`.** Specification Amendment 3 section 4A
+  (issue #980) reconciles the `MET-WP4-03C-B2` reader with this sequence: the
+  planner setting, the statement timeout and the lock stay three separately
+  named statements, in this order, before the first query, with nothing
+  before them in the transaction. No combined settings statement exists, and
+  B2 adds no statement name; its form ceilings are in section 4.3.
 - **Activation gate.** The monthly projections are served only once, under
   separate authorization, the `MET-WP4-03A` migration has run and a full
   historical rebuild has been reconciled at a recorded work-day frontier
@@ -1561,6 +1580,200 @@ Scope boundaries a consumer must not infer:
   records only fail an intersecting request.
 - The read writes nothing: no projection, monthly row, delta, frontier or
   coverage is repaired or recorded, and no external service is called.
+
+### 4.3 All-time history (`MET-WP4-03C-B2`)
+
+`MET-WP4-03C-B2` (issue #980, through Specification Amendments 1, 2 and 3)
+lets a dashboard show a publisher's whole Metrics history. `MONTH` and
+`YEAR` timelines have no calendar cap, `startDate` may be omitted, and
+coverage is evaluated over coverage runs instead of individual days. Every
+property of sections 4.1 and 4.2 still holds except where this section says
+how it changes. Each range-relative rule there applies to the served range
+`[startDate, endDate)`, whose `startDate` the response returns. No
+operation, role, capability, migration, table or index is added, and
+`metricMeasures` and `metricPlatforms` are unchanged.
+
+Additive GraphQL contract (already shown in the section 4.1 SDL):
+
+```graphql
+input MetricDashboardInput {
+  startDate: Date   # was Date!; absent or null means all time
+  # ...every other field unchanged...
+}
+
+enum MetricTimelineGrain { AUTO DAY MONTH YEAR }
+
+type MetricDashboard {
+  # ...section 4.1 and 4.2 fields...
+  startDate: Date!
+  endDate: Date!
+  timelineGrain: MetricTimelineGrain!
+}
+```
+
+`MetricTimelineGrain` is now also an output type, so strict clients must
+accept `YEAR`. The one new error classification is `METRIC_READ_BUSY`.
+
+Contract properties consumers may rely on:
+
+- **Envelope.** A `DAY` timeline covers at most 366 days. `MONTH` and `YEAR`
+  timelines have no maximum range. Every timeline must fit the 5,000-cell
+  bound, and an explicit grain never switches. A request selects 1 to 100
+  publishers and resolves to at most 25,000 works, and a response holds at
+  most 100,000 institution rows (section 4.2). The other bounds of sections
+  4.1 and 4.2 are unchanged.
+- **Date domain.** Only when `startDate` is omitted or the range is longer
+  than 366 days: an explicit `startDate` must be on or after 2000-01-01;
+  `endDate` may be at most 366 days after the API process's current UTC date;
+  with `startDate` omitted, `endDate` must be later than 2000-01-01. A request
+  outside the domain fails as `METRIC_QUERY_LIMIT_EXCEEDED` with a fixed
+  message, before any database work. An explicit range of at most 366 days
+  is served whatever its dates, as before.
+- **AUTO.** `AUTO` is decided once the served platforms, measures and start
+  are known: `DAY` when the served range is at most 366 days and its timeline
+  fits, otherwise `MONTH` when its timeline fits, otherwise `YEAR`, which
+  always fits inside the date domain. `timelineGrain` in the response is the
+  grain served, never `AUTO`; `startDate` and `endDate` are the served range.
+- **YEAR.** One bucket per calendar year, clipped to the served range. A
+  `YEAR` timeline is a `MONTH` timeline for every purpose but bucketing: the
+  same statements, month split, day reads and section composition. A bucket
+  follows the section 4.1 value rule over its days: the exact sum when any
+  projected row exists; `"0"` only when every day is effectively `COMPLETE`,
+  with no unapplied delta and no unresolved identifier evidence; otherwise
+  `null`. It is therefore not the sum of `MONTH` values when any of them is
+  `null`. Totals and the timeline never read a yearly projection.
+- **Yearly sections.** For a `MONTH` or `YEAR` timeline, the country and
+  institution sections read the complete calendar years inside the range
+  from `metric_rollup_work_country_year` and
+  `metric_rollup_work_institution_year`, the remaining complete months from
+  the monthly section projections and the clipped edge days from the
+  work-day projection, in the one complete-month statement. The three parts
+  are disjoint, and monthly ambiguity stays authoritative over a year read
+  from the yearly projections.
+- **All time.** An absent and a null `startDate` are the same. With
+  `startDate` omitted, the read finds, in the same snapshot, the earliest
+  evidence before `endDate` for the resolved works, the represented
+  publishers and the served platforms and measures: a work-day projection
+  row, an eligible coverage run, coverage from a terminal import without a
+  completion time, unresolved identifier quarantine and an unapplied work-day
+  delta. The served `startDate` is that exact day, and the first bucket is
+  clipped there. With no evidence, no resolved work or no served pair it is
+  the first day of the month containing the day before `endDate`. Evidence
+  dated before 2000-01-01 fails the request as `METRIC_QUERY_LIMIT_EXCEEDED`;
+  it is never clamped. Omitted platforms and measures resolve over the whole
+  history before `endDate`. Every fail-closed rule applies to all that
+  history: an active or inconsistent native-grain record anywhere before
+  `endDate`, and an ambiguous month or day or same-stream run overlap in the
+  served range. `startDate` cannot be omitted with a `DAY`
+  timeline (`METRIC_QUERY_INVALID`). A successful all-time response equals
+  the explicit request over the served range at the served grain.
+- **Filtered start.** With explicit platforms or measures, the start is the
+  earliest evidence of the selected pairs. It is found from the monthly
+  identity keys and at most one month of work-day rows per work, without
+  reading a monthly value or scanning a monthly projection. Evidence of a
+  platform or measure that is not selected never moves it.
+- **All-time coverage.** An all-time response reports the worst coverage
+  over its whole served history. With several platforms or measures, an
+  item whose evidence starts after the served `startDate` is `UNKNOWN` for
+  its leading days, its `dataThrough` is `null`, and so is the top-level
+  `dataThrough`. Clients must not present `dataThrough` as "data up to" for
+  all-time views.
+- **Coverage runs.** Coverage is read from the eligible
+  `metric_coverage_run` runs, clipped to the served range, with the
+  semantics of sections 4.1 and 4.2 unchanged. Eligibility is checked at
+  request time against the current source account, as before. Two eligible
+  runs of one stream that cover the same served day are invalid derived
+  state and fail the request as `INTERNAL_ERROR`; overlap outside the served
+  range is never read. Evaluation is interval-based: apart from the
+  timeline buckets themselves, nothing the read builds, in SQL or in memory,
+  grows with the number of days in the range.
+- **Represented pairs.** Omitted platforms or measures resolve from the
+  section 4.2 evidence, with ordinary coverage represented by eligible
+  coverage runs and terminal imports without a completion time read
+  directly. Its monthly branches read only the identity-key columns of the
+  monthly projections, never a monthly value.
+- **Complete-month strategy.** From 1,200 resolved works the complete-month
+  statement reads its monthly total, monthly ambiguity and yearly section
+  branches in one filtered pass instead of one probe per work, and from
+  1,600 its monthly section branches too. This is a physical read strategy,
+  not a product limit: responses are identical on both sides of each
+  threshold.
+- **Concurrency.** One API process runs at most three `metricDashboard`
+  reads at once. A further read waits at most one second in total for a
+  slot, holding no database connection, and otherwise fails whole as the
+  retryable `METRIC_READ_BUSY` with the fixed message "The Metrics service
+  is busy. Try again shortly." It is a resolver error (HTTP 200 with an
+  `errors` entry), and clients retry on the code. A request refused by
+  validation takes no slot, and a slot is given back on success, error,
+  rollback and panic alike. The limit is per process: database-wide
+  concurrency is three times the number of running API processes. A read
+  that would have waited or run on before can now fail with
+  `METRIC_READ_BUSY`, or as `INTERNAL_ERROR` past the deadline below.
+- **Whole-read deadline.** A read must start every statement from `BEGIN`
+  to the identifier-quality query within 20 seconds of being granted its
+  slot. Otherwise it rolls back and fails as `INTERNAL_ERROR` with the fixed
+  message of section 4.2; `COMMIT` is not checked. The pool checkout waits at
+  most the lesser of the pool's connection timeout and the time left, and a
+  checkout the deadline cuts short is a deadline expiry. A statement already
+  started still runs under the 30-second statement timeout, so a read holds
+  its slot for at most about 50 seconds. A busy refusal and a deadline expiry
+  are logged with fixed text and no request detail.
+- **Rebuild under read load.** A `rebuildMetricRollupMonths` that has to
+  truncate waits at most its own 5-second `lock_timeout` for its
+  `ACCESS EXCLUSIVE` lock. A dashboard read holds `ACCESS SHARE` on the six
+  projection tables from step 0 until its transaction ends: it starts no
+  statement after its 20-second deadline, and each statement runs under the
+  30-second statement timeout, so one read holds the locks for at most about
+  50 seconds. Reads that arrive while the rebuild waits queue behind it. If
+  the rebuild fails on its lock timeout, it has rolled back and changed
+  nothing. Retry it when dashboard read traffic is low, so that no running
+  read outlasts that 5-second wait.
+- **Statement ceilings.** Step 0 is the section 4.2 sequence, unchanged.
+  Every statement on the read connection counts, the pool's checkout
+  `SELECT 1` included, and a failed read is not a ceiling example. With
+  exactly one of the known-pair and represented-pair queries, the same for an
+  explicit and an omitted start, and with the forms as Specification
+  Amendment 3 section 4A (issue #980) defines them:
+
+  ```text
+  aligned MONTH or YEAR                      <= 14
+  aligned DAY                                <= 15
+  aligned DAY with a base cell to resolve    <= 16
+  clipped / omitted-section                  <= 16
+  clipped MONTH or YEAR with sections        <= 17
+  clipped DAY with sections                  <= 17
+  ```
+
+  The two DAY rows at 16 and 17 run the same day reads as the other form
+  with the same ceiling.
+  "Aligned" means both dates are the first of a month. A request in which
+  both pair queries run carries exactly one more statement, and no form may
+  exceed its own ceiling. The longest path is exactly the eighteen statements
+  of section 4.2: checkout, `BEGIN`, the three step-0 statements, publishers,
+  works, known pairs, represented pairs, accounts, canonical state, complete
+  months, day sums, dimension cells, edge-day sections, coverage runs,
+  identifier quality and `COMMIT`.
+- **All-time default gate.** A client may make the all-time view its
+  default, or offer a control that omits `startDate`, only after this
+  reader is activated with its representative performance references met;
+  after either a response cache is deployed or evidence shows that the
+  uncached default meets those references at three concurrent reads per
+  process, with the busy rate accepted; and after a read-only production
+  census shows which entitled publishers' default request would be refused,
+  and why, with that result accepted or a fallback specified.
+- **Rollback.** A reader rolled back to a binary before `MET-WP4-03C-B2`
+  fails every request that omits `startDate`, sends `YEAR` or selects the new
+  output fields at GraphQL validation. A client using them must therefore be
+  revertible on its own, and is switched off first: client, then reader,
+  then service health verification, then any producer rollback.
+
+Scope boundaries a consumer must not infer:
+
+- No response cache is added; a cache is separate work.
+- History is only what has been ingested; importing earlier history is
+  separate work.
+- `metricWidget` does not use this concurrency limit or this range; its
+  adoption of the all-time range is separate work.
 
 ## 5. Publisher import
 

@@ -9,7 +9,9 @@
 //! registry lists and their bound, the frozen error classifications and the
 //! one `MET-WP4-03B` addition, `BigInt` transport, the country and
 //! institution sections, the strictly additive SDL and unchanged unrelated
-//! behaviour.
+//! behaviour; and, for `MET-WP4-03C-B2`, the optional `startDate`, the `YEAR`
+//! grain, the three echoed output fields, the 100-publisher bound, the date
+//! domain classifications and `METRIC_READ_BUSY`.
 //!
 //! Coverage, freshness, snapshot, bounds and additivity semantics are proven
 //! with the read itself, in `crate::model::metric_dashboard::tests`.
@@ -30,11 +32,11 @@ use super::sdl_support::sdl_block;
 use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::metric_dashboard::tests::{
-    apply_all, capturing_pool, commit, commit_dims, complete_month, cover, day_n, exec,
+    apply_all, capturing_pool, commit, commit_dims, complete_month, cover, d, day_n, exec,
     insert_institution, insert_measure, projection_sql, publisher_sql, quarantine, setup,
     statement_names, statement_text, works_sql, Dims, Fixture,
 };
-use crate::model::metric_dashboard::MetricDashboardInput;
+use crate::model::metric_dashboard::{MetricDashboardInput, MetricReadError};
 use crate::model::metric_platform::tests::{insert_platform_row, scalar_i64, setup_registry_db};
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
@@ -161,7 +163,8 @@ const DASHBOARD: &str = "query Dashboard($input: MetricDashboardInput!) { \
       institutions { platformId measureId institutionId institutionName ror value } \
       coverage { status items { platformId measureId status dataThrough \
                                 countryCoverage institutionCoverage } } \
-      asOf dataThrough rollupWatermark warnings { code message } isPartial } }";
+      asOf dataThrough rollupWatermark warnings { code message } isPartial \
+      startDate endDate timelineGrain } }";
 
 const MEASURES: &str = "{ metricMeasures { measureId code enabled additiveAcrossTime \
                             additiveAcrossWorks } }";
@@ -427,7 +430,7 @@ async fn the_dashboard_requires_publisher_entitlement_that_no_role_supplies() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_selector_accepts_one_to_three_entitled_publishers() {
+async fn the_selector_accepts_one_to_100_entitled_publishers() {
     let (_guard, fx) = setup();
     let third = Uuid::new_v4();
     let third_work = Uuid::new_v4();
@@ -449,6 +452,22 @@ async fn the_selector_accepts_one_to_three_entitled_publishers() {
         20,
     );
     commit(&fx, third_work, fx.platform_id, fx.sessions, day_n(1), 300);
+    // 97 more entitled publishers, one work and one title session each: 100
+    // in all (A1 section 8).
+    let mut hundred = vec![fx.publisher_id, fx.other_publisher_id, third];
+    let mut more = String::new();
+    let mut more_works = Vec::new();
+    for _ in 0..97 {
+        let (publisher, work) = (Uuid::new_v4(), Uuid::new_v4());
+        more.push_str(&publisher_sql(publisher, "SPHINX"));
+        more.push_str(&works_sql(publisher, &[work]));
+        hundred.push(publisher);
+        more_works.push(work);
+    }
+    exec(&fx.pool, &more);
+    for work in more_works {
+        commit(&fx, work, fx.platform_id, fx.sessions, day_n(1), 1);
+    }
     apply_all(&fx.pool);
     let schema = create_schema();
     let context = context_for(&fx.pool, Some(reader()));
@@ -460,6 +479,7 @@ async fn the_selector_accepts_one_to_three_entitled_publishers() {
             json!([fx.publisher_id, fx.other_publisher_id, third]),
             "321",
         ),
+        (json!(hundred), "418"),
     ] {
         let served = run(
             &schema,
@@ -474,22 +494,25 @@ async fn the_selector_accepts_one_to_three_entitled_publishers() {
         );
     }
 
-    // None, four, a duplicate and an unknown publisher are all refused with
-    // a query-validation error, never truncated, deduplicated or emptied.
-    for (label, publishers) in [
-        ("omitted", JsonValue::Null),
-        ("empty", json!([])),
+    // None, a duplicate and an unknown publisher are all refused with a
+    // query-validation error, and 101 publishers exceed a limit: never
+    // truncated, deduplicated or emptied.
+    let mut too_many = hundred.clone();
+    too_many.push(Uuid::new_v4());
+    for (label, publishers, expected) in [
+        ("omitted", JsonValue::Null, "METRIC_QUERY_INVALID"),
+        ("empty", json!([]), "METRIC_QUERY_INVALID"),
         (
-            "four",
-            json!([
-                fx.publisher_id,
-                fx.other_publisher_id,
-                third,
-                Uuid::new_v4()
-            ]),
+            "duplicate",
+            json!([fx.publisher_id, fx.publisher_id]),
+            "METRIC_QUERY_INVALID",
         ),
-        ("duplicate", json!([fx.publisher_id, fx.publisher_id])),
-        ("unknown", json!([fx.publisher_id, Uuid::new_v4()])),
+        (
+            "unknown",
+            json!([fx.publisher_id, Uuid::new_v4()]),
+            "METRIC_QUERY_INVALID",
+        ),
+        ("101", json!(too_many), "METRIC_QUERY_LIMIT_EXCEEDED"),
     ] {
         let response = run(
             &schema,
@@ -498,7 +521,7 @@ async fn the_selector_accepts_one_to_three_entitled_publishers() {
             dashboard_variables(&fx, publishers),
         )
         .await;
-        let message = assert_classified(&response, "METRIC_QUERY_INVALID");
+        let message = assert_classified(&response, expected);
         assert!(message.contains("publisher"), "{label}: {message}");
     }
 
@@ -571,8 +594,48 @@ async fn every_bounded_failure_carries_its_frozen_classification() {
             "METRIC_QUERY_INVALID",
         ),
         (
-            "367 days",
-            with(json!({ "endDate": (day_n(1) + chrono::Duration::days(367)).to_string() })),
+            "367 DAY days",
+            with(json!({
+                "endDate": (day_n(1) + chrono::Duration::days(367)).to_string(),
+                "timelineGrain": "DAY",
+            })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "a DAY timeline without a startDate",
+            with(json!({ "startDate": null, "timelineGrain": "DAY" })),
+            "METRIC_QUERY_INVALID",
+        ),
+        (
+            "a 367-day MONTH range from 1999-12-31",
+            with(json!({
+                "startDate": "1999-12-31",
+                "endDate": "2001-01-01",
+                "timelineGrain": "MONTH",
+            })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "an omitted startDate with endDate 2000-01-01",
+            with(json!({ "startDate": null, "endDate": "2000-01-01" })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            // Far enough beyond today + 366 that no change of UTC date while
+            // the test runs can move it inside the domain.
+            "an omitted startDate with endDate past today + 366",
+            with(json!({
+                "startDate": null,
+                "endDate": (chrono::Utc::now().date_naive() + chrono::Duration::days(400))
+                    .to_string(),
+            })),
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        ),
+        (
+            "101 publishers",
+            with(json!({ "selector": {
+                "publisherIds": (0..101).map(|_| Uuid::new_v4()).collect::<Vec<_>>(),
+            } })),
             "METRIC_QUERY_LIMIT_EXCEEDED",
         ),
         (
@@ -624,6 +687,12 @@ async fn every_bounded_failure_carries_its_frozen_classification() {
         let response = run(&schema, &context, DASHBOARD, variables).await;
         let message = assert_classified(&response, expected);
         assert!(!message.is_empty(), "{label}");
+        if label.contains("2000-01-01") || label.contains("1999-12-31") || label.contains("today") {
+            assert!(
+                message.contains("2000-01-01") || message.contains("today"),
+                "{label}"
+            );
+        }
     }
 
     // A second eligible managed account for the same publisher and platform.
@@ -1023,7 +1092,7 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     for (declaration, expected) in [
         (
             "input MetricDashboardInput {",
-            "selector:MetricSelectorInput!startDate:Date!endDate:Date!measures:[Uuid!]platforms:[Uuid!]timelineGrain:MetricTimelineGrain=includeCountries:Boolean=trueincludeInstitutions:Boolean=true",
+            "selector:MetricSelectorInput!startDate:DateendDate:Date!measures:[Uuid!]platforms:[Uuid!]timelineGrain:MetricTimelineGrain=includeCountries:Boolean=trueincludeInstitutions:Boolean=true",
         ),
         (
             "input MetricSelectorInput {",
@@ -1031,7 +1100,7 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
         ),
         (
             "type MetricDashboard {",
-            "totals:[MetricTotal!]!timeline:[MetricTimeBucket!]!countries:[MetricCountryTotal!]!institutions:[MetricInstitutionTotal!]!coverage:MetricCoverage!asOf:Timestamp!dataThrough:DaterollupWatermark:Timestamp!warnings:[MetricWarning!]!isPartial:Boolean!",
+            "totals:[MetricTotal!]!timeline:[MetricTimeBucket!]!countries:[MetricCountryTotal!]!institutions:[MetricInstitutionTotal!]!coverage:MetricCoverage!asOf:Timestamp!dataThrough:DaterollupWatermark:Timestamp!warnings:[MetricWarning!]!isPartial:Boolean!startDate:Date!endDate:Date!timelineGrain:MetricTimelineGrain!",
         ),
         (
             "type MetricCountryTotal {",
@@ -1081,7 +1150,7 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     );
     assert_eq!(
         enum_values(&sdl, "enum MetricTimelineGrain {"),
-        ["AUTO", "DAY", "MONTH"]
+        ["AUTO", "DAY", "MONTH", "YEAR"]
     );
 
     // Repository scalar spellings, and exactly one new scalar.
@@ -1109,6 +1178,175 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
             "{block}"
         );
     }
+}
+
+/// The description Juniper renders for `member` of `declaration` (a field,
+/// an argument or an enum value), or for the declaration itself when `member`
+/// is `None`: the quoted string that precedes the declaring line or begins
+/// it, unescaped.
+fn rendered_description(sdl: &str, declaration: &str, member: Option<&str>) -> String {
+    let lines: Vec<&str> = match member {
+        None => sdl.lines().collect(),
+        Some(_) => sdl_block(sdl, declaration).lines().collect(),
+    };
+    let mut pending: Option<String> = None;
+    for line in &lines {
+        let mut rest = line.trim();
+        if rest.starts_with('"') && !rest.starts_with("\"\"\"") {
+            let mut text = String::new();
+            let mut escaped = false;
+            let mut closed_at = None;
+            for (index, character) in rest.char_indices().skip(1) {
+                match character {
+                    _ if escaped => {
+                        text.push(character);
+                        escaped = false;
+                    }
+                    '\\' => escaped = true,
+                    '"' => {
+                        closed_at = Some(index);
+                        break;
+                    }
+                    _ => text.push(character),
+                }
+            }
+            let closed_at = closed_at.unwrap_or_else(|| panic!("an unterminated string: {line}"));
+            pending = Some(text);
+            rest = rest[closed_at + 1..].trim();
+            if rest.is_empty() {
+                continue;
+            }
+        }
+        let declares = match member {
+            None => rest == declaration,
+            Some(member) => {
+                rest == member
+                    || rest.starts_with(&format!("{member}:"))
+                    || rest.starts_with(&format!("{member}("))
+            }
+        };
+        if declares {
+            return pending
+                .unwrap_or_else(|| panic!("`{declaration}` `{member:?}` carries no description"));
+        }
+        if !rest.is_empty() {
+            pending = None;
+        }
+    }
+    panic!("`{declaration}` must declare `{member:?}`: {lines:#?}")
+}
+
+#[test]
+fn every_changed_dashboard_description_is_rendered_exactly() {
+    let sdl = create_schema().as_sdl();
+    for (declaration, member, expected) in [
+        (
+            "input MetricDashboardInput {",
+            Some("startDate"),
+            "First calendar day of the range, inclusive. Omitted or null means all time: the \
+             range then starts on the day of the earliest Metrics evidence for the selected \
+             works, platforms and measures before endDate, which must not be before \
+             2000-01-01, or on the first day of the month containing the day before endDate \
+             when there is none. An omitted startDate cannot be combined with a DAY timeline",
+        ),
+        (
+            "input MetricDashboardInput {",
+            Some("endDate"),
+            "Calendar day after the range, exclusive. It must be later than startDate. A DAY \
+             timeline may cover at most 366 days; MONTH and YEAR timelines have no maximum \
+             range. When startDate is omitted or the range is longer than 366 days, startDate \
+             must be on or after 2000-01-01, endDate must be later than 2000-01-01 and endDate \
+             may be at most 366 days after the current UTC date",
+        ),
+        (
+            "enum MetricTimelineGrain {",
+            Some("AUTO"),
+            "Let Thoth choose the bucket size once the served platforms, measures and \
+             startDate are known: DAY when the served range is at most 366 days and its \
+             timeline fits, otherwise MONTH when its timeline fits, otherwise YEAR",
+        ),
+        (
+            "enum MetricTimelineGrain {",
+            Some("YEAR"),
+            "One bucket per calendar year, clipped to the served range. Each bucket is the \
+             exact sum of the daily values it contains",
+        ),
+        (
+            "type MetricDashboard {",
+            Some("startDate"),
+            "The first day served. When startDate was omitted, the day of the earliest \
+             Metrics evidence for this scope, or the first day of the month containing the \
+             day before endDate when there is none",
+        ),
+        (
+            "type MetricDashboard {",
+            Some("endDate"),
+            "The day after the last day served, exclusive: the requested endDate",
+        ),
+        (
+            "type MetricDashboard {",
+            Some("timelineGrain"),
+            "The timeline grain actually served: DAY, MONTH or YEAR, never AUTO",
+        ),
+        (
+            "type MetricCoverageItem {",
+            Some("dataThrough"),
+            "The last day of the unbroken run from the served startDate in which every day is \
+             completely covered and untouched by outstanding rollup work, or null when the \
+             first day is not",
+        ),
+        (
+            "type MetricCoverageItem {",
+            None,
+            "Coverage of one platform and measure over the served range",
+        ),
+        (
+            "input MetricSelectorInput {",
+            Some("publisherIds"),
+            "Thoth IDs of one to 100 publishers whose works to describe. Every selected \
+             publisher must exist and be entitled to the Metrics dashboard; otherwise the \
+             whole request is refused, never served for a subset",
+        ),
+        (
+            "type MetricDashboard {",
+            Some("institutions"),
+            "Known per-institution totals over the range, ordered by platform ID, measure ID \
+             and institution ID, at most 100000. Empty when includeInstitutions is false. An \
+             institution without a row is not a zero; coverage says how far absence can be \
+             relied on",
+        ),
+    ] {
+        assert_eq!(
+            rendered_description(&sdl, declaration, member),
+            expected,
+            "{declaration} {member:?}"
+        );
+    }
+    // The top-level dataThrough never said "from startDate", so it is
+    // unchanged.
+    assert_eq!(
+        rendered_description(&sdl, "type MetricDashboard {", Some("dataThrough")),
+        "The earliest per-item dataThrough date, or null unless every served item has one"
+    );
+}
+
+#[test]
+fn the_busy_classification_is_a_fixed_retryable_resolver_error() {
+    // A saturated guard fails the read as a resolver error: a GraphQL error
+    // entry whose extensions.type is METRIC_READ_BUSY, with fixed text and no
+    // data (A3 section 9). The model tests prove when the guard refuses.
+    let error = juniper::IntoFieldError::<juniper::DefaultScalarValue>::into_field_error(
+        MetricReadError::Busy,
+    );
+    assert_eq!(
+        error.message(),
+        "The Metrics service is busy. Try again shortly."
+    );
+    assert_eq!(
+        error.extensions(),
+        &juniper::graphql_value!({ "type": "METRIC_READ_BUSY" })
+    );
+    assert_eq!(MetricReadError::Busy.code(), "METRIC_READ_BUSY");
 }
 
 #[test]
@@ -1415,7 +1653,7 @@ fn complete_month_variables(fx: &Fixture, input: &MetricDashboardInput) -> JsonV
     json!({
         "input": {
             "selector": { "publisherIds": [fx.publisher_id] },
-            "startDate": input.start_date.to_string(),
+            "startDate": input.start_date.map(|start| start.to_string()),
             "endDate": input.end_date.to_string(),
             "platforms": [fx.platform_id],
             "measures": [fx.sessions],
@@ -1520,4 +1758,82 @@ async fn the_api_read_waits_for_an_exclusive_projection_holder_before_its_snapsh
     assert_eq!(dashboard["timeline"][0]["value"], json!("12"));
     assert_eq!(dashboard["coverage"]["status"], json!("COMPLETE"));
     assert!(dashboard["warnings"].as_array().is_some_and(Vec::is_empty));
+}
+
+// ==========================================================================
+// MET-WP4-03C-B2: the all-time range through the API
+// ==========================================================================
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_absent_and_a_null_start_date_serve_the_same_all_time_response() {
+    let (_guard, fx) = setup();
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2019, 5, 17),
+        4,
+    );
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2025, 2, 3),
+        6,
+    );
+    apply_all(&fx.pool);
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+
+    // The variable without a startDate key, and with startDate: null.
+    let mut absent = dashboard_variables(&fx, json!([fx.publisher_id]));
+    absent["input"]
+        .as_object_mut()
+        .expect("the input object")
+        .remove("startDate");
+    let mut null = dashboard_variables(&fx, json!([fx.publisher_id]));
+    null["input"]["startDate"] = JsonValue::Null;
+    // An inline input literal with startDate: null.
+    let literal = DASHBOARD
+        .replace("query Dashboard($input: MetricDashboardInput!) ", "")
+        .replace(
+            "metricDashboard(input: $input)",
+            &format!(
+                "metricDashboard(input: {{ selector: {{ publisherIds: [\"{}\"] }}, \
+                 startDate: null, endDate: \"{}\", platforms: [\"{}\"], measures: [\"{}\"] }})",
+                fx.publisher_id,
+                day_n(5),
+                fx.platform_id,
+                fx.sessions
+            ),
+        );
+    assert!(!literal.contains('$'), "{literal}");
+
+    let mut served = Vec::new();
+    for (document, variables) in [
+        (DASHBOARD, absent),
+        (DASHBOARD, null),
+        (literal.as_str(), json!({})),
+    ] {
+        let response = run(&schema, &context, document, variables).await;
+        let mut dashboard = data(&response, "metricDashboard").clone();
+        assert!(dashboard["asOf"].is_string());
+        dashboard["asOf"] = JsonValue::Null;
+        served.push(dashboard);
+    }
+    assert_eq!(served[0], served[1]);
+    assert_eq!(served[0], served[2]);
+
+    // All time before endDate: from the earliest evidence, at the grain AUTO
+    // chooses once that start is known.
+    let dashboard = &served[0];
+    assert_eq!(dashboard["startDate"], json!("2019-05-17"));
+    assert_eq!(dashboard["endDate"], json!(day_n(5).to_string()));
+    assert_eq!(dashboard["timelineGrain"], json!("MONTH"));
+    assert_eq!(dashboard["timeline"][0]["startDate"], json!("2019-05-17"));
+    assert_eq!(dashboard["timeline"][0]["endDate"], json!("2019-06-01"));
+    assert_eq!(dashboard["timeline"][0]["value"], json!("4"));
+    assert_eq!(dashboard["totals"][0]["value"], json!("10"));
 }
