@@ -1299,11 +1299,13 @@ Scope boundaries a consumer must not infer:
   `metricWidget` and entity-level Metrics fields were not part of the
   `MET-WP4-02` contract. `MET-WP4-03B` adds the country and institution
   sections and every one of those selector dimensions except `dois` and
-  `includeDescendants` (section 4.2); the rest still needs its own
-  specification.
+  `includeDescendants` (section 4.2), and `MET-WP4-WIDGET-01` adds the
+  public `metricWidget` read as a separate contract (section 4.3); the rest
+  still needs its own specification.
 - The read calls no external service. Browser clients must not hold the
-  `METRICS_READ_SERVICE` credential; they reach this contract through a
-  Thoth-owned server route.
+  `METRICS_READ_SERVICE` credential; they reach this protected read through a
+  Thoth-owned server route. The public `metricWidget` read, which browsers
+  call directly with no credential, is a separate contract (section 4.3).
 - The read contract remains additive. No existing field, argument, nullability
   or authorization changed; `MET-WP7-PREREQ-04` adds only the
   `UNRESOLVED_IDENTIFIERS` value to `MetricWarningCode` and reconciles the
@@ -1555,12 +1557,217 @@ Contract properties consumers may rely on:
 
 Scope boundaries a consumer must not infer:
 
-- `dois`, `includeDescendants`, works sections and pagination,
-  `metricWidget` and entity-level Metrics fields remain deferred.
+- `dois`, `includeDescendants`, works sections and pagination and
+  entity-level Metrics fields remain deferred. `metricWidget` is not part of
+  this protected contract; it is the public widget read of section 4.3.
 - No native `MONTH` or `REPORTING_PERIOD` serving is implemented; such
   records only fail an intersecting request.
 - The read writes nothing: no projection, monthly row, delta, frontier or
   coverage is repaired or recorded, and no external service is called.
+
+### 4.3 Public widget read contract (`MET-WP4-WIDGET-01`)
+
+`MET-WP4-WIDGET-01` (issue #1007, specification R10, under
+[`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md))
+adds one public, read-only query for the embeddable `metrics-widget`
+package: one work (a book or a chapter) and its child works, by DOI, monthly,
+for publishers whose package grants `METRICS_WIDGET`, serving only measures
+the registry marks public, with the per-pair value and coverage semantics of
+section 4.1. No role, migration, table or index is added, and
+`metricDashboard`, `metricMeasures`, `metricPlatforms` and every other
+operation keep their schema, results and authorization. Merging it activates
+nothing: the read is off until activation (below).
+
+Additive GraphQL contract:
+
+```graphql
+# QueryRoot. No role required. Fails closed when the server switch is off.
+metricWidget(input: MetricWidgetInput!): MetricWidget!
+
+input MetricWidgetInput {
+  doi: Doi!                 # the embedded work (book or chapter)
+  chapterDois: [Doi!]       # optional subset of the work's child works; omitted or [] = all
+  startDate: Date!          # first day of a month
+  endDate: Date!            # first day of a month, exclusive
+}
+
+type MetricWidget {
+  work: MetricWidgetSection!
+  chapters: MetricWidgetSection
+  excludedChildCount: Int!
+  platforms: [MetricWidgetPlatform!]!
+  measures: [MetricWidgetMeasure!]!
+  startDate: Date!
+  endDate: Date!
+  asOf: Timestamp!
+  rollupWatermark: Timestamp!
+}
+
+type MetricWidgetSection {
+  totals: [MetricTotal!]!
+  timeline: [MetricTimeBucket!]!
+  countries: [MetricCountryTotal!]!
+  coverage: [MetricWidgetPairCoverage!]!
+  dataThrough: Date
+  isPartial: Boolean!
+}
+
+type MetricWidgetPairCoverage {
+  platformId: Uuid!
+  measureId: Uuid!
+  status: MetricCoverageStatus!
+  dataThrough: Date
+  countryCoverage: Boolean!
+}
+
+type MetricWidgetPlatform { platformId: Uuid! code: String! displayName: String! publicDescription: String }
+type MetricWidgetMeasure  { measureId: Uuid! code: String! displayName: String! unit: MetricMeasureUnit! definition: String! }
+```
+
+`MetricTotal`, `MetricTimeBucket`, `MetricCountryTotal`,
+`MetricCoverageStatus` and `BigInt` are the section 4.1 and 4.2 types,
+unchanged. There is no grain input (the timeline is always monthly), and no
+warnings and no institution fields are served.
+
+- **Access.** Public and capability-gated: no credential and no role; the
+  caller's identity is never consulted. The read is served only while the
+  server switch `THOTH_METRIC_WIDGET` (`OFF` | `ON`, default `OFF`, read once
+  at process start, registered on `start graphql-api` and `init`) is `ON`,
+  and only for a work whose current imprint's publisher's package grants
+  `METRICS_WIDGET`. The engine re-checks that capability in its own
+  entitlement statement.
+- **DOIs.** `doi` and every `chapterDois` entry are parsed as DOIs, so
+  `10.x/y`, `doi.org/10.x/y` and `http(s)://(www.)(dx.)doi.org/10.x/y` are
+  accepted, case-insensitively; every comparison and the lookup use the
+  canonical form lower-cased. A string that does not parse is
+  `METRIC_QUERY_INVALID` (with the switch on); it is not a request-level
+  error.
+- **Order of operations.** (1) GraphQL coercion; a request-level error is
+  HTTP 400 before the resolver. (2) Switch `OFF`: `METRIC_WIDGET_UNAVAILABLE`,
+  with no slot, connection or statement. (3) One resolution per HTTP request,
+  counted on the request context, after fragment expansion: a later
+  `metricWidget` selection of the same request is
+  `METRIC_QUERY_LIMIT_EXCEEDED` with no slot or statement. (4) Input-only
+  validation, with no database, in this order: `doi` parses; both dates are
+  first days of months and `startDate < endDate`; `startDate` is on or after
+  2000-01-01 and `endDate` at most 366 days after the current UTC date; the
+  range is at most 12 months; `chapterDois` has at most 500 entries, each
+  parses, none repeats in canonical form. (5) A process-wide widget slot,
+  without waiting; the 10 s request deadline starts here. (6) One pool
+  connection with a 1 s checkout timeout, and one `READ ONLY, REPEATABLE READ`
+  transaction. (7) The prelude, before any query: `CUSTOM_PLANS_SQL`, the
+  widget's `SET LOCAL statement_timeout = '5s'` and `PROJECTION_LOCK_SQL`.
+  (8) One resolution statement: the work, its type, its publisher and
+  package, and its current `has-child` works with their DOIs and publishers
+  (at most 501 rows). (9) No such work, or a publisher without
+  `METRICS_WIDGET`: `METRIC_WIDGET_UNAVAILABLE`, from one code path after the
+  same single statement. (10) Child validation. (11) Served-pair discovery,
+  one statement per non-empty section, then the pair bound. (12) One labels
+  statement: the served platforms' and measures' public labels,
+  `transaction_timestamp()` and the rollup frontier, on every path that
+  reaches it. (13) The engine in pair mode for each section with a served
+  pair. (14) Commit; the connection and the slot are released on every exit
+  path, panic unwinding included. The deadline is checked before every
+  statement from step 8 on, the engine's included; past it the read is
+  `METRIC_WIDGET_BUSY` and runs no further statement. A statement that
+  started before the deadline runs to completion or to its own timeout, and a
+  failure is classified as that failure. `COMMIT` is not checked.
+- **Public scope.** A measure is eligible only if it is public, enabled and
+  additive across time and across works, whatever its category (a public
+  `SALES` measure is served, negative values included); a platform only if it
+  is enabled. Eligibility is applied in pair discovery, so nothing else can be
+  served, bounded, checked or read, and no eligible measure means nothing is
+  served, never "unrestricted". Institutions are never served.
+- **Work and child works.** A `book-chapter` work is served alone: `chapters`
+  is null and a non-empty `chapterDois` is `METRIC_QUERY_INVALID`. Otherwise
+  the child works are the work's current `has-child` related works of any
+  type (a child's own children are ignored). More than 500 child works is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, whatever `chapterDois` selects, never
+  truncation. `chapterDois` omitted or `[]` selects every child; otherwise
+  every entry must be a child (`METRIC_QUERY_INVALID`), and children without a
+  DOI are selected only when every child is. Selected children whose current
+  publisher is not the work's publisher are never served and are counted in
+  `excludedChildCount`; unselected children are not counted. `chapters` is
+  null iff the work is a chapter or no selected child is served. Work status
+  is not considered.
+- **Served pairs.** Per section, the distinct eligible platform/measure pairs
+  with a monthly projection row, or a total-ambiguous month, for the section's
+  works in the range, ordered by platform ID and measure ID. A pair with no
+  such row is not shown at all, never as a zero; coverage alone does not serve
+  a pair. More than 40 served pairs in a section is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never truncation.
+- **Pair mode.** Each section with a served pair is read by the
+  section 4.1/4.2 engine on the same connection and snapshot, with the
+  section's works and the work's publisher as its scope, exactly the served
+  pairs in its grid, the monthly timeline, countries on and institutions off:
+  at most six statements (`PUBLISHERS_SQL`, `ACCOUNTS_SQL`, `CANONICAL_SQL`,
+  `MONTHS_SQL`, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`); it never runs the
+  dashboard's work, known-scope, represented-pair or day statements and has
+  no combination bound. Country rows are kept only for served pairs. Each
+  pair's total, monthly buckets, countries and coverage equal a single-pair
+  `metricDashboard` read over the same works and range; the section's
+  `dataThrough` and `isPartial` are section 4.1's aggregation over exactly the
+  served pairs. A total or country dimension ambiguity, more than one eligible
+  source account on a served platform, or an active native `MONTH` or
+  `REPORTING_PERIOD` record on any served platform x served measure (a
+  deliberate over-refusal that reaches unserved cross pairs) refuses the read
+  as `METRIC_WIDGET_UNAVAILABLE`. Native-grain records are never served. Each
+  engine run's frontier must equal the labels statement's (`INTERNAL_ERROR`
+  otherwise).
+- **Empty sections.** A section with no served pair runs no engine statement
+  and returns empty lists, `dataThrough: null` and `isPartial: true`. `asOf`
+  and `rollupWatermark` always come from the labels statement.
+- **Ordering.** `platforms` by `platformId`; `measures` by `measureId`;
+  `totals` and `coverage` by `platformId`, `measureId`; `timeline` then by
+  month; `countries` then by country code.
+- **Bounds and cost.** At most 2 widget reads per process (one process-wide
+  limiter, separate from any dashboard control), 1 s checkout, a 5 s
+  statement timeout, a 10 s request deadline from taking the slot, 12 months,
+  500 child works, 500 `chapterDois`, 40 pairs per section and at most 19
+  named statements per read (22 captured with the checkout check, `BEGIN` and
+  `COMMIT`). No bound is met by truncation.
+- **Errors.** Resolver errors, so HTTP 200 with the error in `errors`; `data`
+  is `null` unless a named fragment spread or typed inline fragment encloses
+  the failing selection. Clients decide on `errors` and `extensions.type`,
+  never on the status or on whether `data` is null, and an error response is
+  never cached. Fixed widget messages only; no engine message, SQL,
+  configuration, package value or token is returned.
+
+| Condition | `extensions.type` |
+| --- | --- |
+| Switch off; unknown DOI; publisher without `METRICS_WIDGET`; engine capability, source-scope, dimension-scope or native-grain refusal | `METRIC_WIDGET_UNAVAILABLE` |
+| No free slot; checkout timeout or failure; deadline passed before a statement; the prelude lock failing | `METRIC_WIDGET_BUSY` |
+| A second `metricWidget` selection in the request; dates outside the technical domain; over 12 months; over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
+| A DOI that does not parse; dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
+| Any other engine error; an engine failure without a deadline refusal (database failure, statement timeout, inconsistent native-grain state); a missing or mismatched frontier | `INTERNAL_ERROR` |
+
+- **Logging.** With the switch on, each resolution writes one info-level
+  outcome line (outcome, elapsed time, per-section served pairs and
+  cross-product sizes; the DOI only after step 9), the first refused second
+  selection of a request is info and later ones debug, reasons for
+  unavailable and busy are debug (the DOI only after step 8), a checkout
+  failure is also warn, and `INTERNAL_ERROR` is error with its reason, section,
+  step, last engine statement and elapsed time. Nothing above debug is
+  written with the switch off. No line can hold a package value.
+- **Activation gate.** The switch is `OFF` in every environment until a
+  separate activation grant per environment, which is CRITICAL unless the CTO
+  decides otherwise at that grant (`ADR-0014` section 4.7). Activation also
+  waits for the WAF rate rule, `MET-READ-CACHE-01` or a named waiver, the
+  public-scope audit, the worker-exposure acceptance, data readiness for
+  native-grain history, and the activation signals. The switch takes effect
+  only on restart.
+
+Scope boundaries a consumer must not infer:
+
+- At most 12 whole months per read; there is no all-time or by-year view and
+  no grain input until `MET-WP4-WIDGET-ALLTIME`. Clients must not stitch
+  ranges.
+- Native-grain history (for example OPERAS-imported monthly data) is not
+  served, and a work with an active native-grain record on a served platform
+  x served measure is unavailable.
+- No institutions, warnings, entity-level Metrics fields or role-protected
+  data are served, and the protected read service of sections 4.1 and 4.2 is
+  unchanged.
 
 ## 5. Publisher import
 

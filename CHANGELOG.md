@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+  - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
+
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
 

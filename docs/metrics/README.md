@@ -97,7 +97,7 @@ Dashboard:
 Browser -> Thoth-owned server route -> authenticated Thoth GraphQL operation
 ```
 
-Widget ([`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md); decided, not yet implemented):
+Widget ([`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md); implemented, off until activation):
 
 ```text
 Browser -> public Thoth GraphQL API -> metricWidget (no credential; gated by METRICS_WIDGET)
