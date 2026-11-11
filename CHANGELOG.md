@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Add a `YEAR` timeline grain to `metricDashboard`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Limit each API process to three concurrent `metricDashboard` reads, and add the retryable `METRIC_READ_BUSY` error for a read that waits more than a second for one
   - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
+  - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
 
 ### Changed
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`

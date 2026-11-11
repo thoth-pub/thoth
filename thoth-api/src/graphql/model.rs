@@ -126,6 +126,11 @@ pub struct Context {
     ///
     /// `Context` is built per request, so the counter never crosses requests.
     pub(crate) metric_widget_claims: AtomicUsize,
+    /// How many `workFilterOptions` resolutions this request has claimed
+    /// (`MET-WP10-FILTER-API-01` specification section 3.8).
+    ///
+    /// `Context` is built per request, so the counter never crosses requests.
+    pub(crate) work_filter_options_claims: AtomicUsize,
 }
 
 impl Context {
@@ -145,6 +150,7 @@ impl Context {
             job_creation,
             metric_widget: crate::model::metric_widget::MetricWidgetSwitch::default(),
             metric_widget_claims: AtomicUsize::new(0),
+            work_filter_options_claims: AtomicUsize::new(0),
         }
     }
 
