@@ -942,4 +942,6 @@ pub mod subject;
 pub mod title;
 pub mod work;
 pub mod work_featured_video;
+#[cfg(feature = "backend")]
+pub mod work_filter_options;
 pub mod work_relation;

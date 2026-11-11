@@ -55,6 +55,7 @@ use crate::model::{
     title::{Title, TitleOrderBy},
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::{WorkFeaturedVideo, WorkFeaturedVideoOrderBy},
+    work_filter_options::{work_filter_options as read_work_filter_options, WorkFilterOptions},
     Crud, Doi, Orcid,
 };
 use crate::policy::PolicyContext;
@@ -1601,6 +1602,24 @@ impl QueryRoot {
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
         Affiliation::count(&context.db, None, vec![], vec![], vec![], None, None)
             .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Public, read-only filter values for the works of a set of publishers: the publishers, and the series, language codes, work types, funding institutions and contributor-affiliation institutions of their works. No login is needed. Every list is complete, deduplicated and sorted, or the request fails; no list is ever truncated. At most 100 publishers are accepted, and only one workFilterOptions field may be requested per HTTP request"
+    )]
+    fn work_filter_options(
+        context: &Context,
+        #[graphql(
+            description = "The publishers whose works' filter values to list: 1 to 100 distinct IDs"
+        )]
+        publisher_ids: Vec<Uuid>,
+    ) -> FieldResult<WorkFilterOptions> {
+        read_work_filter_options(
+            &context.db,
+            &context.work_filter_options_claims,
+            &publisher_ids,
+        )
+        .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Query the full list of references")]
