@@ -28,12 +28,13 @@ use super::*;
 use crate::graphql::{create_schema, Context, GraphQLRequest};
 use crate::model::metric_dashboard::tests::{
     account_sql, apply_all, capturing_pool, commit, commit_dims, cover, coverage_sql, d, day_n,
-    exec, import_sql, insert_institution, insert_measure, publisher_sql, quarantine, request,
-    setup, source_sql, statement_text, text, works_sql, Dims, Fixture,
+    exec, exec_raw, import_sql, insert_institution, insert_measure, publisher_sql, quarantine,
+    request, setup, source_sql, statement_names, statement_text, text, works_sql, Dims, Fixture,
 };
 use crate::model::metric_dashboard::{
-    metric_dashboard, MetricWarningCode, ACCOUNTS_SQL, ASSERTIONS_SQL, CANONICAL_SQL,
-    DAY_SECTIONS_SQL, DAY_SUMS_SQL, DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL, KNOWN_SQL,
+    metric_dashboard, MetricDashboardInput, MetricWarningCode, ACCOUNTS_SQL, ASSERTIONS_SQL,
+    CANONICAL_SQL, DAY_SECTIONS_SQL, DAY_SUMS_SQL, DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL,
+    KNOWN_SQL, METRIC_DASHBOARD_EARLIEST_DATE, METRIC_DASHBOARD_MAX_FUTURE_DAYS,
     MONTHS_FULL_SCAN_SQL, MONTHS_SCAN_SQL, MONTHS_SQL, MONTHS_YEAR_FULL_SCAN_SQL,
     MONTHS_YEAR_ONLY_SCAN_SQL, MONTHS_YEAR_ONLY_SQL, MONTHS_YEAR_SCAN_SQL, MONTHS_YEAR_SQL,
     PUBLISHERS_SQL, REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
@@ -52,6 +53,12 @@ const BOOK_BARE: &str = "10.5555/widget-book";
 /// The read's month: March 2026, the dashboard fixture's default window.
 fn march() -> (NaiveDate, NaiveDate) {
     (d(2026, 3, 1), d(2026, 4, 1))
+}
+
+/// A whole calendar year, January 2025 to January 2026: the widget and the
+/// dashboard both read it with `MONTHS_YEAR_ONLY_SQL`.
+fn year_2025() -> (NaiveDate, NaiveDate) {
+    (d(2025, 1, 1), d(2026, 1, 1))
 }
 
 /// A fixed "today" well after the fixture's data, so no test depends on the
@@ -192,6 +199,14 @@ fn input_for(doi: &str) -> MetricWidgetInput {
     }
 }
 
+fn input_over(doi: &str, (start, end): (NaiveDate, NaiveDate)) -> MetricWidgetInput {
+    MetricWidgetInput {
+        start_date: start,
+        end_date: end,
+        ..input_for(doi)
+    }
+}
+
 fn with_chapters(doi: &str, chapters: &[&str]) -> MetricWidgetInput {
     MetricWidgetInput {
         chapter_dois: Some(chapters.iter().map(|doi| Doi(doi.to_string())).collect()),
@@ -328,6 +343,13 @@ const ENGINE_RUN: [&str; 6] = [
     "IDENTIFIER_QUALITY_SQL",
 ];
 
+/// One pair-mode engine run whose step-7 text is `months`.
+fn engine_run_with(months: &'static str) -> [&'static str; 6] {
+    let mut run = ENGINE_RUN;
+    run[3] = months;
+    run
+}
+
 fn pairs_of(section: &MetricWidgetSection) -> Vec<(Uuid, Uuid)> {
     section
         .coverage
@@ -434,6 +456,43 @@ fn the_longest_path_runs_exactly_the_bounded_statement_sequence() {
 }
 
 #[test]
+fn the_january_to_january_longest_path_reads_years_only_in_both_engine_runs() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let input = input_over(BOOK_BARE, (d(2026, 1, 1), d(2027, 1, 1)));
+    let (result, _, names) = captured(&input, &profile(&no_hook));
+    let widget = result.expect("the longest path is served");
+    assert_eq!(pairs_of(&widget.work).len(), 2);
+    assert_eq!(
+        pairs_of(widget.chapters.as_ref().expect("chapters are served")).len(),
+        2
+    );
+
+    let mut expected = vec![
+        "CHECKOUT_CHECK",
+        "BEGIN",
+        "CUSTOM_PLANS_SQL",
+        "METRIC_WIDGET_STATEMENT_TIMEOUT_SQL",
+        "PROJECTION_LOCK_SQL",
+        "METRIC_WIDGET_RESOLUTION_SQL",
+        "METRIC_WIDGET_PAIRS_SQL",
+        "METRIC_WIDGET_PAIRS_SQL",
+        "METRIC_WIDGET_LABELS_SQL",
+    ];
+    expected.extend(engine_run_with("MONTHS_YEAR_ONLY_SQL"));
+    expected.extend(engine_run_with("MONTHS_YEAR_ONLY_SQL"));
+    expected.push("COMMIT");
+    assert_eq!(names, expected);
+    // The same ceiling: 19 named statements, 22 captured.
+    assert_eq!(names.len(), 22);
+    let named = names
+        .iter()
+        .filter(|name| !["CHECKOUT_CHECK", "BEGIN", "COMMIT"].contains(name))
+        .count();
+    assert_eq!(named, 19, "the statement ceiling is 19 named statements");
+}
+
+#[test]
 fn the_prelude_is_exact_and_precedes_the_first_query() {
     let (_guard, _fx) = widget_setup();
     let (result, _, names) = captured(&input_for(BOOK_BARE), &profile(&no_hook));
@@ -474,6 +533,15 @@ fn the_profile_values_are_the_specified_bounds() {
     );
     assert_eq!(production.deadline, METRIC_WIDGET_DEADLINE);
     assert_eq!(production.checkout_timeout, METRIC_WIDGET_CHECKOUT_TIMEOUT);
+}
+
+#[test]
+fn the_date_floor_and_ceiling_are_the_dashboards_technical_domain() {
+    assert_eq!(date_floor(), METRIC_DASHBOARD_EARLIEST_DATE);
+    assert_eq!(
+        METRIC_WIDGET_END_DATE_CEILING_DAYS,
+        METRIC_DASHBOARD_MAX_FUTURE_DAYS
+    );
 }
 
 #[test]
@@ -1505,6 +1573,53 @@ fn an_engine_statement_started_before_the_deadline_and_failing_after_it_is_inter
     assert_eq!(error.last_statement, Some("ACCOUNTS_SQL"));
 }
 
+#[test]
+fn a_widget_step_refusal_sets_no_engine_flag_and_an_engine_refusal_sets_it() {
+    let (_guard, fx) = widget_setup();
+    longest_path(&fx);
+    let request = validate(&input_for(BOOK_BARE), today()).expect("valid");
+    // Late at the first section's pairs statement (widget-owned), then at
+    // its engine run, whose first check refuses.
+    for (late_step, engine_refused) in [(WidgetStep::Pairs, false), (WidgetStep::Engine, true)] {
+        let hook = move |step: WidgetStep| {
+            if step == late_step {
+                std::thread::sleep(Duration::from_millis(1500));
+            }
+        };
+        let late = profile(&hook);
+        let deadline = Deadline::new(Instant::now() + Duration::from_secs(1));
+        let mut facts = fresh_facts();
+        let mut connection = fx.pool.get().expect("a connection");
+        let failure = connection
+            .build_transaction()
+            .read_only()
+            .repeatable_read()
+            .run(|connection| transact(connection, &request, &late, &deadline, &mut facts))
+            .map(|_| ())
+            .expect_err("busy");
+        assert_eq!(
+            failure,
+            Failure::new(MetricWidgetError::Busy, WidgetReason::DeadlinePassed),
+            "{late_step:?}"
+        );
+        assert_eq!(facts.step, late_step);
+        // The engine's flag, and so B2's warn line, only for a refusal
+        // inside the engine.
+        assert_eq!(deadline.engine.expired(), engine_refused, "{late_step:?}");
+        // A refused check records nothing, and no engine check had passed.
+        assert_eq!(deadline.engine.last_statement(), None, "{late_step:?}");
+        assert_eq!(
+            deadline.last_statement(),
+            Some(if engine_refused {
+                "METRIC_WIDGET_LABELS_SQL"
+            } else {
+                "METRIC_WIDGET_RESOLUTION_SQL"
+            }),
+            "{late_step:?}"
+        );
+    }
+}
+
 /// The facts a resolution starts from, as [`resolve`] builds them.
 fn fresh_facts() -> WidgetFacts {
     WidgetFacts {
@@ -1529,15 +1644,17 @@ fn a_deadline_passing_between_engine_statements_is_busy_before_the_next_one() {
     // ACCOUNTS_SQL, the engine's second statement, is admitted before the
     // deadline and waits on this lock, which is released after the deadline
     // but well inside the production statement timeout (5 s). The statement
-    // completes; the engine's next admission is refused.
+    // completes; the engine's next admission is refused. The capturing pool
+    // connects before the lock is taken, so establishing it cannot wait on
+    // the lock.
+    let (pool, log) = capturing_pool();
     let mut holder = hold_lock("LOCK TABLE public.metric_source_account IN ACCESS EXCLUSIVE MODE");
     let release = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(1500));
+        std::thread::sleep(Duration::from_secs(2));
         holder.batch_execute("ROLLBACK;").expect("release the lock");
     });
     let mut late = profile(&no_hook);
     late.deadline = Duration::from_secs(1);
-    let (pool, log) = capturing_pool();
     // The read itself, not `resolve`, so the facts it records are visible:
     // the debug reason line carries no last statement (section 4.8).
     let mut facts = fresh_facts();
@@ -2165,6 +2282,30 @@ fn the_widget_checks_metrics_widget_at_step_9_and_passes_it_to_the_engine() {
     }
 }
 
+#[test]
+fn the_widget_names_neither_the_dashboard_entry_nor_its_guard_nor_its_deadline() {
+    let source = include_str!("mod.rs");
+    let source = source
+        .split("#[cfg(test)]\nmod tests;")
+        .next()
+        .expect("the module source");
+    for absent in [
+        "metric_dashboard(",
+        "metric_dashboard_with_controls",
+        "ReadGuard",
+        "ReadControls",
+        "METRIC_DASHBOARD_READS",
+        "METRIC_DASHBOARD_MAX_CONCURRENT_READS",
+        "METRIC_DASHBOARD_SLOT_WAIT",
+        "METRIC_DASHBOARD_READ_DEADLINE",
+    ] {
+        assert!(!source.contains(absent), "{absent}");
+    }
+    // Its one engine deadline value is created with the widget's own instant.
+    assert_eq!(source.matches("ReadDeadline::new(").count(), 1);
+    assert!(source.contains("Deadline::new(Instant::now() + profile.deadline)"));
+}
+
 // ==========================================================================
 // Pair mode (section 4.5)
 // ==========================================================================
@@ -2283,6 +2424,86 @@ fn a_country_row_on_an_unserved_cross_pair_is_not_served() {
     );
 }
 
+/// Two coverage runs of one stream of the fixture account, on (`platform`,
+/// `measure`), overlapping from 10 to 15 March: invalid derived state, written
+/// last and directly so nothing re-derives it.
+fn overlapping_march_runs(fx: &Fixture, platform_id: Uuid, measure_id: Uuid) {
+    exec_raw(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_coverage_run \
+                 (source_account_id, platform_id, publisher_id, measure_id, run_start, run_end, \
+                  coverage_status, import_status, country_coverage, institution_coverage) \
+             VALUES ('{account}', '{platform_id}', '{publisher}', '{measure_id}', '2026-03-01', \
+                     '2026-03-15', 'COMPLETE', 'COMPLETED', TRUE, TRUE), \
+                    ('{account}', '{platform_id}', '{publisher}', '{measure_id}', '2026-03-10', \
+                     '2026-04-01', 'COMPLETE', 'COMPLETED', TRUE, TRUE);",
+            account = fx.account_id,
+            publisher = fx.publisher_id,
+        ),
+    );
+}
+
+#[test]
+fn overlapping_runs_on_an_unserved_cross_pair_do_not_refuse_the_section() {
+    let (_guard, fx) = widget_setup();
+    diagonal(&fx);
+    overlapping_march_runs(&fx, fx.platform_id, fx.units);
+    // The state is live: the cross pair's own single-pair read refuses it.
+    let cross = single_pair_input(&fx, &[fx.works[0]], fx.platform_id, fx.units, march());
+    assert_eq!(
+        metric_dashboard(&fx.pool, &cross).map(|_| ()),
+        Err(MetricReadError::Unavailable)
+    );
+
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served");
+    assert_eq!(
+        pairs_of(&widget.work),
+        sorted(&[
+            (fx.platform_id, fx.sessions),
+            (fx.other_platform_id, fx.units)
+        ])
+    );
+    assert_each_served_pair_equals_its_dashboard_read(&fx, &widget.work, &[fx.works[0]]);
+}
+
+#[test]
+fn overlapping_runs_on_a_served_pair_are_internal_as_the_dashboard_refuses_them() {
+    let (_guard, fx) = widget_setup();
+    diagonal(&fx);
+    overlapping_march_runs(&fx, fx.platform_id, fx.sessions);
+    // B2's rule, kept: the single-pair read of that pair refuses it, while
+    // the other served pair's own read is served.
+    let refused = single_pair_input(&fx, &[fx.works[0]], fx.platform_id, fx.sessions, march());
+    assert_eq!(
+        metric_dashboard(&fx.pool, &refused).map(|_| ()),
+        Err(MetricReadError::Unavailable)
+    );
+    single_pair_read(&fx, &[fx.works[0]], fx.other_platform_id, fx.units);
+
+    let (result, lines) = resolve_with(
+        &fx.pool,
+        MetricWidgetSwitch::On,
+        &input_for(BOOK_BARE),
+        &profile(&no_hook),
+    );
+    let error = result.map(|_| ()).expect_err("refused");
+    assert_eq!(error, MetricWidgetError::Internal);
+    assert_eq!(error.code(), "INTERNAL_ERROR");
+    // No engine message reaches the caller.
+    assert_eq!(error.message(), INTERNAL_MESSAGE);
+    assert!(!engine_messages().contains(&error.message()));
+    let line = lines
+        .iter()
+        .find(|line| line.level == log::Level::Error)
+        .expect("an error line");
+    assert_eq!(line.reason, Some(WidgetReason::EngineUnavailable));
+    assert_eq!(line.engine_section, Some(WidgetSection::Work));
+    assert_eq!(line.step, WidgetStep::Engine);
+    // B2 refuses the overlap once every statement of the run has run.
+    assert_eq!(line.last_statement, Some("IDENTIFIER_QUALITY_SQL"));
+}
+
 // ==========================================================================
 // Equivalence oracle and snapshot
 // ==========================================================================
@@ -2344,15 +2565,37 @@ fn each_served_pair_equals_its_single_pair_dashboard_read() {
 }
 
 /// The single-pair `metricDashboard` read the oracle compares a served pair
-/// with: the publisher, the section's works, one platform and one measure,
-/// monthly, countries on and institutions off.
+/// with, over March.
 fn single_pair_read(
     fx: &Fixture,
     works: &[Uuid],
     platform: Uuid,
     measure: Uuid,
 ) -> MetricDashboard {
-    let (start, end) = march();
+    single_pair_read_over(fx, works, platform, measure, march())
+}
+
+/// The single-pair `metricDashboard` read over `range`.
+fn single_pair_read_over(
+    fx: &Fixture,
+    works: &[Uuid],
+    platform: Uuid,
+    measure: Uuid,
+    range: (NaiveDate, NaiveDate),
+) -> MetricDashboard {
+    let input = single_pair_input(fx, works, platform, measure, range);
+    metric_dashboard(&fx.pool, &input).expect("the oracle read")
+}
+
+/// The input of a single-pair read: the publisher, the section's works, one
+/// platform and one measure, monthly, countries on and institutions off.
+fn single_pair_input(
+    fx: &Fixture,
+    works: &[Uuid],
+    platform: Uuid,
+    measure: Uuid,
+    (start, end): (NaiveDate, NaiveDate),
+) -> MetricDashboardInput {
     let mut input = request(
         fx.publisher_id,
         start,
@@ -2364,24 +2607,34 @@ fn single_pair_read(
     input.selector.work_ids = Some(works.to_vec());
     input.include_countries = Some(true);
     input.include_institutions = Some(false);
-    metric_dashboard(&fx.pool, &input).expect("the oracle read")
+    input
 }
 
 /// The equivalence oracle over one section: each served pair's totals,
 /// timeline, countries and coverage item equal its single-pair read, and the
 /// section's `dataThrough` and `isPartial` are the register s4.1 aggregation
-/// over exactly the served pairs.
+/// over exactly the served pairs. Over March.
 fn assert_each_served_pair_equals_its_dashboard_read(
     fx: &Fixture,
     section: &MetricWidgetSection,
     works: &[Uuid],
+) {
+    assert_each_served_pair_equals_its_dashboard_read_over(fx, section, works, march());
+}
+
+/// The equivalence oracle over one section, read over `range`.
+fn assert_each_served_pair_equals_its_dashboard_read_over(
+    fx: &Fixture,
+    section: &MetricWidgetSection,
+    works: &[Uuid],
+    range: (NaiveDate, NaiveDate),
 ) {
     let mut partial = false;
     let mut through = Vec::new();
     assert!(!section.coverage.is_empty());
     for item in &section.coverage {
         let (platform, measure) = (item.platform_id, item.measure_id);
-        let dashboard = single_pair_read(fx, works, platform, measure);
+        let dashboard = single_pair_read_over(fx, works, platform, measure, range);
         let label = format!("{works:?} {platform} {measure}");
         assert_eq!(
             section
@@ -2548,6 +2801,117 @@ fn a_served_pair_beside_an_unserved_cross_pair_equals_its_single_pair_read() {
     assert_each_served_pair_equals_its_dashboard_read(&fx, section, &[fx.works[0]]);
     assert!(!section.is_partial);
     assert_eq!(section.data_through, Some(d(2026, 3, 31)));
+}
+
+#[test]
+fn each_served_pair_equals_its_single_pair_read_from_january_to_january() {
+    let (_guard, fx) = widget_setup();
+    let range = year_2025();
+    let (gb, fr) = (
+        Dims {
+            country: Some("GB"),
+            ..Dims::default()
+        },
+        Dims {
+            country: Some("FR"),
+            ..Dims::default()
+        },
+    );
+    // The served pairs: (platform, sessions) with countries in two months,
+    // covered for the year, and (other platform, units), uncovered.
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2025, 3, 2),
+        4,
+    );
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2025, 3, 2),
+        gb,
+        4,
+    );
+    commit_dims(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2025, 7, 9),
+        fr,
+        6,
+    );
+    commit(
+        &fx,
+        fx.works[0],
+        fx.other_platform_id,
+        fx.units,
+        d(2025, 5, 1),
+        5,
+    );
+    cover(
+        &fx,
+        fx.sessions,
+        range.0,
+        range.1,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-01-10T00:00:00Z'",
+    );
+    apply_all(&fx.pool);
+    // A yearly country row on the unserved cross pair (platform, units),
+    // which the pair-mode filter drops.
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_rollup_work_country_year \
+                 (rollup_work_country_year_id, work_id, publication_id, platform_id, \
+                  measure_id, year_start, country_code, value, \
+                  requires_institution_coverage, watermark) \
+             VALUES ('{}', '{}', NULL, '{}', '{}', '2025-01-01', 'DE', 7, FALSE, 1);",
+            Uuid::new_v4(),
+            fx.works[0],
+            fx.platform_id,
+            fx.units,
+        ),
+    );
+
+    let (result, _, names) = captured(&input_over(BOOK_BARE, range), &profile(&no_hook));
+    let widget = result.expect("served");
+    assert_eq!(widget.chapters, None);
+    assert_eq!(
+        names
+            .iter()
+            .filter(|name| **name == "MONTHS_YEAR_ONLY_SQL")
+            .count(),
+        1
+    );
+    let section = &widget.work;
+    let served = sorted(&[
+        (fx.platform_id, fx.sessions),
+        (fx.other_platform_id, fx.units),
+    ]);
+    assert_eq!(pairs_of(section), served);
+    assert!(!section.countries.is_empty());
+    assert!(section
+        .countries
+        .iter()
+        .all(|c| served.contains(&(c.platform_id, c.measure_id))));
+    // The dashboard reads the same year with the same text.
+    let (pool, log) = capturing_pool();
+    metric_dashboard(
+        &pool,
+        &single_pair_input(&fx, &[fx.works[0]], fx.platform_id, fx.sessions, range),
+    )
+    .expect("the oracle read");
+    assert!(
+        statement_names(&log.lock().expect("the statement log")).contains(&"MONTHS_YEAR_ONLY_SQL")
+    );
+    assert_each_served_pair_equals_its_dashboard_read_over(&fx, section, &[fx.works[0]], range);
 }
 
 #[test]
