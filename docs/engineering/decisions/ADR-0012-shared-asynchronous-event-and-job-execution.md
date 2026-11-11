@@ -4,7 +4,7 @@ Status: APPROVED
 Date: 2026-09-29
 Approved by: Javi, CTO
 Approval date: 2026-10-29
-Material correction: Amendment 14 + Revision 1; Route B candidate
+Material correction: Amendment 14 + Revision 1 (Route B)
 Historical approved Amendment-13 ADR Git blob: 69f9ec9017ffe39d865bbe3ae67522c6917dc857 (CTO approval 2026-10-20; not approval of these A14 bytes)
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes requiring asynchronous work
@@ -14,7 +14,7 @@ Authoring task: [THOTH-ASYNC-01-ADR-01 #958](https://github.com/thoth-pub/thoth/
 Superseded by: None
 Supersedes in part:
 - ADR-0008 only where it denies a reusable cross-programme job framework/API: the final shared-framework prohibition in section 3.3, section 3.4's programme-local-only ownership rule, section 5.1 item 6, section 5.2 item 6 and rejected alternative D. ADR-0008 section 3.5 is **satisfied by this ADR, not superseded**. Section 3.3's approved convention list, its `approved primitive != mandatory mechanism` rule, and all machine-role, least-privilege and `SUPERUSER` separation rules remain binding.
-- ADR-0010 only where invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source, and where section 4.4's final sentence says ADR-0008 remains *fully* binding without the later shared-framework exception introduced here. Section 4.4's substantive rule that `ServiceOperation` is not itself a queue/framework/executor API remains binding. ADR-0010's Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding as specified in section 1.3 below.
+- ADR-0010 only where invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source, and where section 4.4's sentence "ADR-0008 therefore remains fully binding." says ADR-0008 remains *fully* binding without the later shared-framework exception introduced here. Section 4.4's substantive rule that `ServiceOperation` is not itself a queue/framework/executor API remains binding. ADR-0010's Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding as specified in section 1.3 below.
 
 Decision: Thoth establishes one shared PostgreSQL-backed asynchronous event and
 job engine for cross-programme durable work. Events record durable facts and may
@@ -4607,16 +4607,19 @@ safeguards for **ALL routed jobs**, as specification only.
 On 2026-10-29 the CTO approved this exact A14 + Revision-1
 architecture content under the repository decision process,
 as represented by the Route-B candidate head
-`b9a2a6125c49daa25a69bd82f55ca363ec80c422` and candidate
-ADR-0012 blob `d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8`;
-this version differs from that candidate only in this
-approval-state representation. That approval is
-**architecture approval only**. The exact final ADR Git
-blob has **not** yet received its separate CTO approval,
-no fresh independent final-head review of this version
-has occurred, and this approval does not by itself make
-this ADR repository-authoritative: the authority
-condition below still applies.
+`b9a2a6125c49daa25a69bd82f55ca363ec80c422` (re-authored
+without content change as
+`990107d7ef7b14c514e800c382e9eb805503dcfc`, same tree) and
+candidate ADR-0012 blob
+`d5ce15c243d5bca46b45c38c5bb88eaa8e6086d8`; this version
+differs from that candidate only in its approval-state
+representation and later factual clarifications. That
+approval is **architecture approval only**. The separate
+exact-final-blob approval, fresh independent final-head
+review and merge authorization that Route B also requires
+are recorded on the owning GitHub issue and pull requests;
+repository authority follows only from the authority
+condition below.
 
 The historical **Amendment-13** version was `APPROVED`
 by Javi, CTO on 2026-10-20 as ADR-0012 Git blob
