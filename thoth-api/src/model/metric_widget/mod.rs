@@ -35,9 +35,13 @@
 //!     panic unwinding included.
 //!
 //! The deadline is checked before every statement from step 8 on, the
-//! engine's included. Nothing in this module returns SQL, configuration, a
-//! package or capability value or an engine message to the caller.
+//! engine's included: one engine [`ReadDeadline`], created at step 5 with
+//! this module's own instant, serves both engine runs, and this module admits
+//! its own statements against the same instant. Nothing in this module
+//! returns SQL, configuration, a package or capability value or an engine
+//! message to the caller.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
@@ -55,8 +59,8 @@ use uuid::Uuid;
 use crate::db::PgPool;
 use crate::model::metric_coverage::MetricCoverageStatus;
 use crate::model::metric_dashboard::{
-    metric_pair_read, MetricCountryTotal, MetricDashboard, MetricPairRead, MetricReadDeadline,
-    MetricReadError, MetricTimeBucket, MetricTimelineGrain, MetricTotal, AGGREGATE_OUT_OF_RANGE,
+    metric_pair_read, MetricCountryTotal, MetricDashboard, MetricPairRead, MetricReadError,
+    MetricTimeBucket, MetricTimelineGrain, MetricTotal, ReadDeadline, AGGREGATE_OUT_OF_RANGE,
     CUSTOM_PLANS_SQL, PROJECTION_LOCK_SQL,
 };
 use crate::model::metric_measure::MetricMeasureUnit;
@@ -524,13 +528,15 @@ impl From<diesel::result::Error> for Failure {
 
 /// Map an engine error to a widget failure.
 ///
-/// The deadline flag decides `METRIC_WIDGET_BUSY` alone, whatever the
-/// variant. Otherwise the publisher-state refusals are the uniform
-/// unavailable error, an aggregate outside the representable range is a limit
-/// error, and every other variant, including any added later, is
-/// `INTERNAL_ERROR`. No engine message reaches the caller.
-fn engine_failure(error: &MetricReadError, deadline_refused: bool) -> Failure {
-    if deadline_refused {
+/// The engine's deadline flag ([`ReadDeadline::expired`]) decides
+/// `METRIC_WIDGET_BUSY` alone, whatever the variant. Otherwise the
+/// publisher-state refusals are the uniform unavailable error, an aggregate
+/// outside the representable range is a limit error, and every other variant,
+/// including any added later (the dashboard guard's `Busy`, which a widget
+/// read never takes, among them), is `INTERNAL_ERROR`. No engine message
+/// reaches the caller.
+fn engine_failure(error: &MetricReadError, deadline_expired: bool) -> Failure {
+    if deadline_expired {
         return Failure::new(MetricWidgetError::Busy, WidgetReason::DeadlinePassed);
     }
     match error {
@@ -645,7 +651,8 @@ pub(crate) struct WidgetFacts {
     pub(crate) chapters: Option<SectionSize>,
     /// The section whose engine run failed, if one did.
     pub(crate) engine_section: Option<WidgetSection>,
-    /// The last statement admitted against the deadline.
+    /// The last statement admitted against the deadline: the engine's last,
+    /// or this module's own when no engine statement was admitted.
     pub(crate) last_statement: Option<&'static str>,
 }
 
@@ -1145,7 +1152,7 @@ fn read(
     (profile.hook)(WidgetStep::Slot);
     let _slot = try_take_slot()
         .ok_or_else(|| Failure::new(MetricWidgetError::Busy, WidgetReason::NoSlot))?;
-    let deadline = MetricReadDeadline::new(Instant::now() + profile.deadline);
+    let deadline = Deadline::new(Instant::now() + profile.deadline);
 
     // 6. One connection, then one read-only repeatable-read transaction.
     facts.step = WidgetStep::Checkout;
@@ -1247,11 +1254,62 @@ fn select_children(
     Ok(Children { served, excluded })
 }
 
-/// Admit one widget-owned statement against the deadline.
-fn admit(deadline: &MetricReadDeadline, name: &'static str) -> Result<(), Failure> {
-    deadline
-        .admit(name)
-        .map_err(|_| Failure::new(MetricWidgetError::Busy, WidgetReason::DeadlinePassed))
+/// The request deadline of one read (section 4.10): the engine's
+/// [`ReadDeadline`] for both engine runs, and its instant, against which this
+/// module admits its own statements.
+struct Deadline {
+    at: Instant,
+    engine: ReadDeadline,
+    /// The last widget-owned statement admitted.
+    widget_statement: Cell<Option<&'static str>>,
+    /// Whether an engine run has started since that statement.
+    engine_since: Cell<bool>,
+}
+
+impl Deadline {
+    /// A deadline at `at`, created when the read takes its slot.
+    fn new(at: Instant) -> Self {
+        Deadline {
+            at,
+            engine: ReadDeadline::new(at),
+            widget_statement: Cell::new(None),
+            engine_since: Cell::new(false),
+        }
+    }
+
+    /// Admit one widget-owned statement, refusing it at or after the instant
+    /// exactly as the engine's own check does. A refusal here sets no engine
+    /// flag and writes no engine log line.
+    fn admit(&self, name: &'static str) -> Result<(), Failure> {
+        if Instant::now() >= self.at {
+            return Err(Failure::new(
+                MetricWidgetError::Busy,
+                WidgetReason::DeadlinePassed,
+            ));
+        }
+        self.widget_statement.set(Some(name));
+        self.engine_since.set(false);
+        Ok(())
+    }
+
+    /// The engine's deadline, for one engine run that starts now.
+    fn for_engine_run(&self) -> &ReadDeadline {
+        self.engine_since.set(true);
+        &self.engine
+    }
+
+    /// The last statement started: the engine's last, when an engine run has
+    /// started since the last widget-owned statement and the engine has
+    /// admitted one, otherwise that widget-owned statement. A second run
+    /// refused at its first check still names the first run's last
+    /// statement; that outcome is `METRIC_WIDGET_BUSY`, whose lines name no
+    /// statement.
+    fn last_statement(&self) -> Option<&'static str> {
+        self.engine
+            .last_statement()
+            .filter(|_| self.engine_since.get())
+            .or(self.widget_statement.get())
+    }
 }
 
 /// Step 11 for one section.
@@ -1259,9 +1317,9 @@ fn served_pairs(
     connection: &mut PgConnection,
     works: &[Uuid],
     request: &ValidatedInput,
-    deadline: &MetricReadDeadline,
+    deadline: &Deadline,
 ) -> Result<Vec<(Uuid, Uuid)>, Failure> {
-    admit(deadline, "METRIC_WIDGET_PAIRS_SQL")?;
+    deadline.admit("METRIC_WIDGET_PAIRS_SQL")?;
     let rows: Vec<PairRow> = diesel::sql_query(METRIC_WIDGET_PAIRS_SQL)
         .bind::<Array<SqlUuid>, _>(works)
         .bind::<Date, _>(request.start)
@@ -1284,7 +1342,7 @@ fn engine_section(
     pairs: &[(Uuid, Uuid)],
     request: &ValidatedInput,
     frontier: (Timestamp, Timestamp),
-    deadline: &MetricReadDeadline,
+    deadline: &Deadline,
     facts: &mut WidgetFacts,
 ) -> Result<MetricWidgetSection, Failure> {
     let read = MetricPairRead::new(publisher_id, works, pairs, request.start, request.end)
@@ -1292,10 +1350,11 @@ fn engine_section(
         .with_countries(true)
         .with_institutions(false)
         .with_capability(PublisherCapability::MetricsWidget);
-    let result = metric_pair_read(connection, &read, Some(deadline)).map_err(|error| {
-        facts.engine_section = Some(section);
-        engine_failure(&error, deadline.refused())
-    })?;
+    let result =
+        metric_pair_read(connection, &read, deadline.for_engine_run()).map_err(|error| {
+            facts.engine_section = Some(section);
+            engine_failure(&error, deadline.engine.expired())
+        })?;
     if (result.as_of, result.rollup_watermark) != frontier {
         facts.engine_section = Some(section);
         return Err(Failure::new(
@@ -1346,7 +1405,7 @@ fn transact(
     connection: &mut PgConnection,
     request: &ValidatedInput,
     profile: &Profile<'_>,
-    deadline: &MetricReadDeadline,
+    deadline: &Deadline,
     facts: &mut WidgetFacts,
 ) -> Result<MetricWidget, Failure> {
     // 7. The prelude, before any query: the engine's planner setting, the
@@ -1364,7 +1423,7 @@ fn transact(
     // 8. The work, its publisher's package and its child works.
     facts.step = WidgetStep::Resolution;
     (profile.hook)(WidgetStep::Resolution);
-    admit(deadline, "METRIC_WIDGET_RESOLUTION_SQL")?;
+    deadline.admit("METRIC_WIDGET_RESOLUTION_SQL")?;
     let rows: Vec<ResolutionRow> = diesel::sql_query(METRIC_WIDGET_RESOLUTION_SQL)
         .bind::<Text, _>(request.doi.to_lowercase_string())
         .bind::<SqlBigInt, _>(METRIC_WIDGET_MAX_CHILD_WORKS as i64 + 1)
@@ -1436,7 +1495,7 @@ fn transact(
         .chain(&chapter_pairs)
         .map(|(_, measure_id)| *measure_id)
         .collect();
-    admit(deadline, "METRIC_WIDGET_LABELS_SQL")?;
+    deadline.admit("METRIC_WIDGET_LABELS_SQL")?;
     let labels: Vec<LabelRow> = diesel::sql_query(METRIC_WIDGET_LABELS_SQL)
         .bind::<Array<SqlUuid>, _>(platform_ids.iter().copied().collect::<Vec<Uuid>>())
         .bind::<Array<SqlUuid>, _>(measure_ids.iter().copied().collect::<Vec<Uuid>>())

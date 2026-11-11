@@ -34,7 +34,9 @@ use crate::model::metric_dashboard::tests::{
 use crate::model::metric_dashboard::{
     metric_dashboard, MetricWarningCode, ACCOUNTS_SQL, ASSERTIONS_SQL, CANONICAL_SQL,
     DAY_SECTIONS_SQL, DAY_SUMS_SQL, DIMENSION_CELLS_SQL, IDENTIFIER_QUALITY_SQL, KNOWN_SQL,
-    MONTHS_SQL, PUBLISHERS_SQL, REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
+    MONTHS_FULL_SCAN_SQL, MONTHS_SCAN_SQL, MONTHS_SQL, MONTHS_YEAR_FULL_SCAN_SQL,
+    MONTHS_YEAR_ONLY_SCAN_SQL, MONTHS_YEAR_ONLY_SQL, MONTHS_YEAR_SCAN_SQL, MONTHS_YEAR_SQL,
+    PUBLISHERS_SQL, REPRESENTED_SQL, STATEMENT_TIMEOUT_SQL, WORKS_SQL,
 };
 use crate::model::tests::db::{test_context_anonymous, test_db_url, TestDbGuard};
 
@@ -246,8 +248,9 @@ fn captured(
     (result, lines, widget_statement_names(&statements))
 }
 
-/// Every engine statement, by name.
-const ENGINE_STATEMENTS: [(&str, &str); 12] = [
+/// Every engine statement, by name: one text per slot, and the eight texts
+/// of the step-7 family.
+const ENGINE_STATEMENTS: [(&str, &str); 19] = [
     ("PUBLISHERS_SQL", PUBLISHERS_SQL),
     ("WORKS_SQL", WORKS_SQL),
     ("KNOWN_SQL", KNOWN_SQL),
@@ -255,6 +258,13 @@ const ENGINE_STATEMENTS: [(&str, &str); 12] = [
     ("ACCOUNTS_SQL", ACCOUNTS_SQL),
     ("CANONICAL_SQL", CANONICAL_SQL),
     ("MONTHS_SQL", MONTHS_SQL),
+    ("MONTHS_SCAN_SQL", MONTHS_SCAN_SQL),
+    ("MONTHS_FULL_SCAN_SQL", MONTHS_FULL_SCAN_SQL),
+    ("MONTHS_YEAR_SQL", MONTHS_YEAR_SQL),
+    ("MONTHS_YEAR_SCAN_SQL", MONTHS_YEAR_SCAN_SQL),
+    ("MONTHS_YEAR_FULL_SCAN_SQL", MONTHS_YEAR_FULL_SCAN_SQL),
+    ("MONTHS_YEAR_ONLY_SQL", MONTHS_YEAR_ONLY_SQL),
+    ("MONTHS_YEAR_ONLY_SCAN_SQL", MONTHS_YEAR_ONLY_SCAN_SQL),
     ("DAY_SUMS_SQL", DAY_SUMS_SQL),
     ("DIMENSION_CELLS_SQL", DIMENSION_CELLS_SQL),
     ("DAY_SECTIONS_SQL", DAY_SECTIONS_SQL),
@@ -948,6 +958,11 @@ fn engine_messages() -> Vec<&'static str> {
         TOO_MANY_INSTITUTIONS,
         DATE_ORDER,
         RANGE_TOO_LONG,
+        DAY_NEEDS_START,
+        START_BEFORE_FLOOR,
+        END_TOO_LATE,
+        END_NOT_AFTER_FLOOR,
+        EVIDENCE_BEFORE_FLOOR,
         DUPLICATE_MEASURE,
         DUPLICATE_PLATFORM,
         TOO_MANY_MEASURES,
@@ -977,6 +992,7 @@ fn engine_variants() -> Vec<MetricReadError> {
         MetricReadError::DimensionScopeAmbiguous,
         MetricReadError::UnsupportedSourceGrain,
         MetricReadError::Unavailable,
+        MetricReadError::Busy,
     ]
 }
 
@@ -1047,6 +1063,12 @@ fn every_engine_error_maps_to_its_widget_classification() {
         (
             MetricWidgetError::Internal,
             Some(WidgetReason::EngineUnavailable),
+        ),
+        // The dashboard guard's busy refusal, which a widget read never
+        // takes, reaches the wildcard: INTERNAL_ERROR, never retryable.
+        (
+            MetricWidgetError::Internal,
+            Some(WidgetReason::EngineRejected),
         ),
     ];
     let variants = engine_variants();
@@ -2091,7 +2113,7 @@ fn the_pair_entry_checks_the_capability_it_is_given() {
                     &MetricPairRead::new(publisher, works, &pairs, start, end)
                         .with_timeline_grain(MetricTimelineGrain::Month)
                         .with_capability(capability),
-                    None,
+                    &ReadDeadline::new(Instant::now() + METRIC_WIDGET_DEADLINE),
                 ))
             })
             .expect("a transaction")
@@ -2210,7 +2232,7 @@ fn a_total_ambiguous_pair_is_served_counted_and_makes_the_widget_unavailable() {
     // Discovery serves it (and so counts it toward the bound).
     let request = validate(&input_for(BOOK_BARE), today()).expect("valid");
     let mut connection = fx.pool.get().expect("a connection");
-    let deadline = MetricReadDeadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
+    let deadline = Deadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
     let pairs =
         served_pairs(&mut connection, &[fx.works[0]], &request, &deadline).expect("discovery");
     assert_eq!(pairs, [(fx.platform_id, fx.sessions)]);
@@ -2586,7 +2608,7 @@ fn an_engine_frontier_other_than_the_labels_frontier_is_internal() {
                 .load(connection)?;
             let ((as_of, watermark), _, _) =
                 interpret_labels(labels, &platforms, &measures).expect("the labels");
-            let deadline = MetricReadDeadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
+            let deadline = Deadline::new(Instant::now() + METRIC_WIDGET_DEADLINE);
             let mut engine = |frontier: (Timestamp, Timestamp)| {
                 let mut facts = fresh_facts();
                 let section = engine_section(
