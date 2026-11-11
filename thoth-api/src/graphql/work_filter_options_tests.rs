@@ -30,8 +30,8 @@ use crate::model::tests::db::{
     TestDbGuard,
 };
 use crate::model::work_filter_options::{
-    try_take_slot, work_filter_options_with, WorkFilterOptions, WorkFilterOptionsError,
-    WorkFilterReadControls, WORK_FILTER_OPTIONS_SLOTS,
+    log_line, read_with_cause, try_take_slot, work_filter_options_with, Cause, WorkFilterOptions,
+    WorkFilterOptionsError, WorkFilterReadControls, WORK_FILTER_OPTIONS_SLOTS,
 };
 
 // --------------------------------------------------------------------------
@@ -45,11 +45,13 @@ use crate::model::work_filter_options::{
 ///   affiliated with A1, and `is-child-of` P4's `w4b`, which is issued in S5:
 ///   not a chapter, so S5 is not reached); `w1b` (edited book, `fre`, funded
 ///   by FA); `w1c` (book chapter, `is-child-of` P4's `w4a`, issued in S4: S4
-///   is reached).
+///   is reached); `w1d` (book chapter, `is-part-of` P4's `w4d`, issued in S7:
+///   not `is-child-of`, so S7 is not reached).
 /// - P2: `w2a` (textbook, issued in S2, `eng`, funded by F1, a contributor
 ///   affiliated with FA).
 /// - P4: `w4a` (monograph, issued in S4, `ger`, funded by F4, affiliated with
-///   A4), `w4b` (journal issue, issued in S5), `w4c` (book set, issued in S6).
+///   A4), `w4b` (journal issue, issued in S5), `w4c` (book set, issued in S6,
+///   which no P1 to P3 work is related to), `w4d` (monograph, issued in S7).
 struct Fixture {
     pool: Arc<PgPool>,
     p1: Uuid,
@@ -61,6 +63,7 @@ struct Fixture {
     s4: Uuid,
     s5: Uuid,
     s6: Uuid,
+    s7: Uuid,
     f1: Uuid,
     fa: Uuid,
     f4: Uuid,
@@ -147,6 +150,18 @@ impl Sql {
         ));
     }
 
+    /// `part` `is-part-of` `whole`, stored in both directions.
+    fn part_of(&mut self, part: Uuid, whole: Uuid) {
+        self.ordinal += 1;
+        self.text.push_str(&format!(
+            "INSERT INTO work_relation (relator_work_id, related_work_id, relation_type, \
+                                        relation_ordinal) \
+             VALUES ('{part}', '{whole}', 'is-part-of', 1), \
+                    ('{whole}', '{part}', 'has-part', {});",
+            self.ordinal
+        ));
+    }
+
     fn language(&mut self, work_id: Uuid, code: &str, relation: &str) {
         self.text.push_str(&format!(
             "INSERT INTO language (work_id, language_code, language_relation) \
@@ -214,10 +229,12 @@ fn fixture() -> (TestDbGuard, Fixture) {
     let w1a = sql.work(i1, "monograph");
     let w1b = sql.work(i1, "edited-book");
     let w1c = sql.work(i1, "book-chapter");
+    let w1d = sql.work(i1, "book-chapter");
     let w2a = sql.work(i2, "textbook");
     let w4a = sql.work(i4, "monograph");
     let w4b = sql.work(i4, "journal-issue");
     let w4c = sql.work(i4, "book-set");
+    let w4d = sql.work(i4, "monograph");
 
     let s1 = sql.series(
         i1,
@@ -234,15 +251,20 @@ fn fixture() -> (TestDbGuard, Fixture) {
     );
     let s5 = sql.series(i4, "Series Five Elsewhere", "journal", (None, None));
     let s6 = sql.series(i4, "Series Six Elsewhere", "journal", (None, None));
+    let s7 = sql.series(i4, "Series Seven Elsewhere", "book-series", (None, None));
     sql.issue(s1, w1a);
     sql.issue(s2, w2a);
     sql.issue(s4, w4a);
     sql.issue(s5, w4b);
     sql.issue(s6, w4c);
+    sql.issue(s7, w4d);
     // T2: the chapter reaches S4 through its parent; the monograph's
-    // parent is in S5, which it must not reach.
+    // parent is in S5, which it must not reach; the other chapter's whole is
+    // in S7, which it must not reach either: the relation is not
+    // `is-child-of`.
     sql.child_of(w1c, w4a);
     sql.child_of(w1a, w4b);
+    sql.part_of(w1d, w4d);
 
     sql.language(w1a, "eng", "original");
     sql.language(w1b, "fre", "translated-from");
@@ -276,6 +298,7 @@ fn fixture() -> (TestDbGuard, Fixture) {
             s4,
             s5,
             s6,
+            s7,
             f1,
             fa,
             f4,
@@ -393,6 +416,37 @@ fn expected(kind: &str, message: &str) -> (String, String) {
     (kind.to_string(), message.to_string())
 }
 
+/// A failure's error, operator cause and log line.
+type RealFailure = (
+    WorkFilterOptionsError,
+    Option<Cause>,
+    Option<(log::Level, String)>,
+);
+
+/// The error, operator cause and log line a real read under `controls` fails
+/// with.
+fn real_failure(pool: &PgPool, ids: &[Uuid], controls: &WorkFilterReadControls<'_>) -> RealFailure {
+    let failure = read_with_cause(pool, ids, controls).expect_err("a failure");
+    let line = log_line(&failure);
+    (failure.error, failure.cause, line)
+}
+
+/// What [`real_failure`] returns for `error` with `cause`, logged at `level`.
+fn failed(error: WorkFilterOptionsError, cause: Cause, level: log::Level) -> RealFailure {
+    let name = match cause {
+        Cause::NoSlot => "no-slot",
+        Cause::Checkout => "checkout",
+        Cause::Timeout => "timeout",
+        Cause::Deserialize => "deserialize",
+        Cause::Database => "database",
+    };
+    let line = format!(
+        "workFilterOptions failed: type={} cause={name}",
+        error.code()
+    );
+    (error, Some(cause), Some((level, line)))
+}
+
 // --------------------------------------------------------------------------
 // T1 to T4: the lists, their parity paths, deduplication and order
 // --------------------------------------------------------------------------
@@ -432,7 +486,7 @@ async fn t1_the_fixture_lists_exactly_the_selected_publishers_values() {
     );
     // P4's own values appear nowhere.
     let text = data.to_string();
-    for absent in [fx.p4, fx.s5, fx.s6, fx.f4, fx.a4] {
+    for absent in [fx.p4, fx.s5, fx.s6, fx.s7, fx.f4, fx.a4] {
         assert!(!text.contains(&absent.to_string()), "{absent}");
     }
     for absent in ["GER", "JOURNAL_ISSUE", "BOOK_SET"] {
@@ -442,7 +496,7 @@ async fn t1_the_fixture_lists_exactly_the_selected_publishers_values() {
     let p4 = served(&options(&fx.pool, &[fx.p4]).await);
     assert_eq!(
         ids_of(&p4["series"], "seriesId"),
-        [fx.s4, fx.s5, fx.s6].into()
+        [fx.s4, fx.s5, fx.s6, fx.s7].into()
     );
     assert_eq!(p4["languageCodes"], json!(["GER"]));
     let p3 = served(&options(&fx.pool, &[fx.p3]).await);
@@ -462,10 +516,13 @@ async fn t2_only_a_chapter_reaches_its_parents_series() {
     let data = served(&options(&fx.pool, &[fx.p1]).await);
     let series = ids_of(&data["series"], "seriesId");
     // S4 through the chapter's parent (another publisher's work); not S5,
-    // the series of a non-chapter's parent; not S6, which no P1 work reaches.
+    // the series of a non-chapter's parent; not S6, which no P1 work reaches;
+    // not S7, the series of a work a chapter is related to other than by
+    // `is-child-of`.
     assert_eq!(series, [fx.s1, fx.s4].into());
     assert!(!series.contains(&fx.s5));
     assert!(!series.contains(&fx.s6));
+    assert!(!series.contains(&fx.s7));
     // P2 has no chapter: only its own series.
     let data = served(&options(&fx.pool, &[fx.p2]).await);
     assert_eq!(ids_of(&data["series"], "seriesId"), [fx.s2].into());
@@ -667,6 +724,13 @@ fn t6_a_list_over_the_bound_fails_and_one_at_it_succeeds() {
     // 2): the first in field order is named.
     let error = with_bound(2, &[fx.p1, fx.p2]).expect_err("two lists over");
     assert_eq!(
+        error,
+        WorkFilterOptionsError::LimitExceeded {
+            field: "series",
+            bound: 2
+        }
+    );
+    assert_eq!(
         type_and_message(error),
         expected(
             "WORK_FILTER_OPTIONS_LIMIT_EXCEEDED",
@@ -676,9 +740,17 @@ fn t6_a_list_over_the_bound_fails_and_one_at_it_succeeds() {
 
     // An unknown ID and a list over: the unknown ID wins.
     let unknown = Uuid::new_v4();
+    let error = with_bound(2, &[fx.p1, fx.p2, unknown]).expect_err("unknown wins");
     assert_eq!(
-        with_bound(2, &[fx.p1, fx.p2, unknown]),
-        Err(WorkFilterOptionsError::UnknownPublisher(vec![unknown]))
+        error,
+        WorkFilterOptionsError::UnknownPublisher(vec![unknown])
+    );
+    assert_eq!(
+        type_and_message(error),
+        expected(
+            "WORK_FILTER_OPTIONS_UNKNOWN_PUBLISHER",
+            &format!("publisherIds contains unknown publisher(s): {unknown}.")
+        )
     );
     assert_eq!(slots.load(Ordering::SeqCst), 0);
 }
@@ -812,14 +884,22 @@ async fn t7_every_candidate_is_listed_if_and_only_if_works_sql_resolves_it() {
 
     let series = ids_of(&data["series"], "seriesId");
     let mut outcomes = BTreeSet::new();
+    let mut absent_series = BTreeSet::new();
     for id in ids_from(pool, "SELECT series_id AS id FROM series") {
-        outcomes.insert(check(
+        let listed = check(
             series.contains(&id),
             Dimension::Series(id),
             format!("series {id}"),
-        ));
+        );
+        if !listed {
+            absent_series.insert(id);
+        }
+        outcomes.insert(listed);
     }
     assert_eq!(outcomes, [false, true].into(), "series has both outcomes");
+    // The absent series include S7, reached only through a chapter's
+    // relation other than `is-child-of`.
+    assert_eq!(absent_series, [fx.s5, fx.s6, fx.s7].into());
 
     let funding = ids_of(&data["fundingInstitutions"], "institutionId");
     let affiliation = ids_of(&data["affiliationInstitutions"], "institutionId");
@@ -880,8 +960,8 @@ async fn t7_every_candidate_is_listed_if_and_only_if_works_sql_resolves_it() {
         ));
     }
     assert_eq!(language_outcomes, [false, true].into());
-    // 5 series, 5 institutions twice, 6 work types, 4 language codes.
-    assert_eq!(checked, 5 + 10 + 6 + 4);
+    // 6 series, 5 institutions twice, 6 work types, 4 language codes.
+    assert_eq!(checked, 6 + 10 + 6 + 4);
 }
 
 // --------------------------------------------------------------------------
@@ -979,22 +1059,27 @@ fn t9_the_transaction_is_read_only_read_committed_with_both_settings() {
 fn t9_a_statement_timeout_is_timeout() {
     let (_guard, fx) = fixture();
     let slots = AtomicUsize::new(0);
-    let error = work_filter_options_with(
-        &fx.pool,
-        &[fx.p1],
-        &WorkFilterReadControls {
-            statement_timeout_sql: "SET LOCAL statement_timeout = '100ms'",
-            test_statement: Some("SELECT pg_sleep(2)"),
-            ..controls(&slots)
-        },
-    )
-    .expect_err("timed out");
+    let timing_out = WorkFilterReadControls {
+        statement_timeout_sql: "SET LOCAL statement_timeout = '100ms'",
+        test_statement: Some("SELECT pg_sleep(2)"),
+        ..controls(&slots)
+    };
+    let error = work_filter_options_with(&fx.pool, &[fx.p1], &timing_out).expect_err("timed out");
     assert_eq!(error, WorkFilterOptionsError::Timeout);
     assert_eq!(
         type_and_message(error),
         expected(
             "WORK_FILTER_OPTIONS_TIMEOUT",
             "workFilterOptions timed out; try again shortly."
+        )
+    );
+    // The real path attaches the cause `timeout`, logged at warn.
+    assert_eq!(
+        real_failure(&fx.pool, &[fx.p1], &timing_out),
+        failed(
+            WorkFilterOptionsError::Timeout,
+            Cause::Timeout,
+            log::Level::Warn
         )
     );
     assert_eq!(slots.load(Ordering::SeqCst), 0);
@@ -1116,6 +1201,16 @@ async fn t11_with_both_process_slots_held_a_read_is_busy_and_reads_nothing() {
             "workFilterOptions is busy; try again shortly."
         )
     );
+    // The real path under the production controls attaches the cause
+    // `no-slot`, logged at debug.
+    assert_eq!(
+        real_failure(&pool, &[fx.p1], &WorkFilterReadControls::production()),
+        failed(
+            WorkFilterOptionsError::Busy,
+            Cause::NoSlot,
+            log::Level::Debug
+        )
+    );
     assert!(
         log.lock().expect("the statement log").is_empty(),
         "no checkout and no statement"
@@ -1235,16 +1330,21 @@ async fn t12_a_second_field_is_refused_and_only_one_read_runs() {
 fn t13_a_database_failure_is_unavailable_without_its_text() {
     let (_guard, fx) = fixture();
     let slots = AtomicUsize::new(0);
-    let error = work_filter_options_with(
-        &fx.pool,
-        &[fx.p1],
-        &WorkFilterReadControls {
-            test_statement: Some("SELECT 1/0"),
-            ..controls(&slots)
-        },
-    )
-    .expect_err("unavailable");
+    let failing = WorkFilterReadControls {
+        test_statement: Some("SELECT 1/0"),
+        ..controls(&slots)
+    };
+    let error = work_filter_options_with(&fx.pool, &[fx.p1], &failing).expect_err("unavailable");
     assert_eq!(error, WorkFilterOptionsError::Unavailable);
+    // The real path attaches the cause `database`, logged at error.
+    assert_eq!(
+        real_failure(&fx.pool, &[fx.p1], &failing),
+        failed(
+            WorkFilterOptionsError::Unavailable,
+            Cause::Database,
+            log::Level::Error
+        )
+    );
     let debug = format!("{error:?}");
     let field_error = error.into_field_error();
     let rendered = format!("{debug} {field_error:?} {}", field_error.message());
@@ -1266,21 +1366,27 @@ fn t13_a_database_failure_is_unavailable_without_its_text() {
 fn t14_a_checkout_failure_is_busy() {
     let pool = failing_pool();
     let slots = AtomicUsize::new(0);
-    let error = work_filter_options_with(
-        &pool,
-        &[Uuid::new_v4()],
-        &WorkFilterReadControls {
-            checkout_timeout: Duration::from_millis(50),
-            ..controls(&slots)
-        },
-    )
-    .expect_err("busy");
+    let quick = WorkFilterReadControls {
+        checkout_timeout: Duration::from_millis(50),
+        ..controls(&slots)
+    };
+    let error = work_filter_options_with(&pool, &[Uuid::new_v4()], &quick).expect_err("busy");
     assert_eq!(error, WorkFilterOptionsError::Busy);
     assert_eq!(
         type_and_message(error),
         expected(
             "WORK_FILTER_OPTIONS_BUSY",
             "workFilterOptions is busy; try again shortly."
+        )
+    );
+    // The real path attaches the cause `checkout` (not `no-slot`), logged at
+    // warn.
+    assert_eq!(
+        real_failure(&pool, &[Uuid::new_v4()], &quick),
+        failed(
+            WorkFilterOptionsError::Busy,
+            Cause::Checkout,
+            log::Level::Warn
         )
     );
     assert_eq!(slots.load(Ordering::SeqCst), 0);

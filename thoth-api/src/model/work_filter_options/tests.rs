@@ -180,6 +180,21 @@ fn a_busy_builder_call_takes_no_checkout_and_leaves_the_counter_unchanged() {
         Err(WorkFilterOptionsError::Busy)
     );
     assert_eq!(slots.load(Ordering::SeqCst), 2);
+    // The refusal is the slot one, not a checkout failure on the failing
+    // pool, which is also BUSY but has the cause `checkout`.
+    let failure = read_with_cause(&pool, &[Uuid::new_v4()], &controls).expect_err("no slot");
+    assert_eq!(
+        failure,
+        Failure::retryable(WorkFilterOptionsError::Busy, Cause::NoSlot)
+    );
+    assert_eq!(
+        log_line(&failure),
+        Some((
+            log::Level::Debug,
+            "workFilterOptions failed: type=WORK_FILTER_OPTIONS_BUSY cause=no-slot".to_string()
+        ))
+    );
+    assert_eq!(slots.load(Ordering::SeqCst), 2);
     // Validation comes first: an invalid list is invalid even when busy.
     assert_eq!(
         work_filter_options_with(&pool, &[], &controls),

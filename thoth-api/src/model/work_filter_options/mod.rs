@@ -84,7 +84,7 @@ pub struct WorkFilterOptions {
     )]
     pub publishers: Vec<WorkFilterPublisher>,
     #[graphql(
-        description = "Every series that issues one of the works, or the parent of one of the works that is a book chapter, ordered by name, then ID"
+        description = "Every series that issues one of the works, or that issues the parent work of one of the works that is a book chapter (the parent may belong to another publisher), ordered by name, then ID"
     )]
     pub series: Vec<WorkFilterSeries>,
     #[graphql(
@@ -562,6 +562,18 @@ fn read(
         .read_only()
         .run(|connection| statement(connection, publisher_ids, controls))?;
     assemble(rows, controls.max_entries)
+}
+
+/// The read under explicit controls, without logging, returning the
+/// [`Failure`] with its operator cause, so tests can check the cause each
+/// real failure path attaches.
+#[cfg(test)]
+pub(crate) fn read_with_cause(
+    pool: &PgPool,
+    publisher_ids: &[Uuid],
+    controls: &WorkFilterReadControls<'_>,
+) -> Result<WorkFilterOptions, Failure> {
+    read(pool, publisher_ids, controls)
 }
 
 /// The two settings, the test-only statement if any, and the statement,
