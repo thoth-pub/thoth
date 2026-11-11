@@ -90,8 +90,10 @@
 //! # Deliberately absent
 //!
 //! Works response sections, pagination, `dois`, `includeDescendants`,
-//! `metricWidget`, entity-level Metrics fields, native `MONTH` and
-//! `REPORTING_PERIOD` serving, a response cache and any call to OPERAS.
+//! entity-level Metrics fields, native `MONTH` and `REPORTING_PERIOD`
+//! serving, a response cache and any call to OPERAS. The public widget read
+//! is not part of this contract: it is [`crate::model::metric_widget`], which
+//! runs this engine in pair mode ([`metric_pair_read`]).
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -771,55 +773,62 @@ impl IntoFieldError for MetricReadError {
     }
 }
 
-const PUBLISHER_CARDINALITY: &str =
+pub(crate) const PUBLISHER_CARDINALITY: &str =
     "selector.publisherIds must contain between one and 100 publisher IDs.";
-const DUPLICATE_PUBLISHER: &str = "selector.publisherIds must not contain duplicate IDs.";
-const UNKNOWN_PUBLISHER: &str = "selector.publisherIds contains an unknown publisher ID.";
-const DUPLICATE_IMPRINT: &str = "selector.imprintIds must not contain duplicate IDs.";
-const DUPLICATE_SERIES: &str = "selector.seriesIds must not contain duplicate IDs.";
-const DUPLICATE_WORK: &str = "selector.workIds must not contain duplicate IDs.";
-const DUPLICATE_WORK_TYPE: &str = "selector.workTypes must not contain duplicate values.";
-const DUPLICATE_LANGUAGE: &str = "selector.languages must not contain duplicate values.";
-const DUPLICATE_FUNDING: &str = "selector.fundingInstitutionIds must not contain duplicate IDs.";
-const DUPLICATE_AFFILIATION: &str =
+pub(crate) const DUPLICATE_PUBLISHER: &str =
+    "selector.publisherIds must not contain duplicate IDs.";
+pub(crate) const UNKNOWN_PUBLISHER: &str =
+    "selector.publisherIds contains an unknown publisher ID.";
+pub(crate) const DUPLICATE_IMPRINT: &str = "selector.imprintIds must not contain duplicate IDs.";
+pub(crate) const DUPLICATE_SERIES: &str = "selector.seriesIds must not contain duplicate IDs.";
+pub(crate) const DUPLICATE_WORK: &str = "selector.workIds must not contain duplicate IDs.";
+pub(crate) const DUPLICATE_WORK_TYPE: &str =
+    "selector.workTypes must not contain duplicate values.";
+pub(crate) const DUPLICATE_LANGUAGE: &str = "selector.languages must not contain duplicate values.";
+pub(crate) const DUPLICATE_FUNDING: &str =
+    "selector.fundingInstitutionIds must not contain duplicate IDs.";
+pub(crate) const DUPLICATE_AFFILIATION: &str =
     "selector.affiliationInstitutionIds must not contain duplicate IDs.";
-const TOO_MANY_IMPRINTS: &str = "selector.imprintIds may contain at most 50 IDs.";
-const TOO_MANY_SERIES: &str = "selector.seriesIds may contain at most 50 IDs.";
-const TOO_MANY_WORKS: &str = "selector.workIds may contain at most 500 IDs.";
-const TOO_MANY_WORK_TYPES: &str = "selector.workTypes may contain at most 50 values.";
-const TOO_MANY_LANGUAGES: &str = "selector.languages may contain at most 50 values.";
-const TOO_MANY_FUNDING: &str = "selector.fundingInstitutionIds may contain at most 50 IDs.";
-const TOO_MANY_AFFILIATION: &str = "selector.affiliationInstitutionIds may contain at most 50 IDs.";
-const UNKNOWN_IMPRINT: &str = "selector.imprintIds contains an unknown imprint ID.";
-const UNKNOWN_SERIES: &str = "selector.seriesIds contains an unknown series ID.";
-const UNKNOWN_WORK: &str = "selector.workIds contains an unknown work ID.";
-const UNKNOWN_FUNDING: &str = "selector.fundingInstitutionIds contains an unknown institution ID.";
-const UNKNOWN_AFFILIATION: &str =
+pub(crate) const TOO_MANY_IMPRINTS: &str = "selector.imprintIds may contain at most 50 IDs.";
+pub(crate) const TOO_MANY_SERIES: &str = "selector.seriesIds may contain at most 50 IDs.";
+pub(crate) const TOO_MANY_WORKS: &str = "selector.workIds may contain at most 500 IDs.";
+pub(crate) const TOO_MANY_WORK_TYPES: &str = "selector.workTypes may contain at most 50 values.";
+pub(crate) const TOO_MANY_LANGUAGES: &str = "selector.languages may contain at most 50 values.";
+pub(crate) const TOO_MANY_FUNDING: &str =
+    "selector.fundingInstitutionIds may contain at most 50 IDs.";
+pub(crate) const TOO_MANY_AFFILIATION: &str =
+    "selector.affiliationInstitutionIds may contain at most 50 IDs.";
+pub(crate) const UNKNOWN_IMPRINT: &str = "selector.imprintIds contains an unknown imprint ID.";
+pub(crate) const UNKNOWN_SERIES: &str = "selector.seriesIds contains an unknown series ID.";
+pub(crate) const UNKNOWN_WORK: &str = "selector.workIds contains an unknown work ID.";
+pub(crate) const UNKNOWN_FUNDING: &str =
+    "selector.fundingInstitutionIds contains an unknown institution ID.";
+pub(crate) const UNKNOWN_AFFILIATION: &str =
     "selector.affiliationInstitutionIds contains an unknown institution ID.";
-const TOO_MANY_RESOLVED_WORKS: &str =
+pub(crate) const TOO_MANY_RESOLVED_WORKS: &str =
     "The selector resolves to more than 25000 works. Narrow the selection.";
-const TOO_MANY_INSTITUTIONS: &str = "The request would return more than 100000 institution rows. Narrow the request, or omit institutions.";
-const DATE_ORDER: &str = "startDate must be earlier than endDate.";
-const RANGE_TOO_LONG: &str = "A DAY timeline may cover at most 366 days.";
-const DAY_NEEDS_START: &str =
+pub(crate) const TOO_MANY_INSTITUTIONS: &str = "The request would return more than 100000 institution rows. Narrow the request, or omit institutions.";
+pub(crate) const DATE_ORDER: &str = "startDate must be earlier than endDate.";
+pub(crate) const RANGE_TOO_LONG: &str = "A DAY timeline may cover at most 366 days.";
+pub(crate) const DAY_NEEDS_START: &str =
     "A DAY timeline needs a startDate. Omit timelineGrain or use AUTO for an all-time range.";
-const START_BEFORE_FLOOR: &str =
+pub(crate) const START_BEFORE_FLOOR: &str =
     "startDate must be on or after 2000-01-01 when the range is longer than 366 days.";
-const END_TOO_LATE: &str = "endDate may be at most 366 days after today (UTC) when startDate is omitted or the range is longer than 366 days.";
-const END_NOT_AFTER_FLOOR: &str =
+pub(crate) const END_TOO_LATE: &str = "endDate may be at most 366 days after today (UTC) when startDate is omitted or the range is longer than 366 days.";
+pub(crate) const END_NOT_AFTER_FLOOR: &str =
     "endDate must be later than 2000-01-01 when startDate is omitted.";
-const EVIDENCE_BEFORE_FLOOR: &str = "Metrics in this scope are dated before 2000-01-01, which this dashboard cannot serve. Give a startDate on or after 2000-01-01.";
-const DUPLICATE_MEASURE: &str = "measures must not contain duplicate IDs.";
-const DUPLICATE_PLATFORM: &str = "platforms must not contain duplicate IDs.";
-const TOO_MANY_MEASURES: &str = "At most 10 measures may be served in one request.";
-const TOO_MANY_PLATFORMS: &str = "At most 10 platforms may be served in one request.";
-const UNKNOWN_MEASURE: &str = "measures contains an unknown metric measure ID.";
-const UNKNOWN_PLATFORM: &str = "platforms contains an unknown metric platform ID.";
-const NON_ADDITIVE_MEASURE: &str = "A served metric measure is not additive across both time and works, so this dashboard cannot sum it.";
-const TOO_MANY_COMBINATIONS: &str =
+pub(crate) const EVIDENCE_BEFORE_FLOOR: &str = "Metrics in this scope are dated before 2000-01-01, which this dashboard cannot serve. Give a startDate on or after 2000-01-01.";
+pub(crate) const DUPLICATE_MEASURE: &str = "measures must not contain duplicate IDs.";
+pub(crate) const DUPLICATE_PLATFORM: &str = "platforms must not contain duplicate IDs.";
+pub(crate) const TOO_MANY_MEASURES: &str = "At most 10 measures may be served in one request.";
+pub(crate) const TOO_MANY_PLATFORMS: &str = "At most 10 platforms may be served in one request.";
+pub(crate) const UNKNOWN_MEASURE: &str = "measures contains an unknown metric measure ID.";
+pub(crate) const UNKNOWN_PLATFORM: &str = "platforms contains an unknown metric platform ID.";
+pub(crate) const NON_ADDITIVE_MEASURE: &str = "A served metric measure is not additive across both time and works, so this dashboard cannot sum it.";
+pub(crate) const TOO_MANY_COMBINATIONS: &str =
     "At most 25 platform and measure combinations may be served in one request.";
-const TOO_MANY_CELLS: &str = "The request would return more than 5000 timeline cells. Narrow the range, use a coarser timelineGrain, or serve fewer combinations.";
-const AGGREGATE_OUT_OF_RANGE: &str =
+pub(crate) const TOO_MANY_CELLS: &str = "The request would return more than 5000 timeline cells. Narrow the range, use a coarser timelineGrain, or serve fewer combinations.";
+pub(crate) const AGGREGATE_OUT_OF_RANGE: &str =
     "An aggregate value exceeds the supported numeric range. Narrow the request.";
 
 // ---------------------------------------------------------------------------
@@ -1133,6 +1142,116 @@ fn validate(
         include_countries: input.include_countries.unwrap_or(true),
         include_institutions: input.include_institutions.unwrap_or(true),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Engine parameters for other readers (`MET-WP4-WIDGET-01`)
+//
+// The public widget read (`crate::model::metric_widget`) runs this engine on
+// its own connection and transaction, in pair mode, under its own
+// `ReadDeadline`. Everything it passes is built through the constructor
+// functions below. The dashboard path passes the dashboard capability and no
+// pairs, and so behaves exactly as it did before these parameters existed.
+// ---------------------------------------------------------------------------
+
+/// The caller-supplied scope of a pair-mode run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PairScope {
+    publisher_id: Uuid,
+    works: Vec<Uuid>,
+    pairs: Vec<(Uuid, Uuid)>,
+}
+
+/// One pair-mode engine run: a caller-supplied work scope (works of one
+/// publisher) and an explicit list of platform/measure pairs.
+///
+/// Pair mode skips [`WORKS_SQL`], [`KNOWN_SQL`], [`REPRESENTED_SQL`] and the
+/// dashboard's combination bound. The engine's combinations, which key the
+/// per-pair facts, size the timeline and drive the output, are exactly the
+/// pairs, and the monthly total, country and coverage-run rows of any other
+/// platform/measure pair are dropped as they are read, before any parse or
+/// check. The statements still read the cross product of the pairs'
+/// platforms and measures, so a refusal that carries no pair identity (an
+/// active native-grain record) applies to that cross product. It is built
+/// only through [`MetricPairRead::new`] and its `with_*` functions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MetricPairRead {
+    request: ValidatedRequest,
+    capability: PublisherCapability,
+    scope: PairScope,
+}
+
+impl MetricPairRead {
+    /// Serve `pairs` for `works` of `publisher_id` over `[start, end)`.
+    ///
+    /// Works and pairs are deduplicated and ordered (pairs by platform ID,
+    /// then measure ID), which is the order every pair-keyed result follows.
+    /// The start is explicit, so the served range is fixed before any Metrics
+    /// value is read. The other inputs take the dashboard defaults until
+    /// changed: the `AUTO` timeline, countries and institutions on, and the
+    /// `METRICS_DASHBOARD` capability.
+    pub(crate) fn new(
+        publisher_id: Uuid,
+        works: &[Uuid],
+        pairs: &[(Uuid, Uuid)],
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> Self {
+        let works: BTreeSet<Uuid> = works.iter().copied().collect();
+        let pairs: BTreeSet<(Uuid, Uuid)> = pairs.iter().copied().collect();
+        MetricPairRead {
+            request: ValidatedRequest {
+                publisher_ids: vec![publisher_id],
+                selector: Selector::default(),
+                start: Some(start),
+                end,
+                measures: Some(pairs.iter().map(|(_, measure_id)| *measure_id).collect()),
+                platforms: Some(pairs.iter().map(|(platform_id, _)| *platform_id).collect()),
+                grain: MetricTimelineGrain::default(),
+                include_countries: true,
+                include_institutions: true,
+            },
+            capability: PublisherCapability::MetricsDashboard,
+            scope: PairScope {
+                publisher_id,
+                works: works.into_iter().collect(),
+                pairs: pairs.into_iter().collect(),
+            },
+        }
+    }
+
+    /// Use the timeline bucket size `grain`.
+    pub(crate) fn with_timeline_grain(mut self, grain: MetricTimelineGrain) -> Self {
+        self.request.grain = grain;
+        self
+    }
+
+    /// Return per-country totals, or not.
+    pub(crate) fn with_countries(mut self, include: bool) -> Self {
+        self.request.include_countries = include;
+        self
+    }
+
+    /// Return per-institution totals, or not.
+    pub(crate) fn with_institutions(mut self, include: bool) -> Self {
+        self.request.include_institutions = include;
+        self
+    }
+
+    /// Require `capability`, instead of `METRICS_DASHBOARD`, of the
+    /// publisher's package.
+    pub(crate) fn with_capability(mut self, capability: PublisherCapability) -> Self {
+        self.capability = capability;
+        self
+    }
+}
+
+/// What one engine run reads: the request, the capability the publishers'
+/// packages must grant, and, in pair mode, the caller's scope.
+struct EngineRun<'a> {
+    request: &'a ValidatedRequest,
+    capability: PublisherCapability,
+    pairs: Option<&'a PairScope>,
 }
 
 // ---------------------------------------------------------------------------
@@ -2494,9 +2613,16 @@ static METRIC_DASHBOARD_READS: ReadGuard = ReadGuard::new(METRIC_DASHBOARD_MAX_C
 /// [`IDENTIFIER_QUALITY_SQL`]; `COMMIT` is not checked, so a read whose
 /// statements all started in time is served. A statement already started
 /// runs on under [`STATEMENT_TIMEOUT_SQL`].
+///
+/// The public widget read creates its own value, with its own instant, when
+/// it takes its own slot, and passes it to both of its pair-mode runs
+/// ([`metric_pair_read`]). Each check that admits a named read statement
+/// records that statement's name, so a caller can name the statement a failed
+/// run started last; the prelude's checks record nothing.
 pub(crate) struct ReadDeadline {
     at: Instant,
     expired: Cell<bool>,
+    last_statement: Cell<Option<&'static str>>,
 }
 
 impl ReadDeadline {
@@ -2504,6 +2630,7 @@ impl ReadDeadline {
         ReadDeadline {
             at,
             expired: Cell::new(false),
+            last_statement: Cell::new(None),
         }
     }
 
@@ -2513,9 +2640,18 @@ impl ReadDeadline {
     }
 
     /// Whether the engine refused a statement because the deadline passed.
-    #[cfg(test)]
     pub(crate) fn expired(&self) -> bool {
         self.expired.get()
+    }
+
+    /// The name of the last read statement a check admitted, if any.
+    pub(crate) fn last_statement(&self) -> Option<&'static str> {
+        self.last_statement.get()
+    }
+
+    /// Record the read statement the check just passed admitted.
+    fn record(&self, name: &'static str) {
+        self.last_statement.set(Some(name));
     }
 
     /// Allow the next statement, or refuse it once the deadline has passed:
@@ -2677,6 +2813,31 @@ fn checkout(
         })
 }
 
+/// Run the engine in pair mode on the caller's connection.
+///
+/// The caller owns the connection and its `READ ONLY, REPEATABLE READ`
+/// transaction, and must already have run, in that order and before any
+/// query, [`CUSTOM_PLANS_SQL`], its own statement timeout and
+/// [`PROJECTION_LOCK_SQL`]. This runs the engine's statements from
+/// [`PUBLISHERS_SQL`] on, re-checking the publisher's package against the
+/// read's capability, and checks `deadline` before each one. Several runs
+/// inside one transaction read one snapshot.
+pub(crate) fn metric_pair_read(
+    connection: &mut PgConnection,
+    read: &MetricPairRead,
+    deadline: &ReadDeadline,
+) -> Result<MetricDashboard, MetricReadError> {
+    read_from_publishers(
+        connection,
+        &EngineRun {
+            request: &read.request,
+            capability: read.capability,
+            pairs: Some(&read.scope),
+        },
+        deadline,
+    )
+}
+
 /// The works a request resolved to, and the publishers they represent.
 struct WorkScope {
     works: Vec<Uuid>,
@@ -2700,9 +2861,30 @@ fn evaluate(
     deadline.check()?;
     diesel::sql_query(PROJECTION_LOCK_SQL).execute(connection)?;
 
+    read_from_publishers(
+        connection,
+        &EngineRun {
+            request,
+            capability: PublisherCapability::MetricsDashboard,
+            pairs: None,
+        },
+        deadline,
+    )
+}
+
+/// Every statement of a read after the prelude, from [`PUBLISHERS_SQL`] on:
+/// the dashboard's, or a pair-mode run's ([`metric_pair_read`]).
+fn read_from_publishers(
+    connection: &mut PgConnection,
+    run: &EngineRun<'_>,
+    deadline: &ReadDeadline,
+) -> Result<MetricDashboard, MetricReadError> {
+    let request = run.request;
+
     // 1. Publishers and entitlement, with (2) the rollup frontier read in
     // the same snapshot as everything else.
     deadline.check()?;
+    deadline.record("PUBLISHERS_SQL");
     let rows: Vec<PublisherRow> = diesel::sql_query(PUBLISHERS_SQL)
         .bind::<Array<SqlUuid>, _>(&request.publisher_ids)
         .load(connection)?;
@@ -2733,29 +2915,66 @@ fn evaluate(
     // The capability comes from each publisher's package alone. Holding
     // METRICS_READ_SERVICE was checked before this function and contributes
     // nothing here, and one unentitled publisher refuses the whole request.
+    // The dashboard requires METRICS_DASHBOARD; a pair-mode caller names its
+    // own capability.
     if publishers
         .iter()
-        .any(|(_, package)| !package.has_capability(PublisherCapability::MetricsDashboard))
+        .any(|(_, package)| !package.has_capability(run.capability))
     {
         return Err(MetricReadError::Unauthorised);
     }
 
-    // 3. The metadata selector.
-    let scope = resolve_works(connection, request, deadline)?;
+    let (scope, combinations, platforms, measures) = match run.pairs {
+        None => {
+            // 3. The metadata selector.
+            let scope = resolve_works(connection, request, deadline)?;
 
-    // 4. Platforms and measures.
-    let (platforms, measures) = resolve_scope(connection, request, &scope, deadline)?;
-    let combinations: Vec<(Uuid, Uuid)> = platforms
-        .iter()
-        .flat_map(|platform_id| {
-            measures
+            // 4. Platforms and measures.
+            let (platforms, measures) = resolve_scope(connection, request, &scope, deadline)?;
+            let combinations: Vec<(Uuid, Uuid)> = platforms
                 .iter()
-                .map(move |measure_id| (*platform_id, *measure_id))
-        })
-        .collect();
-    if combinations.len() > METRIC_DASHBOARD_MAX_COMBINATIONS {
-        return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS));
-    }
+                .flat_map(|platform_id| {
+                    measures
+                        .iter()
+                        .map(move |measure_id| (*platform_id, *measure_id))
+                })
+                .collect();
+            if combinations.len() > METRIC_DASHBOARD_MAX_COMBINATIONS {
+                return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS));
+            }
+            (scope, combinations, platforms, measures)
+        }
+        // Pair mode: the caller's works and publisher, and exactly its pairs
+        // as the combinations. No selector, registry or represented-scope
+        // statement runs and the combination bound does not apply; the
+        // statements below read the cross product of the pairs' platforms and
+        // measures.
+        Some(pairs) => {
+            let scope = WorkScope {
+                works: pairs.works.clone(),
+                publishers: if pairs.works.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![pairs.publisher_id]
+                },
+            };
+            let platforms: BTreeSet<Uuid> = pairs
+                .pairs
+                .iter()
+                .map(|(platform_id, _)| *platform_id)
+                .collect();
+            let measures: BTreeSet<Uuid> = pairs
+                .pairs
+                .iter()
+                .map(|(_, measure_id)| *measure_id)
+                .collect();
+            (scope, pairs.pairs.clone(), platforms, measures)
+        }
+    };
+    // Pair mode drops the rows of every pair it does not hold as they are
+    // read, before any parse or check: monthly totals, countries and coverage
+    // runs. The dashboard holds the whole cross product its statements read.
+    let held_only = run.pairs.is_some();
     // An explicit start fixes the served range now, so its grain and its
     // timeline bound are settled before any Metrics value is read.
     let explicit_window = match request.start {
@@ -2783,6 +3002,7 @@ fn evaluate(
         let mut accounts: Vec<AccountRow> = Vec::new();
         if !scope.publishers.is_empty() {
             deadline.check()?;
+            deadline.record("ACCOUNTS_SQL");
             accounts = diesel::sql_query(ACCOUNTS_SQL)
                 .bind::<Array<SqlUuid>, _>(&scope.publishers)
                 .bind::<Array<SqlUuid>, _>(&platform_ids)
@@ -2809,6 +3029,7 @@ fn evaluate(
         if !scope.works.is_empty() {
             let lagging = frontier.applied_through_sequence < frontier.next_sequence - 1;
             deadline.check()?;
+            deadline.record("CANONICAL_SQL");
             let canonical: Vec<CanonicalRow> = diesel::sql_query(CANONICAL_SQL)
                 .bind::<Bool, _>(lagging)
                 .bind::<SqlBigInt, _>(frontier.applied_through_sequence)
@@ -2878,7 +3099,7 @@ fn evaluate(
                     &measure_ids,
                     deadline,
                 )?;
-                apply_sections(rows, &window, &mut facts, &mut sections)?;
+                apply_sections(rows, &window, &mut facts, &mut sections, held_only)?;
             }
 
             // 8. Day values.
@@ -2898,6 +3119,7 @@ fn evaluate(
             if window.has_edges() && (request.include_countries || request.include_institutions) {
                 let (start, lead_end, trail_start, end) = window.edges();
                 deadline.check()?;
+                deadline.record("DAY_SECTIONS_SQL");
                 let rows: Vec<SectionRow> = diesel::sql_query(DAY_SECTIONS_SQL)
                     .bind::<Array<SqlUuid>, _>(&scope.works)
                     .bind::<Date, _>(start)
@@ -2910,13 +3132,14 @@ fn evaluate(
                     .bind::<Bool, _>(request.include_institutions)
                     .bind::<SqlBigInt, _>(institution_read_limit())
                     .load(connection)?;
-                apply_sections(rows, &window, &mut facts, &mut sections)?;
+                apply_sections(rows, &window, &mut facts, &mut sections, held_only)?;
             }
         }
 
         // 10. Current coverage runs of every represented publisher.
         if !accounts.is_empty() {
             deadline.check()?;
+            deadline.record("ASSERTIONS_SQL");
             let rows: Vec<RunRow> = diesel::sql_query(ASSERTIONS_SQL)
                 .bind::<Array<SqlUuid>, _>(&account_ids)
                 .bind::<Array<SqlUuid>, _>(&account_platforms)
@@ -2926,6 +3149,9 @@ fn evaluate(
                 .bind::<Array<SqlUuid>, _>(&measure_ids)
                 .load(connection)?;
             for row in rows {
+                if held_only && !facts.contains_key(&(row.platform_id, row.measure_id)) {
+                    continue;
+                }
                 if row.run_start < window.start
                     || row.run_end > window.end
                     || row.run_start >= row.run_end
@@ -2961,6 +3187,7 @@ fn evaluate(
         // none.
         if !scope.publishers.is_empty() {
             deadline.check()?;
+            deadline.record("IDENTIFIER_QUALITY_SQL");
             let unresolved: Vec<IdentifierQualityRow> = diesel::sql_query(IDENTIFIER_QUALITY_SQL)
                 .bind::<Array<SqlUuid>, _>(&scope.publishers)
                 .bind::<Date, _>(window.start)
@@ -3010,6 +3237,7 @@ fn resolve_works(
 ) -> Result<WorkScope, MetricReadError> {
     let selector = &request.selector;
     deadline.check()?;
+    deadline.record("WORKS_SQL");
     let rows: Vec<WorkRow> = diesel::sql_query(WORKS_SQL)
         .bind::<Array<SqlUuid>, _>(&request.publisher_ids)
         .bind::<Array<SqlUuid>, _>(&selector.imprints)
@@ -3079,6 +3307,7 @@ fn resolve_scope(
     let mut additivity: BTreeMap<Uuid, bool> = BTreeMap::new();
     if request.platforms.is_some() || request.measures.is_some() {
         deadline.check()?;
+        deadline.record("KNOWN_SQL");
         let known: Vec<KnownRow> = diesel::sql_query(KNOWN_SQL)
             .bind::<Array<SqlUuid>, _>(&platform_filter)
             .bind::<Array<SqlUuid>, _>(&measure_filter)
@@ -3127,6 +3356,7 @@ fn resolve_scope(
                 let lead = start.zip(lead_end).is_some_and(|(start, end)| start < end);
                 let trail = trail_start < request.end;
                 deadline.check()?;
+                deadline.record("REPRESENTED_SQL");
                 diesel::sql_query(REPRESENTED_SQL)
                     .bind::<Array<SqlUuid>, _>(&scope.works)
                     .bind::<Nullable<Date>, _>(start)
@@ -3212,6 +3442,7 @@ fn read_months(
         None => statement,
     };
     deadline.check()?;
+    deadline.record(text.name());
     Ok(statement.load(connection)?)
 }
 
@@ -3227,6 +3458,7 @@ fn read_days(
 ) -> Result<(), MetricReadError> {
     let (start, lead_end, trail_start, end) = window.day_reads();
     deadline.check()?;
+    deadline.record("DAY_SUMS_SQL");
     let sums: Vec<DaySumRow> = diesel::sql_query(DAY_SUMS_SQL)
         .bind::<Array<SqlUuid>, _>(&scope.works)
         .bind::<Date, _>(start)
@@ -3260,6 +3492,7 @@ fn read_days(
     }
     if !candidate_days.is_empty() {
         deadline.check()?;
+        deadline.record("DIMENSION_CELLS_SQL");
         let cells: Vec<DimensionCellRow> = diesel::sql_query(DIMENSION_CELLS_SQL)
             .bind::<Array<SqlUuid>, _>(&scope.works)
             .bind::<Array<SqlUuid>, _>(&candidate_platforms)
@@ -3312,11 +3545,16 @@ type InstitutionValue = (String, Option<Ror>, BigInt);
 
 /// Fold one section statement's rows into the per-pair facts and the
 /// sections.
+///
+/// With `held_only` (pair mode), a monthly total or country row whose
+/// platform/measure pair the facts do not hold is dropped before it is
+/// checked or parsed; the pair-less ambiguity summary is always kept.
 fn apply_sections(
     rows: Vec<SectionRow>,
     window: &Window,
     facts: &mut BTreeMap<(Uuid, Uuid), PairFacts>,
     sections: &mut Sections,
+    held_only: bool,
 ) -> Result<(), MetricReadError> {
     let parse = |total: Option<String>| -> Result<BigInt, MetricReadError> {
         let total = total.ok_or(MetricReadError::Unavailable)?;
@@ -3342,6 +3580,9 @@ fn apply_sections(
         match (row.section.as_str(), row.platform_id, row.measure_id) {
             ("AMBIGUITY", _, _) => {}
             ("TOTAL", Some(platform_id), Some(measure_id)) => {
+                if held_only && !facts.contains_key(&(platform_id, measure_id)) {
+                    continue;
+                }
                 // Every monthly total is of a complete month of the interior.
                 let month = row
                     .month_start
@@ -3355,6 +3596,9 @@ fn apply_sections(
                 }
             }
             ("COUNTRY", Some(platform_id), Some(measure_id)) => {
+                if held_only && !facts.contains_key(&(platform_id, measure_id)) {
+                    continue;
+                }
                 let code = row.country_code.ok_or(MetricReadError::Unavailable)?;
                 let value = parse(row.total)?;
                 let key = (platform_id, measure_id, code);
@@ -3591,6 +3835,22 @@ enum MonthText {
     MonthsYearFullScan,
     MonthsYearOnly,
     MonthsYearOnlyScan,
+}
+
+impl MonthText {
+    /// The name of the statement constant this text reads.
+    fn name(self) -> &'static str {
+        match self {
+            MonthText::Months => "MONTHS_SQL",
+            MonthText::MonthsScan => "MONTHS_SCAN_SQL",
+            MonthText::MonthsFullScan => "MONTHS_FULL_SCAN_SQL",
+            MonthText::MonthsYear => "MONTHS_YEAR_SQL",
+            MonthText::MonthsYearScan => "MONTHS_YEAR_SCAN_SQL",
+            MonthText::MonthsYearFullScan => "MONTHS_YEAR_FULL_SCAN_SQL",
+            MonthText::MonthsYearOnly => "MONTHS_YEAR_ONLY_SQL",
+            MonthText::MonthsYearOnlyScan => "MONTHS_YEAR_ONLY_SCAN_SQL",
+        }
+    }
 }
 
 /// The complete calendar years `[first_year, years_end)` wholly inside the

@@ -1087,7 +1087,10 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
             .any(|name| line.starts_with(name))
         })
         .count();
-    assert_eq!(read_fields, 3, "exactly the three MOM-1 read operations");
+    assert_eq!(
+        read_fields, 4,
+        "exactly the three MOM-1 read operations and the public metricWidget read"
+    );
 
     for (declaration, expected) in [
         (
@@ -1373,9 +1376,8 @@ fn deferred_dashboard_surface_is_absent() {
             "`{deferred}` is deferred beyond MET-WP4-03B"
         );
     }
-    for absent in ["metricWidget", "MetricWidget", "type MetricRollupWorkDay "] {
-        assert!(!sdl.contains(absent), "`{absent}` must not be exposed");
-    }
+    let absent = "type MetricRollupWorkDay ";
+    assert!(!sdl.contains(absent), "`{absent}` must not be exposed");
     // No public type navigates into Metrics data.
     for public_type in [
         "type Work {",

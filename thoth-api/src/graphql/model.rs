@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use chrono::naive::NaiveDate;
@@ -114,6 +115,17 @@ pub struct Context {
     ///
     /// It is read once at process start and there is no reload path.
     pub(crate) job_creation: DistributionJobCreation,
+    /// Whether the public `metricWidget` read is served
+    /// (`MET-WP4-WIDGET-01` specification section 4.9).
+    ///
+    /// Default `OFF`; set once at process start through
+    /// [`Context::with_metric_widget`], so `Context::new` keeps its signature.
+    pub(crate) metric_widget: crate::model::metric_widget::MetricWidgetSwitch,
+    /// How many `metricWidget` resolutions this request has claimed
+    /// (`MET-WP4-WIDGET-01` specification section 4.1 step 3).
+    ///
+    /// `Context` is built per request, so the counter never crosses requests.
+    pub(crate) metric_widget_claims: AtomicUsize,
 }
 
 impl Context {
@@ -131,7 +143,18 @@ impl Context {
             s3_client,
             cloudfront_client,
             job_creation,
+            metric_widget: crate::model::metric_widget::MetricWidgetSwitch::default(),
+            metric_widget_claims: AtomicUsize::new(0),
         }
+    }
+
+    /// Set whether the public `metricWidget` read is served.
+    pub fn with_metric_widget(
+        mut self,
+        switch: crate::model::metric_widget::MetricWidgetSwitch,
+    ) -> Self {
+        self.metric_widget = switch;
+        self
     }
 
     pub fn s3_client(&self) -> &S3Client {

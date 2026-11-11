@@ -103,6 +103,29 @@ pub fn distribution_job_creation() -> Arg {
         .num_args(1)
 }
 
+/// Whether the public `metricWidget` read is served (`MET-WP4-WIDGET-01`).
+///
+/// ```text
+/// OFF  every metricWidget selection is refused with METRIC_WIDGET_UNAVAILABLE
+///      before any slot, connection or statement (the default)
+/// ON   the public, read-only widget read is served to anonymous callers for
+///      works whose publisher's package grants METRICS_WIDGET
+/// ```
+///
+/// The value is read once at process start; there is no reload path. Turning
+/// it on in a deployed environment is a separately authorized activation, not
+/// a deployment detail.
+pub fn metric_widget() -> Arg {
+    Arg::new("metric-widget")
+        .long("metric-widget")
+        .value_name("THOTH_METRIC_WIDGET")
+        .env("THOTH_METRIC_WIDGET")
+        .default_value("OFF")
+        .value_parser(["OFF", "ON"])
+        .help("Public metricWidget read: OFF or ON")
+        .num_args(1)
+}
+
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')

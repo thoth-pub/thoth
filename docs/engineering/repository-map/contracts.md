@@ -79,7 +79,8 @@ client repositories, with different **future** data paths:
 Thoth-owned server route (BFF), and `metrics-widget` reads the public,
 capability-gated `metricWidget` operation directly from the browser, with no
 credential (`ADR-0014`). Neither client uses its future path yet, and the
-`metricWidget` read is not implemented; that does not change what is verified
+`metricWidget` read is implemented but switched off (`THOTH_METRIC_WIDGET`,
+default `OFF`); that does not change what is verified
 today: as of this record, both repositories call the public Thoth GraphQL API
 directly, and a breaking change to that public schema requires impact
 assessment for both today, independent of when the Metrics paths land.
