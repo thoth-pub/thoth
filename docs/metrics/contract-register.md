@@ -1780,16 +1780,19 @@ Scope boundaries a consumer must not infer:
 
 ### 4.4 Public widget read contract (`MET-WP4-WIDGET-01`)
 
-`MET-WP4-WIDGET-01` (issue #1007, specification R10, under
+`MET-WP4-WIDGET-01` (issue #1007, specification R11, under
 [`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md))
 adds one public, read-only query for the embeddable `metrics-widget`
 package: one work (a book or a chapter) and its child works, by DOI, monthly,
 for publishers whose package grants `METRICS_WIDGET`, serving only measures
 the registry marks public, with the per-pair value and coverage semantics of
-section 4.1. No role, migration, table or index is added, and
-`metricDashboard`, `metricMeasures`, `metricPlatforms` and every other
-operation keep their schema, results and authorization. Merging it activates
-nothing: the read is off until activation (below).
+sections 4.1-4.3 over its own month-aligned range. None of section 4.3's
+range, omitted start, `YEAR`, concurrency limit, 20-second deadline (the
+widget has its own 10-second deadline on the same engine mechanism) or
+`METRIC_READ_BUSY` applies to it. No role, migration, table or index is
+added, and `metricDashboard`, `metricMeasures`, `metricPlatforms` and every
+other operation keep their schema, results and authorization. Merging it
+activates nothing: the read is off until activation (below).
 
 Additive GraphQL contract:
 
@@ -1881,10 +1884,12 @@ warnings and no institution fields are served.
   reaches it. (13) The engine in pair mode for each section with a served
   pair. (14) Commit; the connection and the slot are released on every exit
   path, panic unwinding included. The deadline is checked before every
-  statement from step 8 on, the engine's included; past it the read is
-  `METRIC_WIDGET_BUSY` and runs no further statement. A statement that
-  started before the deadline runs to completion or to its own timeout, and a
-  failure is classified as that failure. `COMMIT` is not checked.
+  statement from step 8 on, the engine's included: one engine deadline value,
+  created at step 5 with the widget's own instant, serves both engine runs,
+  and the widget checks its own statements against the same instant. Past it
+  the read is `METRIC_WIDGET_BUSY` and runs no further statement. A statement
+  that started before the deadline runs to completion or to its own timeout,
+  and a failure is classified as that failure. `COMMIT` is not checked.
 - **Public scope.** A measure is eligible only if it is public, enabled and
   additive across time and across works, whatever its category (a public
   `SALES` measure is served, negative values included); a platform only if it
@@ -1910,23 +1915,29 @@ warnings and no institution fields are served.
   a pair. More than 40 served pairs in a section is
   `METRIC_QUERY_LIMIT_EXCEEDED`, never truncation.
 - **Pair mode.** Each section with a served pair is read by the
-  section 4.1/4.2 engine on the same connection and snapshot, with the
+  section 4.1-4.3 engine on the same connection and snapshot, with the
   section's works and the work's publisher as its scope, exactly the served
-  pairs in its grid, the monthly timeline, countries on and institutions off:
-  at most six statements (`PUBLISHERS_SQL`, `ACCOUNTS_SQL`, `CANONICAL_SQL`,
-  `MONTHS_SQL`, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`); it never runs the
-  dashboard's work, known-scope, represented-pair or day statements and has
-  no combination bound. Country rows are kept only for served pairs. Each
-  pair's total, monthly buckets, countries and coverage equal a single-pair
-  `metricDashboard` read over the same works and range; the section's
-  `dataThrough` and `isPartial` are section 4.1's aggregation over exactly the
-  served pairs. A total or country dimension ambiguity, more than one eligible
-  source account on a served platform, or an active native `MONTH` or
-  `REPORTING_PERIOD` record on any served platform x served measure (a
-  deliberate over-refusal that reaches unserved cross pairs) refuses the read
-  as `METRIC_WIDGET_UNAVAILABLE`. Native-grain records are never served. Each
-  engine run's frontier must equal the labels statement's (`INTERNAL_ERROR`
-  otherwise).
+  pairs as its combinations, the monthly timeline, countries on and
+  institutions off: at most six statements (`PUBLISHERS_SQL`,
+  `ACCOUNTS_SQL`, `CANONICAL_SQL`, the step-7 text, which is `MONTHS_SQL`, or
+  `MONTHS_YEAR_ONLY_SQL` with the yearly country projection when the range is
+  exactly one calendar year, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`); it
+  never runs the dashboard's work, known-scope, represented-pair or day
+  statements and has no combination bound. Monthly total, country and
+  coverage-run rows of any other platform/measure pair are dropped as they
+  are read, before any check, so coverage-run state on an unserved cross pair
+  refuses nothing. Each pair's total, monthly buckets, countries and coverage
+  equal a single-pair `metricDashboard` read over the same works and range;
+  the section's `dataThrough` and `isPartial` are section 4.1's aggregation
+  over exactly the served pairs. A total or country dimension ambiguity, more
+  than one eligible source account on a served platform, or an active native
+  `MONTH` or `REPORTING_PERIOD` record on any served platform x served measure
+  (a deliberate over-refusal that reaches unserved cross pairs) refuses the
+  read as `METRIC_WIDGET_UNAVAILABLE`. Two overlapping coverage runs of one
+  stream on a served pair refuse the read as `INTERNAL_ERROR`, as they refuse
+  the single-pair `metricDashboard` read of that pair. Native-grain records
+  are never served. Each engine run's frontier must equal the labels
+  statement's (`INTERNAL_ERROR` otherwise).
 - **Empty sections.** A section with no served pair runs no engine statement
   and returns empty lists, `dataThrough: null` and `isPartial: true`. `asOf`
   and `rollupWatermark` always come from the labels statement.
@@ -1934,11 +1945,13 @@ warnings and no institution fields are served.
   `totals` and `coverage` by `platformId`, `measureId`; `timeline` then by
   month; `countries` then by country code.
 - **Bounds and cost.** At most 2 widget reads per process (one process-wide
-  limiter, separate from any dashboard control), 1 s checkout, a 5 s
-  statement timeout, a 10 s request deadline from taking the slot, 12 months,
-  500 child works, 500 `chapterDois`, 40 pairs per section and at most 19
-  named statements per read (22 captured with the checkout check, `BEGIN` and
-  `COMMIT`). No bound is met by truncation.
+  limiter, separate from any dashboard control, section 4.3's concurrency
+  limit included), 1 s checkout, a 5 s statement timeout, a 10 s request
+  deadline from taking the slot (which alone governs a widget read; section
+  4.3's 20-second deadline does not apply), 12 months, 500 child works, 500
+  `chapterDois`, 40 pairs per section and at most 19 named statements per read
+  (22 captured with the checkout check, `BEGIN` and `COMMIT`). No bound is met
+  by truncation.
 - **Errors.** Resolver errors, so HTTP 200 with the error in `errors`; `data`
   is `null` unless a named fragment spread or typed inline fragment encloses
   the failing selection. Clients decide on `errors` and `extensions.type`,
@@ -1952,7 +1965,7 @@ warnings and no institution fields are served.
 | No free slot; checkout timeout or failure; deadline passed before a statement; the prelude lock failing | `METRIC_WIDGET_BUSY` |
 | A second `metricWidget` selection in the request; dates outside the technical domain; over 12 months; over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
 | A DOI that does not parse; dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
-| Any other engine error; an engine failure without a deadline refusal (database failure, statement timeout, inconsistent native-grain state); a missing or mismatched frontier | `INTERNAL_ERROR` |
+| Any other engine error, `Busy` included (only section 4.3's dashboard limit produces it); an engine failure without a deadline refusal (database failure, statement timeout, inconsistent native-grain state, same-stream coverage-run overlap on a served pair); a missing or mismatched frontier | `INTERNAL_ERROR` |
 
 - **Logging.** With the switch on, each resolution writes one info-level
   outcome line (outcome, elapsed time, per-section served pairs and
@@ -1960,8 +1973,13 @@ warnings and no institution fields are served.
   selection of a request is info and later ones debug, reasons for
   unavailable and busy are debug (the DOI only after step 8), a checkout
   failure is also warn, and `INTERNAL_ERROR` is error with its reason, section,
-  step, last engine statement and elapsed time. Nothing above debug is
-  written with the switch off. No line can hold a package value.
+  step, last engine statement and elapsed time. A deadline refusal inside the
+  engine also writes section 4.3's warn line "metricDashboard read stopped:
+  the whole-read deadline passed before a statement could start", at most
+  once per read; it names the dashboard, and the same request's widget lines
+  (`METRIC_WIDGET_BUSY`, reason `DeadlinePassed`) show it came from a widget
+  read. A refusal at a widget-owned step writes no such line. Nothing above
+  debug is written with the switch off. No line can hold a package value.
 - **Activation gate.** The switch is `OFF` in every environment until a
   separate activation grant per environment, which is CRITICAL unless the CTO
   decides otherwise at that grant (`ADR-0014` section 4.7). Activation also
