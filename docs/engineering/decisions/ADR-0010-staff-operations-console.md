@@ -11,7 +11,8 @@ Owning programme issue: [#846](https://github.com/thoth-pub/thoth/issues/846)
 Architecture task: `ADM-ADR-01`
 Verification base: `develop @ 91dd607d674fcb9a75c8df31891eea0355c9ca84`
 Supersedes: None
-Superseded by: None
+Superseded by: None in full
+Superseded in part by: [ADR-0012](ADR-0012-shared-asynchronous-event-and-job-execution.md) under ADR-0012's authority condition, only where ADR-0010 invariant 15 and section 7.2 assume `distribution_job*` remains the long-term Publisher Services execution source, and where section 4.4's final sentence says ADR-0008 remains fully binding without ADR-0012's later shared-framework exception. Section 4.4's substantive rule that `ServiceOperation` is not itself a queue/framework/executor API remains binding. The Staff Operations Console, `ServiceOperation` audit seam, desired/execution/observed-state separation, attention/reconciliation model and staff-command gates remain binding.
 
 Decision: establish an admin-first Staff Operations Console with a deliberately
 entered publisher operating context; make `thoth` the canonical durable owner of

@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [960](https://github.com/thoth-pub/thoth/pull/960) - Add ADR-0012, the shared architecture for asynchronous events and background jobs
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Allow `metricDashboard` to omit `startDate` to read all Metrics history before `endDate`, and return the served `startDate`, `endDate` and `timelineGrain`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Add a `YEAR` timeline grain to `metricDashboard`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Limit each API process to three concurrent `metricDashboard` reads, and add the retryable `METRIC_READ_BUSY` error for a read that waits more than a second for one
