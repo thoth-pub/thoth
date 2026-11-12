@@ -52,7 +52,11 @@ use crate::model::{
     metric_record_provenance::MetricRecordProvenanceClassification,
     metric_rollup_delta::{
         MetricRollupDeltaClaim, MetricRollupMonthProjectionVerification,
-        MetricRollupMonthRebuildResult, MetricRollupMonthVerification, MetricRollupWatermark,
+        MetricRollupMonthRebuildAdvance, MetricRollupMonthRebuildBuildProgress,
+        MetricRollupMonthRebuildFamilies, MetricRollupMonthRebuildMode,
+        MetricRollupMonthRebuildResult, MetricRollupMonthRebuildRun,
+        MetricRollupMonthRebuildStatus, MetricRollupMonthRebuildVerifyProgress,
+        MetricRollupMonthVerification, MetricRollupWatermark,
     },
     metric_source::{MetricSource, MetricSourceAcquisitionType},
     metric_source_account::{MetricSourceAccount, MetricSourceAccountConfiguration},
@@ -4096,6 +4100,282 @@ impl MetricRollupMonthRebuildResult {
     )]
     pub fn verification(&self) -> &MetricRollupMonthVerification {
         &self.verification
+    }
+}
+
+// --------------------------------------------------------------------------
+// Resumable monthly rebuild and paged verification (`MET-WP4-03A-OPS-03`)
+//
+// These object types are returned by the four protected
+// `METRICS_INGEST_SERVICE` run operations and by nothing else. They carry the
+// run's own id, counts, frontiers and timestamps only: no cursor, work,
+// platform, measure or principal identity, and no field on `QueryRoot` or on
+// any public type reaches them.
+// --------------------------------------------------------------------------
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "Per-family verification counts of a resumable monthly rebuild run, one entry per derived rollup projection family, each summed over the run's verify pages."
+)]
+impl MetricRollupMonthRebuildFamilies {
+    #[graphql(description = "The monthly total family (metric_rollup_work_month)")]
+    pub fn total(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.total
+    }
+
+    #[graphql(description = "The monthly country family (metric_rollup_work_country_month)")]
+    pub fn country(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country
+    }
+
+    #[graphql(
+        description = "The monthly institution family (metric_rollup_work_institution_month)"
+    )]
+    pub fn institution(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution
+    }
+
+    #[graphql(description = "The monthly ambiguity family (metric_rollup_work_month_ambiguity)")]
+    pub fn ambiguity(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.ambiguity
+    }
+
+    #[graphql(description = "The yearly country family (metric_rollup_work_country_year)")]
+    pub fn country_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.country_year
+    }
+
+    #[graphql(description = "The yearly institution family (metric_rollup_work_institution_year)")]
+    pub fn institution_year(&self) -> &MetricRollupMonthProjectionVerification {
+        &self.institution_year
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The progress of a REBUILD run's build phase: counts and the first and last durable rollup frontiers a committed build step saw."
+)]
+impl MetricRollupMonthRebuildBuildProgress {
+    #[graphql(description = "Committed build steps, as a decimal string")]
+    pub fn steps(&self) -> String {
+        self.steps.to_string()
+    }
+
+    #[graphql(
+        description = "Committed build steps that replaced their range because it was not exact, as a decimal string"
+    )]
+    pub fn replaced_steps(&self) -> String {
+        self.replaced_steps.to_string()
+    }
+
+    #[graphql(
+        description = "Units (work, calendar year) with work-day rows that committed build steps covered, as a decimal string"
+    )]
+    pub fn units(&self) -> String {
+        self.units.to_string()
+    }
+
+    #[graphql(description = "Month keys that committed build steps covered, as a decimal string")]
+    pub fn month_keys(&self) -> String {
+        self.month_keys.to_string()
+    }
+
+    #[graphql(
+        description = "Work-day rows that committed build steps covered, as a decimal string"
+    )]
+    pub fn work_day_rows(&self) -> String {
+        self.work_day_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Missing rows the build steps' verifications found before replacing their ranges, summed over the six families, as a decimal string"
+    )]
+    pub fn found_missing_rows(&self) -> String {
+        self.found_missing_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Extra rows the build steps' verifications found before replacing their ranges, summed over the six families, as a decimal string"
+    )]
+    pub fn found_extra_rows(&self) -> String {
+        self.found_extra_rows.to_string()
+    }
+
+    #[graphql(
+        description = "Mismatched rows the build steps' verifications found before replacing their ranges, summed over the six families, as a decimal string"
+    )]
+    pub fn found_mismatched_rows(&self) -> String {
+        self.found_mismatched_rows.to_string()
+    }
+
+    #[graphql(
+        description = "The durable rollup frontier the first committed build step saw, as a decimal string; null before the first step"
+    )]
+    pub fn first_applied_through_sequence(&self) -> Option<String> {
+        self.first_applied_through_sequence
+            .map(|sequence| sequence.to_string())
+    }
+
+    #[graphql(
+        description = "The durable rollup frontier the last committed build step saw, as a decimal string; null before the first step"
+    )]
+    pub fn last_applied_through_sequence(&self) -> Option<String> {
+        self.last_applied_through_sequence
+            .map(|sequence| sequence.to_string())
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The progress of a run's verify phase: counts, the first and last durable rollup frontiers a committed verify page saw, and the per-family counts summed over pages."
+)]
+impl MetricRollupMonthRebuildVerifyProgress {
+    #[graphql(description = "Committed verify pages, as a decimal string")]
+    pub fn pages(&self) -> String {
+        self.pages.to_string()
+    }
+
+    #[graphql(
+        description = "Units (work, calendar year) with work-day rows that committed verify pages covered, as a decimal string"
+    )]
+    pub fn units(&self) -> String {
+        self.units.to_string()
+    }
+
+    #[graphql(description = "Month keys that committed verify pages covered, as a decimal string")]
+    pub fn month_keys(&self) -> String {
+        self.month_keys.to_string()
+    }
+
+    #[graphql(
+        description = "Work-day rows that committed verify pages covered, as a decimal string"
+    )]
+    pub fn work_day_rows(&self) -> String {
+        self.work_day_rows.to_string()
+    }
+
+    #[graphql(
+        description = "The durable rollup frontier the first committed verify page saw, as a decimal string; null before the first page"
+    )]
+    pub fn first_applied_through_sequence(&self) -> Option<String> {
+        self.first_applied_through_sequence
+            .map(|sequence| sequence.to_string())
+    }
+
+    #[graphql(
+        description = "The durable rollup frontier the last committed verify page saw, as a decimal string; null before the first page"
+    )]
+    pub fn last_applied_through_sequence(&self) -> Option<String> {
+        self.last_applied_through_sequence
+            .map(|sequence| sequence.to_string())
+    }
+
+    #[graphql(
+        description = "True when both verify frontiers are set and equal: every committed page saw the same durable rollup frontier"
+    )]
+    pub fn single_frontier(&self) -> bool {
+        self.has_single_frontier()
+    }
+
+    #[graphql(
+        description = "The per-family counts of every committed verify page. The expected and actual row totals are sums over pages: when pages saw different frontiers, those sums are not a snapshot total"
+    )]
+    pub fn counts(&self) -> &MetricRollupMonthRebuildFamilies {
+        &self.counts
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "One resumable monthly rebuild or verification run: its own id, mode, status, counts, frontiers and timestamps. No cursor, work, platform, measure or principal identity is exposed."
+)]
+impl MetricRollupMonthRebuildRun {
+    #[graphql(description = "The run's own id")]
+    pub fn run_id(&self) -> Uuid {
+        self.run_id
+    }
+
+    #[graphql(description = "Whether the run builds and then verifies, or only verifies")]
+    pub fn mode(&self) -> MetricRollupMonthRebuildMode {
+        self.mode
+    }
+
+    #[graphql(description = "The run's current status")]
+    pub fn status(&self) -> MetricRollupMonthRebuildStatus {
+        self.status
+    }
+
+    #[graphql(
+        description = "Committed build steps plus committed verify pages, as a decimal string. Pass it as expectedStepCount to advance the run"
+    )]
+    pub fn step_count(&self) -> String {
+        self.step_count.to_string()
+    }
+
+    #[graphql(
+        description = "An estimate of the current phase's position from 0 to 1000, derived from the leading bits of the cursor's work id: 0 when the phase has not committed a step or page yet, and 1000 at RECONCILED, VERIFIED and MISMATCHED. Never a count"
+    )]
+    pub fn position_permille(&self) -> i32 {
+        self.position_permille
+    }
+
+    #[graphql(description = "When the run was started")]
+    pub fn started_at(&self) -> Timestamp {
+        self.started_at
+    }
+
+    #[graphql(description = "When the run row last changed")]
+    pub fn updated_at(&self) -> Timestamp {
+        self.updated_at
+    }
+
+    #[graphql(
+        description = "When a REBUILD run's build phase reached its end and verification began; null otherwise"
+    )]
+    pub fn build_completed_at(&self) -> Option<Timestamp> {
+        self.build_completed_at
+    }
+
+    #[graphql(
+        description = "When the run reached RECONCILED, VERIFIED or MISMATCHED, or was abandoned; null while it is open"
+    )]
+    pub fn completed_at(&self) -> Option<Timestamp> {
+        self.completed_at
+    }
+
+    #[graphql(
+        description = "The durable rollup frontier when the run was started, as a decimal string"
+    )]
+    pub fn start_applied_through_sequence(&self) -> String {
+        self.start_applied_through_sequence.to_string()
+    }
+
+    #[graphql(description = "The build phase's progress; null for a VERIFY run")]
+    pub fn build(&self) -> Option<&MetricRollupMonthRebuildBuildProgress> {
+        self.build.as_ref()
+    }
+
+    #[graphql(description = "The verify phase's progress")]
+    pub fn verify(&self) -> &MetricRollupMonthRebuildVerifyProgress {
+        &self.verify
+    }
+}
+
+#[juniper::graphql_object(
+    Context = Context,
+    description = "The answer to one advance request: whether this request committed a build step or a verify page, and the run as it now stands."
+)]
+impl MetricRollupMonthRebuildAdvance {
+    #[graphql(
+        description = "True when this request committed one step or page; false when the run was terminal or its step count was not the expected one, in which case nothing was written"
+    )]
+    pub fn advanced(&self) -> bool {
+        self.advanced
+    }
+
+    #[graphql(description = "The run as it now stands")]
+    pub fn run(&self) -> &MetricRollupMonthRebuildRun {
+        &self.run
     }
 }
 

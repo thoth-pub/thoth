@@ -749,8 +749,9 @@ Contract properties a later consumer may rely on:
   `metric_record`, `metric_record_revision`, the durable rollup deltas and
   the `MET-WP4-01` work-day frontier. The four monthly tables are written only
   by `completeMetricRollupDeltas`, inside its transaction and beneath its
-  `metric_rollup_work_day_state` lock, and their only source is
-  `metric_rollup_work_day`. Nothing reads canonical records, revisions or
+  `metric_rollup_work_day_state` lock, by the section 3.7 rebuild and by the
+  section 3.8 build steps, each beneath the same state-row lock, and their
+  only source is `metric_rollup_work_day`. Nothing reads canonical records, revisions or
   deltas to derive a monthly row, and nothing rewrites a canonical value to
   repair a derived one.
 - **Day is resolved before month.** For every daily base cell
@@ -836,15 +837,43 @@ Contract properties a later consumer may rely on:
   `thoth init` before starting the API; this automatic migration side effect
   is expected and must be named in the deployment authorization rather than
   replaced by an artificial pre-deployment migration run. No consumer may
-  serve from the monthly tables until the migration has succeeded, Sphinx has
-  orchestrated a separately authorized full historical rebuild through the
-  protected Thoth operation, and the rebuilt state has been independently
-  reconciled — exact values, dependency flags, ambiguity state and row
-  watermarks — at a recorded `applied_through_sequence`. `MET-WP4-03B`
-  serving activation and downstream dashboard cutover remain prohibited while
-  the tables are empty, partially rebuilt or unreconciled. After a downgrade
-  and reapplication the same gate applies again, because normal completion
-  maintains only the months it subsequently touches.
+  serve from the monthly tables until the migration has succeeded and, under
+  separate authorization, the derived state has been shown exact — values,
+  dependency flags, ambiguity state and row watermarks — at a recorded
+  `applied_through_sequence` by either marker:
+  - `verifyMetricRollupMonths` (section 3.7) exact at a recorded frontier,
+    whether or not a section 3.7 rebuild preceded it; or
+  - a section 3.8 run of either mode that has reached `RECONCILED`, with its
+    run id and frontier.
+
+  In either case the evidence is taken in the activation window (section
+  3.8), under the activation grant, which names the evidence run and is its
+  run grant, and is used at once. The latest-run check is made with
+  `metricRollupMonthRebuildRun` (no `runId`) immediately before the restart
+  that switches serving on: for a `RECONCILED` marker it must still show that
+  run as the latest, and the run counts only if its `completedAt` falls after
+  the activation grant; for a `verifyMetricRollupMonths` marker, the latest
+  run is read before the verify is sent and again before the switch, and both
+  reads must show the same terminal run, or none. No clocks are compared.
+  Between the evidence and the switch no other section 3.8 run is started,
+  advanced or abandoned, and no `verifyMetricRollupMonths` or
+  `rebuildMetricRollupMonths` call is made. Evidence is never carried
+  forward: if anything happened in between, or there is any doubt, fresh
+  evidence is taken. Run facts stay in PostgreSQL, so no record outside Thoth
+  is needed, and Sphinx keeps one invocation's evidence in memory only. A
+  `verifyMetricRollupMonths` outcome is returned to its caller and is not
+  stored; it survives only as the citation on the stage issue, so activation
+  should prefer a `VERIFY` run that reaches `RECONCILED`, whose run row stays
+  in PostgreSQL. The run id, frontier and time are cited on the stage issue as
+  the record of what was used, not as standing evidence. `VERIFIED` is never
+  sufficient; a `VERIFY` run reaching `RECONCILED` is enough on its own,
+  however the state was built. `MET-WP4-03B` serving activation and
+  downstream dashboard cutover remain prohibited while the tables are empty,
+  partially rebuilt or unreconciled; after activation, section 3.8 records
+  one exception, for post-activation repair. After a downgrade and
+  reapplication the same gate applies again, because normal completion
+  maintains only the months it subsequently touches, and reapplying takes
+  fresh evidence the same way.
 - **No native MONTH or REPORTING_PERIOD serving.** These projections are
   aggregations of resolved `DAY`-grain work-day rows. Canonical records of
   any other grain remain outside the work-day stream and are not projected
@@ -858,16 +887,18 @@ Scope boundaries a consumer must not infer:
   ambiguity state reached no API in `MET-WP4-03A`; their one reader is the
   `MET-WP4-03B` dashboard contract of section 4.2, which reads them and
   never writes them.
-- The only monthly maintenance surface is the pair of protected operations
-  of section 3.7: a read-only consistency verification and an exceptional,
-  self-verifying full rebuild. There is no repair, row-level patching or
-  generic full-projection reconciliation-ledger operation. No
-  `metric_rollup_work_month_state`, `metric_work_dimension` or secondary
-  index is implied.
-- Sphinx owns orchestration, including the initial/exceptional rebuild and
-  any periodic verification workflow, but never writes the Thoth database or
-  computes monthly projection values. Normal incremental maintenance and
-  every full rebuild remain Thoth-owned database operations. A verification
+- The monthly maintenance surfaces are the pair of protected operations of
+  section 3.7 (a read-only consistency verification and an exceptional,
+  self-verifying full rebuild) and the resumable run of section 3.8, whose
+  build steps replace only inexact ranges, each atomically, and whose pages
+  only verify. There is no row-level patching or generic full-projection
+  reconciliation-ledger operation. No `metric_rollup_work_month_state`,
+  `metric_work_dimension` or secondary index is implied.
+- Sphinx owns orchestration, including the initial/exceptional rebuild, the
+  section 3.8 runs and any periodic verification workflow, but never writes
+  the Thoth database or computes monthly projection values. Normal
+  incremental maintenance, every full rebuild and every section 3.8 step
+  remain Thoth-owned database operations. A verification
   mismatch must alert/HOLD rather than silently auto-rebuild; Thoth never
   invokes a rebuild on its own.
 
@@ -1029,13 +1060,17 @@ Contract properties consumers may rely on:
   allocation takes. Normal completion and allocation wait behind it, the
   rebuild commits at `W`, the waiting work resumes, and later completions
   maintain the affected months incrementally on top of the rebuilt state.
-  No maintenance mode, coordination table, queue, pause flag, scheduler or
-  process-wide mutex exists.
+  No maintenance mode, queue, pause flag, scheduler or process-wide mutex
+  exists. `MET-WP4-03A-OPS-03` adds exactly one coordination table,
+  `metric_rollup_month_rebuild_run`, for the caller-driven runs of section
+  3.8.
 - **Bounds are safety envelopes, not SLOs.** `MAX_REBUILD_MONTH_KEYS =
   100000`, chunk size 50, verification `statement_timeout = 30s`, rebuild
   `lock_timeout = 5s`, rebuild `statement_timeout = 30s`, total rebuild
   elapsed ceiling 120s. They are not raised silently; a larger corpus or a
-  different envelope needs a separately approved amendment.
+  different envelope needs a separately approved amendment. Above 100000
+  represented month keys, or once whole-table verification nears its 30 s
+  statement, the supported path is the resumable run of section 3.8.
 - **Positions and counts are strings.** Every 64-bit sequence, count and
   watermark position crosses GraphQL as a decimal `String`, never as the
   32-bit `Int`.
@@ -1083,6 +1118,605 @@ or statement timeout surfaces as the database's own cancellation message. No
 message carries a frontier value, row, SQL, principal or connection detail.
 A consumer that needs to classify these programmatically requires a
 separately specified stable error code.
+
+### 3.8 Resumable rebuild and paged verification (`MET-WP4-03A-OPS-03`)
+
+`MET-WP4-03A-OPS-03` (issue #1012) adds a resumable, caller-driven rebuild and
+a paged verification of the six derived rollup families (the four monthly
+tables of section 3.6 and the two yearly tables of section 4.2). Both work at
+any corpus size, in bounded steps that each commit on their own, while rollup
+completions and canonical ingestion keep running. A run records durable
+progress and ends in a durable terminal status. `RECONCILED` means a complete
+exact traversal at one recorded frontier, and it is the marker a
+serving-activation gate may cite (section 3.6). The section 3.7 pair is
+unchanged: its SDL, SQL text, bounds and behaviour. Thoth runs nothing on its
+own: there is no worker, queue, lease, scheduler or timer, and the caller
+drives every step.
+
+Object, created empty by migration `20261112_v1.10.0`, with no lock on any
+existing table:
+
+```text
+metric_rollup_month_rebuild_run
+  run_id uuid PK, mode (REBUILD | VERIFY), status (BUILDING | VERIFYING |
+  RECONCILED | VERIFIED | MISMATCHED | ABANDONED), step_count,
+  cursor_work_id, cursor_year_start, started_by (stored, never returned),
+  started_at, updated_at, build_completed_at, completed_at,
+  start_applied_through_sequence, build_* and verify_* counters and
+  first/last frontiers, verify_<family>_{expected,actual,missing,extra,mismatched}_rows
+  for the six families
+
+metric_rollup_month_rebuild_run_one_open_idx
+  UNIQUE ON ((true)) WHERE status IN ('BUILDING', 'VERIFYING')
+```
+
+Closed vocabularies are `CHECK`s. Nineteen `CHECK` constraints pin the row's
+shape: the cursor pair is both `NULL` or both set at a 1 January, and is `NULL`
+at `RECONCILED`, `VERIFIED` and `MISMATCHED`; `completed_at` is `NULL` exactly
+while the run is open; `BUILDING` only for `REBUILD`, with no verify counter or
+frontier yet; a `VERIFY` run has no build counter, frontier or
+`build_completed_at`; a `REBUILD` run past its build phase has
+`build_completed_at`, and that implies at least one step and both build
+frontiers; an abandoned `REBUILD` run that never finished building has no
+verify counter or frontier, while an abandoned `VERIFY` run keeps its pages;
+frontier pairs are both `NULL` or both set and never decrease
+(`start <= build_first <= build_last <= verify_first <= verify_last`, bridged
+when the build pair is `NULL`); every terminal verify status implies at least
+one page and both verify frontiers; `RECONCILED` implies equal verify
+frontiers and the 18 missing, extra and mismatched counts at zero, `VERIFIED`
+a moved frontier and the same zeros, `MISMATCHED` at least one non-zero count;
+`started_by` is not blank; every counter is non-negative and `step_count =
+build_steps + verify_pages`. There is no foreign key on the cursor: it is a
+position in unit order. `down.sql` drops the index and the table; no other
+table, column, index, trigger, function or enum changes.
+
+Operations, all on `MutationRoot`, all requiring exactly
+`METRICS_INGEST_SERVICE`, each authorized before any rollup-specific read,
+lock or write:
+
+```graphql
+startMetricRollupMonthRebuild(input: StartMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildRun!
+advanceMetricRollupMonthRebuild(input: AdvanceMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildAdvance!
+abandonMetricRollupMonthRebuild(input: AbandonMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildRun!
+metricRollupMonthRebuildRun(runId: Uuid): MetricRollupMonthRebuildRun
+```
+
+```graphql
+enum MetricRollupMonthRebuildMode { REBUILD VERIFY }
+enum MetricRollupMonthRebuildStatus { BUILDING VERIFYING RECONCILED VERIFIED MISMATCHED ABANDONED }
+
+input StartMetricRollupMonthRebuildInput   { mode: MetricRollupMonthRebuildMode! }
+input AdvanceMetricRollupMonthRebuildInput { runId: Uuid! expectedStepCount: String! }
+input AbandonMetricRollupMonthRebuildInput { runId: Uuid! }
+
+type MetricRollupMonthRebuildFamilies {
+  total: MetricRollupMonthProjectionVerification!
+  country: MetricRollupMonthProjectionVerification!
+  institution: MetricRollupMonthProjectionVerification!
+  ambiguity: MetricRollupMonthProjectionVerification!
+  countryYear: MetricRollupMonthProjectionVerification!
+  institutionYear: MetricRollupMonthProjectionVerification!
+}
+
+type MetricRollupMonthRebuildBuildProgress {
+  steps: String!
+  replacedSteps: String!
+  units: String!
+  monthKeys: String!
+  workDayRows: String!
+  foundMissingRows: String!
+  foundExtraRows: String!
+  foundMismatchedRows: String!
+  firstAppliedThroughSequence: String
+  lastAppliedThroughSequence: String
+}
+
+type MetricRollupMonthRebuildVerifyProgress {
+  pages: String!
+  units: String!
+  monthKeys: String!
+  workDayRows: String!
+  firstAppliedThroughSequence: String
+  lastAppliedThroughSequence: String
+  singleFrontier: Boolean!
+  counts: MetricRollupMonthRebuildFamilies!
+}
+
+type MetricRollupMonthRebuildRun {
+  runId: Uuid!
+  mode: MetricRollupMonthRebuildMode!
+  status: MetricRollupMonthRebuildStatus!
+  stepCount: String!
+  positionPermille: Int!
+  startedAt: Timestamp!
+  updatedAt: Timestamp!
+  buildCompletedAt: Timestamp
+  completedAt: Timestamp
+  startAppliedThroughSequence: String!
+  build: MetricRollupMonthRebuildBuildProgress
+  verify: MetricRollupMonthRebuildVerifyProgress!
+}
+
+type MetricRollupMonthRebuildAdvance {
+  advanced: Boolean!
+  run: MetricRollupMonthRebuildRun!
+}
+```
+
+The authorization matrix is section 3.7's for all four operations: anonymous
+callers, `SUPERUSER`, `METRICS_READ_SERVICE`, publisher-scoped human roles,
+`DISSEMINATION_WORKER` and every other machine role are denied, and a denied
+call opens no transaction and issues no rollup-specific statement. No field on
+`QueryRoot` or on any public type reaches these types. `build` is `null` for a
+`VERIFY` run; `MetricRollupMonthProjectionVerification` is section 3.7's type,
+reused unchanged; the `counts` totals are sums over pages, which are not a
+snapshot total when pages saw different frontiers; `singleFrontier` is true
+when both verify frontiers are set and equal. `positionPermille` estimates the
+current phase's cursor position as `floor(first 32 bits of the cursor work id
+x 1000 / 2^32)`: 0 with no cursor mid-phase, 1000 at `RECONCILED`, `VERIFIED`
+and `MISMATCHED`, the retained cursor at `ABANDONED`; it is never a count. No
+cursor, work, platform, measure or principal identity is ever returned: only
+counts, frontiers, timestamps and the run's own id leave Thoth. The caller
+supplies no size, range, key, value or SQL; every budget is server-fixed.
+
+Definitions:
+
+- **Unit.** `(work_id, year_start)`, `year_start` the 1 January of a calendar
+  year. A row's unit is its `work_id` and the year of its `day`, `month_start`
+  or `year_start`. Units are ordered by `work_id` (PostgreSQL `uuid` order),
+  then `year_start`, and every comparison is made in SQL. Every row of the six
+  families and every work-day row belongs to exactly one unit, and every year
+  group `(work, platform, measure, year)` lies inside one unit.
+- **Range.** `(lo, hi]` in unit order: `lo` is the phase cursor or minus
+  infinity, `hi` a unit or plus infinity. A range covers every row of the six
+  families and of the work-day projection whose unit lies in it, orphans (rows
+  whose unit has no work-day row) included. The work-day range is the `(work_id,
+  day)` index range `> (lo work, 31 December of lo year)` and `<= (hi work, 31
+  December of hi year)`; a projection range uses `work_id` bounds, which every
+  identity index leads with, and a filter on the row's year.
+- **Frontier.** `applied_through_sequence` (`W`). `next_sequence - 1 > W` is
+  ordinary lag, never corruption.
+- **Exact range at `W`.** The six families restricted to the range equal what
+  the independent range verifier derives from the range's work-day rows
+  (identities, values, publication, country and institution identity,
+  dependency flags, ambiguity flags and row watermarks), and no derived row in
+  the range is watermarked above `W`.
+- **Step, page, hold.** A step is one committed build transaction and a page
+  one committed verify transaction; `stepCount` counts both. The hold is the
+  time from acquiring the state row to the end of the step's transaction.
+
+Run state machine:
+
+```text
+start(REBUILD) -> BUILDING (cursor NULL)
+BUILDING  --build step--> BUILDING (cursor advanced)
+BUILDING  --build step whose range reached plus infinity--> VERIFYING (cursor NULL, build_completed_at set)
+start(VERIFY) -> VERIFYING (cursor NULL)
+VERIFYING --page--> VERIFYING (cursor advanced)
+VERIFYING --page whose range reached plus infinity-->
+      RECONCILED  every missing/extra/mismatched count 0 and verify_first_frontier = verify_last_frontier
+      VERIFIED    every such count 0 and the frontier moved
+      MISMATCHED  any such count non-zero
+BUILDING or VERIFYING --abandon--> ABANDONED
+RECONCILED, VERIFIED, MISMATCHED and ABANDONED are terminal.
+```
+
+Contract properties consumers may rely on:
+
+- **Start.** One `READ COMMITTED` transaction under a 5 s `lock_timeout` and a
+  30 s `statement_timeout` reads the frontier without a lock and inserts the
+  run, recording the authenticated principal. A second open run violates the
+  one-open-run index and is refused `METRIC_REBUILD_RUN_OPEN`, so concurrent
+  first arrivals yield exactly one run. After a lost response the caller reads
+  `metricRollupMonthRebuildRun` and adopts the open run if its mode matches
+  and its `stepCount` is 0.
+- **Advance.** `expectedStepCount` must be a decimal string holding a
+  non-negative 64-bit integer, decided before any database access; otherwise
+  `METRIC_QUERY_INVALID`. An unlocked read of the run, in its own short
+  transaction under a 1 s lock and statement timeout, chooses the build step or
+  the verify page; an unknown run is `METRIC_QUERY_INVALID`, and a terminal run
+  or a different `step_count` returns `advanced: false` with the run
+  unchanged. The chosen transaction re-checks status and `step_count` under
+  its locks and writes nothing if either changed. A retry after a lost
+  response is therefore safe.
+- **Abandon.** `READ COMMITTED`: it locks the run row under the 5 s
+  `lock_timeout`, sets `ABANDONED` and `completed_at` if the run is open, and
+  otherwise returns it unchanged; an unknown run is `METRIC_QUERY_INVALID`.
+  Against an in-flight step or page it waits for it, or returns
+  `METRIC_REBUILD_RETRYABLE`. The cursor, counters and frontiers are kept, and
+  the projections stay exactly as the committed steps left them.
+- **Status read.** `metricRollupMonthRebuildRun(runId)` returns that run or
+  `null`. Without `runId` it returns the open run when one exists, otherwise
+  the run with the greatest `started_at` (set by the run's insert; ties broken
+  by `run_id`), or `null`, so a `RECONCILED` run stops being the latest once any
+  later run starts. It is read-only, under the dispatch read's 1 s lock and
+  statement timeouts.
+- **One connection, bounded checkout.** Each operation checks out exactly one
+  pooled connection with a 2 s bounded wait; an advance runs its dispatch read
+  and its step or page on that connection. An expired wait is
+  `METRIC_REBUILD_RETRYABLE`. Counted from the start of the resolver, an
+  advance ends on the server within about 15 s for a step and about 18 s for a
+  page.
+- **Per-statement deadline.** Every transaction asserts its isolation level
+  and fails closed on a mismatch. Before each statement inside a budget it runs
+  `SET LOCAL statement_timeout = <ms>`, an integer the code computes: the
+  smaller of 30,000 and the milliseconds left in the current budget, with a
+  floor of 1. A check between statements refuses the next one once the budget
+  is spent, and the timeout also cuts lock waits. Steps and pages also set
+  `idle_in_transaction_session_timeout = '2s'`, so a stalled API process holds
+  nothing longer than its budget plus 2 s.
+- **Build step (`BUILDING`, `READ COMMITTED`).** Three consecutive budgets:
+  `STEP_PRESIZE_BUDGET` before any row lock, `STEP_LOCK_BUDGET` from the first
+  work-row lock until the state row is held, `STEP_HOLD_BUDGET` from the
+  state-row lock to the end of the transaction. In order: session settings
+  (`lock_timeout = '5s'`, `statement_timeout = 30000`, the idle timeout,
+  `plan_cache_mode = force_custom_plan`); pre-size from the cursor without the
+  state lock; lock the candidate range's works with one `SELECT ... FOR KEY
+  SHARE` in ascending `work_id` order (canonical ingestion's own order); lock
+  `metric_rollup_work_day_state` `FOR UPDATE` and read `W` (the hold starts);
+  lock the run row `FOR UPDATE` and re-check it; re-size under the locks,
+  admitting only units whose work is locked, ending the range before the first
+  unit that needs an unlocked work (an empty re-size is
+  `METRIC_REBUILD_RETRYABLE`); pre-verify the range at `W` with the range
+  verifier. If the range is exact, no projection row is written. Otherwise the
+  step deletes every row of the six families in the range (each family's
+  deleted count must equal the pre-verify's actual count), lists the range's
+  month keys from the `(work_id, day)` range, and recomputes them with the
+  completion's own statements, issued one at a time in the completion's order
+  and with its binds: per chunk of at most 50 month keys the source-watermark
+  bound and the four monthly inserts, then per chunk of at most 50 year keys
+  the country-year and institution-year inserts. It skips the completion's six
+  keyed deletes, which the range delete has made provably empty, and calls no
+  completion function. It then post-verifies the range and commits only an
+  exact result. The run row advances its cursor to the range's last unit, or at
+  plus infinity clears it, sets `VERIFYING` and `build_completed_at`; it adds
+  the step's counters and the pre-verify's found counts, and records the build
+  frontiers. A step never writes `metric_rollup_work_day`, a delta, the state
+  row, a canonical record or revision, or a reconciliation-ledger row, never
+  moves the frontier and never truncates or takes `ACCESS EXCLUSIVE`.
+- **Verify page (`VERIFYING`, `REPEATABLE READ`).** Only `SET LOCAL`
+  statements precede its table locks (`statement_timeout` = the page budget in
+  milliseconds, `lock_timeout = '5s'`, the idle timeout, `plan_cache_mode`);
+  then `LOCK TABLE` of the six projection tables in section 3.7's fixed order,
+  `metric_rollup_work_day` and `metric_rollup_work_day_state`, each `IN ACCESS
+  SHARE MODE`, all before the first query, so a concurrent section 3.7
+  `TRUNCATE` or a table-rewriting migration cannot cross the snapshot. The
+  isolation assertion is the first query and freezes the snapshot. The run row
+  is locked `FOR UPDATE`; a run row updated after the snapshot is a
+  serialization failure, `METRIC_REBUILD_RETRYABLE`. The page reads `W`
+  without a lock in the same snapshot, sizes itself with the page budgets,
+  verifies its range and updates only the run row: cursor, counters, per-family
+  counts and frontiers, and at plus infinity the terminal status. A page takes
+  no state-row or work-row lock and writes nothing but the run row. The page
+  budget runs from the first `LOCK TABLE` to the end of the transaction.
+- **Independent range verifier.** One statement in `verification.rs` applies
+  section 3.7's generic rules (mask-set resolution by anti-join minimality,
+  the Amendment 6 totals, the yearly state derived straight from work-day
+  rows) to one range's work-day rows and actual rows. It returns section 3.7's
+  five counts per family, the greatest actual watermark per family and the
+  range's work-day row and month-key counts. It shares no SQL text, constant or
+  macro with the writer. Its bounds are bind parameters, and every predicate is
+  index-bounded by `work_id`. The rendered text of section 3.7's whole-table
+  verification statement is byte-identical, pinned by a hash test.
+- **Exactness invariants.** Assuming no out-of-band write reaches the
+  projection or work-day tables: after a step commits with cursor `c`, every
+  later committed state is exact on `(minus infinity, c]` at its own frontier
+  (I1; this and `VERIFIED` also assume the completion's keyed recomputation is
+  correct). Beyond the cursor nothing is claimed until its step (I2). A
+  committed step either replaces a range with an exact one in one transaction
+  or leaves it untouched; readers never wait for a step and see each range
+  before or after it, never half-replaced; a range changes only if it was
+  inexact (I3). Runs never write work-day rows, deltas, the state row,
+  canonical rows or reconciliation ledgers and never move the frontier; pages
+  write only the run row; a `VERIFY` run never writes a projection row (I4). A
+  phase that reaches plus infinity tiles the whole unit space without gap or
+  overlap, and every orphan lies in exactly one range (I5). `RECONCILED` proves
+  the six families exact at one `W` as of the last page's snapshot, without the
+  completion assumption: every page saw the same `W`, so no completion
+  committed during the traversal and no step ran. `VERIFIED` proves each range
+  exact at its own frontier and is health evidence only (I6).
+- **Concurrency.** Canonical ingestion takes works `FOR UPDATE` and then the
+  state row, the order a step uses; a direct wait behind a step is at most 7 s
+  on a work row (`STEP_LOCK_BUDGET + STEP_HOLD_BUDGET`) and at most 5 s on the
+  state row, each plus commit time, and under the pacing rule below a step adds
+  at most about 12 s to any ingestion statement, leaving at least 18 s of its
+  30 s statement timeout. Completions, claims and allocation serialize with
+  steps on the state row and are not blocked by pages; a completion's
+  foreign-key `FOR KEY SHARE` on works is compatible with a step's. Section
+  3.7's rebuild serializes with steps on the state row, and its `TRUNCATE`
+  waits for a page's `ACCESS SHARE`. Section 3.7's verification and the
+  dashboard and widget reads are never blocked by a step or a page. A second
+  caller on the same step gets `advanced: false` (or `RETRYABLE` if its lock
+  budget runs out first); on the same page it gets `RETRYABLE`.
+- **Lock order.** Step: works `FOR KEY SHARE` (ascending), the state row, the
+  run row, then `ROW EXCLUSIVE` on the projection tables with their
+  foreign-key `FOR KEY SHARE` on publication, platform, measure and
+  institution. Page: the eight tables in `ACCESS SHARE`, then its run row. A
+  step adds no lock-order edge and never waits for a work while holding the
+  state row. The completion's pre-existing order (state row before its
+  foreign-key lock on works) is unchanged; a step never deadlocks with
+  ingestion unless that completion inversion is live.
+
+Bounds, server-fixed in `metric_rollup_delta/mod.rs`; changing any needs an
+amendment with evidence:
+
+```text
+STEP_PRESIZE_BUDGET         5 s    (pre-sizing, before any row lock)
+STEP_LOCK_BUDGET            2 s    (first work-row lock until the state row is held)
+STEP_HOLD_BUDGET            5 s    (state-row hold, enforced per statement)
+STEP_MAX_MONTH_KEYS         1,000
+STEP_MAX_WORK_DAY_ROWS      50,000
+STEP_MAX_REPLACING_READ     4,000,000  (replacing-read figure of a step; provisional, F4 confirms)
+STEP_CHUNK_KEYS             50     (= the section 3.7 chunk; months and years)
+SIZING_BATCH_WORKS          256    (works per sizing statement)
+PAGE_BUDGET                 15 s   (from LOCK TABLE to commit, enforced per statement)
+PAGE_MAX_MONTH_KEYS         10,000
+PAGE_MAX_WORK_DAY_ROWS      500,000
+lock_timeout                5 s    (run row, LOCK TABLE, start and abandon)
+statement_timeout ceiling   30 s
+dispatch and status reads   1 s    (lock_timeout and statement_timeout)
+pool checkout               2 s    (every operation, one connection)
+```
+
+- **Sizing.** One recursive sizing statement walks forward from the cursor
+  work by work (the next `work_id` by `ORDER BY work_id LIMIT 1` over the
+  `(work_id, day)` index, then that work's counts through an index range on
+  that work alone), carrying running totals, and stops after the first work
+  that fills a budget or after `SIZING_BATCH_WORKS` works. Whole works are
+  taken while they fit; if the first work alone exceeds a budget, one more
+  statement returns its per-year counts and the range takes its years while
+  they fit; at least one unit is always taken. Another sizing statement is
+  issued only when the batch limit stopped the walk with budgets unfilled.
+- **Replacing-read figure.** The sum of a month term (over the step's
+  work-months, the month keys of that work-month times the work's work-day rows
+  in that month) and a year term (over the step's year keys, the work's total
+  work-day rows across its whole history, years before the cursor included).
+  Sizing computes it from the same per-work counts, and
+  `STEP_MAX_REPLACING_READ` is a third step budget beside keys and rows. Every
+  build step is sized by it, so units that each fit cannot add up past it.
+- **The F4 line.** "Max of hold / fill <= 4 s in each mix" (fill = the step's
+  figure over `STEP_MAX_REPLACING_READ`) shows that every admitted step commits
+  inside `STEP_HOLD_BUDGET`, on the assumptions that the hold is close to
+  linear in the two terms with composition-independent per-row costs, that the
+  reads outside the figure stay near F4's (bounded by the whole-work threshold
+  below), that the dearest step is a repair step over fully built tables
+  (measured), that in exact state each section table holds at most one row per
+  work-day row, and that the evidence host is comparable to production's. The
+  hold of every replacing step is fitted by non-negative least squares to an
+  intercept, a cost per statement and a cost per row of the month term, the
+  year term and the step's whole-work rows; both corners (year-term only, and
+  the month term at its cap with the figure full) must be predicted at most
+  4.5 s at full fill, at the largest measured statement count and with the
+  whole-work rows at the threshold. Dead entries left until vacuum are
+  reported, not accepted against.
+- **Floor.** One work-year carrying every (platform, measure) pair of the
+  production registry (every pair, enabled or not), each at F2's density over
+  twelve months, with eight years of history, must have a figure within
+  `STEP_MAX_REPLACING_READ`: about 3,240 R^2 for R pairs, so 4,000,000 admits R
+  <= 35. The production pair count comes from the census's counts-only read or
+  a separately authorized read, never from a run grant, and is stated on the
+  stage issue before F4 is judged.
+- **Whole-work threshold.** The largest whole-work row total among the F4 and
+  F5 replacing steps that committed within 4 s. It must be at least F3's
+  whole-work total (the census maximum) and at least production's largest
+  whole-work total; otherwise the stage HOLDs for an amendment.
+- **Limits.** No corpus-size ceiling: run time scales with the corpus and is
+  reported, not bounded. A single unit above a size budget is still attempted
+  alone; it is a HOLD only if it cannot finish inside `STEP_HOLD_BUDGET`, and
+  then it fails the same step on every retry. F5's growths measure, as repair
+  steps, the largest units that commit within 4 s. A range whose orphan
+  deletion cannot finish is the same HOLD. Neither is resolved by a silent
+  constant change or a new index.
+
+Section 17 evidence that sets or confirms these values: see "Evidence" below.
+
+Errors: a local error boundary with fixed messages and a stable
+`extensions.type`. No message carries a frontier, row, SQL, principal, cursor
+or connection detail, and `thoth-errors` is unchanged.
+
+| Code | When | Caller action |
+| --- | --- | --- |
+| `METRIC_QUERY_INVALID` | A malformed `expectedStepCount`, or an unknown `runId`. | Fix the request. |
+| `METRIC_REBUILD_RUN_OPEN` | `start` while a run is open. | Adopt the run, or let it finish or abandon it. |
+| `METRIC_REBUILD_RETRYABLE` | A lock timeout, a statement timeout, the step or page budget, a serialization failure, a deadlock, a session ended by the idle timeout or a closed connection, an expired 2 s pool checkout, or an empty re-sized range. Nothing was committed. | Back off at least 1 s in either phase, and while `BUILDING` at least the pacing pause; retry with the same `expectedStepCount` a bounded number of times, then HOLD. |
+| `METRIC_REBUILD_BLOCKED` | A work-day row in the range watermarked above `W`, a source watermark above `W`, a `bigint` overflow, a delete-count mismatch, or a post-step verification that is not exact. Nothing was committed, and it will repeat. | HOLD for a separately authorized repair. |
+| `INTERNAL_ERROR` | Anything else. | HOLD. |
+
+The classifier works on the database error before any conversion: SQLSTATE
+40001 (serialization failure) and a closed connection are retryable; the
+server messages `canceling statement due to lock timeout`, `canceling
+statement due to statement timeout`, `deadlock detected` and `terminating
+connection due to idle-in-transaction timeout` are matched exactly and are
+retryable; a unique violation on the one-open-run index is
+`METRIC_REBUILD_RUN_OPEN`; `bigint out of range` is `METRIC_REBUILD_BLOCKED`;
+anything unclassified is `INTERNAL_ERROR`, so a misclassification fails safe
+as a HOLD and never causes a write. Exact matching assumes English server
+messages (`lc_messages`), which the tests assert and every run grant checks.
+After a crash, a deploy or a lost response the caller reads the run and
+continues with its `stepCount`: committed steps and pages are durable and an
+interrupted one rolled back.
+
+Logging: one `info` line per committed step or page, one `warn` line per
+refusal, with fixed text (`metric_rollup_rebuild run=<uuid> mode=... phase=...
+step=<n> outcome=<replaced|exact|verified> units=... month_keys=...
+work_day_rows=... missing=... extra=... mismatched=... frontier=<W>
+position_permille=... hold_ms=...`; a range line `range_first=<work_id>/<year>
+range_last=<work_id>/<year>` only when a count is non-zero; a refusal line
+`refused=<RETRYABLE|BLOCKED|INTERNAL> reason=<fixed reason id>
+range_first=... hold_ms=...`; and one line per terminal status with the step
+count and both verify frontiers). Range identities go to server logs only,
+never to GraphQL.
+
+Operator procedure:
+
+- **Run grants and the run-grant aggregate.** Every non-disposable run needs
+  its own grant per environment, and every run grant checks `lc_messages`.
+  Each `REBUILD` run grant first runs the read-only aggregate below over
+  `metric_rollup_work_day` (counts only, a full scan, once per grant), in a
+  `READ ONLY` transaction with a `statement_timeout` stated in the grant,
+  through a read-only database session, never through a test command. It runs
+  the constant `METRIC_ROLLUP_RUN_GRANT_AGGREGATE_SQL` from the merged source
+  at the deployed tag. Taking each unit alone, it returns the units that exceed
+  a step budget (rows, keys or figure), each with its work-day rows, month keys
+  and replacing-read figure, and two maxima on every row: the largest
+  month-key count per work-month and the largest whole-work row total (one row
+  with `NULL` unit columns when no unit exceeds a budget). A unit over a step
+  budget passes only if one of F5's growths (below) dominates it in all three
+  of rows, keys and figure; otherwise it is a HOLD before the run starts. A
+  unit within every step budget is not compared with F5. A month-key count per
+  work-month above the k that F4's mix (b) reached, or a whole-work total above
+  the whole-work threshold, is a HOLD too. A `VERIFY` run never replaces, so
+  the check does not apply to it. The step budgets are bind parameters, bound
+  by the grant to the bounds above:
+  `$1` = 50000 (`STEP_MAX_WORK_DAY_ROWS`),
+  `$2` = 1000 (`STEP_MAX_MONTH_KEYS`) and
+  `$3` = 4000000 (`STEP_MAX_REPLACING_READ`).
+  A test compares this quotation and these values with the constants, and
+  another asserts that the aggregate returns exactly the units sizing finds
+  over a step budget on every fixture.
+
+```sql
+WITH series_month AS (
+    SELECT r.work_id, r.platform_id, r.measure_id,
+           date_trunc('month', r.day)::date AS month_start,
+           count(*) AS rows
+    FROM public.metric_rollup_work_day r
+    GROUP BY r.work_id, r.platform_id, r.measure_id, date_trunc('month', r.day)
+),
+work_month AS (
+    SELECT work_id, month_start,
+           count(*) AS month_keys,
+           SUM(rows) AS rows
+    FROM series_month
+    GROUP BY work_id, month_start
+),
+work_year AS (
+    SELECT work_id, date_trunc('year', month_start)::date AS year_start,
+           SUM(rows) AS rows,
+           SUM(month_keys) AS month_keys,
+           SUM(month_keys * rows) AS month_term
+    FROM work_month
+    GROUP BY work_id, date_trunc('year', month_start)
+),
+year_keys AS (
+    SELECT work_id, date_trunc('year', month_start)::date AS year_start,
+           count(DISTINCT (platform_id, measure_id)) AS year_keys
+    FROM series_month
+    GROUP BY work_id, date_trunc('year', month_start)
+),
+whole_work AS (
+    SELECT work_id, SUM(rows) AS rows
+    FROM work_year
+    GROUP BY work_id
+),
+sized AS (
+    SELECT y.work_id, y.year_start,
+           y.rows::bigint AS work_day_rows,
+           y.month_keys::bigint AS month_keys,
+           (y.month_term + k.year_keys * w.rows)::bigint AS replacing_read_figure
+    FROM work_year y
+    JOIN year_keys k ON k.work_id = y.work_id AND k.year_start = y.year_start
+    JOIN whole_work w ON w.work_id = y.work_id
+),
+maxima AS (
+    SELECT (SELECT COALESCE(MAX(month_keys), 0) FROM work_month)::bigint
+               AS max_month_keys_per_work_month,
+           (SELECT COALESCE(MAX(rows), 0) FROM whole_work)::bigint
+               AS max_whole_work_rows
+)
+SELECT s.work_id, s.year_start, s.work_day_rows, s.month_keys, s.replacing_read_figure,
+       m.max_month_keys_per_work_month, m.max_whole_work_rows
+FROM maxima m
+LEFT JOIN sized s
+  ON s.work_day_rows > $1 OR s.month_keys > $2 OR s.replacing_read_figure > $3
+ORDER BY s.work_id, s.year_start
+```
+
+- **Activation window.** Activation (section 3.6) runs under its own grant,
+  which names the evidence run and is its run grant. From taking the evidence
+  to switching serving on, no other run of this section is started, advanced
+  or abandoned, and no `verifyMetricRollupMonths` or
+  `rebuildMetricRollupMonths` call is made; ad hoc section 3.7 tasks are not
+  run. The invocations that advance the evidence run (a `VERIFY` run may span
+  several) and read-only status reads are allowed, among them the latest-run
+  check of section 3.6, made immediately before the restart that switches
+  serving on.
+- **Rules while a run is open.** One orchestrator per environment. No section
+  3.7 rebuild. No deployment whose migrations need `ACCESS EXCLUSIVE` on the
+  six tables, `metric_rollup_work_day` or `metric_rollup_work_day_state`: it
+  would queue behind a page's `ACCESS SHARE` and then block readers and
+  completions.
+- **Pacing.** After every advance call made while the run is `BUILDING`,
+  whatever its outcome (advanced, `advanced: false`, any refusal or a
+  transport error), the orchestrator pauses at least `max(1 s, 2 x the elapsed
+  time of that call)`, and a `RETRYABLE` back-off is never shorter. After a
+  transport error or client timeout, in either phase, it pauses at least 25 s,
+  because the server transaction can outlive the call; it also pauses 25 s
+  before the first advance of every invocation, and its client timeout is at
+  least 30 s. This keeps the state row and the step's works free at least two
+  thirds of the time. Pages need no pause.
+
+```text
+REBUILD (initial population or repair):
+ 1. metricRollupMonthRebuildRun -> no open run (or abandon a stale one, with a reason recorded).
+ 2. startMetricRollupMonthRebuild(REBUILD) -> runId, stepCount 0.
+ 3. loop: advanceMetricRollupMonthRebuild(runId, stepCount), with pacing
+      advanced=true  -> continue with run.stepCount
+      advanced=false -> re-read; continue if open, stop if terminal
+      RETRYABLE      -> back off (at least 1 s, and the pacing pause while BUILDING), retry the
+                        same stepCount; HOLD after the bounded attempts
+      BLOCKED / INTERNAL_ERROR -> stop, HOLD, alert. The run stays open at its cursor. Record the
+                                  refusal, abandon the run, and escalate. A new run blocks at the
+                                  same range until a separately authorized repair.
+ 3a. Schedule build invocations clear of the daily collection run where possible. Steps that
+     meet a long ingestion batch or completion refuse RETRYABLE and are retried under pacing.
+ 4. Run the verify phase in a window with no rollup application, for example after the
+    daily rollup run has finished and well before the next one. Then the frontier does not
+    move and the run can end RECONCILED.
+ 5. RECONCILED -> exact at one frontier. For activation, the evidence is taken in the
+                  activation window and used at once (section 3.6); a RECONCILED run is never
+                  carried forward as standing evidence.
+    VERIFIED   -> healthy, but not activation evidence. Repeat as a VERIFY run in a quiet window.
+    MISMATCHED -> HOLD. Incident: maintenance disagreed with the verifier. Never auto-rebuild.
+
+VERIFY (health check or activation evidence): the same loop with mode VERIFY. It writes no
+projection row. Once verifyMetricRollupMonths nears its 30 s envelope, periodic health checks
+move to VERIFY runs.
+
+Stop: abandonMetricRollupMonthRebuild(runId). This is safe at any time (I3).
+```
+
+- **Repair after activation.** After activation, a section 3.8 `REBUILD` may
+  repair inexact ranges while readers stay on. Each range changes atomically
+  from inexact to exact, no exact range is rewritten, and readers never wait
+  for a step. Readers may see repaired and unrepaired ranges side by side until
+  the run ends. This records an exception, for post-activation repair only, to
+  the rule that serving never sees a partially rebuilt state (issue #1012 and
+  section 3.6); its "at least as correct" rests on I1, and so on the
+  completion assumption.
+
+Evidence (section 17 of the specification; raw numbers in the implementation
+report):
+
+- Pending: recorded when the section 17 evidence is run.
+
+Scope boundaries a consumer must not infer:
+
+- The run row is a maintenance cursor, not a job, attempt or event: Thoth runs
+  nothing asynchronously, and every step is a synchronous request from the
+  orchestrator. There is no generic job framework, lease or cross-programme
+  claim protocol.
+- Section 3.7's pair stays the fast path for small corpora. It is not run
+  while a run of this section is open. Above 100000 represented month keys, or
+  once whole-table verification nears its 30 s statement, the supported path
+  is this section.
+- A mismatch never starts a rebuild, and Thoth never advances a run on its
+  own. `VERIFIED` is never activation evidence.
+- Every run fact lives in PostgreSQL. The orchestrator keeps one invocation's
+  evidence in memory only, and needs no durable state of its own.
+- Merging this contract activates nothing. The consumer and infrastructure
+  stages, every non-disposable run, deployment and activation remain
+  separately authorized gates.
 
 ## 4. Dashboard/widget
 
@@ -1570,9 +2204,15 @@ Contract properties consumers may rely on:
   before them in the transaction. No combined settings statement exists, and
   B2 adds no statement name; its form ceilings are in section 4.3.
 - **Activation gate.** The monthly projections are served only once, under
-  separate authorization, the `MET-WP4-03A` migration has run and a full
-  historical rebuild has been reconciled at a recorded work-day frontier
-  (section 3.6). Merging this contract activates nothing.
+  separate authorization, the `MET-WP4-03A` migration has run and the derived
+  state has been shown exact at a recorded work-day frontier, either by an
+  exact `verifyMetricRollupMonths` or by a section 3.8 run of either mode that
+  reached `RECONCILED`, with the evidence taken in the activation window and
+  used at once, as section 3.6 states (the latest-run check, and no other run
+  or section 3.7 call between the evidence and the switch). `VERIFIED` is
+  never sufficient. After activation, a section 3.8 `REBUILD` may repair
+  inexact ranges while readers stay on (section 3.8). Merging this contract
+  activates nothing.
 
 Scope boundaries a consumer must not infer:
 
