@@ -1494,12 +1494,16 @@ pool checkout               2 s    (every operation, one connection)
   twelve months, with eight years of history, must have a figure within
   `STEP_MAX_REPLACING_READ`: about 3,240 R^2 for R pairs, so 4,000,000 admits R
   <= 35. The production pair count comes from the census's counts-only read or
-  a separately authorized read, never from a run grant, and is stated on the
-  stage issue before F4 is judged.
+  a separately authorized read, never from the `MET-WP4-03A-OPS-03`
+  implementation grant, and is stated on the stage issue before F4 is judged.
 - **Whole-work threshold.** The largest whole-work row total among the F4 and
   F5 replacing steps that committed within 4 s. It must be at least F3's
   whole-work total (the census maximum) and at least production's largest
-  whole-work total; otherwise the stage HOLDs for an amendment.
+  whole-work total; otherwise the stage HOLDs for an amendment. Production's
+  total, like the pair count, comes from the census's counts-only read or a
+  separately authorized read, never from the implementation grant; if
+  production does not yet hold the legacy history, F3's total is the floor.
+  The run-grant aggregate stays the binding check.
 - **Limits.** No corpus-size ceiling: run time scales with the corpus and is
   reported, not bounded. A single unit above a size budget is still attempted
   alone; it is a HOLD only if it cannot finish inside `STEP_HOLD_BUDGET`, and

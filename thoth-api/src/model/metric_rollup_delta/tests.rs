@@ -5350,7 +5350,11 @@ pub(crate) fn percentiles(samples: &mut [Duration]) -> (u128, u128, u128) {
 /// masks per day. Values, country choices and mask draws come from a seeded
 /// `random()`; institution choices hash generated UUIDs, so the institution
 /// row count varies slightly between runs while the shape does not.
-fn seed_production_shaped_days(pool: &PgPool, fixture: &RecordFixture, works: i64) -> i64 {
+pub(crate) fn seed_production_shaped_days(
+    pool: &PgPool,
+    fixture: &RecordFixture,
+    works: i64,
+) -> i64 {
     exec(pool, "SELECT setseed(0.20260923)");
     exec(
         pool,

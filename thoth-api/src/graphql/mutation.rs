@@ -501,7 +501,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Start one resumable monthly rebuild run: REBUILD builds the six derived rollup projection families range by range and then verifies them page by page, VERIFY only verifies them and never writes a projection row. Requires the METRICS_INGEST_SERVICE role. The run records the durable rollup frontier at its start and a durable cursor. At most one run is open: starting while one is open fails METRIC_REBUILD_RUN_OPEN. The caller drives every step with advanceMetricRollupMonthRebuild; Thoth never advances a run on its own."
+        description = "Start one resumable monthly rebuild run: REBUILD builds the six derived rollup projection families range by range and then verifies them page by page, VERIFY only verifies them and never writes a projection row. Requires the METRICS_INGEST_SERVICE role. The run records the durable rollup frontier at its start and its durable position. At most one run is open: starting while one is open fails METRIC_REBUILD_RUN_OPEN. The caller drives every step with advanceMetricRollupMonthRebuild; Thoth never advances a run on its own."
     )]
     fn start_metric_rollup_month_rebuild(
         context: &Context,
@@ -528,7 +528,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Abandon an open resumable monthly rebuild run. Requires the METRICS_INGEST_SERVICE role. The run becomes ABANDONED and keeps its cursor, counters and frontiers; a terminal run is returned unchanged. The projection tables stay exactly as the committed steps left them, each committed range exact."
+        description = "Abandon an open resumable monthly rebuild run. Requires the METRICS_INGEST_SERVICE role. The run becomes ABANDONED and keeps its position, counters and frontiers; a terminal run is returned unchanged. The projection tables stay exactly as the committed steps left them, each committed range exact."
     )]
     fn abandon_metric_rollup_month_rebuild(
         context: &Context,

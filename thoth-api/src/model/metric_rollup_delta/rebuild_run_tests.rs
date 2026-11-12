@@ -4722,3 +4722,2712 @@ fn a_new_work_between_the_presize_and_the_resize_cuts_the_range_or_empties_it() 
     assert_eq!(run.status, Reconciled);
     assert!(verification(&pool).matches);
 }
+
+// ===========================================================================
+// Performance evidence (section 17 of the specification)
+// ===========================================================================
+
+/// The section 17 evidence, as ignored tests run one at a time, for example
+/// `cargo test -p thoth-api --lib rebuild_run_tests::evidence::f1 --
+/// --ignored --nocapture`. Durations depend on the host, so every committed
+/// step and page is printed raw (`RAW` lines) and summarised (`SUMMARY`
+/// lines), each section 17 acceptance line is printed with what was measured
+/// (`ACCEPT` lines), and only correctness outcomes are asserted. Scale knobs
+/// are environment variables named in each fixture; every default is the
+/// specified scale.
+mod evidence {
+    use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
+    use std::sync::RwLock;
+
+    use diesel::sql_types::{BigInt, Integer};
+
+    use super::*;
+    use crate::model::metric_rollup_delta::crud::{
+        claim_metric_rollup_deltas, complete_metric_rollup_deltas, MONTH_INSERT_STATEMENTS,
+        MONTH_SOURCE_WATERMARK_SQL, YEAR_COUNTRY_INSERT_SQL, YEAR_INSTITUTION_INSERT_SQL,
+    };
+    use crate::model::metric_rollup_delta::tests::{percentiles, seed_production_shaped_days};
+    use crate::model::metric_rollup_delta::METRIC_ROLLUP_CLAIM_MAX_BATCH;
+
+    /// How many bytes of each statement the evidence log keeps: enough to
+    /// tell every statement of a step or page apart.
+    const HEAD_BYTES: usize = 400;
+
+    /// The institutions the census-shaped fixtures draw from.
+    const INSTITUTIONS: i64 = 1_000;
+
+    /// The application name of the run's connection.
+    const STEP_APPLICATION: &str = "ops03-step";
+
+    /// How often the F6 sampler reads `pg_blocking_pids()`.
+    const SAMPLE_INTERVAL: Duration = Duration::from_millis(100);
+
+    /// A scale knob: the environment variable `name`, or its default.
+    fn knob(name: &str, default: i64) -> i64 {
+        std::env::var(name)
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(default)
+    }
+
+    fn ms(duration: Duration) -> String {
+        format!("{:.1}", duration.as_secs_f64() * 1_000.0)
+    }
+
+    fn ms_of(micros: u128) -> String {
+        format!("{:.1}", micros as f64 / 1_000.0)
+    }
+
+    fn secs(duration: Duration) -> String {
+        format!("{:.1}", duration.as_secs_f64())
+    }
+
+    fn quoted(ids: &[Uuid]) -> String {
+        ids.iter()
+            .map(|id| format!("'{id}'"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    #[derive(QueryableByName)]
+    struct Count {
+        #[diesel(sql_type = BigInt)]
+        n: i64,
+    }
+
+    /// The `n` column of a statement's single row.
+    fn count_of(pool: &PgPool, statement: &str) -> i64 {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(statement)
+            .get_result::<Count>(&mut connection)
+            .expect("a count")
+            .n
+    }
+
+    /// The PostgreSQL version and settings of the evidence host, and its
+    /// round-trip latency over 200 `SELECT 1` on one connection.
+    fn host_facts(pool: &PgPool) {
+        let setting = |name: &str| {
+            text_scalar(pool, &format!("current_setting('{name}')")).unwrap_or_default()
+        };
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let mut round_trips = Vec::new();
+        for _ in 0..200 {
+            let started = Instant::now();
+            sql_query("SELECT 1")
+                .execute(&mut connection)
+                .expect("a round trip");
+            round_trips.push(started.elapsed());
+        }
+        drop(connection);
+        let (p50, p95, max) = percentiles(&mut round_trips);
+        println!(
+            "HOST|PostgreSQL {} ({})|round trip SELECT 1 p50 {} ms, p95 {} ms, max {} ms|\
+             cpus {}|shared_buffers {}|work_mem {}|effective_cache_size {}|max_wal_size {}|\
+             autovacuum {}|jit {}|random_page_cost {}",
+            setting("server_version"),
+            setting("server_version_num"),
+            ms_of(p50),
+            ms_of(p95),
+            ms_of(max),
+            thread::available_parallelism().map_or(0, |n| n.get()),
+            setting("shared_buffers"),
+            setting("work_mem"),
+            setting("effective_cache_size"),
+            setting("max_wal_size"),
+            setting("autovacuum"),
+            setting("jit"),
+            setting("random_page_cost"),
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // The run's connection and its statement log
+    // -----------------------------------------------------------------------
+
+    /// One statement event: when, whether it finished, and its head.
+    type Event = (Instant, bool, String);
+
+    type Events = Arc<Mutex<Vec<Event>>>;
+
+    /// The first `HEAD_BYTES` of a statement's text and binds, without
+    /// formatting the rest.
+    struct Head(String);
+
+    impl std::fmt::Write for Head {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            let room = HEAD_BYTES.saturating_sub(self.0.len());
+            if text.len() <= room {
+                self.0.push_str(text);
+                return Ok(());
+            }
+            let mut cut = room;
+            while !text.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            self.0.push_str(&text[..cut]);
+            Err(std::fmt::Error)
+        }
+    }
+
+    /// Tags each connection with an application name and, with `events`,
+    /// captures its statements with their start and finish times.
+    #[derive(Debug)]
+    struct Tagged {
+        application_name: &'static str,
+        events: Option<Events>,
+    }
+
+    impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for Tagged {
+        fn on_acquire(&self, connection: &mut PgConnection) -> Result<(), diesel::r2d2::Error> {
+            sql_query(format!(
+                "SET application_name = '{}'",
+                self.application_name
+            ))
+            .execute(connection)
+            .map_err(diesel::r2d2::Error::QueryError)?;
+            if let Some(events) = &self.events {
+                let events = Arc::clone(events);
+                connection.set_instrumentation(move |event: InstrumentationEvent<'_>| {
+                    let at = Instant::now();
+                    let (done, query) = match event {
+                        InstrumentationEvent::StartQuery { query, .. } => (false, query),
+                        InstrumentationEvent::FinishQuery { query, .. } => (true, query),
+                        _ => return,
+                    };
+                    let mut head = Head(String::new());
+                    let _ = std::fmt::write(&mut head, format_args!("{query}"));
+                    events
+                        .lock()
+                        .expect("evidence log")
+                        .push((at, done, head.0));
+                });
+            }
+            Ok(())
+        }
+    }
+
+    fn tagged_pool(
+        application_name: &'static str,
+        size: u32,
+        events: Option<Events>,
+    ) -> Arc<PgPool> {
+        let pool = Pool::builder()
+            .max_size(size)
+            .connection_customizer(Box::new(Tagged {
+                application_name,
+                events,
+            }))
+            .build(ConnectionManager::<PgConnection>::new(test_db_url()))
+            .expect("Failed to create an evidence pool");
+        Arc::new(pool)
+    }
+
+    /// The run's connection: one pooled connection tagged
+    /// `STEP_APPLICATION`, whose statements are captured.
+    struct Evidence {
+        pool: Arc<PgPool>,
+        events: Events,
+    }
+
+    impl Evidence {
+        fn new() -> Self {
+            let events: Events = Arc::new(Mutex::new(Vec::new()));
+            let pool = tagged_pool(STEP_APPLICATION, 1, Some(Arc::clone(&events)));
+            Evidence { pool, events }
+        }
+
+        fn take(&self) -> Vec<Event> {
+            std::mem::take(&mut *self.events.lock().expect("evidence log"))
+        }
+    }
+
+    /// What the statement log says about one advance call.
+    #[derive(Clone, Copy, Debug, Default)]
+    struct Timing {
+        /// From `BEGIN` to the end of the transaction: a page's time.
+        transaction: Duration,
+        /// From the state-row lock to the end of the transaction: a step's
+        /// hold.
+        state_hold: Duration,
+        /// From the work-row locks to the end of the transaction.
+        work_hold: Duration,
+        /// The sizing statements' time, pre-size and re-size together.
+        sizing: Duration,
+        /// Every statement the call sent, the pool's checkout check included.
+        statements: usize,
+        /// The transaction's statements, `BEGIN` and `COMMIT` included.
+        in_transaction: usize,
+        set_locals: usize,
+    }
+
+    fn is_statement(text: &str, statement: &str) -> bool {
+        text.starts_with(&statement[..statement.len().min(HEAD_BYTES / 2)])
+    }
+
+    fn timing(events: &[Event], end: Instant) -> Timing {
+        let mut timing = Timing::default();
+        let mut begun: Option<Instant> = None;
+        let mut ended: Option<Instant> = None;
+        let mut state_locked: Option<Instant> = None;
+        let mut works_locked: Option<Instant> = None;
+        let mut started: Option<Instant> = None;
+        for (at, done, text) in events {
+            if !*done {
+                started = Some(*at);
+                timing.statements += 1;
+                if text.starts_with("BEGIN") {
+                    begun = Some(*at);
+                }
+                if begun.is_some() && ended.is_none() {
+                    timing.in_transaction += 1;
+                }
+                if is_set_local(text) {
+                    timing.set_locals += 1;
+                }
+                continue;
+            }
+            let took = started
+                .take()
+                .map_or(Duration::ZERO, |from| at.saturating_duration_since(from));
+            if is_statement(text, SIZING_SQL) || is_statement(text, PER_YEAR_SQL) {
+                timing.sizing += took;
+            } else if text_of(text) == LOCK_STATE_SQL {
+                state_locked = Some(*at);
+            } else if is_statement(text, LOCK_WORKS_SQL) {
+                works_locked = Some(*at);
+            } else if begun.is_some()
+                && (text.starts_with("COMMIT") || text.starts_with("ROLLBACK"))
+            {
+                ended = Some(*at);
+            }
+        }
+        let end = ended.unwrap_or(end);
+        let since = |from: Option<Instant>| {
+            from.map_or(Duration::ZERO, |from| end.saturating_duration_since(from))
+        };
+        timing.transaction = since(begun);
+        timing.state_hold = since(state_locked);
+        timing.work_hold = since(works_locked);
+        timing
+    }
+
+    // -----------------------------------------------------------------------
+    // Direct counts over a range of units
+    // -----------------------------------------------------------------------
+
+    /// The SQL predicate of the work-day rows of the units in `(lo, hi]`.
+    fn range_sql(lo: Option<Unit>, hi: Option<Unit>) -> String {
+        let end = |unit: Unit| format!("DATE '{:04}-01-01'", unit.year_start.year() + 1);
+        let mut parts = vec!["TRUE".to_string()];
+        if let Some(lo) = lo {
+            parts.push(format!(
+                "(work_id > '{work}' OR (work_id = '{work}' AND day >= {end}))",
+                work = lo.work_id,
+                end = end(lo)
+            ));
+        }
+        if let Some(hi) = hi {
+            parts.push(format!(
+                "(work_id < '{work}' OR (work_id = '{work}' AND day < {end}))",
+                work = hi.work_id,
+                end = end(hi)
+            ));
+        }
+        parts.join(" AND ")
+    }
+
+    /// Direct counts over the units of a range: its rows and month keys,
+    /// both terms of the replacing-read figure, the whole-history rows of
+    /// its works (summed, and the largest), the most month keys of one
+    /// work-month, and its works.
+    #[derive(Clone, Debug, Default, QueryableByName)]
+    struct Terms {
+        #[diesel(sql_type = BigInt)]
+        rows: i64,
+        #[diesel(sql_type = BigInt)]
+        month_keys: i64,
+        #[diesel(sql_type = BigInt)]
+        month_term: i64,
+        #[diesel(sql_type = BigInt)]
+        year_term: i64,
+        #[diesel(sql_type = BigInt)]
+        whole_rows: i64,
+        #[diesel(sql_type = BigInt)]
+        max_whole: i64,
+        #[diesel(sql_type = BigInt)]
+        max_month_keys: i64,
+        #[diesel(sql_type = Array<SqlUuid>)]
+        work_ids: Vec<Uuid>,
+    }
+
+    impl Terms {
+        fn figure(&self) -> i64 {
+            self.month_term + self.year_term
+        }
+
+        fn fill(&self) -> f64 {
+            self.figure() as f64 / METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ as f64
+        }
+    }
+
+    fn terms(pool: &PgPool, lo: Option<Unit>, hi: Option<Unit>) -> Terms {
+        let range = range_sql(lo, hi);
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(format!(
+            "WITH d AS ( \
+                 SELECT work_id, day, platform_id, measure_id FROM metric_rollup_work_day \
+                 WHERE {range}), \
+             wm AS ( \
+                 SELECT work_id, date_trunc('month', day) AS m, count(*) AS rows, \
+                        count(DISTINCT (platform_id, measure_id)) AS keys \
+                 FROM d GROUP BY 1, 2), \
+             uy AS ( \
+                 SELECT work_id, date_trunc('year', day) AS y, \
+                        count(DISTINCT (platform_id, measure_id)) AS series \
+                 FROM d GROUP BY 1, 2), \
+             whole AS ( \
+                 SELECT r.work_id, count(*) AS rows FROM metric_rollup_work_day r \
+                 WHERE r.work_id IN (SELECT work_id FROM uy) GROUP BY r.work_id) \
+             SELECT COALESCE((SELECT sum(rows) FROM wm), 0)::bigint AS rows, \
+                    COALESCE((SELECT sum(keys) FROM wm), 0)::bigint AS month_keys, \
+                    COALESCE((SELECT sum(keys * rows) FROM wm), 0)::bigint AS month_term, \
+                    COALESCE((SELECT sum(uy.series * whole.rows) \
+                              FROM uy JOIN whole USING (work_id)), 0)::bigint AS year_term, \
+                    COALESCE((SELECT sum(rows) FROM whole), 0)::bigint AS whole_rows, \
+                    COALESCE((SELECT max(rows) FROM whole), 0)::bigint AS max_whole, \
+                    COALESCE((SELECT max(keys) FROM wm), 0)::bigint AS max_month_keys, \
+                    COALESCE((SELECT array_agg(work_id ORDER BY work_id) FROM whole), \
+                             '{{}}'::uuid[]) AS work_ids"
+        ))
+        .get_result(&mut connection)
+        .expect("the range's terms")
+    }
+
+    fn works_in(pool: &PgPool, lo: Option<Unit>, hi: Option<Unit>) -> Vec<Uuid> {
+        #[derive(QueryableByName)]
+        struct Work {
+            #[diesel(sql_type = SqlUuid)]
+            work_id: Uuid,
+        }
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(format!(
+            "SELECT DISTINCT work_id FROM metric_rollup_work_day WHERE {}",
+            range_sql(lo, hi)
+        ))
+        .load::<Work>(&mut connection)
+        .expect("the range's works")
+        .into_iter()
+        .map(|work| work.work_id)
+        .collect()
+    }
+
+    fn month_key_count(pool: &PgPool) -> i64 {
+        scalar_i64(
+            pool,
+            "(SELECT COUNT(*) FROM (SELECT DISTINCT work_id, platform_id, measure_id, \
+                                       date_trunc('month', day) \
+                                   FROM metric_rollup_work_day) k)",
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Driving a run and measuring each call
+    // -----------------------------------------------------------------------
+
+    /// One committed step or page.
+    #[derive(Clone, Debug)]
+    struct Sample {
+        pass: String,
+        page: bool,
+        /// The run's step count after the call.
+        index: i64,
+        /// Which embedded fixture's works the range covers (`base` for none).
+        class: &'static str,
+        replaced: bool,
+        call: Duration,
+        timing: Timing,
+        units: i64,
+        month_keys: i64,
+        rows: i64,
+        terms: Terms,
+        lo: Option<Unit>,
+        hi: Option<Unit>,
+    }
+
+    impl Sample {
+        /// A step's state-row hold, or a page's time.
+        fn hold(&self) -> Duration {
+            if self.page {
+                self.timing.transaction
+            } else {
+                self.timing.state_hold
+            }
+        }
+    }
+
+    type Classes = Vec<(&'static str, BTreeSet<Uuid>)>;
+
+    /// How one pass drives its run.
+    struct Drive {
+        pass: String,
+        budgets: RunBudgets,
+        /// Pause after every call while `BUILDING` by the section 15 rule.
+        paced: bool,
+        /// Stop when the build phase ends.
+        build_only: bool,
+        /// Count each step's terms directly.
+        terms: bool,
+        classes: Classes,
+        /// Consecutive retryable refusals before the pass stops.
+        max_streak: usize,
+    }
+
+    impl Drive {
+        fn new(pass: &str, classes: &Classes) -> Self {
+            Drive {
+                pass: pass.to_string(),
+                budgets: RunBudgets::PRODUCTION,
+                paced: false,
+                build_only: false,
+                terms: true,
+                classes: classes.clone(),
+                max_streak: 20,
+            }
+        }
+    }
+
+    /// One pass's outcome.
+    struct Driven {
+        pass: String,
+        run: Run,
+        samples: Vec<Sample>,
+        refusals: BTreeMap<String, usize>,
+        longest_streak: usize,
+        /// The build phase's time: its calls, and any pauses.
+        build: Duration,
+        /// The verify phase's time: its calls, and any back-offs.
+        verify: Duration,
+        /// Why the pass stopped before the run ended, if it did.
+        stuck: Option<String>,
+    }
+
+    impl Driven {
+        fn steps(&self, replaced: bool) -> Vec<&Sample> {
+            self.samples
+                .iter()
+                .filter(|sample| !sample.page && sample.replaced == replaced)
+                .collect()
+        }
+
+        fn pages(&self) -> Vec<&Sample> {
+            self.samples.iter().filter(|sample| sample.page).collect()
+        }
+
+        /// Refusals for a spent time budget: the budget check before a
+        /// statement, or a statement cut by its deadline.
+        fn budget_refusals(&self) -> usize {
+            self.refusals
+                .iter()
+                .filter(|(key, _)| {
+                    key.ends_with(reason::BUDGET) || key.ends_with(reason::STATEMENT_TIMEOUT)
+                })
+                .map(|(_, count)| count)
+                .sum()
+        }
+    }
+
+    /// The section 15 pause after an advance call made while `BUILDING`.
+    fn pacing_pause(call: Duration) -> Duration {
+        Duration::from_secs(1).max(call * 2)
+    }
+
+    fn class_of(classes: &Classes, works: &[Uuid]) -> &'static str {
+        classes
+            .iter()
+            .find(|(_, set)| works.iter().any(|work_id| set.contains(work_id)))
+            .map_or("base", |(name, _)| name)
+    }
+
+    /// One committed call's sample, from the run row before and after it.
+    struct Call<'a> {
+        before: &'a RunRow,
+        after: &'a RunRow,
+        building: bool,
+        call: Duration,
+        events: &'a [Event],
+        end: Instant,
+    }
+
+    fn sample(pool: &PgPool, drive: &Drive, call: &Call<'_>) -> Sample {
+        let (before, after) = (call.before, call.after);
+        let lo = before.cursor().expect("the cursor before");
+        let hi = if after.status == before.status {
+            after.cursor().expect("the cursor after")
+        } else {
+            None
+        };
+        let (units, month_keys, rows, replaced) = if call.building {
+            (
+                after.build_units - before.build_units,
+                after.build_month_keys - before.build_month_keys,
+                after.build_work_day_rows - before.build_work_day_rows,
+                after.build_replaced_steps > before.build_replaced_steps,
+            )
+        } else {
+            (
+                after.verify_units - before.verify_units,
+                after.verify_month_keys - before.verify_month_keys,
+                after.verify_work_day_rows - before.verify_work_day_rows,
+                false,
+            )
+        };
+        let terms = if call.building && drive.terms {
+            terms(pool, lo, hi)
+        } else {
+            Terms::default()
+        };
+        let class = if drive.classes.is_empty() {
+            "base"
+        } else if call.building && drive.terms {
+            class_of(&drive.classes, &terms.work_ids)
+        } else {
+            class_of(&drive.classes, &works_in(pool, lo, hi))
+        };
+        Sample {
+            pass: drive.pass.clone(),
+            page: !call.building,
+            index: after.step_count,
+            class,
+            replaced,
+            call: call.call,
+            timing: timing(call.events, call.end),
+            units,
+            month_keys,
+            rows,
+            terms,
+            lo,
+            hi,
+        }
+    }
+
+    /// Drive `run` through the evidence connection, one call at a time,
+    /// measuring every committed step and page. A retryable refusal is
+    /// retried with the same step count after the section 15 back-off; any
+    /// other refusal, or `max_streak` refusals in a row, stops the pass.
+    fn drive_measured(pool: &PgPool, evidence: &Evidence, mut run: Run, drive: &Drive) -> Driven {
+        let mut driven = Driven {
+            pass: drive.pass.clone(),
+            run: run.clone(),
+            samples: Vec::new(),
+            refusals: BTreeMap::new(),
+            longest_streak: 0,
+            build: Duration::ZERO,
+            verify: Duration::ZERO,
+            stuck: None,
+        };
+        let mut streak = 0;
+        while run.status.is_open() && !(drive.build_only && run.status != Building) {
+            let building = run.status == Building;
+            let before = run_row(pool, run.run_id);
+            evidence.take();
+            let started = Instant::now();
+            let result = try_advance(&evidence.pool, &run, &drive.budgets);
+            let end = Instant::now();
+            let call = end - started;
+            let events = evidence.take();
+            let mut pause = if drive.paced && building {
+                pacing_pause(call)
+            } else {
+                Duration::ZERO
+            };
+            match result {
+                Ok(advance) => {
+                    if advance.advanced {
+                        streak = 0;
+                        let after = run_row(pool, run.run_id);
+                        let measured = Call {
+                            before: &before,
+                            after: &after,
+                            building,
+                            call,
+                            events: &events,
+                            end,
+                        };
+                        driven.samples.push(sample(pool, drive, &measured));
+                    }
+                    run = advance.run;
+                }
+                Err(error) => {
+                    let refusal = format!("{} {}", error.code(), error.reason());
+                    *driven.refusals.entry(refusal.clone()).or_insert(0) += 1;
+                    streak += 1;
+                    driven.longest_streak = driven.longest_streak.max(streak);
+                    if !matches!(error, Error::Retryable(_)) || streak >= drive.max_streak {
+                        driven.stuck = Some(format!(
+                            "{refusal} after {streak} consecutive refusals at step count {}",
+                            run.step_count
+                        ));
+                        if building {
+                            driven.build += call;
+                        } else {
+                            driven.verify += call;
+                        }
+                        break;
+                    }
+                    pause = pause.max(if building {
+                        pacing_pause(call)
+                    } else {
+                        Duration::from_secs(1)
+                    });
+                }
+            }
+            if building {
+                driven.build += call + pause;
+            } else {
+                driven.verify += call + pause;
+            }
+            if !pause.is_zero() {
+                thread::sleep(pause);
+            }
+        }
+        driven.run = run;
+        driven
+    }
+
+    // -----------------------------------------------------------------------
+    // Reports
+    // -----------------------------------------------------------------------
+
+    fn unit_text(unit: Option<Unit>) -> String {
+        unit.map_or("-".to_string(), |unit| {
+            format!("{}/{}", unit.work_id, unit.year_start.year())
+        })
+    }
+
+    fn print_raw(driven: &Driven) {
+        for sample in &driven.samples {
+            let timing = &sample.timing;
+            let terms = &sample.terms;
+            println!(
+                "RAW|{}|{}|{}|{}|{}|call_ms={}|hold_ms={}|work_hold_ms={}|sizing_ms={}|\
+                 statements={}|in_transaction={}|set_local={}|units={}|month_keys={}|rows={}|\
+                 month_term={}|year_term={}|figure={}|fill={:.3}|whole_rows={}|max_whole={}|\
+                 max_keys_per_work_month={}|works={}|lo={}|hi={}",
+                sample.pass,
+                if sample.page { "page" } else { "step" },
+                sample.index,
+                sample.class,
+                if sample.page {
+                    "-"
+                } else if sample.replaced {
+                    "replacing"
+                } else {
+                    "non-replacing"
+                },
+                ms(sample.call),
+                ms(sample.hold()),
+                ms(timing.work_hold),
+                ms(timing.sizing),
+                timing.statements,
+                timing.in_transaction,
+                timing.set_locals,
+                sample.units,
+                sample.month_keys,
+                sample.rows,
+                terms.month_term,
+                terms.year_term,
+                terms.figure(),
+                terms.fill(),
+                terms.whole_rows,
+                terms.max_whole,
+                terms.max_month_keys,
+                terms.work_ids.len(),
+                unit_text(sample.lo),
+                unit_text(sample.hi),
+            );
+        }
+    }
+
+    /// p50, p95 and max of `pick` over `samples`, in microseconds.
+    fn spread(
+        samples: &[&Sample],
+        pick: impl Fn(&Sample) -> Duration,
+    ) -> Option<(u128, u128, u128)> {
+        if samples.is_empty() {
+            return None;
+        }
+        let mut values: Vec<Duration> = samples.iter().map(|sample| pick(sample)).collect();
+        Some(percentiles(&mut values))
+    }
+
+    fn spread_text(spread: Option<(u128, u128, u128)>) -> String {
+        spread.map_or("none".to_string(), |(p50, p95, max)| {
+            format!(
+                "p50 {} ms, p95 {} ms, max {} ms",
+                ms_of(p50),
+                ms_of(p95),
+                ms_of(max)
+            )
+        })
+    }
+
+    fn count_spread(values: impl Iterator<Item = usize>) -> String {
+        let mut values: Vec<usize> = values.collect();
+        if values.is_empty() {
+            return "none".to_string();
+        }
+        values.sort_unstable();
+        format!(
+            "min {} median {} max {}",
+            values[0],
+            values[values.len() / 2],
+            values[values.len() - 1]
+        )
+    }
+
+    fn summarise(driven: &Driven, keys: i64) {
+        let classes: BTreeSet<&str> = driven.samples.iter().map(|sample| sample.class).collect();
+        for class in classes {
+            for (kind, replaced) in [("replacing", true), ("non-replacing", false)] {
+                let group: Vec<&Sample> = driven
+                    .steps(replaced)
+                    .into_iter()
+                    .filter(|sample| sample.class == class)
+                    .collect();
+                if group.is_empty() {
+                    continue;
+                }
+                println!(
+                    "SUMMARY|{}|{class}|{kind} steps|n={}|hold {}|work-row hold {}|call {}|\
+                     sizing {}|statements per step {}|in the transaction {}",
+                    driven.pass,
+                    group.len(),
+                    spread_text(spread(&group, Sample::hold)),
+                    spread_text(spread(&group, |sample| sample.timing.work_hold)),
+                    spread_text(spread(&group, |sample| sample.call)),
+                    spread_text(spread(&group, |sample| sample.timing.sizing)),
+                    count_spread(group.iter().map(|sample| sample.timing.statements)),
+                    count_spread(group.iter().map(|sample| sample.timing.in_transaction)),
+                );
+            }
+            let pages: Vec<&Sample> = driven
+                .pages()
+                .into_iter()
+                .filter(|sample| sample.class == class)
+                .collect();
+            if !pages.is_empty() {
+                println!(
+                    "SUMMARY|{}|{class}|pages|n={}|page time {}|call {}|statements per page {}",
+                    driven.pass,
+                    pages.len(),
+                    spread_text(spread(&pages, Sample::hold)),
+                    spread_text(spread(&pages, |sample| sample.call)),
+                    count_spread(pages.iter().map(|sample| sample.timing.statements)),
+                );
+            }
+        }
+        let total = driven.build + driven.verify;
+        let rate = keys as f64 / total.as_secs_f64().max(0.001);
+        println!(
+            "SUMMARY|{}|run|status {:?}|steps {}|pages {}|build {} s|verify {} s|total {} s|\
+             month keys {keys}|keys per second {rate:.0}|projected at 460,000 keys {:.0} s|\
+             projected at 1,000,000 keys {:.0} s|refusals {:?}|budget refusals {}|\
+             longest run of refusals {}|stuck {:?}",
+            driven.pass,
+            driven.run.status,
+            driven.samples.iter().filter(|sample| !sample.page).count(),
+            driven.pages().len(),
+            secs(driven.build),
+            secs(driven.verify),
+            secs(total),
+            460_000.0 / rate,
+            1_000_000.0 / rate,
+            driven.refusals,
+            driven.budget_refusals(),
+            driven.longest_streak,
+            driven.stuck,
+        );
+    }
+
+    /// Print a pass and require it to have ended where `expected`.
+    fn finish_pass(driven: &Driven, keys: i64, expected: MetricRollupMonthRebuildStatus) {
+        print_raw(driven);
+        summarise(driven, keys);
+        assert!(
+            driven.stuck.is_none(),
+            "{}: {:?}",
+            driven.pass,
+            driven.stuck
+        );
+        assert_eq!(driven.run.status, expected, "{}", driven.pass);
+    }
+
+    /// One section 17 acceptance line on the p95 of `samples`' holds.
+    fn accept(line: &str, samples: &[&Sample], bound: Duration, budget_refusals: usize) {
+        let measured = spread(samples, Sample::hold);
+        let verdict = match measured {
+            None => "NOT MEASURED",
+            Some((_, p95, _)) if p95 <= bound.as_micros() && budget_refusals == 0 => "MET",
+            Some(_) => "MISSED",
+        };
+        println!(
+            "ACCEPT|{line}|n={}|{}|budget refusals {budget_refusals}|bound p95 <= {} ms|{verdict}",
+            samples.len(),
+            spread_text(measured),
+            bound.as_millis(),
+        );
+    }
+
+    fn of_class<'a>(samples: Vec<&'a Sample>, classes: &[&str]) -> Vec<&'a Sample> {
+        samples
+            .into_iter()
+            .filter(|sample| classes.contains(&sample.class))
+            .collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // Census-shaped fixtures
+    // -----------------------------------------------------------------------
+
+    /// The registry size for mix (b)'s `k` series per work-month: room for
+    /// k and more, so mix (b)'s series are shared with many F2 works.
+    fn registry_for(k: i64) -> usize {
+        usize::try_from((k + 8).max(48)).expect("a registry size")
+    }
+
+    /// A corpus with `registry` platforms (one measure, so `registry`
+    /// series) and `INSTITUTIONS` institutions.
+    fn census_corpus(pool: &PgPool, registry: usize) -> Corpus {
+        let corpus = corpus(pool, registry);
+        exec(
+            pool,
+            &format!(
+                "INSERT INTO institution (institution_id, institution_name) \
+                 SELECT md5('ops03-institution-' || g)::uuid, 'OPS-03 evidence institution ' || g \
+                 FROM generate_series(1, {INSTITUTIONS}) g"
+            ),
+        );
+        corpus
+    }
+
+    /// One group of works of one shape, written straight to the work-day
+    /// projection. Work `n` is `md5('<tag>-<n>')`, so a group scatters across
+    /// the corpus's work order; its series are consecutive in the registry,
+    /// so every group shares them.
+    #[derive(Clone, Debug)]
+    struct Shape {
+        tag: String,
+        works: i64,
+        /// Series per work.
+        series: i64,
+        first_month: (i32, u32),
+        months: i64,
+        /// Active days per key-month, at most 28.
+        days: i64,
+        /// Country rows per active day.
+        countries: i64,
+        /// One more country row on every n-th active day (0: never).
+        extra_country_every: i64,
+        /// Distinct countries per key-month the country rows rotate through,
+        /// at most the smallest country set of a work.
+        window: i64,
+        /// The smallest and largest country set of a work.
+        work_countries: (i64, i64),
+        /// Key-days with one institution row, per thousand.
+        institution_permille: i64,
+        /// Every row carries a country and an institution, each distinct
+        /// within its key-month, and no row is undimensioned (F4 and F5).
+        both: bool,
+    }
+
+    /// Seed works `from..=to` of `shape`; returns the work-day rows written.
+    fn seed_shape(pool: &PgPool, corpus: &Corpus, shape: &Shape, from: i64, to: i64) -> usize {
+        let tag = &shape.tag;
+        exec(
+            pool,
+            &format!(
+                "INSERT INTO work (work_id, work_type, work_status, imprint_id, edition) \
+                 SELECT md5('{tag}-' || n)::uuid, 'monograph', 'forthcoming', w.imprint_id, 1 \
+                 FROM work w CROSS JOIN generate_series({from}, {to}) n \
+                 WHERE w.work_id = '{}'",
+                corpus.fixture.work_id
+            ),
+        );
+        let base = scalar_i64(
+            pool,
+            "(SELECT COALESCE(MAX(watermark), 0) FROM metric_rollup_work_day)",
+        )
+        .max(state(pool).applied_through_sequence);
+        let registry = corpus.platforms.len();
+        let (year, month) = shape.first_month;
+        let (series, months, days, countries) =
+            (shape.series, shape.months, shape.days, shape.countries);
+        let (kinds, filter, code, institution) = if shape.both {
+            (
+                (0..countries)
+                    .map(|c| format!("(1, {c})"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                "TRUE".to_string(),
+                format!("(n * 13 + s * 7 + m * 3 + k * {countries} + x.c) % 676"),
+                format!("(n * 17 + s * 11 + m * 5 + k * {countries} + x.c) % {INSTITUTIONS}"),
+            )
+        } else {
+            let (low, high) = shape.work_countries;
+            let extra = if shape.extra_country_every > 0 {
+                format!(
+                    "CASE WHEN k % {} = 0 THEN 1 ELSE 0 END",
+                    shape.extra_country_every
+                )
+            } else {
+                "0".to_string()
+            };
+            let mut kinds = vec!["(0, 0)".to_string(), "(2, 0)".to_string()];
+            kinds.extend((0..=countries).map(|c| format!("(1, {c})")));
+            let set = format!("({low} + (n * 37) % {})", high - low + 1);
+            (
+                kinds.join(", "),
+                format!(
+                    "(x.kind <> 1 OR x.c < {countries} + {extra}) \
+                     AND (x.kind <> 2 OR (n * 919 + s * 729 + m * 709 + k * 863) % 1000 < {})",
+                    shape.institution_permille
+                ),
+                format!(
+                    "(n * 13 + ((m * 5 + s * 11) % {set} + (k * {} + x.c) % {}) % {set}) % 676",
+                    countries + 1,
+                    shape.window
+                ),
+                format!("(n * 17 + s * 11 + m * 5 + k) % {INSTITUTIONS}"),
+            )
+        };
+        exec_count(
+            pool,
+            &format!(
+                "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                     measure_id, day, country_code, institution_id, value, watermark) \
+                 SELECT g.work_id, NULL, g.platform_id, '{measure}', g.day, \
+                        CASE WHEN g.kind = 1 \
+                             THEN chr((65 + g.code / 26)::int) || chr((65 + g.code % 26)::int) END, \
+                        CASE WHEN g.kind = 2 OR {both} \
+                             THEN md5('ops03-institution-' || (1 + g.institution))::uuid END, \
+                        1 + g.seed % 97, \
+                        {base} + row_number() OVER () \
+                 FROM ( \
+                     SELECT md5('{tag}-' || n)::uuid AS work_id, \
+                            (ARRAY[{platforms}]::uuid[])[(1 + (n + s) % {registry})::int] \
+                                AS platform_id, \
+                            (DATE '{year:04}-{month:02}-01' + make_interval(months => m::int))::date \
+                                + ((k * 28) / {days})::int AS day, \
+                            x.kind, {code} AS code, {institution} AS institution, \
+                            n * 7 + s * 5 + m * 3 + k + x.c AS seed \
+                     FROM generate_series({from}::bigint, {to}) n \
+                     CROSS JOIN generate_series(0::bigint, {series} - 1) s \
+                     CROSS JOIN generate_series(0::bigint, {months} - 1) m \
+                     CROSS JOIN generate_series(0::bigint, {days} - 1) k \
+                     CROSS JOIN (VALUES {kinds}) AS x(kind, c) \
+                     WHERE {filter}) g",
+                measure = corpus.fixture.measure_id,
+                both = shape.both,
+                platforms = quoted(&corpus.platforms),
+            ),
+        )
+    }
+
+    /// Seed every work of `shape`, about a million rows per statement;
+    /// returns the work-day rows written.
+    fn seed_all(pool: &PgPool, corpus: &Corpus, shape: &Shape) -> usize {
+        let per_work = shape.series * shape.months * shape.days * (shape.countries + 2);
+        let batch = (1_000_000 / per_work.max(1)).max(1);
+        let mut rows = 0;
+        let mut from = 1;
+        while from <= shape.works {
+            let to = (from + batch - 1).min(shape.works);
+            rows += seed_shape(pool, corpus, shape, from, to);
+            from = to + 1;
+        }
+        rows
+    }
+
+    fn tagged_works(pool: &PgPool, tag: &str, works: i64) -> Vec<Uuid> {
+        #[derive(QueryableByName)]
+        struct Work {
+            #[diesel(sql_type = SqlUuid)]
+            work_id: Uuid,
+        }
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        sql_query(format!(
+            "SELECT md5('{tag}-' || n)::uuid AS work_id FROM generate_series(1, {works}) n \
+             ORDER BY 1"
+        ))
+        .load::<Work>(&mut connection)
+        .expect("the tagged works")
+        .into_iter()
+        .map(|work| work.work_id)
+        .collect()
+    }
+
+    /// The shape facts of a seeded group: rows, month keys, rows per key,
+    /// the share of key-days with an institution row and the country set
+    /// sizes of its works.
+    fn shape_facts(pool: &PgPool, shape: &Shape) -> (i64, i64) {
+        #[derive(QueryableByName)]
+        struct Facts {
+            #[diesel(sql_type = BigInt)]
+            rows: i64,
+            #[diesel(sql_type = BigInt)]
+            keys: i64,
+            #[diesel(sql_type = BigInt)]
+            key_days: i64,
+            #[diesel(sql_type = BigInt)]
+            institution_rows: i64,
+            #[diesel(sql_type = BigInt)]
+            least_countries: i64,
+            #[diesel(sql_type = BigInt)]
+            most_countries: i64,
+            #[diesel(sql_type = BigInt)]
+            most_keys_per_work_month: i64,
+        }
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let facts: Facts = sql_query(format!(
+            "WITH w AS (SELECT md5('{}-' || n)::uuid AS work_id FROM generate_series(1, {}) n), \
+                  d AS (SELECT r.* FROM metric_rollup_work_day r JOIN w USING (work_id)), \
+                  c AS (SELECT work_id, count(DISTINCT country_code) AS n FROM d GROUP BY work_id), \
+                  m AS (SELECT count(DISTINCT (platform_id, measure_id)) AS n FROM d \
+                        GROUP BY work_id, date_trunc('month', day)) \
+             SELECT count(*) AS rows, \
+                    count(DISTINCT (work_id, platform_id, measure_id, date_trunc('month', day))) \
+                        AS keys, \
+                    count(DISTINCT (work_id, platform_id, measure_id, day)) AS key_days, \
+                    count(*) FILTER (WHERE institution_id IS NOT NULL) AS institution_rows, \
+                    COALESCE((SELECT min(n) FROM c), 0) AS least_countries, \
+                    COALESCE((SELECT max(n) FROM c), 0) AS most_countries, \
+                    COALESCE((SELECT max(n) FROM m), 0) AS most_keys_per_work_month \
+             FROM d",
+            shape.tag, shape.works
+        ))
+        .get_result(&mut connection)
+        .expect("the shape facts");
+        println!(
+            "FIXTURE|{}|works {}|rows {}|month keys {}|month keys per work {:.1}|rows per key {:.1}|\
+             key-days with an institution row {:.1}% (institution rows over key-days)|\
+             countries per work {} to {}|most month keys per work-month {}",
+            shape.tag,
+            shape.works,
+            facts.rows,
+            facts.keys,
+            facts.keys as f64 / shape.works as f64,
+            facts.rows as f64 / facts.keys.max(1) as f64,
+            100.0 * facts.institution_rows as f64 / facts.key_days.max(1) as f64,
+            facts.least_countries,
+            facts.most_countries,
+            facts.most_keys_per_work_month,
+        );
+        (facts.rows, facts.keys)
+    }
+
+    /// Add one to the value of one country-month row in every unit of
+    /// `works`; returns the rows damaged.
+    fn damage_units(pool: &PgPool, works: &[Uuid]) -> usize {
+        exec_count(
+            pool,
+            &format!(
+                "UPDATE metric_rollup_work_country_month SET value = value + 1 \
+                 WHERE rollup_work_country_month_id IN ( \
+                     SELECT DISTINCT ON (work_id, date_trunc('year', month_start)) \
+                            rollup_work_country_month_id \
+                     FROM metric_rollup_work_country_month WHERE work_id IN ({}) \
+                     ORDER BY work_id, date_trunc('year', month_start), \
+                              rollup_work_country_month_id)",
+                quoted(works)
+            ),
+        )
+    }
+
+    /// The vacuum counters and dead tuples of the rollup tables.
+    fn vacuum_facts(pool: &PgPool) -> String {
+        text_scalar(
+            pool,
+            "SELECT string_agg(relname || ' autovacuum ' || autovacuum_count || ' vacuum ' \
+                               || vacuum_count || ' dead ' || n_dead_tup, '; ' ORDER BY relname) \
+             FROM pg_stat_user_tables WHERE relname LIKE 'metric_rollup_work%'",
+        )
+        .unwrap_or_default()
+    }
+
+    /// `total` corruptions scattered over the six families at hashed
+    /// positions: in each family half the picked rows move their value by one
+    /// and half are deleted; the ambiguity family has no value, so its picked
+    /// rows are deleted. Returns the rows corrupted per family.
+    fn scatter_corruptions(pool: &PgPool, total: i64) -> Vec<(&'static str, i64)> {
+        let families = [
+            ("metric_rollup_work_month", "rollup_work_month_id", true),
+            (
+                "metric_rollup_work_country_month",
+                "rollup_work_country_month_id",
+                true,
+            ),
+            (
+                "metric_rollup_work_institution_month",
+                "rollup_work_institution_month_id",
+                true,
+            ),
+            (
+                "metric_rollup_work_month_ambiguity",
+                "rollup_work_month_ambiguity_id",
+                false,
+            ),
+            (
+                "metric_rollup_work_country_year",
+                "rollup_work_country_year_id",
+                true,
+            ),
+            (
+                "metric_rollup_work_institution_year",
+                "rollup_work_institution_year_id",
+                true,
+            ),
+        ];
+        families
+            .iter()
+            .enumerate()
+            .map(|(index, (table, key, valued))| {
+                let count = total / 6 + i64::from((index as i64) < total % 6);
+                let picked = format!(
+                    "WITH picked AS ( \
+                         SELECT {key} AS id, row_number() OVER (ORDER BY md5({key}::text)) AS n \
+                         FROM {table} ORDER BY md5({key}::text) LIMIT {count})"
+                );
+                let statement = if *valued {
+                    format!(
+                        "{picked}, \
+                         bumped AS (UPDATE {table} SET value = value + 1 \
+                                    WHERE {key} IN (SELECT id FROM picked WHERE n % 2 = 1) \
+                                    RETURNING 1), \
+                         deleted AS (DELETE FROM {table} \
+                                     WHERE {key} IN (SELECT id FROM picked WHERE n % 2 = 0) \
+                                     RETURNING 1) \
+                         SELECT (SELECT count(*) FROM bumped) + (SELECT count(*) FROM deleted) \
+                             AS n"
+                    )
+                } else {
+                    format!(
+                        "{picked}, \
+                         deleted AS (DELETE FROM {table} WHERE {key} IN (SELECT id FROM picked) \
+                                     RETURNING 1) \
+                         SELECT count(*) AS n FROM deleted"
+                    )
+                };
+                (*table, count_of(pool, &statement))
+            })
+            .collect()
+    }
+
+    // -----------------------------------------------------------------------
+    // Query plans
+    // -----------------------------------------------------------------------
+
+    #[derive(QueryableByName)]
+    struct PlanLine {
+        #[diesel(sql_type = Text, column_name = "QUERY PLAN")]
+        line: String,
+    }
+
+    #[derive(QueryableByName)]
+    struct KeyRow {
+        #[diesel(sql_type = SqlUuid)]
+        work_id: Uuid,
+        #[diesel(sql_type = SqlUuid)]
+        platform_id: Uuid,
+        #[diesel(sql_type = SqlUuid)]
+        measure_id: Uuid,
+        #[diesel(sql_type = Date)]
+        month_start: NaiveDate,
+    }
+
+    /// Print one plan; returns its sequential scans of the work-day
+    /// projection or of a projection table, and whether it reads the
+    /// work-day projection through the series index.
+    fn print_plan(label: &str, statement: &str, plan: &[PlanLine]) -> (usize, bool) {
+        let mut protected = 0;
+        for line in plan {
+            println!("PLAN|{label}|{statement}|{}", line.line);
+            if line.line.contains("Seq Scan on metric_rollup_work")
+                && !line.line.contains("metric_rollup_work_day_state")
+            {
+                protected += 1;
+            }
+        }
+        let indexes: BTreeSet<String> = plan
+            .iter()
+            .filter_map(|line| line.line.split(" using ").nth(1))
+            .filter_map(|rest| rest.split_whitespace().next())
+            .map(str::to_string)
+            .collect();
+        let by_series = indexes.contains("metric_rollup_work_day_measure_id_platform_id_day_idx");
+        println!(
+            "PLANSUMMARY|{label}|{statement}|sequential scans of a protected table {protected}|\
+             work-day by the series index {by_series}|indexes {indexes:?}"
+        );
+        (protected, by_series)
+    }
+
+    macro_rules! bound {
+        ($query:expr, $bounds:expr) => {
+            $query
+                .bind::<SqlUuid, _>($bounds.lo_work_id)
+                .bind::<Nullable<Date>, _>($bounds.lo_end)
+                .bind::<SqlUuid, _>($bounds.hi_work_id)
+                .bind::<Nullable<Date>, _>($bounds.hi_end)
+        };
+    }
+
+    macro_rules! keyed_by {
+        ($query:expr, $keys:expr) => {
+            $query
+                .bind::<Array<SqlUuid>, _>($keys.iter().map(|key| key.0).collect::<Vec<Uuid>>())
+                .bind::<Array<SqlUuid>, _>($keys.iter().map(|key| key.1).collect::<Vec<Uuid>>())
+                .bind::<Array<SqlUuid>, _>($keys.iter().map(|key| key.2).collect::<Vec<Uuid>>())
+                .bind::<Array<Date>, _>($keys.iter().map(|key| key.3).collect::<Vec<NaiveDate>>())
+        };
+    }
+
+    /// EXPLAIN (ANALYZE, BUFFERS) of the statements a replacing step issues
+    /// over `(lo, hi]`, as executed: with their bind parameters, under
+    /// `plan_cache_mode = force_custom_plan`, in the step's order (sizing,
+    /// the six range deletes, the month keys, the first chunk's watermark
+    /// and month inserts, the first year chunk's inserts, the range
+    /// verifier), in one transaction that is rolled back. Returns the
+    /// protected sequential scans and the statements that read the work-day
+    /// projection through the series index although led by work.
+    fn explain_step(
+        pool: &PgPool,
+        label: &str,
+        lo: Option<Unit>,
+        hi: Option<Unit>,
+    ) -> (usize, usize) {
+        let bounds = range_bounds(lo, hi);
+        let explain = |statement: &str| format!("EXPLAIN (ANALYZE, BUFFERS) {statement}");
+        let mut protected = 0;
+        let mut by_series = 0;
+        let mut tally = |name: &str, plan: &[PlanLine], led_by_work: bool| {
+            let (scans, series) = print_plan(label, name, plan);
+            protected += scans;
+            if led_by_work && series {
+                by_series += 1;
+            }
+        };
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let outcome = connection.transaction::<(), DieselError, _>(|c| {
+            sql_query("SET LOCAL plan_cache_mode = force_custom_plan").execute(c)?;
+            let plan: Vec<PlanLine> = sql_query(explain(SIZING_SQL))
+                .bind::<SqlUuid, _>(bounds.lo_work_id)
+                .bind::<Nullable<Date>, _>(bounds.lo_end)
+                .bind::<BigInt, _>(METRIC_ROLLUP_RUN_SIZING_BATCH_WORKS)
+                .bind::<BigInt, _>(METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS)
+                .bind::<BigInt, _>(METRIC_ROLLUP_RUN_STEP_MAX_MONTH_KEYS)
+                .bind::<BigInt, _>(METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ)
+                .load(c)?;
+            tally("sizing", &plan, true);
+            let plan: Vec<PlanLine> =
+                bound!(sql_query(explain(RANGE_MONTH_KEYS_SQL)), bounds).load(c)?;
+            tally("RANGE_MONTH_KEYS_SQL", &plan, true);
+            let keys: Vec<KeyRow> = bound!(sql_query(RANGE_MONTH_KEYS_SQL), bounds).load(c)?;
+            for (index, statement) in RANGE_DELETE_STATEMENTS.iter().enumerate() {
+                let plan: Vec<PlanLine> = bound!(sql_query(explain(statement)), bounds).load(c)?;
+                tally(&format!("range delete {}", index + 1), &plan, true);
+            }
+            let keys: BTreeSet<MonthKey> = keys
+                .into_iter()
+                .map(|key| {
+                    (
+                        key.work_id,
+                        key.platform_id,
+                        key.measure_id,
+                        key.month_start,
+                    )
+                })
+                .collect();
+            let chunk: Vec<MonthKey> = keys
+                .iter()
+                .copied()
+                .take(METRIC_ROLLUP_RUN_STEP_CHUNK_KEYS)
+                .collect();
+            let plan: Vec<PlanLine> =
+                keyed_by!(sql_query(explain(MONTH_SOURCE_WATERMARK_SQL)), chunk).load(c)?;
+            tally("month watermark (reused)", &plan, false);
+            for (index, statement) in MONTH_INSERT_STATEMENTS.iter().enumerate() {
+                let plan: Vec<PlanLine> =
+                    keyed_by!(sql_query(explain(statement)), chunk).load(c)?;
+                tally(
+                    &format!("month insert {} (reused)", index + 1),
+                    &plan,
+                    false,
+                );
+            }
+            let years: Vec<YearKey> = affected_year_keys(&keys)
+                .into_iter()
+                .take(METRIC_ROLLUP_RUN_STEP_CHUNK_KEYS)
+                .collect();
+            for (index, statement) in [YEAR_COUNTRY_INSERT_SQL, YEAR_INSTITUTION_INSERT_SQL]
+                .iter()
+                .enumerate()
+            {
+                let plan: Vec<PlanLine> =
+                    keyed_by!(sql_query(explain(statement)), years).load(c)?;
+                tally(&format!("year insert {} (reused)", index + 1), &plan, false);
+            }
+            let plan: Vec<PlanLine> =
+                bound!(sql_query(explain(RANGE_VERIFICATION_SQL)), bounds).load(c)?;
+            tally("range verifier", &plan, true);
+            Err(DieselError::RollbackTransaction)
+        });
+        assert!(
+            matches!(outcome, Err(DieselError::RollbackTransaction)),
+            "{label}: {outcome:?}"
+        );
+        (protected, by_series)
+    }
+
+    // -----------------------------------------------------------------------
+    // The cost fit (section 10)
+    // -----------------------------------------------------------------------
+
+    /// The fit's regressors of one replacing step: intercept, statements in
+    /// its transaction, month term, year term and its works' whole-history
+    /// rows.
+    fn regressors(sample: &Sample) -> [f64; 5] {
+        [
+            1.0,
+            sample.timing.in_transaction as f64,
+            sample.terms.month_term as f64,
+            sample.terms.year_term as f64,
+            sample.terms.whole_rows as f64,
+        ]
+    }
+
+    /// Solve `a x = b` by Gaussian elimination with partial pivoting.
+    #[allow(clippy::needless_range_loop)]
+    fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
+        let n = b.len();
+        for col in 0..n {
+            let pivot = (col..n).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs()))?;
+            if a[pivot][col].abs() < 1e-12 {
+                return None;
+            }
+            a.swap(col, pivot);
+            b.swap(col, pivot);
+            for row in col + 1..n {
+                let factor = a[row][col] / a[col][col];
+                for k in col..n {
+                    a[row][k] -= factor * a[col][k];
+                }
+                b[row] -= factor * b[col];
+            }
+        }
+        let mut x = vec![0.0; n];
+        for row in (0..n).rev() {
+            let mut sum = b[row];
+            for k in row + 1..n {
+                sum -= a[row][k] * x[k];
+            }
+            x[row] = sum / a[row][row];
+        }
+        Some(x)
+    }
+
+    fn predict(row: &[f64; 5], coefficients: &[f64; 5]) -> f64 {
+        row.iter().zip(coefficients).map(|(x, c)| x * c).sum()
+    }
+
+    /// Non-negative least squares over the five regressors, exactly: the
+    /// least-squares fit on every subset of the columns, keeping the one
+    /// with the smallest residual whose coefficients are all non-negative.
+    #[allow(clippy::needless_range_loop)]
+    fn nnls(x: &[[f64; 5]], y: &[f64]) -> [f64; 5] {
+        let mut scale = [1.0f64; 5];
+        for j in 0..5 {
+            let max = x.iter().map(|row| row[j].abs()).fold(0.0, f64::max);
+            if max > 0.0 {
+                scale[j] = max;
+            }
+        }
+        let rss = |coefficients: &[f64; 5]| -> f64 {
+            x.iter()
+                .zip(y)
+                .map(|(row, target)| (target - predict(row, coefficients)).powi(2))
+                .sum()
+        };
+        let mut best = ([0.0; 5], rss(&[0.0; 5]));
+        for mask in 1u32..32 {
+            let columns: Vec<usize> = (0..5).filter(|j| mask & (1 << j) != 0).collect();
+            let n = columns.len();
+            let mut ata = vec![vec![0.0; n]; n];
+            let mut aty = vec![0.0; n];
+            for (row, target) in x.iter().zip(y) {
+                for a in 0..n {
+                    let xa = row[columns[a]] / scale[columns[a]];
+                    aty[a] += xa * target;
+                    for b in 0..n {
+                        ata[a][b] += xa * row[columns[b]] / scale[columns[b]];
+                    }
+                }
+            }
+            let Some(solution) = solve(ata, aty) else {
+                continue;
+            };
+            if solution.iter().any(|value| *value < 0.0) {
+                continue;
+            }
+            let mut coefficients = [0.0; 5];
+            for a in 0..n {
+                coefficients[columns[a]] = solution[a] / scale[columns[a]];
+            }
+            let residual = rss(&coefficients);
+            if residual < best.1 {
+                best = (coefficients, residual);
+            }
+        }
+        best.0
+    }
+
+    /// Fit the holds of `steps` and predict both corners at full fill, at
+    /// `statements` and with `whole_rows` whole-work rows (section 10).
+    fn fit(label: &str, steps: &[&Sample], statements: f64, whole_rows: f64, k: i64) {
+        let x: Vec<[f64; 5]> = steps.iter().map(|sample| regressors(sample)).collect();
+        let y: Vec<f64> = steps
+            .iter()
+            .map(|sample| sample.hold().as_secs_f64() * 1_000.0)
+            .collect();
+        let c = nnls(&x, &y);
+        println!(
+            "FIT|{label}|n={}|intercept {:.3} ms|per statement {:.4} ms|\
+             per month-term row {:.4e} ms|per year-term row {:.4e} ms|\
+             per whole-work row {:.4e} ms",
+            steps.len(),
+            c[0],
+            c[1],
+            c[2],
+            c[3],
+            c[4]
+        );
+        let mut residuals = Vec::new();
+        for (sample, (row, actual)) in steps.iter().zip(x.iter().zip(&y)) {
+            let predicted = predict(row, &c);
+            residuals.push((actual - predicted).abs());
+            println!(
+                "RESIDUAL|{label}|{}|{}|{}|actual {actual:.1} ms|predicted {predicted:.1} ms|\
+                 residual {:.1} ms",
+                sample.pass,
+                sample.index,
+                sample.class,
+                actual - predicted
+            );
+        }
+        residuals.sort_by(f64::total_cmp);
+        if let Some(largest) = residuals.last() {
+            println!(
+                "FIT|{label}|absolute residual median {:.1} ms|max {largest:.1} ms",
+                residuals[residuals.len() / 2]
+            );
+        }
+        let full = METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ as f64;
+        let month_cap = ((k * METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS) as f64).min(full);
+        for (corner, month, year) in [
+            ("year-only corner", 0.0, full),
+            ("mix (b) corner", month_cap, full - month_cap),
+        ] {
+            let hold = predict(&[1.0, statements, month, year, whole_rows], &c);
+            println!(
+                "CORNER|{label}|{corner}|month term {month:.0}|year term {year:.0}|\
+                 statements {statements:.0}|whole-work rows {whole_rows:.0}|\
+                 predicted hold {hold:.1} ms|bound 4500 ms|{}",
+                if hold <= 4_500.0 { "MET" } else { "MISSED" }
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // F1, F7: the OPS-02 fixture and the sparse corpus
+    // -----------------------------------------------------------------------
+
+    #[test]
+    #[ignore = "section 17 performance evidence; run explicitly"]
+    fn f1_ops02_fixture() {
+        let (_guard, pool) = setup();
+        host_facts(&pool);
+        let (fixture, _record_id) = fixture_record(&pool, "identity-base");
+        let works = knob("THOTH_EVIDENCE_F1_WORKS", 2_000);
+        let started = Instant::now();
+        let rows = seed_production_shaped_days(&pool, &fixture, works);
+        let keys = month_key_count(&pool);
+        println!(
+            "FIXTURE|F1|{rows} work-day rows|{keys} month keys|{works} works|seeded in {} s",
+            secs(started.elapsed())
+        );
+        let evidence = Evidence::new();
+        let none = Classes::new();
+        let passes = [
+            ("F1 REBUILD from empty", Rebuild),
+            ("F1 healthy REBUILD", Rebuild),
+            ("F1 VERIFY", Verify),
+        ]
+        .map(|(pass, mode)| {
+            let driven = drive_measured(
+                &pool,
+                &evidence,
+                start(&pool, mode),
+                &Drive::new(pass, &none),
+            );
+            finish_pass(&driven, keys, Reconciled);
+            driven
+        });
+        assert_eq!(
+            passes[1].run.build.as_ref().expect("build").replaced_steps,
+            0
+        );
+        let whole = verification(&pool);
+        println!(
+            "ACCEPT|F1 verifyMetricRollupMonths is exact after RECONCILED|{}",
+            if whole.matches { "MET" } else { "MISSED" }
+        );
+        assert!(whole.matches);
+        let budget: usize = passes.iter().map(Driven::budget_refusals).sum();
+        let non_replacing: Vec<&Sample> = passes.iter().flat_map(|p| p.steps(false)).collect();
+        let pages: Vec<&Sample> = passes.iter().flat_map(Driven::pages).collect();
+        accept(
+            "F1 non-replacing step hold p95 <= 2 s",
+            &non_replacing,
+            Duration::from_secs(2),
+            budget,
+        );
+        accept(
+            "F1 replacing step hold p95 <= 3 s (from-empty build)",
+            &passes[0].steps(true),
+            Duration::from_secs(3),
+            passes[0].budget_refusals(),
+        );
+        accept(
+            "F1 verify page time p95 <= 5 s",
+            &pages,
+            Duration::from_secs(5),
+            budget,
+        );
+    }
+
+    #[test]
+    #[ignore = "section 17 performance evidence; run explicitly"]
+    fn f7_sparse_corpus() {
+        let (_guard, pool) = setup();
+        host_facts(&pool);
+        let corpus = corpus(&pool, 1);
+        let works = knob("THOTH_EVIDENCE_F7_WORKS", 100_000);
+        let started = Instant::now();
+        seed_sparse(&pool, &corpus, works, 1);
+        let keys = month_key_count(&pool);
+        println!(
+            "FIXTURE|F7|{works} works|{keys} month keys, one per unit|seeded in {} s",
+            secs(started.elapsed())
+        );
+        let evidence = Evidence::new();
+        let none = Classes::new();
+        let passes = [
+            ("F7 REBUILD from empty", Rebuild),
+            ("F7 healthy REBUILD", Rebuild),
+        ]
+        .map(|(pass, mode)| {
+            let driven = drive_measured(
+                &pool,
+                &evidence,
+                start(&pool, mode),
+                &Drive::new(pass, &none),
+            );
+            finish_pass(&driven, keys, Reconciled);
+            driven
+        });
+        assert!(verification(&pool).matches);
+        let budget: usize = passes.iter().map(Driven::budget_refusals).sum();
+        let pages: Vec<&Sample> = passes.iter().flat_map(Driven::pages).collect();
+        accept(
+            "F7 non-replacing step hold p95 <= 2 s",
+            &passes[1].steps(false),
+            Duration::from_secs(2),
+            passes[1].budget_refusals(),
+        );
+        accept(
+            "F7 replacing step hold p95 <= 3 s (from-empty build)",
+            &passes[0].steps(true),
+            Duration::from_secs(3),
+            passes[0].budget_refusals(),
+        );
+        accept(
+            "F7 verify page time p95 <= 5 s",
+            &pages,
+            Duration::from_secs(5),
+            budget,
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // F5: the growths
+    // -----------------------------------------------------------------------
+
+    /// The (active days, rows per day) of each F5 level: 10, 20, 30, 40, 60,
+    /// 80, 100, 120, 160, 200, 240, 300, 360, 440, 520, 600 and 672 rows per
+    /// key-month, every row with a country and an institution distinct
+    /// within its key-month (F4's section-row ratio).
+    const GROWTH_LEVELS: [(i64, i64); 17] = [
+        (10, 1),
+        (20, 1),
+        (15, 2),
+        (20, 2),
+        (20, 3),
+        (20, 4),
+        (20, 5),
+        (20, 6),
+        (20, 8),
+        (20, 10),
+        (20, 12),
+        (20, 15),
+        (20, 18),
+        (20, 22),
+        (20, 26),
+        (24, 25),
+        (28, 24),
+    ];
+
+    /// One F5 growth: one work with `years` of history and `series` series
+    /// per work-month, every year holding the same rows and growing with
+    /// the unit, grown in rows per series from a unit inside every step
+    /// budget until a repair step over fully built tables exceeds
+    /// `STEP_HOLD_BUDGET`. Returns the replacing steps of the largest level
+    /// whose steps all committed within 4 s, the unit's direct counts there,
+    /// and the largest whole-work total of any step within 4 s.
+    fn growth(
+        pool: &PgPool,
+        corpus: &Corpus,
+        evidence: &Evidence,
+        number: usize,
+        series: i64,
+        years: i64,
+    ) -> (Vec<Sample>, Option<Terms>, i64) {
+        let last_year = 2025;
+        let mut best = (Vec::new(), None, 0);
+        for (level, (days, per_day)) in GROWTH_LEVELS.into_iter().enumerate() {
+            exec(
+                pool,
+                &format!(
+                    "TRUNCATE TABLE metric_rollup_work_day, {}",
+                    DERIVED_TABLES.join(", ")
+                ),
+            );
+            let shape = Shape {
+                tag: format!("ops03-f5-{number}-{level}"),
+                works: 1,
+                series,
+                first_month: (last_year - i32::try_from(years).expect("years") + 1, 1),
+                months: 12 * years,
+                days,
+                countries: per_day,
+                extra_country_every: 0,
+                window: 1,
+                work_countries: (1, 1),
+                institution_permille: 0,
+                both: true,
+            };
+            let rows = seed_shape(pool, corpus, &shape, 1, 1);
+            let frontier = settle(pool);
+            exec(pool, "ANALYZE metric_rollup_work_day");
+            assert!(rebuild(pool, frontier).expect("the OPS-02 rebuild").rebuilt);
+            let work_id = tagged_works(pool, &shape.tag, 1)[0];
+            let damaged = damage_units(pool, &[work_id]);
+            let mut drive = Drive::new(
+                &format!("F5 growth {number} level {level}"),
+                &Classes::new(),
+            );
+            drive.build_only = true;
+            drive.max_streak = 2;
+            let driven = drive_measured(pool, evidence, start(pool, Rebuild), &drive);
+            let _ = abandon(pool, driven.run.run_id);
+            print_raw(&driven);
+            let unit_terms = terms(
+                pool,
+                Some(unit(work_id, last_year - 1)),
+                Some(unit(work_id, last_year)),
+            );
+            let replacing: Vec<Sample> = driven
+                .samples
+                .iter()
+                .filter(|sample| sample.replaced)
+                .cloned()
+                .collect();
+            let worst = replacing.iter().map(Sample::hold).max().unwrap_or_default();
+            let within =
+                driven.stuck.is_none() && !replacing.is_empty() && worst <= Duration::from_secs(4);
+            let threshold = replacing
+                .iter()
+                .filter(|sample| sample.hold() <= Duration::from_secs(4))
+                .map(|sample| sample.terms.max_whole)
+                .max()
+                .unwrap_or(0);
+            println!(
+                "GROWTH|{number}|level {level}|rows per key-month {}|series {series}|\
+                 years {years}|unit rows {}|unit month keys {}|unit figure {}|\
+                 whole-work rows {rows}|damaged units {damaged}|replacing steps {}|\
+                 max hold {} ms|sizing {}|refusals {:?}|stuck {:?}|within 4 s {within}",
+                days * per_day,
+                unit_terms.rows,
+                unit_terms.month_keys,
+                unit_terms.figure(),
+                replacing.len(),
+                ms(worst),
+                spread_text(spread(&replacing.iter().collect::<Vec<_>>(), |sample| {
+                    sample.timing.sizing
+                })),
+                driven.refusals,
+                driven.stuck,
+            );
+            best.2 = best.2.max(threshold);
+            if within {
+                best.0 = replacing;
+                best.1 = Some(unit_terms);
+            }
+            if driven.stuck.is_some() || worst > METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET {
+                break;
+            }
+        }
+        best
+    }
+
+    #[test]
+    #[ignore = "section 17 performance evidence; run explicitly"]
+    fn f5_growths() {
+        let (_guard, pool) = setup();
+        host_facts(&pool);
+        let k = knob("THOTH_EVIDENCE_F4_K", 40);
+        let corpus = census_corpus(&pool, registry_for(k));
+        let evidence = Evidence::new();
+        let mut threshold = 0;
+        for (number, (label, series, years)) in [
+            ("at least mix (b)'s k series, one year of history", k, 1),
+            ("at least mix (b)'s k series, eight years of history", k, 8),
+            ("F3's four series, eight years of history", 4, 8),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (steps, unit, largest) =
+                growth(&pool, &corpus, &evidence, number + 1, series, years);
+            threshold = threshold.max(largest);
+            match unit {
+                Some(unit) => println!(
+                    "F5|growth {}: {label}|largest unit committing within 4 s|rows {}|\
+                     month keys {}|replacing-read figure {}|whole-work rows {}|years {years}|\
+                     its steps' holds {}|sizing of its work {}",
+                    number + 1,
+                    unit.rows,
+                    unit.month_keys,
+                    unit.figure(),
+                    steps
+                        .iter()
+                        .map(|sample| sample.terms.max_whole)
+                        .max()
+                        .unwrap_or(0),
+                    spread_text(spread(&steps.iter().collect::<Vec<_>>(), Sample::hold)),
+                    spread_text(spread(&steps.iter().collect::<Vec<_>>(), |sample| sample
+                        .timing
+                        .sizing)),
+                ),
+                None => println!(
+                    "F5|growth {}: {label}|no level committed within 4 s",
+                    number + 1
+                ),
+            }
+        }
+        println!(
+            "THRESHOLD|F5|largest whole-work total of a replacing step within 4 s|{threshold}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // F2 with F3 and F4 embedded, and F6 on it
+    // -----------------------------------------------------------------------
+
+    /// The per-work facts F4 reports: rows, series and month keys per
+    /// work-month, the section rows in both monthly section tables, years.
+    fn f4_work_facts(pool: &PgPool, label: &str, works: &[Uuid]) {
+        for work_id in works {
+            let facts = text_scalar(
+                pool,
+                &format!(
+                    "SELECT 'rows ' || (SELECT count(*) FROM metric_rollup_work_day \
+                                        WHERE work_id = '{work_id}') \
+                     || '|month keys per work-month ' \
+                     || (SELECT max(n) FROM (SELECT count(DISTINCT (platform_id, measure_id)) n \
+                                             FROM metric_rollup_work_day \
+                                             WHERE work_id = '{work_id}' \
+                                             GROUP BY date_trunc('month', day)) x) \
+                     || '|country section rows ' \
+                     || (SELECT count(*) FROM metric_rollup_work_country_month \
+                         WHERE work_id = '{work_id}') \
+                     || '|institution section rows ' \
+                     || (SELECT count(*) FROM metric_rollup_work_institution_month \
+                         WHERE work_id = '{work_id}') \
+                     || '|years ' || (SELECT count(DISTINCT date_trunc('year', day)) \
+                                      FROM metric_rollup_work_day WHERE work_id = '{work_id}')"
+                ),
+            )
+            .unwrap_or_default();
+            println!("F4WORK|{label}|{work_id}|{facts}");
+        }
+    }
+
+    fn mix_line(line: &str, steps: &[&Sample]) {
+        let worst = steps
+            .iter()
+            .map(|sample| sample.hold().as_secs_f64() * 1_000.0 / sample.terms.fill().max(1e-9))
+            .fold(0.0, f64::max);
+        let fills: Vec<f64> = steps.iter().map(|sample| sample.terms.fill()).collect();
+        println!(
+            "ACCEPT|{line}|n={}|fill {:.3} to {:.3}|max hold / fill {worst:.1} ms|bound 4000 ms|{}",
+            steps.len(),
+            fills.iter().copied().fold(f64::INFINITY, f64::min),
+            fills.iter().copied().fold(0.0, f64::max),
+            if steps.is_empty() {
+                "NOT MEASURED"
+            } else if worst <= 4_000.0 {
+                "MET"
+            } else {
+                "MISSED"
+            }
+        );
+    }
+
+    #[test]
+    #[ignore = "section 17 performance evidence; run explicitly"]
+    fn f2_census_corpus_with_f3_f4_and_f6() {
+        let (_guard, pool) = setup();
+        host_facts(&pool);
+        let k = knob("THOTH_EVIDENCE_F4_K", 40);
+        let corpus = Arc::new(census_corpus(&pool, registry_for(k)));
+        let window = knob("THOTH_EVIDENCE_F2_WINDOW", 10);
+        let books = Shape {
+            tag: "ops03-f2-book".to_string(),
+            works: knob("THOTH_EVIDENCE_F2_BOOKS", 2_000),
+            series: 4,
+            first_month: (2021, 12),
+            months: 49,
+            days: 10,
+            countries: 2,
+            extra_country_every: 0,
+            window,
+            work_countries: (40, 160),
+            institution_permille: 150,
+            both: false,
+        };
+        let chapters = Shape {
+            tag: "ops03-f2-chapter".to_string(),
+            works: knob("THOTH_EVIDENCE_F2_CHAPTERS", 2_600),
+            series: 2,
+            first_month: (2024, 4),
+            months: 21,
+            ..books.clone()
+        };
+        let f3 = Shape {
+            tag: "ops03-f3".to_string(),
+            works: 4,
+            series: 4,
+            first_month: (2018, 1),
+            months: 96,
+            days: 28,
+            countries: 4,
+            extra_country_every: 7,
+            window: 160,
+            work_countries: (160, 160),
+            ..books.clone()
+        };
+        let f4a = Shape {
+            tag: "ops03-f4a".to_string(),
+            works: knob("THOTH_EVIDENCE_F4A_WORKS", 2),
+            series: knob("THOTH_EVIDENCE_F4A_SERIES", 24),
+            first_month: (2018, 1),
+            months: 12 * knob("THOTH_EVIDENCE_F4A_YEARS", 8),
+            days: 20,
+            countries: 3,
+            extra_country_every: 0,
+            window: 1,
+            work_countries: (1, 1),
+            institution_permille: 0,
+            both: true,
+        };
+        let f4b = Shape {
+            tag: "ops03-f4b".to_string(),
+            works: knob("THOTH_EVIDENCE_F4B_WORKS", 8),
+            series: k,
+            first_month: (2025, 1),
+            months: 12,
+            countries: knob("THOTH_EVIDENCE_F4B_ROWS_PER_DAY", 5),
+            ..f4a.clone()
+        };
+        let shapes = [&books, &chapters, &f3, &f4a, &f4b];
+        let started = Instant::now();
+        for shape in shapes {
+            let rows = seed_all(&pool, &corpus, shape);
+            println!(
+                "FIXTURE|{}|seeded {rows} work-day rows over {} works|{} s",
+                shape.tag,
+                shape.works,
+                secs(started.elapsed())
+            );
+        }
+        settle(&pool);
+        exec(&pool, "ANALYZE");
+        let keys = month_key_count(&pool);
+        let rows = scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_rollup_work_day)");
+        println!(
+            "FIXTURE|F2|{rows} work-day rows|{keys} month keys|registry {} series|k {k}|\
+             seeded and analysed in {} s",
+            corpus.platforms.len(),
+            secs(started.elapsed())
+        );
+        let mut base = (0, 0);
+        for shape in shapes {
+            let (shape_rows, shape_keys) = shape_facts(&pool, shape);
+            if shape.tag.starts_with("ops03-f2-") {
+                base = (base.0 + shape_rows, base.1 + shape_keys);
+            }
+        }
+        let density = base.0 as f64 / base.1.max(1) as f64;
+        let largest_r =
+            (METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ as f64 / (108.0 * density)).sqrt();
+        println!(
+            "FLOOR|F2 rows per key {density:.2}|floor figure {:.0} R^2 for R registry pairs|\
+             STEP_MAX_REPLACING_READ admits R <= {}",
+            108.0 * density,
+            largest_r.floor()
+        );
+        println!(
+            "SIZE|{}",
+            text_scalar(
+                &pool,
+                "SELECT string_agg(relname || ' ' || pg_size_pretty(pg_total_relation_size(oid)), \
+                                   '; ' ORDER BY relname) \
+                 FROM pg_class WHERE relname LIKE 'metric_rollup_work%' AND relkind = 'r'"
+            )
+            .unwrap_or_default()
+        );
+
+        let f3_works = tagged_works(&pool, &f3.tag, f3.works);
+        let f4a_works = tagged_works(&pool, &f4a.tag, f4a.works);
+        let f4b_works = tagged_works(&pool, &f4b.tag, f4b.works);
+        let classes: Classes = vec![
+            ("F3", f3_works.iter().copied().collect()),
+            ("F4a", f4a_works.iter().copied().collect()),
+            ("F4b", f4b_works.iter().copied().collect()),
+        ];
+        let evidence = Evidence::new();
+
+        // REBUILD from empty.
+        let from_empty = drive_measured(
+            &pool,
+            &evidence,
+            start(&pool, Rebuild),
+            &Drive::new("F2 REBUILD from empty", &classes),
+        );
+        finish_pass(&from_empty, keys, Reconciled);
+        let after_build = vacuum_facts(&pool);
+        println!("VACUUM|after the from-empty build|{after_build}");
+        f4_work_facts(&pool, "F4a", &f4a_works);
+        f4_work_facts(&pool, "F4b", &f4b_works);
+
+        // Query plans on F2, F3 and F4 ranges.
+        let mut protected = 0;
+        let mut by_series = 0;
+        for class in ["base", "F3", "F4a", "F4b"] {
+            let mut candidates: Vec<&Sample> = from_empty
+                .steps(true)
+                .into_iter()
+                .filter(|sample| sample.class == class)
+                .collect();
+            candidates.sort_by_key(|sample| sample.hold());
+            if let Some(sample) = candidates.get(candidates.len() / 2) {
+                let label = if class == "base" { "F2" } else { class };
+                let (scans, series) = explain_step(&pool, label, sample.lo, sample.hi);
+                protected += scans;
+                by_series += series;
+            }
+        }
+        println!(
+            "ACCEPT|EXPLAIN on F2, F3 and F4: no sequential scan of metric_rollup_work_day or a \
+             projection table|{protected} found|{}",
+            if protected == 0 { "MET" } else { "MISSED" }
+        );
+        println!(
+            "ACCEPT|EXPLAIN: sizing, RANGE_MONTH_KEYS_SQL, the range deletes and the range \
+             verifier are led by work_id|{by_series} read work-day rows through the series \
+             index|{}",
+            if by_series == 0 { "MET" } else { "MISSED" }
+        );
+
+        // F4 repair passes over fully built tables.
+        let f4_works: Vec<Uuid> = f4a_works.iter().chain(&f4b_works).copied().collect();
+        let mut repairs = Vec::new();
+        for pass in [
+            "F4 repair pass",
+            "F4 repair pass repeated without vacuum (report only)",
+        ] {
+            println!("VACUUM|before {pass}|{}", vacuum_facts(&pool));
+            let damaged = damage_units(&pool, &f4_works);
+            let driven = drive_measured(
+                &pool,
+                &evidence,
+                start(&pool, Rebuild),
+                &Drive::new(pass, &classes),
+            );
+            finish_pass(&driven, keys, Reconciled);
+            println!(
+                "VACUUM|after {pass}|damaged rows {damaged}|{}",
+                vacuum_facts(&pool)
+            );
+            repairs.push(driven);
+        }
+
+        // 200 scattered corruptions, VERIFY, then REBUILD.
+        let corrupted = scatter_corruptions(&pool, 200);
+        println!(
+            "CORRUPTED|{corrupted:?}|total {}",
+            corrupted.iter().map(|(_, n)| n).sum::<i64>()
+        );
+        let verified = drive_measured(
+            &pool,
+            &evidence,
+            start(&pool, Verify),
+            &Drive::new("F2 VERIFY after 200 corruptions", &classes),
+        );
+        finish_pass(&verified, keys, Mismatched);
+        println!("MISMATCHED|{:?}", run_families(&verified.run));
+        let repaired = drive_measured(
+            &pool,
+            &evidence,
+            start(&pool, Rebuild),
+            &Drive::new("F2 repair REBUILD", &classes),
+        );
+        finish_pass(&repaired, keys, Reconciled);
+        assert!(verification(&pool).matches);
+        println!(
+            "F2|200 corruptions -> VERIFY {:?} -> REBUILD {:?} with {} replacing steps",
+            verified.run.status,
+            repaired.run.status,
+            repaired.steps(true).len()
+        );
+
+        // Acceptance.
+        let all = [&from_empty, &repairs[0], &repairs[1], &verified, &repaired];
+        let budget: usize = all.iter().map(|driven| driven.budget_refusals()).sum();
+        let non_replacing: Vec<&Sample> =
+            all.iter().flat_map(|driven| driven.steps(false)).collect();
+        let pages: Vec<&Sample> = all.iter().flat_map(|driven| driven.pages()).collect();
+        for (class, label) in [("base", "F2"), ("F3", "F3")] {
+            accept(
+                &format!("{label} non-replacing step hold p95 <= 2 s"),
+                &of_class(non_replacing.clone(), &[class]),
+                Duration::from_secs(2),
+                budget,
+            );
+            accept(
+                &format!("{label} replacing step hold p95 <= 3 s (from-empty build)"),
+                &of_class(from_empty.steps(true), &[class]),
+                Duration::from_secs(3),
+                from_empty.budget_refusals(),
+            );
+        }
+        accept(
+            "F2 replacing step hold p95 <= 3 s (its repair run)",
+            &repaired.steps(true),
+            Duration::from_secs(3),
+            repaired.budget_refusals(),
+        );
+        for (class, label) in [("base", "F2"), ("F3", "F3"), ("F4a", "F4a"), ("F4b", "F4b")] {
+            accept(
+                &format!("{label} verify page time p95 <= 5 s"),
+                &of_class(pages.clone(), &[class]),
+                Duration::from_secs(5),
+                budget,
+            );
+        }
+        for (class, mix) in [("F4a", "mix (a)"), ("F4b", "mix (b)")] {
+            mix_line(
+                &format!("F4 {mix} from-empty steps: max of hold / fill <= 4 s"),
+                &of_class(from_empty.steps(true), &[class]),
+            );
+            mix_line(
+                &format!("F4 {mix} repair steps: max of hold / fill <= 4 s"),
+                &of_class(repairs[0].steps(true), &[class]),
+            );
+            mix_line(
+                &format!("F4 {mix} repair steps repeated without vacuum (report only)"),
+                &of_class(repairs[1].steps(true), &[class]),
+            );
+        }
+
+        // The cost fit over every replacing step of F2 to F4 (the repeated
+        // repair pass is report only), and the F3-F4-only fit.
+        let pooled: Vec<&Sample> = [&from_empty, &repairs[0], &repaired]
+            .iter()
+            .flat_map(|driven| driven.steps(true))
+            .collect();
+        let f4_threshold = [&from_empty, &repairs[0]]
+            .iter()
+            .flat_map(|driven| driven.steps(true))
+            .filter(|sample| matches!(sample.class, "F4a" | "F4b"))
+            .filter(|sample| sample.hold() <= Duration::from_secs(4))
+            .map(|sample| sample.terms.max_whole)
+            .max()
+            .unwrap_or(0);
+        let threshold = f4_threshold.max(knob("THOTH_EVIDENCE_F5_WHOLE", 0));
+        let statements = pooled
+            .iter()
+            .map(|sample| sample.timing.in_transaction)
+            .max()
+            .unwrap_or(0) as f64;
+        println!(
+            "THRESHOLD|F4 largest whole-work total of a replacing step within 4 s {f4_threshold}|\
+             F5 (THOTH_EVIDENCE_F5_WHOLE) {}|whole-work threshold {threshold}|F3 works' totals {:?}",
+            knob("THOTH_EVIDENCE_F5_WHOLE", 0),
+            f3_works
+                .iter()
+                .map(|work_id| scalar_i64(
+                    &pool,
+                    &format!(
+                        "(SELECT COUNT(*) FROM metric_rollup_work_day WHERE work_id = '{work_id}')"
+                    )
+                ))
+                .collect::<Vec<_>>()
+        );
+        fit("pooled F2-F4", &pooled, statements, threshold as f64, k);
+        fit(
+            "F3-F4 only",
+            &of_class(pooled.clone(), &["F3", "F4a", "F4b"]),
+            statements,
+            threshold as f64,
+            k,
+        );
+
+        if knob("THOTH_EVIDENCE_F6", 1) != 0 {
+            let book_works = tagged_works(&pool, &books.tag, books.works.min(80));
+            f6(&pool, &corpus, &evidence, &book_works, keys);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // F6: concurrency
+    // -----------------------------------------------------------------------
+
+    /// The F6 workload's tallies.
+    #[derive(Debug, Default)]
+    struct Tally {
+        ingested: usize,
+        batches: usize,
+        ingestion_failures: Vec<String>,
+        claims: usize,
+        completed: usize,
+        completion_failures: Vec<String>,
+    }
+
+    /// One workload statement that waited on a lock, as the sampler saw it.
+    #[derive(Clone, Debug)]
+    struct Wait {
+        application: String,
+        work_row: bool,
+        first: Instant,
+        last: Instant,
+        /// When the step's backend blocked it directly.
+        step_direct: Option<(Instant, Instant)>,
+        /// When the step's backend was anywhere in its blocking chain.
+        step_chain: Option<(Instant, Instant)>,
+    }
+
+    #[derive(QueryableByName)]
+    struct Activity {
+        #[diesel(sql_type = Integer)]
+        pid: i32,
+        #[diesel(sql_type = Text)]
+        application_name: String,
+        #[diesel(sql_type = Nullable<Text>)]
+        wait_event_type: Option<String>,
+        #[diesel(sql_type = Nullable<Text>)]
+        query: Option<String>,
+        #[diesel(sql_type = Nullable<Text>)]
+        query_start: Option<String>,
+        #[diesel(sql_type = Array<Integer>)]
+        blockers: Vec<i32>,
+    }
+
+    /// Whether `target` is in `pid`'s blocking chain.
+    fn reaches(blockers: &BTreeMap<i32, Vec<i32>>, pid: i32, target: i32) -> bool {
+        let mut seen = BTreeSet::new();
+        let mut queue = vec![pid];
+        while let Some(next) = queue.pop() {
+            for blocker in blockers.get(&next).into_iter().flatten() {
+                if *blocker == target {
+                    return true;
+                }
+                if seen.insert(*blocker) {
+                    queue.push(*blocker);
+                }
+            }
+        }
+        false
+    }
+
+    /// Sample `pg_blocking_pids()` of every workload backend until `stop`.
+    fn sampler(stop: Arc<AtomicBool>) -> thread::JoinHandle<Vec<Wait>> {
+        thread::spawn(move || {
+            let mut connection =
+                PgConnection::establish(&test_db_url()).expect("the sampler connection");
+            let mut waits: BTreeMap<(i32, String), Wait> = BTreeMap::new();
+            while !stop.load(Ordering::SeqCst) {
+                let now = Instant::now();
+                let rows: Vec<Activity> = sql_query(
+                    "SELECT pid, application_name, wait_event_type, left(query, 300) AS query, \
+                            query_start::text AS query_start, pg_blocking_pids(pid) AS blockers \
+                     FROM pg_stat_activity WHERE application_name LIKE 'ops03-%'",
+                )
+                .load(&mut connection)
+                .unwrap_or_default();
+                let step = rows
+                    .iter()
+                    .find(|row| row.application_name == STEP_APPLICATION)
+                    .map(|row| row.pid);
+                let blockers: BTreeMap<i32, Vec<i32>> = rows
+                    .iter()
+                    .map(|row| (row.pid, row.blockers.clone()))
+                    .collect();
+                for row in &rows {
+                    if row.application_name == STEP_APPLICATION
+                        || row.wait_event_type.as_deref() != Some("Lock")
+                    {
+                        continue;
+                    }
+                    let query = row.query.clone().unwrap_or_default();
+                    let wait = waits
+                        .entry((row.pid, row.query_start.clone().unwrap_or_default()))
+                        .or_insert_with(|| Wait {
+                            application: row.application_name.clone(),
+                            work_row: query.contains("FROM work") && query.contains("FOR UPDATE"),
+                            first: now,
+                            last: now,
+                            step_direct: None,
+                            step_chain: None,
+                        });
+                    wait.last = now;
+                    if step.is_some_and(|step| row.blockers.contains(&step)) {
+                        wait.step_direct.get_or_insert((now, now)).1 = now;
+                    }
+                    if step.is_some_and(|step| reaches(&blockers, row.pid, step)) {
+                        wait.step_chain.get_or_insert((now, now)).1 = now;
+                    }
+                }
+                thread::sleep(SAMPLE_INTERVAL.saturating_sub(now.elapsed()));
+            }
+            waits.into_values().collect()
+        })
+    }
+
+    fn failure_text(error: &DieselError) -> String {
+        match error {
+            DieselError::DatabaseError(_, info) => {
+                format!("{} ({})", info.message(), info.details().unwrap_or(""))
+            }
+            other => other.to_string(),
+        }
+    }
+
+    /// The shared state of one F6 workload.
+    struct Workload {
+        corpus: Arc<Corpus>,
+        sets: [Vec<Uuid>; 2],
+        /// The set ingestion writes to: `current % 2`.
+        current: AtomicUsize,
+        /// The deltas the completion stream may still claim: the previous
+        /// set's, all below any delta of the current set.
+        allowed: AtomicI64,
+        /// Held for reading by an ingestion batch, for writing by a switch.
+        gate: RwLock<()>,
+        stop: AtomicBool,
+        tally: Mutex<Tally>,
+    }
+
+    /// One ingestion stream: canonical `DAY` batches of one or two works of
+    /// the current set, the works locked `FOR UPDATE` first, under the
+    /// ingestion's 30 s statement timeout.
+    fn ingestion_stream(workload: &Workload, stream: usize) {
+        let mut connection =
+            PgConnection::establish(&test_db_url()).expect("an ingestion connection");
+        sql_query(format!("SET application_name = 'ops03-ingest-{stream}'"))
+            .execute(&mut connection)
+            .expect("the ingestion's application name");
+        let mut n = stream * 7_919;
+        while !workload.stop.load(Ordering::SeqCst) {
+            let gate = workload.gate.read().expect("the gate");
+            let set = &workload.sets[workload.current.load(Ordering::SeqCst) % 2];
+            let mut works = vec![set[n % set.len()], set[(n / 3 + 1) % set.len()]];
+            works.sort();
+            works.dedup();
+            let on = day(2025, 12, 1 + u32::try_from(n % 28).expect("a day"));
+            let value = 1 + i64::try_from(n % 5).expect("a value");
+            let result = connection.transaction::<_, DieselError, _>(|c| {
+                sql_query("SET LOCAL statement_timeout = 30000").execute(c)?;
+                sql_query(format!(
+                    "SELECT work_id FROM work WHERE work_id IN ({}) ORDER BY work_id FOR UPDATE",
+                    quoted(&works)
+                ))
+                .execute(c)?;
+                for work_id in &works {
+                    for statement in ingestion_statements(&workload.corpus, *work_id, on, value) {
+                        sql_query(statement).execute(c)?;
+                    }
+                }
+                Ok(())
+            });
+            drop(gate);
+            let mut tally = workload.tally.lock().expect("the tally");
+            tally.batches += 1;
+            match result {
+                Ok(()) => tally.ingested += works.len(),
+                Err(error) => tally.ingestion_failures.push(failure_text(&error)),
+            }
+            drop(tally);
+            n += 1;
+            thread::sleep(Duration::from_millis(25));
+        }
+    }
+
+    /// The completion stream: claims and completions of the previous set's
+    /// deltas only. A failed completion is counted and retried with its
+    /// token, so its claim never blocks the frontier.
+    fn completion_stream(workload: &Workload) {
+        let pool = tagged_pool("ops03-completion", 1, None);
+        let claimant = "metrics-evidence-completion";
+        while !workload.stop.load(Ordering::SeqCst) {
+            let limit = workload
+                .allowed
+                .load(Ordering::SeqCst)
+                .min(i64::from(METRIC_ROLLUP_CLAIM_MAX_BATCH));
+            if limit <= 0 {
+                thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+            let claims = match claim_metric_rollup_deltas(
+                &pool,
+                claimant,
+                i32::try_from(limit).expect("a claim limit"),
+            ) {
+                Ok(claims) => claims,
+                Err(error) => {
+                    workload
+                        .tally
+                        .lock()
+                        .expect("the tally")
+                        .completion_failures
+                        .push(format!("claim: {error}"));
+                    thread::sleep(Duration::from_millis(200));
+                    continue;
+                }
+            };
+            let Some(first) = claims.first() else {
+                thread::sleep(Duration::from_millis(50));
+                continue;
+            };
+            let claimed = i64::try_from(claims.len()).expect("a claim count");
+            workload.allowed.fetch_sub(claimed, Ordering::SeqCst);
+            for _ in 0..30 {
+                match complete_metric_rollup_deltas(&pool, claimant, first.claim_token) {
+                    Ok(_) => {
+                        let mut tally = workload.tally.lock().expect("the tally");
+                        tally.claims += 1;
+                        tally.completed += claims.len();
+                        break;
+                    }
+                    Err(error) => {
+                        workload
+                            .tally
+                            .lock()
+                            .expect("the tally")
+                            .completion_failures
+                            .push(format!("completion: {error}"));
+                        thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Switch the sets every `phase`: wait until the completions have drained
+    /// the previous set, close the gate on new batches, count the current
+    /// set's deltas for the completion stream, and switch.
+    fn coordinator(workload: &Workload, pool: &PgPool, phase: Duration) {
+        while !workload.stop.load(Ordering::SeqCst) {
+            let switch_at = Instant::now() + phase;
+            while Instant::now() < switch_at && !workload.stop.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(100));
+            }
+            let drained_by = Instant::now() + Duration::from_secs(120);
+            while workload.allowed.load(Ordering::SeqCst) > 0
+                && Instant::now() < drained_by
+                && !workload.stop.load(Ordering::SeqCst)
+            {
+                thread::sleep(Duration::from_millis(100));
+            }
+            if workload.stop.load(Ordering::SeqCst) {
+                break;
+            }
+            let _switch = workload.gate.write().expect("the gate");
+            let pending = scalar_i64(
+                pool,
+                "(SELECT COUNT(*) FROM metric_rollup_delta WHERE status <> 'APPLIED')",
+            );
+            workload.allowed.store(pending, Ordering::SeqCst);
+            workload.current.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// Run the F6 workload while `body` runs; returns body's result, the
+    /// tallies and the sampled waits.
+    fn with_workload<T>(
+        pool: &PgPool,
+        corpus: &Arc<Corpus>,
+        sets: [Vec<Uuid>; 2],
+        body: impl FnOnce() -> T,
+    ) -> (T, Tally, Vec<Wait>) {
+        let workload = Workload {
+            corpus: Arc::clone(corpus),
+            sets,
+            current: AtomicUsize::new(0),
+            allowed: AtomicI64::new(0),
+            gate: RwLock::new(()),
+            stop: AtomicBool::new(false),
+            tally: Mutex::new(Tally::default()),
+        };
+        let sampler_stop = Arc::new(AtomicBool::new(false));
+        let sampling = sampler(Arc::clone(&sampler_stop));
+        let phase = Duration::from_secs(
+            u64::try_from(knob("THOTH_EVIDENCE_F6_PHASE_SECS", 20)).expect("a phase"),
+        );
+        let result = thread::scope(|scope| {
+            for stream in 0..2 {
+                let workload = &workload;
+                scope.spawn(move || ingestion_stream(workload, stream));
+            }
+            scope.spawn(|| completion_stream(&workload));
+            scope.spawn(|| coordinator(&workload, pool, phase));
+            let result = body();
+            workload.stop.store(true, Ordering::SeqCst);
+            result
+        });
+        sampler_stop.store(true, Ordering::SeqCst);
+        let waits = sampling.join().expect("the sampler");
+        let tally = workload.tally.into_inner().expect("the tally");
+        (result, tally, waits)
+    }
+
+    fn wait_spread(label: &str, waits: Vec<Duration>, bound: Option<Duration>) {
+        let mut waits = waits;
+        if waits.is_empty() {
+            println!("WAITS|{label}|n=0");
+            return;
+        }
+        let (p50, p95, max) = percentiles(&mut waits);
+        let verdict = bound.map_or(String::new(), |bound| {
+            format!(
+                "|bound max <= {} s|{}",
+                bound.as_secs(),
+                if max <= bound.as_micros() {
+                    "MET"
+                } else {
+                    "MISSED"
+                }
+            )
+        });
+        println!(
+            "WAITS|{label}|n={}|p50 {} ms|p95 {} ms|max {} ms{verdict}",
+            waits.len(),
+            ms_of(p50),
+            ms_of(p95),
+            ms_of(max)
+        );
+    }
+
+    fn report_workload(label: &str, tally: &Tally, waits: &[Wait], attributed: bool) {
+        let span = |(first, last): (Instant, Instant)| last - first + SAMPLE_INTERVAL;
+        let ingestion = |wait: &&Wait| wait.application.starts_with("ops03-ingest");
+        println!(
+            "WORKLOAD|{label}|ingestion batches {}|works ingested {}|ingestion failures {}|\
+             claims {}|deltas completed {}|completion failures {}|failures {:?} {:?}",
+            tally.batches,
+            tally.ingested,
+            tally.ingestion_failures.len(),
+            tally.claims,
+            tally.completed,
+            tally.completion_failures.len(),
+            tally.ingestion_failures,
+            tally.completion_failures,
+        );
+        wait_spread(
+            &format!("{label}|state-row waits, all causes (DAY inserts, claims, completions)"),
+            waits
+                .iter()
+                .filter(|wait| !wait.work_row)
+                .map(|wait| span((wait.first, wait.last)))
+                .collect(),
+            None,
+        );
+        wait_spread(
+            &format!("{label}|ingestion work-row waits, all causes"),
+            waits
+                .iter()
+                .filter(ingestion)
+                .filter(|wait| wait.work_row)
+                .map(|wait| span((wait.first, wait.last)))
+                .collect(),
+            None,
+        );
+        wait_spread(
+            &format!("{label}|ingestion statement waits, all causes"),
+            waits
+                .iter()
+                .filter(ingestion)
+                .map(|wait| span((wait.first, wait.last)))
+                .collect(),
+            None,
+        );
+        if attributed {
+            wait_spread(
+                &format!("{label}|direct state-row waits attributable to steps"),
+                waits
+                    .iter()
+                    .filter(|wait| !wait.work_row)
+                    .filter_map(|wait| wait.step_direct.map(span))
+                    .collect(),
+                Some(Duration::from_secs(6)),
+            );
+            wait_spread(
+                &format!("{label}|direct ingestion work-row waits attributable to steps"),
+                waits
+                    .iter()
+                    .filter(ingestion)
+                    .filter(|wait| wait.work_row)
+                    .filter_map(|wait| wait.step_direct.map(span))
+                    .collect(),
+                Some(Duration::from_secs(8)),
+            );
+            wait_spread(
+                &format!(
+                    "{label}|ingestion statement waits with a step in the blocking chain \
+                     (whole wait)"
+                ),
+                waits
+                    .iter()
+                    .filter(ingestion)
+                    .filter(|wait| wait.step_chain.is_some())
+                    .map(|wait| span((wait.first, wait.last)))
+                    .collect(),
+                Some(Duration::from_secs(13)),
+            );
+            wait_spread(
+                &format!("{label}|ingestion statement waits, time with a step in the chain"),
+                waits
+                    .iter()
+                    .filter(ingestion)
+                    .filter_map(|wait| wait.step_chain.map(span))
+                    .collect(),
+                None,
+            );
+        }
+    }
+
+    /// F6 on the F2 corpus: the workload alone as a baseline, then during a
+    /// paced REBUILD's build phase; the verify phase runs after the
+    /// workload has stopped and its deltas are applied.
+    fn f6(
+        pool: &Arc<PgPool>,
+        corpus: &Arc<Corpus>,
+        evidence: &Evidence,
+        books: &[Uuid],
+        keys: i64,
+    ) {
+        let half = books.len() / 2;
+        let sets = [books[..half].to_vec(), books[half..].to_vec()];
+        let baseline = Duration::from_secs(
+            u64::try_from(knob("THOTH_EVIDENCE_F6_BASELINE_SECS", 300)).expect("seconds"),
+        );
+        let ((), tally, waits) =
+            with_workload(pool, corpus, sets.clone(), || thread::sleep(baseline));
+        apply_everything(pool);
+        report_workload("F6 baseline without a run", &tally, &waits, false);
+
+        if knob("THOTH_EVIDENCE_F6_FROM_EMPTY", 1) != 0 {
+            truncate_projections(pool);
+        }
+        let mut drive = Drive::new("F6 paced REBUILD build phase", &Classes::new());
+        drive.paced = true;
+        drive.build_only = true;
+        drive.terms = false;
+        let (built, tally, waits) = with_workload(pool, corpus, sets, || {
+            drive_measured(pool, evidence, start(pool, Rebuild), &drive)
+        });
+        apply_everything(pool);
+        print_raw(&built);
+        summarise(&built, keys);
+        report_workload("F6 during the paced build phase", &tally, &waits, true);
+        let step_deadlocks = built
+            .refusals
+            .iter()
+            .filter(|(refusal, _)| refusal.ends_with(reason::DEADLOCK))
+            .map(|(_, count)| count)
+            .sum::<usize>();
+        let workload_deadlocks = tally
+            .ingestion_failures
+            .iter()
+            .chain(&tally.completion_failures)
+            .filter(|failure| failure.contains("deadlock"))
+            .count();
+        println!(
+            "ACCEPT|F6 zero ingestion or completion failures|{} and {}|{}",
+            tally.ingestion_failures.len(),
+            tally.completion_failures.len(),
+            if tally.ingestion_failures.is_empty() && tally.completion_failures.is_empty() {
+                "MET"
+            } else {
+                "MISSED"
+            }
+        );
+        println!(
+            "ACCEPT|F6 no deadlock naming a step's backend|step refusals for a deadlock \
+             {step_deadlocks}|workload deadlocks {workload_deadlocks}|{}",
+            if step_deadlocks == 0 && workload_deadlocks == 0 {
+                "MET"
+            } else {
+                "MISSED"
+            }
+        );
+        println!(
+            "ACCEPT|F6 the build phase completes|{:?}|refusals by reason {:?}|longest run of \
+             refusals {}|build phase {} s|{}",
+            built.run.status,
+            built.refusals,
+            built.longest_streak,
+            secs(built.build),
+            if built.stuck.is_none() && built.run.status != Building {
+                "MET"
+            } else {
+                "MISSED"
+            }
+        );
+        let mut verify = Drive::new("F6 verify phase after the workload", &Classes::new());
+        verify.terms = false;
+        let ended = drive_measured(pool, evidence, built.run.clone(), &verify);
+        finish_pass(&ended, keys, Reconciled);
+        assert!(verification(pool).matches);
+    }
+}
