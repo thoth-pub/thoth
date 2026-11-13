@@ -78,8 +78,10 @@ with no trailer.
    and the test that pins both.
 7. `c71c35e15538b22a4cd3f3c2639475b2a92987da` - the section 17 harness as
    amended by R14 and erratum R14.1 (section 10.7).
-8. The commit that adds the re-run's evidence to this report and register
-   3.8, with register 3.8's other R14.1 text.
+8. `0c3a685e3528d1f946c3d923499bba94f115fbfd` - the re-run's evidence in
+   this report and register 3.8, with register 3.8's other R14.1 text.
+9. The commit that states F5's growth limits on build and repair steps in
+   register 3.8 and this report (section 5, deviations).
 
 ## 4. Files changed
 
@@ -326,6 +328,20 @@ Deviations from the specification requiring authorization:
       -Wl,--as-needed"
   make -C contrib/uuid-ossp
   ```
+- F5's growth limits, stricter than specified (decided by the
+  orchestrator after the re-run): section 17 defines each growth's largest
+  unit within 4 s on its repair steps. On PostgreSQL 17 the build step was
+  the dearer one at growth 3's top levels (4,452.9 ms against 3,893.2 ms at
+  261 rows per key-month, the repair-only limit), so register 3.8 states
+  each growth's limit as the largest level at which every step, build and
+  repair alike, committed within 4 s: growth 3 at 220 rows per key-month
+  (10,560 rows, figure 380,160, whole-work 84,480) instead of 261 (12,528
+  rows, figure 451,008, whole-work 100,224); growths 1 and 2 are the same
+  under both readings (27 and 7 rows per key-month). The reading is never
+  more lenient: a unit the run grant passes on it also passes on the
+  repair-only reading. T stays 107,520, from F4. Section 10.7.8 keeps the
+  repair-only figures beside it, and the harness's `F5` and `THRESHOLD`
+  lines still print the repair-only reading.
 - Re-run host check: `pg_jit_available()` is false whenever `jit` is off,
   so the check that the build can JIT was made in a transaction that sets
   `jit` on, where it is true (`HOSTJIT`, section 10.7.1). The cluster's `jit`
@@ -618,7 +634,9 @@ Names below are in `rebuild_run_tests.rs`, module `evidence`, unless stated.
     analyses, and takes the measured repair step; the level's run is
     abandoned once that work's range is replaced. Levels step coarsely, then
     by one row per key-month near each crossing; growth 2 starts at 3 rows
-    per key-month at k = 39 (`run_growth`).
+    per key-month at k = 39 (`run_growth`). Register 3.8 states each
+    growth's limit on build and repair steps alike (section 5,
+    deviations).
 11. F6 on F2 with its F3 and F4 works, under the production budgets and the
     section 15 pacing, with the baseline run (`f6`).
 12. Host facts: `host_facts` prints the version, `pg_config` configure,
@@ -1491,61 +1509,73 @@ range (`repair`); each run was abandoned once that range was replaced. At
 growth 1's levels of 2 and 8 rows per key-month the step also took six units
 of three neighbouring F2 works (594 month keys, 4,903 and 7,711 rows); every
 other step took only its growth work. Holds are the maxima over the pass's
-replacing steps.
+replacing steps. "Within 4 s" is given twice: on the repair steps alone, as
+section 17 defines F5, and on every step of the level, build and repair
+alike, the stricter reading register 3.8 states (section 5, deviations).
 
 ```text
 growth 1: 39 series per work-month, one year of history (one unit)
-rows per key-month   unit rows  figure      whole-work  repair max   build max    within 4 s
- 2                      936        73,008       936     1,019.5 ms   1,245.3 ms   yes
- 8                    3,744       292,032     3,744     1,819.0 ms   1,942.7 ms   yes
-16                    7,488       584,064     7,488     2,298.4 ms   2,450.9 ms   yes
-24                   11,232       876,096    11,232     3,561.0 ms   3,443.9 ms   yes
-25                   11,700       912,600    11,700     3,515.3 ms   3,593.5 ms   yes
-26                   12,168       949,104    12,168     3,709.3 ms   3,585.4 ms   yes
-27                   12,636       985,608    12,636     3,850.2 ms   3,863.5 ms   yes (largest)
-28                   13,104     1,022,112    13,104     4,117.6 ms   3,863.1 ms   no
-32                   14,976     1,168,128    14,976     4,252.2 ms   4,345.0 ms   no
+rows per key-month   unit rows  figure      whole-work  repair max   build max    within 4 s: repair / both
+ 2                      936        73,008       936     1,019.5 ms   1,245.3 ms   yes / yes
+ 8                    3,744       292,032     3,744     1,819.0 ms   1,942.7 ms   yes / yes
+16                    7,488       584,064     7,488     2,298.4 ms   2,450.9 ms   yes / yes
+24                   11,232       876,096    11,232     3,561.0 ms   3,443.9 ms   yes / yes
+25                   11,700       912,600    11,700     3,515.3 ms   3,593.5 ms   yes / yes
+26                   12,168       949,104    12,168     3,709.3 ms   3,585.4 ms   yes / yes
+27                   12,636       985,608    12,636     3,850.2 ms   3,863.5 ms   yes / yes (largest in both)
+28                   13,104     1,022,112    13,104     4,117.6 ms   3,863.1 ms   no / no
+32                   14,976     1,168,128    14,976     4,252.2 ms   4,345.0 ms   no / no
 
 growth 2: 39 series per work-month, eight years of history (eight equal units)
- 3                    1,404       492,804    11,232     1,679.5 ms   1,598.2 ms   yes
- 6                    2,808       985,608    22,464     3,352.9 ms   3,183.5 ms   yes
- 7                    3,276     1,149,876    26,208     3,739.3 ms   3,764.8 ms   yes (largest)
- 8                    3,744     1,314,144    29,952     4,727.1 ms   4,376.3 ms   no
- 9                    4,212     1,478,412    33,696     4,355.2 ms   4,096.2 ms   no
+ 3                    1,404       492,804    11,232     1,679.5 ms   1,598.2 ms   yes / yes
+ 6                    2,808       985,608    22,464     3,352.9 ms   3,183.5 ms   yes / yes
+ 7                    3,276     1,149,876    26,208     3,739.3 ms   3,764.8 ms   yes / yes (largest in both)
+ 8                    3,744     1,314,144    29,952     4,727.1 ms   4,376.3 ms   no / no
+ 9                    4,212     1,478,412    33,696     4,355.2 ms   4,096.2 ms   no / no
 
 growth 3: F3's four series, eight years of history (eight equal units)
- 20                     960        34,560     7,680     2,706.9 ms   2,578.0 ms   yes (one step, 8 units)
- 60                   2,880       103,680    23,040     1,986.8 ms   2,096.6 ms   yes (steps of 2 units)
-100                   4,800       172,800    38,400     1,638.9 ms   1,820.2 ms   yes
-140                   6,720       241,920    53,760     2,300.0 ms   2,307.2 ms   yes
-180                   8,640       311,040    69,120     2,700.9 ms   2,732.1 ms   yes
-220                  10,560       380,160    84,480     3,466.8 ms   3,463.1 ms   yes
-260                  12,480       449,280    99,840     3,834.3 ms   4,241.8 ms   yes
-261                  12,528       451,008   100,224     3,893.2 ms   4,452.9 ms   yes (largest)
-262                  12,576       452,736   100,608     4,039.4 ms   4,052.6 ms   no
-265                  12,720       457,920   101,760     4,136.0 ms   4,595.8 ms   no
-270                  12,960       466,560   103,680     4,329.4 ms   4,642.1 ms   no
-280                  13,440       483,840   107,520     4,171.1 ms   4,258.6 ms   no
-300                  14,400       518,400   115,200     4,625.1 ms   4,705.2 ms*  no
+ 20                     960        34,560     7,680     2,706.9 ms   2,578.0 ms   yes / yes (one step, 8 units)
+ 60                   2,880       103,680    23,040     1,986.8 ms   2,096.6 ms   yes / yes (steps of 2 units)
+100                   4,800       172,800    38,400     1,638.9 ms   1,820.2 ms   yes / yes
+140                   6,720       241,920    53,760     2,300.0 ms   2,307.2 ms   yes / yes
+180                   8,640       311,040    69,120     2,700.9 ms   2,732.1 ms   yes / yes
+220                  10,560       380,160    84,480     3,466.8 ms   3,463.1 ms   yes / yes (largest in both)
+260                  12,480       449,280    99,840     3,834.3 ms   4,241.8 ms   yes / no
+261                  12,528       451,008   100,224     3,893.2 ms   4,452.9 ms   yes / no (largest on repair)
+262                  12,576       452,736   100,608     4,039.4 ms   4,052.6 ms   no / no
+265                  12,720       457,920   101,760     4,136.0 ms   4,595.8 ms   no / no
+270                  12,960       466,560   103,680     4,329.4 ms   4,642.1 ms   no / no
+280                  13,440       483,840   107,520     4,171.1 ms   4,258.6 ms   no / no
+300                  14,400       518,400   115,200     4,625.1 ms   4,705.2 ms*  no / no
 * one build step refused at STEP_HOLD_BUDGET (statement_timeout, hold 5,000.8 ms) under the
   section 10 budgets, measured once under the diagnostic budgets at 4,705.2 ms
 ```
 
-The largest unit committing within 4 s in each growth (the `F5` lines):
+The largest unit in each growth at which every step of the level, build and
+repair alike, committed within 4 s, as register 3.8 states it (no step of
+these levels was refused):
 
 ```text
-growth  rows per   rows    month  figure     whole-work  years  repair holds p50 / p95 / max     pre-sizing p50 / p95
-        key-month          keys                                                                  (re-sizing)
-1       27         12,636  468      985,608  12,636      1      3,850.2 ms (one step)            20.5 ms (18.1 ms)
-2       7           3,276  468    1,149,876  26,208      8      3,493.0 / 3,739.3 / 3,739.3 ms  35.8 / 49.6 ms (33.8 / 57.9 ms)
-3       261        12,528   48      451,008  100,224     8      3,740.3 / 3,893.2 / 3,893.2 ms  90.1 / 126.9 ms (101.7 / 147.3 ms)
+growth  rows per   rows    month  figure     whole-work  years  holds p50 / p95 / max                 pre-sizing p50 / p95
+        key-month          keys                                                                       (re-sizing)
+1       27         12,636  468      985,608  12,636      1      repair 3,850.2 ms (one step)          repair 20.5 ms (18.1 ms)
+                                                                build 3,863.5 ms (one step)           build 20.6 ms (16.2 ms)
+2       7           3,276  468    1,149,876  26,208      8      repair 3,493.0 / 3,739.3 / 3,739.3 ms repair 35.8 / 49.6 ms (33.8 / 57.9 ms)
+                                                                build 3,629.1 / 3,764.8 / 3,764.8 ms  build 36.6 / 66.0 ms (37.6 / 68.7 ms)
+3       220        10,560   48      380,160  84,480      8      repair 3,310.3 / 3,466.8 / 3,466.8 ms repair 91.3 / 119.6 ms (88.4 / 96.7 ms)
+                                                                build 3,303.4 / 3,463.1 / 3,463.1 ms  build 91.0 / 169.1 ms (90.4 / 101.7 ms)
 ```
 
+On the repair steps alone, as section 17 defines F5 and as the harness's
+`F5` lines print it, growths 1 and 2 give the same levels, and growth 3
+reaches 261 rows per key-month: 12,528 rows, 48 month keys, figure 451,008,
+whole-work 100,224 rows, repair holds 3,740.3 / 3,893.2 / 3,893.2 ms,
+pre-sizing 90.1 / 126.9 ms (re-sizing 101.7 / 147.3 ms). Its build steps
+held up to 4,452.9 ms, the first build step each time: from 260 rows per
+key-month up, growth 3's build step was the dearer one.
+
 F5 counts against no zero-refusal or page line; the refusal at growth 3's
-300 rows per key-month is the measurement. Its build steps are reported for
-information: at growth 3's levels from 260 rows per key-month up they held
-more than the repair steps (4,452.9 ms against 3,893.2 ms at 261, the first
-build step each time; section 14).
+300 rows per key-month is the measurement.
 
 #### 10.7.9 The whole-work threshold T
 
@@ -1556,9 +1586,11 @@ THRESHOLD|F4 classes ["F4a", "F4a2", "F4b"]: largest whole-work total of a repla
 ```
 
 The second length met both its lines, so T is the largest whole-work total
-among F4's and F5's replacing steps within 4 s: 107,520, mix (a)'s second
-length, above F5's 100,224 (growth 3) and F3's 56,912 (the largest of F3's
-four works, 56,907 to 56,912 rows).
+among F4's replacing steps and F5's units within 4 s: 107,520, mix (a)'s
+second length. F5's largest is 84,480 rows on build and repair steps alike
+(growth 3 at 220 rows per key-month; the harness's line prints 100,224, the
+repair-only reading), and F3's is 56,912 (the largest of F3's four works,
+56,907 to 56,912 rows). Either reading gives the same T.
 
 #### 10.7.10 Statement-group fits and the corners
 
@@ -1650,7 +1682,7 @@ EXPLAIN: no sequential scan of a table holding rows       F2, F3, F4            
 EXPLAIN: sizing, month keys, deletes, verifier by work_id F2, F3, F4                     0 through the series index        MET
 six-term pooled fit                                       F2 to F4                       residual median 43.2 ms           information
 mix (c)                                                   F4c1, F4c2                     max hold 4,518.0 ms, 0 refusals   report only
-F5 largest units within 4 s                               growths 1 to 3                 10.7.8                            report only
+F5 largest units within 4 s (build and repair steps)      growths 1 to 3                 27, 7, 220 rows per key-month     report only
 unpaced F6                                                -                              not run                           information
 ```
 
@@ -1716,8 +1748,11 @@ amendment answered, is kept below as history.
 2. **Evidence not run**: the unpaced F6 run, which is information only.
    PostgreSQL 16 was not run again; the first run's numbers stay in
    sections 10.1 to 10.6.
-3. **Deviation**: the `uuid-ossp` extension was built separately for the
-   PostgreSQL 17 installation (section 5, deviations).
+3. **Deviations** (section 5): the `uuid-ossp` extension was built
+   separately for the PostgreSQL 17 installation; and register 3.8 states
+   F5's growth limits on build and repair steps alike, stricter than
+   section 17's repair-only definition, because at growth 3's top levels
+   the build step was the dearer (section 10.7.8).
 4. **Questions for the reviewers**:
    - the printed line "F2 repair run, every replacing step including F4
      ranges" (report only) has a p95 of 3,033.2 ms, above 3 s, because it
@@ -1725,14 +1760,6 @@ amendment answered, is kept below as history.
      (950.0 ms), as in the first run, and F4's ranges are judged by the F4
      line (hold / fill at most 3,807.9 ms). Is section 17's "F2 (its repair
      run)" meant to cover F4's ranges too?
-   - F5's build steps (report only): at growth 3's levels of 260 rows per
-     key-month and above, the first build step held more than the repair
-     steps (4,452.9 ms against 3,893.2 ms at 261, growth 3's largest unit
-     within 4 s). F5 is specified on repair steps, and F4's repair steps
-     were the dearer in every class. Judged on its build steps too, growth
-     3's largest unit within 4 s would be the level of 220 rows per
-     key-month (10,560 rows, figure 380,160, whole-work 84,480). T comes
-     from F4 and is unaffected.
    - two `MutationRoot` descriptions say "durable position" rather than
      "cursor" because an existing guard forbids that word in the
      `MutationRoot` SDL (section 5, decision 8).

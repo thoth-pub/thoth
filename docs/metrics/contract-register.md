@@ -1529,7 +1529,8 @@ pool checkout               2 s    (every operation, one connection)
   the CTO states. Every `REBUILD` run grant reports the registry pair count
   against the floor (Operator procedure below).
 - **Whole-work threshold T.** The largest whole-work row total among the F4
-  and F5 replacing steps that committed within 4 s, every one at F4's
+  replacing steps that committed within 4 s and F5's units within 4 s (every
+  build and repair step of the level; Evidence below), every one at F4's
   density. If mix (a)'s second history length alone misses the F4 line or the
   page line, T is taken only from the F4 classes whose steps met the F4 line
   and whose pages met the page line, not from F5. T must be at least F3's
@@ -1542,9 +1543,10 @@ pool checkout               2 s    (every operation, one connection)
 - **Limits.** No corpus-size ceiling: run time scales with the corpus and is
   reported, not bounded. A single unit above a size budget is still attempted
   alone; it is a HOLD only if it cannot finish inside `STEP_HOLD_BUDGET`, and
-  then it fails the same step on every retry. F5's growths measure, as repair
-  steps, the largest units that commit within 4 s, which may be above the
-  budgets. A step of several light years of one work with fewer series than
+  then it fails the same step on every retry. F5's growths measure the
+  largest units whose every step, build and repair alike, commits within
+  4 s, which may be above the budgets. A step of several light years of one
+  work with fewer series than
   the mix (a) corner's can have the corner's figure and walk while its walk
   costs more per entry; it is inside every budget, so the run-grant aggregate
   cannot see it. It needs a work with several light years before a heavy
@@ -1809,21 +1811,28 @@ report, section 10.7):
   grant compares with.
 - **Whole-work threshold.** 107,520 rows, from mix (a)'s second history
   length, which met the F4 line and the page line; F5's largest unit within
-  4 s had a whole-work total of 100,224 rows (growth 3). It is above F3's
+  4 s, build and repair steps alike, had a whole-work total of 84,480 rows
+  (growth 3). It is above F3's
   whole-work totals (56,907 to 56,912 rows), the census maximum. It must
   also cover production's largest whole-work total, from the read named under
   "Whole-work threshold T" above.
-- **F5's growths** (repair steps over fully built tables, at F4's density,
-  embedded in F2, each level's growth work first in run order). The largest
-  unit committing within 4 s, per growth: (1) 39 series, one year of
+- **F5's growths** (at F4's density, embedded in F2, each level's growth
+  work first in run order; every level built, then repaired over fully built
+  tables). The largest unit at which every step of the level, build and
+  repair alike, committed within 4 s, per growth: (1) 39 series, one year of
   history, 27 rows per key-month: 12,636 rows, 468 month keys, figure
-  985,608, whole-work 12,636 rows, hold 3.85 s, sizing 21 ms; (2) 39 series,
-  eight years, 7 rows per key-month: 3,276 rows, 468 keys, figure 1,149,876,
-  whole-work 26,208 rows, holds up to 3.74 s, sizing up to 50 ms; (3) F3's
-  four series, eight years, 261 rows per key-month: 12,528 rows, 48 keys,
-  figure 451,008, whole-work 100,224 rows, holds up to 3.89 s, sizing up to
-  127 ms. The next level of each (28, 8 and 262 rows per key-month) held
-  more than 4 s in repair (4.12, 4.73 and 4.04 s).
+  985,608, whole-work 12,636 rows, holds up to 3.86 s, sizing 21 ms; (2) 39
+  series, eight years, 7 rows per key-month: 3,276 rows, 468 keys, figure
+  1,149,876, whole-work 26,208 rows, holds up to 3.76 s, sizing up to 66 ms;
+  (3) F3's four series, eight years, 220 rows per key-month: 10,560 rows, 48
+  keys, figure 380,160, whole-work 84,480 rows, holds up to 3.47 s, sizing
+  up to 169 ms. The next level measured above each (28, 8 and 260 rows per
+  key-month) had a step above 4 s (4.12 s in repair, 4.73 s in repair and
+  4.24 s in build). This reading is stricter than section 17's, which judges
+  repair steps only: at growth 3's top levels the build step was the dearer.
+  On repair steps alone growth 3 reached 261 rows per key-month (12,528
+  rows, figure 451,008, whole-work 100,224 rows, repair holds up to 3.89 s,
+  its build steps up to 4.45 s).
 - **Mix (c)** (report only). A work of one series (ten light years at 67
   rows per key-month before twelve heavy years at 625; 98,040 rows) and one
   of two series (33 before 312; 97,776 rows), measured after every gated
