@@ -47,7 +47,11 @@ Out-of-scope changes made: NONE
 
 - `f0ceb2a997455baed8df4f0eed9b50cc18d34666` - Add yearly and all-history metricWidget reads
 - `6337de8c2feaecdfc049c36c7a6664d55b98e03b` - Record the yearly and all-history metricWidget contract
-- the commit that carries this report - Add the MET-WP4-WIDGET-ALLTIME implementation report
+- `b08e7262afd437df56bc347e6a81156585538c16` - Add the MET-WP4-WIDGET-ALLTIME implementation report
+- `6e5133164904eb534a14f797453c4520f673070f` - Strengthen all-time widget tests
+  (fix pass 1, tests only; section 9, "Fix pass 1")
+- the commit that carries this revision of the report - Correct the empty
+  all-history sequence in the report (fix pass 1)
 
 The code and its tests are one commit, so every commit builds and tests. The
 gates in section 9 ran on the tree of `6337de8c` (tree
@@ -107,8 +111,8 @@ Actual files changed:
   - behavioural effect: tests only.
   - within authorized write budget: YES
 - `thoth-api/src/graphql/metric_widget_tests.rs`
-  - reason: the input signature, the absent list, the 12-month text and four
-    new tests.
+  - reason: the input signature, the absent list, the 12-month text and
+    seven new tests (four before fix pass 1).
   - behavioural effect: tests only.
   - within authorized write budget: YES
 - `thoth-api/src/graphql/query.rs`
@@ -329,9 +333,11 @@ doc-tests: thoth_api 8 ignored; thoth_client 6 passed;
 
 ```text
 cargo test --workspace --lib -p thoth-api -- model::metric_widget::
-  86 passed; 0 failed (60 R11 tests and 26 new)
+  86 passed; 0 failed (60 R11 tests and 26 new); after fix pass 1:
+  89 passed; 0 failed (60 R11 tests and 29 new)
 cargo test --workspace --lib -p thoth-api -- graphql::metric_widget_tests::
-  13 passed; 0 failed (9 R11 tests and 4 new)
+  13 passed; 0 failed (9 R11 tests and 4 new); after fix pass 1:
+  16 passed; 0 failed (9 R11 tests and 7 new)
 cargo test --workspace --lib -p thoth-api -- model::metric_dashboard::
   98 passed; 0 failed; 1 ignored
 cargo test --workspace --lib -p thoth-api -- graphql::metric_dashboard_tests::
@@ -376,11 +382,16 @@ A `YEAR` read with a `startDate` runs the same sequence with
 (`a_five_hundred_child_book_read_without_a_start_keeps_its_sequence`). No
 `YEAR` read runs a scan text, `WORKS_SQL`, `KNOWN_SQL`, `REPRESENTED_SQL` or
 a day statement (`DAY_SUMS_SQL`, `DIMENSION_CELLS_SQL`, `DAY_SECTIONS_SQL`).
-With no served pair the read runs the pairs statements and stops before the
-labels statement, serving the first day of the month before `endDate`
-(`with_no_served_pair_the_start_is_the_month_before_the_end_and_nothing_else_runs`);
-the floor refusal also comes after both pairs statements and before the
-labels statement.
+With no served pair the read runs both history statements and the labels
+statement, and no engine statement, serving the first day of the month
+before `endDate`
+(`with_no_served_pair_the_start_is_the_month_before_the_end_and_no_engine_statement_runs`);
+the floor refusal comes after both pairs statements and before the labels
+statement. In both cases a pairs statement runs once per section with served
+works: for the `work` section always, and for the `chapters` section only
+when a child work is served (the floor test,
+`a_served_month_before_2000_is_refused_after_the_pair_statements`, has no
+child work, so it pins one history statement and then `ROLLBACK`).
 
 Cell bound per section: `MONTH` at most 40 pairs x 12 buckets = 480; `YEAR`
 at most 40 pairs x 28 buckets = 1,120 in 2026 (2000 to 2027 inside the
@@ -439,13 +450,101 @@ fields do not disturb. The direct calls of
   (`:385`): "A MONTH timeline may cover at most 12 months." [the 12-month
   text].
 
-New tests: 26 in `model::metric_widget::tests` and 4 in
-`graphql::metric_widget_tests` (the section 8 list: validation order and
+New tests: 29 in `model::metric_widget::tests` and 7 in
+`graphql::metric_widget_tests` (26 and 4 before fix pass 1; the section 8 list: validation order and
 messages, the outcome line, the served-start rule and what does not move
 it, the floor, the three step-7 families, the oracle at both grains over
 all history, the past-today coverage signal, the native-overlap and
 ambiguity refusals, the pair bound, the SDL, the descriptions and the
 omitted and null grain and start).
+
+### Fix pass 1
+
+Tests and this report only; `mod.rs`, `query.rs`, the register and the
+`CHANGELOG.md` are unchanged, and no test that exists at `bc6b45bd` was
+edited. Every new test passed at the code of `b08e7262`.
+
+New tests:
+
+- `model::metric_widget::tests`:
+  - `an_unknown_doi_and_an_unentitled_publisher_refuse_an_all_history_read_after_resolution`:
+    an unknown-DOI and an unentitled-publisher `YEAR` read without
+    `startDate` (both works hold history) each capture `CHECKOUT_CHECK,
+    BEGIN, CUSTOM_PLANS_SQL, METRIC_WIDGET_STATEMENT_TIMEOUT_SQL,
+    PROJECTION_LOCK_SQL, METRIC_WIDGET_RESOLUTION_SQL, ROLLBACK`, with no
+    `METRIC_WIDGET_HISTORY_PAIRS_SQL`, and return the same error type and
+    message (`METRIC_WIDGET_UNAVAILABLE`); the entitled book's read runs the
+    history statement.
+  - `an_all_history_read_of_two_whole_years_reads_years_only_in_both_runs`:
+    a new fixture with values from January 2024, read over all history to
+    2026-01-01: served start 2024-01-01, the 22-statement sequence with
+    `MONTHS_YEAR_ONLY_SQL` in both engine runs, two year buckets and
+    `buckets=2`; the explicit-start read at 2024-01-01 runs the same sequence
+    with `METRIC_WIDGET_PAIRS_SQL`, also with `MONTHS_YEAR_ONLY_SQL`, and
+    equals the all-history response except for `asOf`; the single-pair
+    dashboard oracle at `YEAR` holds for both sections.
+  - `a_country_ambiguous_month_years_before_the_end_refuses_the_all_history_read`:
+    a country-ambiguous-only month (April 2023; the ambiguity row is checked
+    to be `country_ambiguous` and not `total_ambiguous`) inside a whole year
+    of the served range makes the all-history `YEAR` read
+    `METRIC_WIDGET_UNAVAILABLE` with reason `DimensionScopeAmbiguous`; a
+    `MONTH` read of 2026 is served.
+- `graphql::metric_widget_tests`:
+  - `a_disabled_switch_refuses_year_requests_without_the_database`: with
+    `test_db::failing_pool()` and the switch off, `{doi, endDate:
+    "2026-04-01", timelineGrain: YEAR}` and the same with `startDate:
+    "2025-01-01"` are `METRIC_WIDGET_UNAVAILABLE` for every DOI form, so no
+    checkout is taken.
+  - `off_unknown_and_unentitled_year_requests_are_the_month_refusal`: the
+    switched-off, unknown-DOI and unentitled responses to both `YEAR` shapes
+    are byte-equal to each other and to R11's `MONTH` refusal response; the
+    book is served for both shapes with the switch on.
+  - `inline_null_grain_and_start_literals_equal_their_variable_cases`:
+    inline `timelineGrain: null` (with a start, and without one) and inline
+    `startDate: null` on a `YEAR` read, with no variables, give the same
+    responses as the variable cases (served responses compared without
+    `asOf`; the refusal compared by message and type, since the error's
+    location differs between the two documents).
+
+Edited tests that this stage added (none exists at `bc6b45bd`):
+
+- `with_no_served_pair_the_start_is_the_month_before_the_end_and_nothing_else_runs`
+  is renamed `..._and_no_engine_statement_runs`; its body is unchanged.
+- `a_native_record_ending_on_the_served_start_does_not_refuse_the_read`: the
+  explicit-start refusal is read through `resolve_with` and asserts the
+  reason `UnsupportedSourceGrain`.
+- `native_history_on_one_served_platform_overlapping_another_platforms_values_refuses`:
+  a served control first (the same fixture before the two native records:
+  served from 2025-07-01, with both pairs, and equal to its explicit-start
+  read), then the refusal through `resolve_with` with the reason
+  `UnsupportedSourceGrain`.
+- `an_omitted_or_null_grain_is_a_month_read_and_needs_a_start` (GraphQL):
+  the window is 2025-12-01 to 2026-04-01, so omitted, `null` and `MONTH`
+  give 4 timeline entries per pair and are equal, and explicit `YEAR` gives
+  2 (`[2025-12-01, 2026-01-01)` null, `[2026-01-01, 2026-04-01)` "5"). The
+  `START_REQUIRED` half is unchanged.
+
+Commands (same environment as above):
+
+```text
+cargo fmt --all -- --check                                     exit 0
+cargo clippy --all --all-targets --all-features -- -D warnings exit 0 (only
+  the proc-macro-error2 future-incompatibility notice)
+cargo test --workspace --lib -p thoth-api -- model::metric_widget::
+  89 passed; 0 failed
+cargo test --workspace --lib -p thoth-api -- graphql::metric_widget_tests::
+  16 passed; 0 failed
+cargo test --workspace --lib -p thoth-api -- graphql::metric_dashboard_tests::
+  23 passed; 0 failed
+cargo test --workspace --lib -p thoth-api -- graphql::metric_registry_tests::
+  12 passed; 0 failed
+git diff --check b08e7262                                      exit 0
+git diff --stat b08e7262                                       the two test
+  files and this report only
+```
+
+The full `cargo test --workspace` was not re-run for this tests-and-report
+pass; its result above is for the code, which this pass does not change.
 
 ### EXPLAIN of `METRIC_WIDGET_HISTORY_PAIRS_SQL`
 
