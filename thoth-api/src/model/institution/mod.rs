@@ -122,5 +122,7 @@ pub mod crud;
 mod policy;
 #[cfg(feature = "backend")]
 pub(crate) use policy::InstitutionPolicy;
+#[cfg(all(test, feature = "backend"))]
+mod ror_merge_tests;
 #[cfg(test)]
 mod tests;

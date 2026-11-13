@@ -59,6 +59,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "imprint_storage_cfg_all_or_none" => "Storage configuration must be complete: all fields (S3 bucket, region, CDN domain, CloudFront distribution ID) must be provided together, or all must be empty.",
     "imprint_uniq_idx" => "An imprint with this name already exists.",
     "institution_doi_uniq_idx" => "An institution with this DOI already exists.",
+    "institution_ror_uniq_idx" => "An institution with this ROR ID already exists.",
     "institution_institution_doi_check" => "Invalid DOI.",
     "institution_institution_name_check" => "Name must not be an empty string.",
     "institution_ror_check" => "Invalid ROR.",
@@ -366,6 +367,35 @@ mod tests {
             format!("{error}"),
             "A contribution with this ordinal number already exists.",
         )
+    }
+
+    /// Both institution conflict messages are a contract for operators and
+    /// third-party clients (ROR-SYNC-01B, thoth#1023).
+    #[test]
+    fn institution_conflict_messages_are_pinned() {
+        for (constraint, expected) in [
+            (
+                "institution_ror_uniq_idx",
+                "An institution with this ROR ID already exists.",
+            ),
+            (
+                "institution_doi_uniq_idx",
+                "An institution with this DOI already exists.",
+            ),
+        ] {
+            let error = ThothError::from(Error::DatabaseError(
+                DatabaseErrorKind::UniqueViolation,
+                Box::new(TestDatabaseError {
+                    message: "duplicate key value violates unique constraint",
+                    constraint: Some(constraint),
+                }),
+            ));
+            assert_eq!(
+                error,
+                ThothError::DatabaseConstraintError(Cow::Borrowed(expected))
+            );
+            assert_eq!(format!("{error}"), expected);
+        }
     }
 
     #[test]

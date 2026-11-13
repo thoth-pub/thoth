@@ -2743,8 +2743,8 @@ fn publication_resolution_uses_isbn_precedence_type_fallback_and_real_ambiguity(
 }
 
 #[test]
-fn ror_resolution_accepts_canonical_forms_and_detects_real_ambiguity_without_creating_institutions()
-{
+fn ror_resolution_accepts_canonical_forms_without_creating_institutions_and_a_ror_id_has_one_holder(
+) {
     let (_guard, f) = setup_fixture();
     let with_ror = |ror: &str, day: u32| NormalizedMetricObservation {
         institution_ror: Some(ror.into()),
@@ -2775,17 +2775,26 @@ fn ror_resolution_accepts_canonical_forms_and_detects_real_ambiguity_without_cre
         ),
         3
     );
-    f.sql(&format!(
+    // ROR-SYNC-01B (thoth#1023): the ROR ID is unique, so a second holder
+    // cannot be created and ROR resolution can no longer be ambiguous.
+    // `Code::AmbiguousRor` stays, because stored outcomes carry it.
+    let mut connection = f.pool.get().expect("Failed to get DB connection");
+    let twin = sql_query(format!(
         "INSERT INTO institution (institution_name, ror) VALUES ('Twin', '{ROR}')"
-    ));
-    assert_rejected(
-        &f,
-        "amb",
-        with_ror(ROR, 10),
-        Code::AmbiguousRor,
-        "institution_ror",
+    ))
+    .execute(&mut connection)
+    .expect_err("a second institution with the ROR ID is refused");
+    assert!(
+        matches!(
+            &twin,
+            diesel::result::Error::DatabaseError(
+                diesel::result::DatabaseErrorKind::UniqueViolation,
+                info
+            ) if info.constraint_name() == Some("institution_ror_uniq_idx")
+        ),
+        "{twin:?}"
     );
-    assert_eq!(count(&f.pool, "institution", "TRUE"), 2);
+    assert_eq!(count(&f.pool, "institution", "TRUE"), 1);
 }
 
 // ---------------------------------------------------------------------------
