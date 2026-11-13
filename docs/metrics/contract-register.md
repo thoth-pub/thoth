@@ -1475,30 +1475,64 @@ pool checkout               2 s    (every operation, one connection)
   Sizing computes it from the same per-work counts, and
   `STEP_MAX_REPLACING_READ` is a third step budget beside keys and rows. Every
   build step is sized by it, so units that each fit cannot add up past it.
-- **The F4 line.** "Max of hold / fill <= 4 s in each mix" (fill = the step's
-  figure over `STEP_MAX_REPLACING_READ`) shows that every admitted step commits
-  inside `STEP_HOLD_BUDGET`, on the assumptions that the hold is close to
-  linear in the two terms with composition-independent per-row costs, that the
-  reads outside the figure stay near F4's (bounded by the whole-work threshold
-  below), that the dearest step is a repair step over fully built tables
-  (measured), that in exact state each section table holds at most one row per
-  work-day row, and that the evidence host is comparable to production's. The
-  hold of every replacing step is fitted by non-negative least squares to an
-  intercept, a cost per statement and a cost per row of the month term, the
-  year term and the step's whole-work rows; both corners (year-term only, and
-  the month term at its cap with the figure full) must be predicted at most
-  4.5 s at full fill, at the largest measured statement count and with the
-  whole-work rows at the threshold. Dead entries left until vacuum are
-  reported, not accepted against.
+- **What a replacing step costs.** Besides the figure, a replacing step pays
+  per work-day row: each row is written into every monthly and yearly section
+  row it reaches, and every section row runs its foreign-key checks, which
+  `STEP_MAX_WORK_DAY_ROWS` bounds. The five keyed month statements reach the
+  work-day rows through the identity index bounded by `work_id` alone, so each
+  month key walks its work's whole history: the walk, month keys x whole-work
+  rows, at most 12 times the year term. The pre-verify, range delete,
+  post-verify and re-size read the work's whole history once per step.
+- **The F4 line.** "Max of hold / fill <= 4 s in each mix", where fill is the
+  smaller of the step's row fill (its work-day rows over
+  `STEP_MAX_WORK_DAY_ROWS`) and its figure fill (its figure over
+  `STEP_MAX_REPLACING_READ`), shows that every admitted step of at least the
+  mix (a) corner's series count commits inside `STEP_HOLD_BUDGET` (fewer
+  series: Limits below). It rests on these assumptions: the hold is close to
+  linear in the step's work-day rows, its walk and its whole-work rows, at
+  per-row costs that F4's density (a distinct country and institution on
+  nearly every row) makes the dearest; the reads outside the figure stay near
+  F4's, bounded by the whole-work threshold below; the dearest step is a
+  repair step over fully built tables (measured); in exact state each section
+  table holds at most one row per work-day row; and the evidence host stands
+  in for production's, whose behaviour each run grant judges again. The
+  admitted steps peak near two corners, each with the rows at
+  `STEP_MAX_WORK_DAY_ROWS` and the figure full: mix (a), few series over a
+  long history, with the whole-work rows at the threshold T (about
+  600,000 / (8,000 + T) series); and mix (b), one year of history, whole-work
+  rows 8,000, the terms equal at about 38 month keys per work-month. Each
+  corner's hold in repair is predicted statement group by statement group
+  from the per-statement profiles of the replacing steps: the walk (the month
+  watermark, ambiguity and total inserts, charged at 5/3 for all five keyed
+  month statements), the inserts (the two month section inserts less the walk
+  charged to them, and the two year inserts), the verify (pre-verify, range
+  deletes, post-verify and the re-size with its per-year sizing) and the rest
+  of the hold. Each group is fitted by non-negative least squares against its
+  own drivers (walk and inserts and verify on the first repair pass of each
+  F4 class, the rest on the from-empty replacing steps of F2, F3, F4 and F7),
+  at the larger of the largest measured statement count and that of a step at
+  `STEP_MAX_MONTH_KEYS`; both predictions must be at most 4.5 s. A six-term
+  pooled fit is reported for information only. Dead entries left until vacuum
+  are reported, not accepted against.
 - **Floor.** One work-year carrying every (platform, measure) pair of the
   production registry (every pair, enabled or not), each at F2's density over
   twelve months, with eight years of history, must have a figure within
-  `STEP_MAX_REPLACING_READ`: about 3,240 R^2 for R pairs, so 4,000,000 admits R
-  <= 35. The production pair count comes from the census's counts-only read or
-  a separately authorized read, never from the `MET-WP4-03A-OPS-03`
-  implementation grant, and is stated on the stage issue before F4 is judged.
-- **Whole-work threshold.** The largest whole-work row total among the F4 and
-  F5 replacing steps that committed within 4 s. It must be at least F3's
+  `STEP_MAX_REPLACING_READ`. Its figure is computed at F2's measured rows per
+  key, as the evidence prints it: about 3,402 R^2 for R pairs at
+  F2's 31.5 rows per key (Evidence below), so 600,000 admits
+  R <= 13. The production pair count comes from the census's counts-only read
+  or a separately authorized read, never from the `MET-WP4-03A-OPS-03`
+  implementation grant, and is stated on the stage issue before the evidence
+  is commissioned; above 13 the stage HOLDs for an amendment. While
+  production's registry is not yet populated, the floor is also judged on the
+  pair count of the legacy history to be imported, or on a planned registry
+  the CTO states. Every `REBUILD` run grant reports the registry pair count
+  against the floor (Operator procedure below).
+- **Whole-work threshold T.** The largest whole-work row total among the F4
+  and F5 replacing steps that committed within 4 s, every one at F4's
+  density. If mix (a)'s second history length alone misses the F4 line or the
+  page line, T is taken only from the F4 classes whose steps met the F4 line
+  and whose pages met the page line, not from F5. T must be at least F3's
   whole-work total (the census maximum) and at least production's largest
   whole-work total; otherwise the stage HOLDs for an amendment. Production's
   total, like the pair count, comes from the census's counts-only read or a
@@ -1509,8 +1543,15 @@ pool checkout               2 s    (every operation, one connection)
   reported, not bounded. A single unit above a size budget is still attempted
   alone; it is a HOLD only if it cannot finish inside `STEP_HOLD_BUDGET`, and
   then it fails the same step on every retry. F5's growths measure, as repair
-  steps, the largest units that commit within 4 s. A range whose orphan
-  deletion cannot finish is the same HOLD. Neither is resolved by a silent
+  steps, the largest units that commit within 4 s, which may be above the
+  budgets. A step of several light years of one work with fewer series than
+  the mix (a) corner's can have the corner's figure and walk while its walk
+  costs more per entry; it is inside every budget, so the run-grant aggregate
+  cannot see it. It needs a work with several light years before a heavy
+  history, and it fails safe: a step that cannot finish inside
+  `STEP_HOLD_BUDGET` is refused on every retry, the HOLD above. F4's mix (c)
+  measures it, report only; it is not gated. A range whose orphan deletion
+  cannot finish is the same HOLD. None of these is resolved by a silent
   constant change or a new index.
 
 Section 17 evidence that sets or confirms these values: see "Evidence" below.
@@ -1566,13 +1607,22 @@ Operator procedure:
   and replacing-read figure, and two maxima on every row: the largest
   month-key count per work-month and the largest whole-work row total (one row
   with `NULL` unit columns when no unit exceeds a budget). A unit over a step
-  budget passes only if one of F5's growths (below) dominates it in all three
-  of rows, keys and figure; otherwise it is a HOLD before the run starts. A
-  unit within every step budget is not compared with F5. A month-key count per
-  work-month above the k that F4's mix (b) reached, or a whole-work total above
-  the whole-work threshold, is a HOLD too. A `VERIFY` run never replaces, so
-  the check does not apply to it. The step budgets are bind parameters, bound
-  by the grant to the bounds above:
+  budget passes only if one of F5's growths (Evidence below) dominates it in
+  all four of rows, keys, figure and whole-work rows; otherwise it is a HOLD
+  before the run starts, as a precaution. For whole-work rows the growth's
+  whole-work total must be at least the smaller of the environment's largest
+  whole-work total and 12 x the unit's figure divided by its month keys, both
+  from the aggregate's output (a unit's whole-work rows are at most its figure
+  divided by its year keys, and it has at least one year key per 12 month
+  keys). A unit within every step budget is not compared with F5; F4 covers
+  it. A month-key count per work-month above the k that F4's mix (b) reached,
+  or a whole-work total above the whole-work threshold, is a HOLD too. A
+  `VERIFY` run never replaces, so the check does not apply to it. Every run
+  grant also reports the database's collation and its collation provider
+  beside the aggregate, and every `REBUILD` run grant reports the registry
+  pair count (every pair, enabled or not) against the floor; above 13 it is a
+  HOLD for an amendment. Both are read-only reads. The step budgets are bind
+  parameters, bound by the grant to the bounds above:
   `$1` = 8000 (`STEP_MAX_WORK_DAY_ROWS`),
   `$2` = 1000 (`STEP_MAX_MONTH_KEYS`) and
   `$3` = 600000 (`STEP_MAX_REPLACING_READ`).
@@ -1701,75 +1751,104 @@ Stop: abandonMetricRollupMonthRebuild(runId). This is safe at any time (I3).
   completion assumption.
 
 Evidence (section 17 of the specification; raw numbers in the implementation
-report):
+report, section 10.7):
 
-- **Host.** One local evidence host: PostgreSQL 16.15 with default settings
-  (`shared_buffers` 128 MB), 4 CPUs, 15 GiB RAM. Production's PostgreSQL
-  major version and host class were not available to the stage, and CI's
-  PostgreSQL 17 was not measured, so every value below holds for this host
-  only.
-- **Outcome.** On this host the following missed their section 17 bounds:
-  the F4 line in both mixes, from-empty and repair steps alike; the pooled
-  fit's predicted hold at both corners; the replacing-step hold p95 of F2
-  (from empty and in its repair run) and of F3; the verify page time p95 of
-  F4's pages; and, as written, the `EXPLAIN` line, whose only sequential
-  scans read the empty ambiguity table. Under the production budgets every
-  F4 step was refused at `STEP_HOLD_BUDGET` on every retry. F1 and F7 met
-  every bound, as did F6 (run without F3 and F4, below) and the non-replacing
-  steps and the pages of F2 and F3. This evidence therefore does not confirm
-  the provisional `STEP_MAX_REPLACING_READ`, no bound above is changed by it,
-  and the missed bounds are a HOLD for a decision on #1012.
-- **F4 (`STEP_MAX_REPLACING_READ`).** Two full runs. Mix (a): two works with
-  24 series and eight years of history, 60 rows per key-month, each work with
-  138,240 country and 138,240 institution month rows; its replacing steps
-  filled 0.933 to 0.982 and held 9.4 to 11.8 s from empty and 9.9 to 12.2 s
-  as repair steps (max hold / fill 11.3 to 12.1 s and 11.9 to 12.4 s). Mix
-  (b): eight works with k = 40 series and one year of history, 100 rows per
-  key-month, each work with 48,000 country and 48,000 institution month rows;
-  fill 0.960 to 0.962, holds 11.8 to 12.5 s from empty and 12.9 to 14.1 s as
-  repair steps (max hold / fill 12.9 to 13.0 s and 14.2 to 14.7 s). The F4
-  line (at most 4 s) is not met in either mix.
+- **Host.** One local evidence host, 4 CPUs and 15 GiB RAM, with CI's
+  PostgreSQL major version (17): 17.10 built from the official release
+  source with distribution compiler and linker flags (-O2, link-time
+  optimisation, hardening, ICU, LLVM, no assertions), a cluster in UTF8 with
+  the C.UTF-8 locale and the libc provider, `jit` off and every other setting
+  at its default (`shared_buffers` 128 MB). Round trip 0.1 ms. Every value
+  below holds for this host; production's behaviour is judged again at each
+  run grant.
+- **Outcome.** Every gated section 17 line was met under the budgets above,
+  with no budget refusal in any gated pass: the hold and page lines of F1,
+  F2, F3 and F7, F4's page line and the F4 line in each of its classes, the
+  statement-group prediction at both corners, the `EXPLAIN` line, F2's
+  corruption cycle, F1's exactness and every F6 line. Mix (c) and F5 are
+  report only.
+- **F1, F2, F3 and F7.** No pass had a budget refusal. Replacing-step hold
+  p95: F2 862 ms from empty and 950 ms in its repair run (F2's and F3's
+  ranges), F3 1,399 ms, F7 325 ms, F1 509 ms, against 3 s. Non-replacing-step
+  hold p95: F2 102 ms, F3 163 ms, F7 49 ms, F1 87 ms, against 2 s. Verify page
+  time p95: F2 1,602 ms, F3 1,661 ms, F7 457 ms, F1 1,553 ms, against 5 s.
+  F2's from-empty `REBUILD` of 509,696 month keys took 2,045 s (249 keys per
+  second).
+- **F4 (`STEP_MAX_REPLACING_READ`).** Every F4 row carries a country and an
+  institution distinct within its key-month, so each work has as many
+  country and institution month rows as work-day rows. Mix (a): two works of
+  8 series x 80 rows per key-month over eight years (61,440 rows each); row
+  fill 0.960, figure fill 0.922; max hold / fill 2.94 s from empty and 3.27 s
+  in the first repair pass. Its second history length: two works of 5 series
+  x 128 rows per key-month over fourteen years (107,520 rows each); fill
+  0.960; 3.47 s and 3.81 s. Mix (b): eight works of k = 39 series x 16 rows
+  per key-month over one year (7,488 rows each); row fill 0.936, figure fill
+  0.973; 2.55 s and 2.61 s. Every class met the F4 line (at most 4 s) with no
+  refusal, and its verify pages met the page line (p95 at most 2.75 s). Every
+  F4 step was a full step: hold up to 3.66 s against `STEP_HOLD_BUDGET`.
+- **Statement groups and corners.** Non-negative least squares per group:
+  the walk, 1.70e-4 ms per (month key x whole-work row) and 3.21e-4 ms per
+  (work-month x whole-work row); the inserts, 0.169 ms per work-day row; the
+  verify, 0.0353 ms per work-day row and 1.33e-3 ms per whole-work row (these
+  three on the first repair pass of the F4 classes, 52 steps); the rest,
+  11.5 ms plus 0.100 ms per statement and 1.05e-4 ms per whole-work row (on
+  2,613 from-empty replacing steps of F2, F3, F4 and F7). At 332 statements
+  (the largest measured; a step at `STEP_MAX_MONTH_KEYS` has 320), 8,000
+  work-day rows and the figure full, the predicted hold in repair is 3.38 s
+  at the mix (a) corner (T = 107,520 whole-work rows, 5.19 series) and 2.33 s
+  at the mix (b) corner (37.5 month keys, 8,000 whole-work rows), against
+  4.5 s. The six-term pooled fit (2,756 steps, information only): 2.34 ms per
+  statement, 3.42e-3 ms per month-term row, 2.94e-3 ms per year-term row and
+  0.0117 ms per whole-work row, nothing as intercept or per work-day row;
+  absolute residuals median 43 ms, max 629 ms.
 - **Floor.** F2's density is 31.5 work-day rows per key, so the floor's
-  figure is 3,402 R^2 and 4,000,000 admits R <= 34. F4 is judged against the
-  production pair count, from the read named under "Floor" above.
-- **Month keys per work-month.** F4's mix (b) reached k = 40, the k every run
+  figure is 3,402 R^2 and 600,000 admits R <= 13 (574,879 at R = 13). It is
+  judged against the production pair count, from the read named under
+  "Floor" above.
+- **Month keys per work-month.** F4's mix (b) reached k = 39, the k every run
   grant compares with.
-- **Whole-work threshold.** 76,800 rows, from F5's second growth (40 series,
-  eight years of history): no F4 replacing step committed within 4 s on this
-  host, so F4 contributes no total. It is above F3's whole-work totals
-  (56,907 to 56,912 rows), the census maximum. It must also cover
-  production's largest whole-work total, from the read named under
-  "Whole-work threshold" above.
-- **F5's growths** (repair steps over fully built tables, at F4's
-  section-row ratio, production budgets). The largest unit committing within
-  4 s, per growth: (1) 40 series, one year of history: 14,400 rows, 480 month
-  keys, figure 1,152,000, whole-work 14,400 rows, hold 3.0 s, sizing 16 ms;
-  (2) 40 series, eight years: 9,600 rows, 480 keys, figure 3,456,000,
-  whole-work 76,800 rows, holds up to 3.2 s, sizing up to 258 ms; (3) F3's
-  four series, eight years: 1,920 rows, 48 keys, figure 69,120, whole-work
-  15,360 rows, hold 3.6 s (one step took the whole work), sizing 16 ms. The
-  next level of each growth (19,200, 14,400 and 2,880 rows per unit) held
-  more than 4 s or was refused at `STEP_HOLD_BUDGET`.
-- **Fitted per-term costs.** Non-negative least squares over the 737
-  replacing steps of F2 to F4 in the second run (its from-empty build, F4
-  repair pass and repair `REBUILD`): intercept 572 ms, 2.89 ms per statement,
-  3.91e-3 ms per month-term row, 2.12e-3 ms per year-term row and 6.27e-3 ms
-  per whole-work row; absolute residuals median 127 ms, max 3,433 ms. At full
-  fill, 248 statements (the largest measured) and 76,800 whole-work rows the
-  predicted hold is 10.2 s at the year-only corner and 13.8 s at the mix (b)
-  corner (k = 40), against 4.5 s. The F3-F4-only fit (75 steps): intercept
-  3,240 ms, nothing per statement or whole-work row, 3.28e-3 ms per
-  month-term row and 1.74e-3 ms per year-term row; corners 10.2 s and 13.3 s.
-- **F6 (concurrency).** Run on F2 without its F3 and F4 works, because under
-  the production budgets a run over those stops at their first range. A
+- **Whole-work threshold.** 107,520 rows, from mix (a)'s second history
+  length, which met the F4 line and the page line; F5's largest unit within
+  4 s had a whole-work total of 100,224 rows (growth 3). It is above F3's
+  whole-work totals (56,907 to 56,912 rows), the census maximum. It must
+  also cover production's largest whole-work total, from the read named under
+  "Whole-work threshold T" above.
+- **F5's growths** (repair steps over fully built tables, at F4's density,
+  embedded in F2, each level's growth work first in run order). The largest
+  unit committing within 4 s, per growth: (1) 39 series, one year of
+  history, 27 rows per key-month: 12,636 rows, 468 month keys, figure
+  985,608, whole-work 12,636 rows, hold 3.85 s, sizing 21 ms; (2) 39 series,
+  eight years, 7 rows per key-month: 3,276 rows, 468 keys, figure 1,149,876,
+  whole-work 26,208 rows, holds up to 3.74 s, sizing up to 50 ms; (3) F3's
+  four series, eight years, 261 rows per key-month: 12,528 rows, 48 keys,
+  figure 451,008, whole-work 100,224 rows, holds up to 3.89 s, sizing up to
+  127 ms. The next level of each (28, 8 and 262 rows per key-month) held
+  more than 4 s in repair (4.12, 4.73 and 4.04 s).
+- **Mix (c)** (report only). A work of one series (ten light years at 67
+  rows per key-month before twelve heavy years at 625; 98,040 rows) and one
+  of two series (33 before 312; 97,776 rows), measured after every gated
+  pass, with no refusal. The one-series work's step of six light years
+  (4,824 rows, figure 593,064) held 4.52 s from empty and 4.44 s in repair,
+  with a walk of 461 to 494 ns per (month key x whole-work row), about twice
+  F4's; the two-series work held at most 3.59 s. Both are inside
+  `STEP_HOLD_BUDGET`.
+- **F6 (concurrency).** Run on the whole of F2 with its F3 and F4 works. A
   `REBUILD` from empty under the production budgets, paced by the pacing
   rule above, with two overlapping `DAY` ingestion streams, claims and
   completions running throughout its build phase: no ingestion or completion
-  failure and no deadlock; the longest wait attributable to a step was 3.9 s
-  on the state row (p95 3.4 s), 3.0 s on a work row and 3.9 s with a step
+  failure and no deadlock; the longest wait attributable to a step was 3.5 s
+  on the state row (p95 1.0 s), 1.0 s on a work row and 3.5 s with a step
   anywhere in the blocking chain, against bounds of 6, 8 and 13 s; without a
-  run the same workload waited at most 0.2 s. The build phase (542 steps) had
-  no refusal, so its longest run of consecutive refusals is 0.
+  run the same workload waited at most 0.2 s. The build phase (2,513 steps,
+  5,916 s) had no refusal, so its longest run of consecutive refusals is 0,
+  and the verify phase ended `RECONCILED`.
+- **`EXPLAIN`.** On a median replacing range of F2, F3 and each F4 class, after
+  ANALYZE, no statement read `metric_rollup_work_day` or a projection table
+  by a sequential scan (every table held rows), and sizing,
+  `RANGE_MONTH_KEYS_SQL`, the range deletes and the range verifier were led
+  by `work_id`. No plan used JIT. About 2% of F2's month keys carried an
+  ambiguity row (10,022), and all 200 scattered corruptions applied; `VERIFY`
+  found each and the repair `REBUILD` reached `RECONCILED`.
 
 Scope boundaries a consumer must not infer:
 
