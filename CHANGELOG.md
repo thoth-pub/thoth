@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Propose ADR-0015, which splits the shared job engine of ADR-0012 into a jobs-first release and a later routing release, and adds a safety rule for withdrawing a route contract revision (decision only; no code change)
 
 ### Fixed
   - [1021](https://github.com/thoth-pub/thoth/pull/1021) - Fix a timing race in a Metrics rollup test
