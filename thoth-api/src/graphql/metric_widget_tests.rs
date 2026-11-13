@@ -201,7 +201,7 @@ fn the_sdl_declares_exactly_the_widget_contract() {
     for (declaration, expected) in [
         (
             "input MetricWidgetInput {",
-            "doi:Doi!chapterDois:[Doi!]startDate:Date!endDate:Date!",
+            "doi:Doi!chapterDois:[Doi!]startDate:DateendDate:Date!timelineGrain:MetricWidgetGrain=",
         ),
         (
             "type MetricWidget {",
@@ -300,6 +300,10 @@ fn the_field_description_is_one_line_and_names_no_pinned_surface() {
             ": PublisherCapability",
             "timelineGrain",
         ] {
+            // The input declares the grain; the output types never do.
+            if absent == "timelineGrain" && declaration == "input MetricWidgetInput {" {
+                continue;
+            }
             assert!(!block.contains(absent), "{declaration} {absent}");
         }
     }
@@ -382,7 +386,7 @@ async fn input_failures_are_identical_for_every_work_and_follow_step_4_order() {
         (
             json!({"startDate": "2024-01-01", "endDate": "2025-02-01"}),
             expected(
-                "The date range may cover at most 12 months.",
+                "A MONTH timeline may cover at most 12 months.",
                 "METRIC_QUERY_LIMIT_EXCEEDED",
             ),
         ),
@@ -509,4 +513,313 @@ fn the_resolver_reads_no_identity_and_no_role_guard() {
         assert!(!body.contains(absent), "{absent}: {body}");
     }
     assert!(body.contains("context.metric_widget_claims"));
+}
+
+// --------------------------------------------------------------------------
+// MET-WP4-WIDGET-ALLTIME: the grain and the optional start (section 3)
+// --------------------------------------------------------------------------
+
+/// The rendered description of `declaration` (`member` `None`), or of one
+/// field, input field or enum value of it. Input fields and enum values
+/// carry theirs inline, before the name; object fields on the line before.
+fn description_of(sdl: &str, declaration: &str, member: Option<&str>) -> String {
+    let unquote = |line: &str| {
+        let line = line.trim();
+        line.strip_prefix('"')
+            .and_then(|body| body.strip_suffix('"'))
+            .filter(|body| !body.starts_with('"'))
+            .unwrap_or_else(|| panic!("a single-line description, found `{line}`"))
+            .to_string()
+    };
+    let Some(member) = member else {
+        let previous = sdl
+            .split_once(declaration)
+            .unwrap_or_else(|| panic!("SDL must declare `{declaration}`"))
+            .0
+            .lines()
+            .next_back()
+            .expect("a preceding line");
+        return unquote(previous);
+    };
+    let lines: Vec<&str> = sdl_block(sdl, declaration).lines().collect();
+    for (at, line) in lines.iter().enumerate() {
+        let line = line.trim();
+        if let Some((text, rest)) = line
+            .strip_prefix('"')
+            .and_then(|body| body.split_once("\" "))
+        {
+            if rest == member || rest.starts_with(&format!("{member}:")) {
+                return text.to_string();
+            }
+        }
+        if line == member
+            || line.starts_with(&format!("{member}:"))
+            || line.starts_with(&format!("{member}("))
+        {
+            return unquote(lines[at - 1]);
+        }
+    }
+    panic!("`{declaration}` must declare `{member}`: {lines:#?}")
+}
+
+/// Every description this stage writes, as section 3 states it.
+fn alltime_descriptions() -> Vec<(&'static str, Option<&'static str>, &'static str)> {
+    vec![
+        (
+            "input MetricWidgetInput {",
+            None,
+            "A public widget request: one work by DOI, optionally some of its child works, a range of whole calendar months, and a monthly or yearly timeline",
+        ),
+        (
+            "input MetricWidgetInput {",
+            Some("startDate"),
+            "First day of the range, inclusive: the first day of a month, on or after 2000-01-01. Required for a MONTH timeline; for a YEAR timeline it may be omitted to serve all history",
+        ),
+        (
+            "input MetricWidgetInput {",
+            Some("endDate"),
+            "First day of the month after the range, exclusive, later than startDate and at most 366 days after today (UTC). A MONTH timeline may cover at most 12 months; a YEAR timeline has no maximum. When startDate is omitted, endDate must be after 2000-01-01",
+        ),
+        (
+            "input MetricWidgetInput {",
+            Some("timelineGrain"),
+            "The size of each timeline bucket. Omitted or null means MONTH",
+        ),
+        (
+            "enum MetricWidgetGrain {",
+            None,
+            "The size of each timeline bucket in a widget response",
+        ),
+        (
+            "enum MetricWidgetGrain {",
+            Some("MONTH"),
+            "One bucket per calendar month of the served range",
+        ),
+        (
+            "enum MetricWidgetGrain {",
+            Some("YEAR"),
+            "One bucket per calendar year, clipped to the served range. Each bucket is the exact sum of the daily values it contains",
+        ),
+        (
+            "type MetricWidget {",
+            None,
+            "Public metrics for one work and its child works, read from one consistent database snapshot",
+        ),
+        (
+            "type MetricWidget {",
+            Some("startDate"),
+            "First day served, inclusive: startDate when given, otherwise the first day of the earliest month with a served value in either section, or of the month before endDate when there is none",
+        ),
+        (
+            "type MetricWidgetSection {",
+            None,
+            "Values and coverage of one widget section, for each platform and measure it serves",
+        ),
+        (
+            "type MetricWidgetSection {",
+            Some("timeline"),
+            "One bucket per calendar month, or per calendar year clipped to the served range, for each served platform and measure, ordered by platform ID, measure ID and bucket start",
+        ),
+        (
+            "type MetricWidgetSection {",
+            Some("totals"),
+            "One total per served platform and measure, ordered by platform ID and measure ID",
+        ),
+        (
+            "type MetricWidgetSection {",
+            Some("countries"),
+            "Known per-country totals over the served range for the served platforms and measures, ordered by platform ID, measure ID and country code. A country without a row is not a zero",
+        ),
+        (
+            "type MetricWidgetSection {",
+            Some("dataThrough"),
+            "The earliest per-pair dataThrough date, or null unless every served pair has one",
+        ),
+        (
+            "type MetricWidgetSection {",
+            Some("isPartial"),
+            "True when coverage is not complete for some served platform, measure and day, when some values may still change or be incomplete, or when nothing is served",
+        ),
+        (
+            "type MetricWidgetPairCoverage {",
+            Some("status"),
+            "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL",
+        ),
+        (
+            "type MetricWidgetPairCoverage {",
+            Some("dataThrough"),
+            "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not",
+        ),
+        (
+            "type MetricWidgetPairCoverage {",
+            Some("countryCoverage"),
+            "True only when every day of the served range has coverage that includes the country dimension",
+        ),
+    ]
+}
+
+#[test]
+fn the_sdl_declares_the_widget_grain_and_its_default() {
+    let sdl = create_schema().as_sdl();
+    let input = sdl_block(&sdl, "input MetricWidgetInput {");
+    assert!(
+        input.contains("timelineGrain: MetricWidgetGrain = \"MONTH\""),
+        "{input}"
+    );
+    assert!(!input.contains("MetricTimelineGrain"), "{input}");
+    assert_eq!(
+        signatures(sdl_block(&sdl, "enum MetricWidgetGrain {")),
+        "MONTHYEAR"
+    );
+    assert_eq!(sdl.matches("enum MetricWidgetGrain {").count(), 1);
+}
+
+#[test]
+fn every_alltime_description_is_the_specified_text_and_names_no_pinned_surface() {
+    let sdl = create_schema().as_sdl();
+    let field = "Public, read-only Metrics for one work and, optionally, its child works, for the embeddable Metrics widget. No login is needed. Served only while the server enables it and only for works whose publisher is entitled to the Metrics widget. Serves monthly timelines of at most 12 months, or yearly timelines over all history, and only one metricWidget field may be requested at a time";
+    assert_eq!(
+        description_of(&sdl, "type QueryRoot {", Some("metricWidget")),
+        field
+    );
+    let argument = "The work, optional child works, the date range and the timeline grain";
+    assert!(sdl_block(&sdl, "type QueryRoot {").contains(&format!(
+        "metricWidget(\"{argument}\" input: MetricWidgetInput!): MetricWidget!"
+    )));
+    let mut texts = vec![field, argument];
+    for (declaration, member, text) in alltime_descriptions() {
+        assert_eq!(
+            description_of(&sdl, declaration, member),
+            text,
+            "{declaration} {member:?}"
+        );
+        texts.push(text);
+    }
+    for text in texts {
+        for pinned in [
+            "MetricImport",
+            "MetricSourceUnitClaim",
+            "MetricBatchResult",
+            "Rollup",
+            "rollupWatermark",
+            "metricRollup",
+            "workDayRollup",
+            "CoverageRun",
+            "coverageRun",
+            "IdentifierQuarantineReconciliation",
+            "MetricSourceCheckpoint",
+            "claimMetricSource",
+            "distributionJob(",
+            "ThothPackage",
+            "PublisherCapability",
+            "METRICS_READ_SERVICE",
+            "metricPlatformMeasures",
+            "deleteMetric",
+            "metricRegistryHistory",
+            "metricPublisherPlatformApproval",
+            "metricSources",
+            "metricSourceAccounts",
+            "metricSourceCheckpoint",
+            "beforeState",
+            "afterState",
+            "MetricRegistryHistory",
+            "monthAmbiguity",
+            "rollupWorkMonth",
+            "MetricRollupWorkMonth",
+            "MetricRollupWorkDayState",
+            "metricCoverageRun",
+            "coverageRuns(",
+            "MetricReconciliationRun",
+            "metricReconciliationRun",
+            "metricReconciliationIssue",
+            "recordMetricReconciliation",
+            "platformCode:",
+            "require_",
+            "metric_dashboard(",
+            "institution",
+            "Institution",
+            "warnings",
+            "timelineGrain",
+        ] {
+            assert!(!text.contains(pinned), "{pinned}: {text}");
+        }
+        for pinned in ["cursor", "manifest", "rollup"] {
+            assert!(!text.to_lowercase().contains(pinned), "{pinned}: {text}");
+        }
+    }
+}
+
+fn without_as_of(mut response: JsonValue) -> JsonValue {
+    if let Some(widget) = response["data"]["metricWidget"].as_object_mut() {
+        widget.remove("asOf");
+    }
+    response
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_omitted_or_null_grain_is_a_month_read_and_needs_a_start() {
+    let (_guard, fx) = fixture();
+    let pool = Arc::clone(&fx.pool);
+    let mut month = input(BOOK_DOI);
+    month["timelineGrain"] = json!("MONTH");
+    let mut null = input(BOOK_DOI);
+    null["timelineGrain"] = JsonValue::Null;
+    let explicit = widget(&pool, None, MetricWidgetSwitch::On, month).await;
+    let explicit_widget = served(&explicit);
+    assert_eq!(
+        explicit_widget["work"]["timeline"].as_array().map(Vec::len),
+        Some(1)
+    );
+    for other in [input(BOOK_DOI), null] {
+        let response = widget(&pool, None, MetricWidgetSwitch::On, other).await;
+        assert_eq!(without_as_of(response), without_as_of(explicit.clone()));
+    }
+    let required = expected(
+        "startDate is required for a MONTH timeline.",
+        "METRIC_QUERY_INVALID",
+    );
+    for grain in [None, Some(JsonValue::Null), Some(json!("MONTH"))] {
+        for doi in [BOOK_DOI, UNENTITLED_DOI, "10.1234/unknown"] {
+            let mut request = json!({ "doi": doi, "endDate": "2026-04-01" });
+            if let Some(grain) = &grain {
+                request["timelineGrain"] = grain.clone();
+            }
+            let response = widget(&pool, None, MetricWidgetSwitch::On, request).await;
+            assert_eq!(only_error(&response), required, "{grain:?} {doi}");
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_null_start_on_a_year_read_is_an_omitted_start() {
+    let (_guard, fx) = fixture();
+    let pool = Arc::clone(&fx.pool);
+    let omitted = json!({ "doi": BOOK_DOI, "endDate": "2026-04-01", "timelineGrain": "YEAR" });
+    let mut null = omitted.clone();
+    null["startDate"] = JsonValue::Null;
+    let first = widget(&pool, None, MetricWidgetSwitch::On, omitted).await;
+    let second = widget(&pool, None, MetricWidgetSwitch::On, null).await;
+    assert_eq!(without_as_of(first.clone()), without_as_of(second));
+    let history = served(&first);
+    assert_eq!(history["startDate"], json!("2026-03-01"));
+    assert_eq!(history["work"]["totals"][0]["value"], json!("5"));
+    assert_eq!(
+        history["work"]["timeline"],
+        json!([{
+            "platformId": fx.platform_id,
+            "measureId": fx.sessions,
+            "startDate": "2026-03-01",
+            "endDate": "2026-04-01",
+            "value": "5",
+        }])
+    );
+    // An omitted start needs an endDate after 2000-01-01.
+    let early = json!({ "doi": BOOK_DOI, "endDate": "2000-01-01", "timelineGrain": "YEAR" });
+    assert_eq!(
+        only_error(&widget(&pool, None, MetricWidgetSwitch::On, early).await),
+        expected(
+            "When startDate is omitted, endDate must be after 2000-01-01 and at most 366 days after today (UTC).",
+            "METRIC_QUERY_LIMIT_EXCEEDED",
+        )
+    );
 }
