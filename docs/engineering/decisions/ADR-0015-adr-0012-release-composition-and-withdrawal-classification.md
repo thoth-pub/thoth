@@ -1,7 +1,9 @@
 # ADR-0015 - ADR-0012 release composition and withdrawal classification
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-11-13
+Approved by: Javi, CTO
+Approval date: 2026-11-13
 Decision owner: CTO
 Programmes affected: Shared Backend Architecture (owning programme, THOTH-ASYNC-01); Publisher Services and Distribution Configuration; Thoth Hosting; future Thoth programmes that need asynchronous work
 Repositories affected: `thoth-pub/thoth` (the shared engine, in two releases); `thoth-pub/thoth-dissemination` and `thoth-pub/thoth-app` (the Thoth release each consumer migrates onto); `thoth-pub/infrastructure` (rollout order only)
@@ -555,8 +557,8 @@ Evidence for this decision:
 
 ## 10. Approval
 
-Proposed. Not approved.
+Approved by Javi, CTO, on 2026-11-13.
 
-On 2026-11-13 the CTO decided the release composition, Property P and the `ACCEPT_REGRESSION` reading, recorded on #1026. Those decisions do not approve these bytes.
+On 2026-11-13 the CTO decided the release composition, Property P and the `ACCEPT_REGRESSION` reading, and then approved this ADR's exact content, each recorded on #1026. The decisions alone did not approve these bytes.
 
-This ADR follows the PR-first staged sequence of `docs/engineering/decisions/README.md` (Route B). The CTO's approval of this exact content, and then of the exact final blob, are each recorded on #1026. Repository authority follows only from independent exact-head review and merge into `develop`. Until then no implementation may rely on this ADR.
+This ADR follows the PR-first staged sequence of `docs/engineering/decisions/README.md` (Route B). The CTO's approval of the exact final blob is recorded on #1026 before merge. Repository authority follows only from independent exact-head review and merge into `develop`. Until then no implementation may rely on this ADR.
