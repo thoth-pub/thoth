@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 resolved works and 100,000 institution rows
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Give each `metricDashboard` read a 20-second deadline to start its statements
+  - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
 
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
