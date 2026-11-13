@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
 
+### Fixed
+  - [1021](https://github.com/thoth-pub/thoth/pull/1021) - Fix a timing race in a Metrics rollup test
+
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
 ### Added
   - [984](https://github.com/thoth-pub/thoth/pull/984) - Implement the Metrics API, with 20 database migrations for metric platforms, measures, sources, imports, records, coverage and rollups
