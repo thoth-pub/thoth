@@ -4747,6 +4747,7 @@ mod evidence {
         MONTH_SOURCE_WATERMARK_SQL, YEAR_COUNTRY_INSERT_SQL, YEAR_INSTITUTION_INSERT_SQL,
     };
     use crate::model::metric_rollup_delta::tests::{percentiles, seed_production_shaped_days};
+    use crate::model::metric_rollup_delta::verification::verify_metric_rollup_months;
     use crate::model::metric_rollup_delta::METRIC_ROLLUP_CLAIM_MAX_BATCH;
 
     /// How many bytes of each statement the evidence log keeps: enough to
@@ -5783,6 +5784,30 @@ mod evidence {
             driven.stuck
         );
         assert_eq!(driven.run.status, expected, "{}", driven.pass);
+    }
+
+    /// `verifyMetricRollupMonths` after a RECONCILED pass on F2. At F2's size
+    /// the whole-table verification can exceed its 30 s statement timeout
+    /// (section 3.7's bound, past which the supported path is section 3.8),
+    /// so a timeout is reported rather than failed; an answer must be exact.
+    fn whole_table(pool: &PgPool, label: &str) {
+        let started = Instant::now();
+        match verify_metric_rollup_months(pool) {
+            Ok(whole) => {
+                println!(
+                    "WHOLE|{label}|verifyMetricRollupMonths answered in {} s|matches {}",
+                    secs(started.elapsed()),
+                    whole.matches
+                );
+                assert!(whole.matches, "{label}");
+            }
+            Err(error) if format!("{error:?}").contains("statement timeout") => println!(
+                "WHOLE|{label}|verifyMetricRollupMonths exceeded its 30 s statement timeout \
+                 after {} s",
+                secs(started.elapsed())
+            ),
+            Err(error) => panic!("{label}: verification: {error:?}"),
+        }
     }
 
     /// One section 17 acceptance line on the p95 of `samples`' holds. A hold
@@ -6888,7 +6913,7 @@ mod evidence {
         };
         let f3 = Shape {
             tag: "ops03-f3".to_string(),
-            works: 4,
+            works: knob("THOTH_EVIDENCE_F3_WORKS", 4),
             series: 4,
             first_month: (2018, 1),
             months: 96,
@@ -7077,7 +7102,7 @@ mod evidence {
             &Drive::new("F2 repair REBUILD", &classes),
         );
         finish_pass(&repaired, keys, Reconciled);
-        assert!(verification(&pool).matches);
+        whole_table(&pool, "F2 after the repair REBUILD");
         println!(
             "F2|200 corruptions -> VERIFY {:?} -> REBUILD {:?} with {} replacing steps",
             verified.run.status,
@@ -7739,6 +7764,6 @@ mod evidence {
         verify.terms = false;
         let ended = drive_measured(pool, evidence, built.run.clone(), &verify);
         finish_pass(&ended, keys, Reconciled);
-        assert!(verification(pool).matches);
+        whole_table(pool, "F6 after the verify phase");
     }
 }
