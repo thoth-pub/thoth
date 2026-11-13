@@ -7680,10 +7680,12 @@ fn normal_completion_and_allocation_wait_behind_a_rebuild_and_then_resume_correc
     );
     let waiting_before = backends_waiting_on_a_lock(&pool);
     let rebuild_pool = Arc::clone(&pool);
-    let rebuilding = thread::spawn(move || {
-        let result = rebuild(&rebuild_pool, frontier);
-        (result, Instant::now())
-    });
+    // The rebuild holds the state row through the injected two-second pause,
+    // so neither waiter can finish before this bound. (Its own return is no
+    // bound: the row is released at COMMIT, before the rebuild's client has
+    // its reply, so a woken waiter may return first.)
+    let rebuild_started = Instant::now();
+    let rebuilding = thread::spawn(move || rebuild(&rebuild_pool, frontier));
     thread::sleep(Duration::from_millis(500));
 
     let completion_pool = Arc::clone(&pool);
@@ -7711,18 +7713,18 @@ fn normal_completion_and_allocation_wait_behind_a_rebuild_and_then_resume_correc
     );
     assert_eq!(state(&pool).applied_through_sequence, frontier);
 
-    let (rebuild_result, rebuild_done) = rebuilding.join().expect("join");
-    let result = rebuild_result.expect("rebuild");
+    let result = rebuilding.join().expect("join").expect("rebuild");
     assert!(result.rebuilt);
     assert_eq!(result.verification.applied_through_sequence, frontier);
 
+    let held_until = rebuild_started + Duration::from_secs(2);
     let (completion_result, completion_done) = completing.join().expect("join");
     let watermark = completion_result.expect("the completion resumes");
     assert_eq!(watermark.applied_through_sequence, frontier + 2);
-    assert!(completion_done >= rebuild_done);
+    assert!(completion_done >= held_until);
     let (allocation_result, allocation_done) = allocating.join().expect("join");
     allocation_result.expect("the allocation resumes");
-    assert!(allocation_done >= rebuild_done);
+    assert!(allocation_done >= held_until);
 
     // The completion maintained its months incrementally on top of the
     // rebuilt state, the new delta took the next position, and the whole

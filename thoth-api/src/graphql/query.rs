@@ -2326,11 +2326,13 @@ impl QueryRoot {
     // ----------------------------------------------------------------------
 
     #[graphql(
-        description = "Public, read-only Metrics for one work and, optionally, its child works, for the embeddable Metrics widget. No login is needed. Served only while the server enables it and only for works whose publisher is entitled to the Metrics widget. Covers at most 12 whole months, and only one metricWidget field may be requested at a time"
+        description = "Public, read-only Metrics for one work and, optionally, its child works, for the embeddable Metrics widget. No login is needed. Served only while the server enables it and only for works whose publisher is entitled to the Metrics widget. Serves monthly timelines of at most 12 months, or yearly timelines over all history, and only one metricWidget field may be requested at a time"
     )]
     fn metric_widget(
         context: &Context,
-        #[graphql(description = "The work, optional child works and the month range")]
+        #[graphql(
+            description = "The work, optional child works, the date range and the timeline grain"
+        )]
         input: MetricWidgetInput,
     ) -> FieldResult<MetricWidget> {
         read_metric_widget(

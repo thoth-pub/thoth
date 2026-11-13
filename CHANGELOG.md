@@ -6,21 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - [960](https://github.com/thoth-pub/thoth/pull/960) - Add ADR-0012, the shared architecture for asynchronous events and background jobs
+  - [1006](https://github.com/thoth-pub/thoth/pull/1006) - Add ADR-0012, the shared architecture for asynchronous events and background jobs
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Allow `metricDashboard` to omit `startDate` to read all Metrics history before `endDate`, and return the served `startDate`, `endDate` and `timelineGrain`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Add a `YEAR` timeline grain to `metricDashboard`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Limit each API process to three concurrent `metricDashboard` reads, and add the retryable `METRIC_READ_BUSY` error for a read that waits more than a second for one
   - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
   - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
+  - [1019](https://github.com/thoth-pub/thoth/issues/1019) - Let `metricWidget` serve yearly timelines, and all history when `startDate` is omitted
   - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable, caller-driven rebuild and paged verification of the derived Metrics rollup projections for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 resolved works and 100,000 institution rows
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Give each `metricDashboard` read a 20-second deadline to start its statements
+  - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
 
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
+
+### Fixed
+  - [1021](https://github.com/thoth-pub/thoth/pull/1021) - Fix a timing race in a Metrics rollup test
 
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
 ### Added

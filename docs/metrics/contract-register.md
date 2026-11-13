@@ -2574,24 +2574,28 @@ Scope boundaries a consumer must not infer:
 - No response cache is added; a cache is separate work.
 - History is only what has been ingested; importing earlier history is
   separate work.
-- `metricWidget` does not use this concurrency limit or this range; its
-  adoption of the all-time range is separate work.
+- `metricWidget` does not use this concurrency limit or this omitted-start
+  rule; its own all-history read is in section 4.4.
 
 ### 4.4 Public widget read contract (`MET-WP4-WIDGET-01`)
 
 `MET-WP4-WIDGET-01` (issue #1007, specification R11, under
 [`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md))
 adds one public, read-only query for the embeddable `metrics-widget`
-package: one work (a book or a chapter) and its child works, by DOI, monthly,
-for publishers whose package grants `METRICS_WIDGET`, serving only measures
-the registry marks public, with the per-pair value and coverage semantics of
-sections 4.1-4.3 over its own month-aligned range. None of section 4.3's
-range, omitted start, `YEAR`, concurrency limit, 20-second deadline (the
+package: one work (a book or a chapter) and its child works, by DOI, with a
+monthly or yearly timeline, for publishers whose package grants
+`METRICS_WIDGET`, serving only measures the registry marks public, with the
+per-pair value and coverage semantics of sections 4.1-4.3 over its own
+month-aligned range. `MET-WP4-WIDGET-ALLTIME` (issue #1019, specification
+R2.1) adds the widget-owned `YEAR` timeline and lets a `YEAR` read omit
+`startDate` to serve all history, from one served start shared by both
+sections. The widget serves `YEAR` and an omitted start under its own rules
+(below), and none of section 4.3's concurrency limit, 20-second deadline (the
 widget has its own 10-second deadline on the same engine mechanism) or
-`METRIC_READ_BUSY` applies to it. No role, migration, table or index is
-added, and `metricDashboard`, `metricMeasures`, `metricPlatforms` and every
-other operation keep their schema, results and authorization. Merging it
-activates nothing: the read is off until activation (below).
+`METRIC_READ_BUSY`. No role, migration, table or index is added, and
+`metricDashboard`, `metricMeasures`, `metricPlatforms` and every other
+operation keep their schema, results and authorization. Merging it activates
+nothing: the read is off until activation (below).
 
 Additive GraphQL contract:
 
@@ -2602,8 +2606,14 @@ metricWidget(input: MetricWidgetInput!): MetricWidget!
 input MetricWidgetInput {
   doi: Doi!                 # the embedded work (book or chapter)
   chapterDois: [Doi!]       # optional subset of the work's child works; omitted or [] = all
-  startDate: Date!          # first day of a month
+  startDate: Date           # first day of a month; may be omitted only for YEAR (all served history)
   endDate: Date!            # first day of a month, exclusive
+  timelineGrain: MetricWidgetGrain = "MONTH"
+}
+
+enum MetricWidgetGrain {    # widget-owned; not MetricTimelineGrain
+  MONTH
+  YEAR
 }
 
 type MetricWidget {
@@ -2612,7 +2622,7 @@ type MetricWidget {
   excludedChildCount: Int!
   platforms: [MetricWidgetPlatform!]!
   measures: [MetricWidgetMeasure!]!
-  startDate: Date!
+  startDate: Date!          # the served start
   endDate: Date!
   asOf: Timestamp!
   rollupWatermark: Timestamp!
@@ -2641,8 +2651,15 @@ type MetricWidgetMeasure  { measureId: Uuid! code: String! displayName: String! 
 
 `MetricTotal`, `MetricTimeBucket`, `MetricCountryTotal`,
 `MetricCoverageStatus` and `BigInt` are the section 4.1 and 4.2 types,
-unchanged. There is no grain input (the timeline is always monthly), and no
-warnings and no institution fields are served.
+unchanged. The grain is the widget's own `MetricWidgetGrain`, never the
+dashboard's `MetricTimelineGrain`: `MONTH` (one bucket per calendar month of
+the served range) or `YEAR` (one bucket per calendar year, clipped to the
+served range, each the exact sum of the daily values it contains, under the
+section 4.3 `YEAR` rule). An omitted and a null `timelineGrain` are both
+`MONTH`, and an omitted and a null `startDate` are the same. No warnings and
+no institution fields are served. The change from the first widget contract
+is additive: `startDate` became nullable, and `timelineGrain` and
+`MetricWidgetGrain` are new; no output field changed type.
 
 - **Access.** Public and capability-gated: no credential and no role; the
   caller's identity is never consulted. The read is served only while the
@@ -2663,10 +2680,14 @@ warnings and no institution fields are served.
   counted on the request context, after fragment expansion: a later
   `metricWidget` selection of the same request is
   `METRIC_QUERY_LIMIT_EXCEEDED` with no slot or statement. (4) Input-only
-  validation, with no database, in this order: `doi` parses; both dates are
-  first days of months and `startDate < endDate`; `startDate` is on or after
-  2000-01-01 and `endDate` at most 366 days after the current UTC date; the
-  range is at most 12 months; `chapterDois` has at most 500 entries, each
+  validation, with no database, in this order, once the grain is resolved:
+  `doi` parses; a `MONTH` read gives `startDate`; then the dates. With
+  `startDate`, for either grain: both dates are first days of months and
+  `startDate < endDate`; `startDate` is on or after 2000-01-01 and `endDate`
+  at most 366 days after the current UTC date; and, for `MONTH` only, the
+  range is at most 12 months. Without it (`YEAR` only): `endDate` is the
+  first day of a month, then later than 2000-01-01 and at most 366 days after
+  the current UTC date. Last, `chapterDois` has at most 500 entries, each
   parses, none repeats in canonical form. (5) A process-wide widget slot,
   without waiting; the 10 s request deadline starts here. (6) One pool
   connection with a 1 s checkout timeout, and one `READ ONLY, REPEATABLE READ`
@@ -2677,7 +2698,10 @@ warnings and no institution fields are served.
   (at most 501 rows). (9) No such work, or a publisher without
   `METRICS_WIDGET`: `METRIC_WIDGET_UNAVAILABLE`, from one code path after the
   same single statement. (10) Child validation. (11) Served-pair discovery,
-  one statement per non-empty section, then the pair bound. (12) One labels
+  one statement per non-empty section (over all history before `endDate`
+  when `startDate` was omitted), then the pair bound; then, with no
+  statement, the served start (below), which is refused before labels when
+  it falls before 2000-01-01. (12) One labels
   statement: the served platforms' and measures' public labels,
   `transaction_timestamp()` and the rollup frontier, on every path that
   reaches it. (13) The engine in pair mode for each section with a served
@@ -2709,48 +2733,92 @@ warnings and no institution fields are served.
   is not considered.
 - **Served pairs.** Per section, the distinct eligible platform/measure pairs
   with a monthly projection row, or a total-ambiguous month, for the section's
-  works in the range, ordered by platform ID and measure ID. A pair with no
-  such row is not shown at all, never as a zero; coverage alone does not serve
-  a pair. More than 40 served pairs in a section is
-  `METRIC_QUERY_LIMIT_EXCEEDED`, never truncation.
-- **Pair mode.** Each section with a served pair is read by the
-  section 4.1-4.3 engine on the same connection and snapshot, with the
-  section's works and the work's publisher as its scope, exactly the served
-  pairs as its combinations, the monthly timeline, countries on and
-  institutions off: at most six statements (`PUBLISHERS_SQL`,
-  `ACCOUNTS_SQL`, `CANONICAL_SQL`, the step-7 text, which is `MONTHS_SQL`, or
-  `MONTHS_YEAR_ONLY_SQL` with the yearly country projection when the range is
-  exactly one calendar year, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`); it
-  never runs the dashboard's work, known-scope, represented-pair or day
-  statements and has no combination bound. Monthly total, country and
-  coverage-run rows of any other platform/measure pair are dropped as they
-  are read, before any check, so coverage-run state on an unserved cross pair
-  refuses nothing. Each pair's total, monthly buckets, countries and coverage
-  equal a single-pair `metricDashboard` read over the same works and range;
-  the section's `dataThrough` and `isPartial` are section 4.1's aggregation
-  over exactly the served pairs. A total or country dimension ambiguity, more
-  than one eligible source account on a served platform, or an active native
-  `MONTH` or `REPORTING_PERIOD` record on any served platform x served measure
-  (a deliberate over-refusal that reaches unserved cross pairs) refuses the
-  read as `METRIC_WIDGET_UNAVAILABLE`. Two overlapping coverage runs of one
-  stream on a served pair refuse the read as `INTERNAL_ERROR`, as they refuse
-  the single-pair `metricDashboard` read of that pair. Native-grain records
-  are never served. Each engine run's frontier must equal the labels
-  statement's (`INTERNAL_ERROR` otherwise).
+  works in the range, ordered by platform ID and measure ID; when `startDate`
+  is omitted, in any month before `endDate`, with each pair's earliest such
+  month. A pair with no such row is not shown at all, never as a zero;
+  coverage alone does not serve a pair. More than 40 served pairs in a
+  section is `METRIC_QUERY_LIMIT_EXCEEDED`, never truncation.
+- **Served start.** With `startDate`, the served start is `startDate`. With
+  it omitted, it is the first day of the earliest month before `endDate`
+  with a served value (a monthly projection row, or a total-ambiguous month,
+  of an eligible pair of the section's served works, after child selection
+  and exclusion) in either section; with no served pair in either section,
+  the first day of the month before `endDate`. Both sections, and so both
+  timelines, start on that day, and a pair whose own history starts later
+  shows its earlier buckets as `null` or `"0"` under the section 4.3 bucket
+  rule, never as missing buckets. The first `YEAR` bucket runs from the
+  served start to the next 1 January and the last from the last 1 January
+  before `endDate` to `endDate`. Only served values move the start: coverage
+  runs, terminal imports without a completion time, unresolved identifiers,
+  unapplied rollup work and native-grain records never do, unlike section
+  4.3's all-time start. So months before a work's first value are not
+  served, and history that rollup has not yet applied is not served until it
+  is (the start can move earlier as it is, and until then an all-time total
+  can understate the history without a flag, since `isPartial` reflects lag
+  inside the served range only). A served start before 2000-01-01 is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never clamped. Every eligible row before
+  `endDate` lies in the served range, so an all-history response equals,
+  except for `asOf`, the response to the same request with `startDate` set to
+  its served start, read against the same database state.
+- **Pair mode.** Each section with a served pair is read by the section
+  4.1-4.3 engine on the same connection and snapshot, with the section's works
+  and the work's publisher as its scope, exactly the served pairs as its
+  combinations, the served start (one for both sections) and `endDate` as its
+  explicit range, the request's grain, countries on and institutions off: at
+  most six statements (`PUBLISHERS_SQL`, `ACCOUNTS_SQL`, `CANONICAL_SQL`, the
+  step-7 text, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`). The step-7 text is
+  `MONTHS_YEAR_ONLY_SQL` when the served range is exactly whole calendar
+  years, `MONTHS_YEAR_SQL` when it holds at least one whole calendar year and
+  other whole months, and `MONTHS_SQL` otherwise; whole years read their
+  countries from the yearly country projection. It never runs the dashboard's
+  work, known-scope, represented-pair, scan or day statements, since every
+  widget range is month-aligned and a section holds at most 500 works, and it
+  has no combination bound. With an explicit start, `CANONICAL_SQL`'s lag and
+  native-grain branches are bounded below by the served start. Monthly total,
+  country and coverage-run rows of any other platform/measure pair are dropped
+  as they are read, before any check, so coverage-run state on an unserved
+  cross pair refuses nothing. Each pair's total, buckets, countries and
+  coverage equal a single-pair `metricDashboard` read over the same works,
+  served range and grain; the section's `dataThrough` and `isPartial` are
+  section 4.1's aggregation over exactly the served pairs. A total or country
+  dimension ambiguity, more than one eligible source account on a served
+  platform, or an active native `MONTH` or `REPORTING_PERIOD` record on any
+  served platform x served measure (a deliberate over-refusal that reaches
+  unserved cross pairs) refuses the read as `METRIC_WIDGET_UNAVAILABLE`. Over
+  all history that reaches every such record and month since the served start:
+  a native-grain record on a served platform x served measure that ends on or
+  before the served start is not read, and one that ends after it refuses the
+  read, including when one served platform's or one section's day-grain
+  history starts before another served platform's or the other section's
+  native history ends; a refusal of either section refuses the whole request.
+  Two overlapping coverage runs of one stream on a served pair refuse the read
+  as `INTERNAL_ERROR`, as they refuse the single-pair `metricDashboard` read
+  of that pair. Native-grain records are never served. Each engine run's
+  frontier must equal the labels statement's (`INTERNAL_ERROR` otherwise).
 - **Empty sections.** A section with no served pair runs no engine statement
   and returns empty lists, `dataThrough: null` and `isPartial: true`. `asOf`
   and `rollupWatermark` always come from the labels statement.
 - **Ordering.** `platforms` by `platformId`; `measures` by `measureId`;
   `totals` and `coverage` by `platformId`, `measureId`; `timeline` then by
-  month; `countries` then by country code.
+  bucket start; `countries` then by country code.
 - **Bounds and cost.** At most 2 widget reads per process (one process-wide
   limiter, separate from any dashboard control, section 4.3's concurrency
   limit included), 1 s checkout, a 5 s statement timeout, a 10 s request
   deadline from taking the slot (which alone governs a widget read; section
-  4.3's 20-second deadline does not apply), 12 months, 500 child works, 500
-  `chapterDois`, 40 pairs per section and at most 19 named statements per read
-  (22 captured with the checkout check, `BEGIN` and `COMMIT`). No bound is met
-  by truncation.
+  4.3's 20-second deadline does not apply), 12 months for a `MONTH` read,
+  500 child works, 500 `chapterDois`, 40 pairs per section and at most 19
+  named statements per read (22 captured with the checkout check, `BEGIN`
+  and `COMMIT`), for an all-history read too. A `YEAR` read's range is
+  bounded by the technical date domain alone (from 2000-01-01 to at most 366
+  days after the current UTC date: at most 28 calendar years in 2026), so
+  moving that floor or ceiling widens the public surface. Cells per section
+  are at most 480 (40 x 12) for `MONTH` and 1,120 (40 x 28) for `YEAR` in
+  2026, below the engine's 5,000. An all-history read's pair discovery and
+  monthly total read walk every month of the section's works since its first
+  value, so its cost grows with the years served; the statement timeout and
+  the request deadline still bound every read, and a work whose all-history
+  read exceeds them fails as `INTERNAL_ERROR` (or `METRIC_WIDGET_BUSY` past
+  the deadline) on every request. No bound is met by truncation.
 - **Errors.** Resolver errors, so HTTP 200 with the error in `errors`; `data`
   is `null` unless a named fragment spread or typed inline fragment encloses
   the failing selection. Clients decide on `errors` and `extensions.type`,
@@ -2762,13 +2830,17 @@ warnings and no institution fields are served.
 | --- | --- |
 | Switch off; unknown DOI; publisher without `METRICS_WIDGET`; engine capability, source-scope, dimension-scope or native-grain refusal | `METRIC_WIDGET_UNAVAILABLE` |
 | No free slot; checkout timeout or failure; deadline passed before a statement; the prelude lock failing | `METRIC_WIDGET_BUSY` |
-| A second `metricWidget` selection in the request; dates outside the technical domain; over 12 months; over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
-| A DOI that does not parse; dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
+| A second `metricWidget` selection in the request; dates outside the technical domain; a `MONTH` read over 12 months ("A MONTH timeline may cover at most 12 months."); an omitted `startDate` with `endDate` not after 2000-01-01 or more than 366 days after today ("When startDate is omitted, endDate must be after 2000-01-01 and at most 366 days after today (UTC)."); a served start before 2000-01-01 ("Metrics for this work or its child works start before 2000-01-01. Give a startDate on or after 2000-01-01."); over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
+| A DOI that does not parse; a `MONTH` read without `startDate` ("startDate is required for a MONTH timeline."); dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
 | Any other engine error, `Busy` included (only section 4.3's dashboard limit produces it); an engine failure without a deadline refusal (database failure, statement timeout, inconsistent native-grain state, same-stream coverage-run overlap on a served pair); a missing or mismatched frontier | `INTERNAL_ERROR` |
 
 - **Logging.** With the switch on, each resolution writes one info-level
   outcome line (outcome, elapsed time, per-section served pairs and
-  cross-product sizes; the DOI only after step 9), the first refused second
+  cross-product sizes; for a read that passed step 4, `grain=MONTH|YEAR`,
+  `history=true|false` (whether `startDate` was omitted) and `buckets=<n>`,
+  the timeline buckets per pair over the served range, or `-` before the
+  served start is fixed and on the 2000-01-01 refusal; the DOI only after
+  step 9), the first refused second
   selection of a request is info and later ones debug, reasons for
   unavailable and busy are debug (the DOI only after step 8), a checkout
   failure is also warn, and `INTERNAL_ERROR` is error with its reason, section,
@@ -2784,17 +2856,49 @@ warnings and no institution fields are served.
   decides otherwise at that grant (`ADR-0014` section 4.7). Activation also
   waits for the WAF rate rule, `MET-READ-CACHE-01` or a named waiver, the
   public-scope audit, the worker-exposure acceptance, data readiness for
-  native-grain history, and the activation signals. The switch takes effect
-  only on restart.
+  native-grain history, and the activation signals. Because the all-history
+  read becomes the default on every embed, activation also carries section
+  4.3's all-time default gate over to the widget: a staging performance
+  reference for the all-history `YEAR` read of the largest real books (most
+  child works, longest history), reporting rows returned per statement and
+  section, the history statement's time and the total latency, which holds
+  activation for a CTO decision if any statement exceeds 2.5 s or any read
+  exceeds 5 s on production-like data, and, unless a response cache is
+  deployed, also measures the read at two concurrent reads per process and
+  reports the `METRIC_WIDGET_BUSY` rate for CTO acceptance; and a read-only
+  census of the all-history read of every work of each entitled publisher (or
+  an agreed sample), reporting the share refused by class (native-grain
+  overlap, over 40 pairs, over 500 children, the 2000-01-01 floor,
+  ambiguity) and latency, accepted by the CTO or answered by a client
+  fallback. A response cache must key an all-history response on the rollup
+  frontier, as every widget response. The switch takes effect only on
+  restart.
 
 Scope boundaries a consumer must not infer:
 
-- At most 12 whole months per read; there is no all-time or by-year view and
-  no grain input until `MET-WP4-WIDGET-ALLTIME`. Clients must not stitch
-  ranges.
+- A `MONTH` read covers at most 12 whole months. All-time totals, a by-year
+  timeline and all-time countries come from one `YEAR` read with `startDate`
+  omitted; a year by month from a separate `MONTH` read of that calendar
+  year. Clients must not stitch ranges or sum months into years: a year
+  bucket is not the sum of its months when any month is `null`.
+- Each bucket is labelled from its own dates: the first and last `YEAR`
+  buckets may be part-years, and `startDate` is shared by both sections. A
+  pair can have `null` or `"0"` years before its own first value.
+- A read whose range reaches past today carries no coverage signal: every
+  pair is `UNKNOWN` with `countryCoverage: false` and `isPartial: true`. An
+  `endDate` of the first day of the current month avoids that, without the
+  current month's values. In an all-history read a pair whose coverage starts
+  after the served start is `UNKNOWN`, with `countryCoverage: false` and a
+  null `dataThrough`, whatever the `endDate`; `countryCoverage: false` means
+  only that some served day lacks complete country coverage, never that the
+  pair has no country breakdown. As in section 4.3, clients must not present
+  an all-history `dataThrough` as "data up to".
 - Native-grain history (for example OPERAS-imported monthly data) is not
   served, and a work with an active native-grain record on a served platform
-  x served measure is unavailable.
+  x served measure that overlaps the served range is unavailable; for an
+  all-history read, that is any such record ending after the served start.
+  On `METRIC_WIDGET_UNAVAILABLE` or the 2000-01-01 refusal from the
+  all-history read, the client shows no all-time view.
 - No institutions, warnings, entity-level Metrics fields or role-protected
   data are served, and the protected read service of sections 4.1 and 4.2 is
   unchanged.

@@ -1,8 +1,11 @@
 //! The public, read-only `metricWidget` read for the embeddable metrics
 //! widget (`MET-WP4-WIDGET-01`, under `ADR-0014`).
 //!
-//! An anonymous caller names one work by DOI (a book, or a chapter) and a
-//! whole-month range; for a book it may also narrow the child works. The read
+//! An anonymous caller names one work by DOI (a book, or a chapter), a
+//! whole-month range and a monthly or yearly timeline; for a book it may also
+//! narrow the child works. A yearly read may omit its start to serve all
+//! history (`MET-WP4-WIDGET-ALLTIME`), from one served start shared by both
+//! sections. The read
 //! serves, per section (the work itself, and its child works), only the
 //! platform/measure pairs the registry makes public and the projections hold
 //! for that section, with exactly the per-pair values and coverage the
@@ -26,8 +29,10 @@
 //!    child works.
 //! 9. Unknown work or unentitled publisher: the uniform refusal.
 //! 10. Child validation.
-//! 11. Served-pair discovery, one statement per non-empty section, then the
-//!     pair bound.
+//! 11. Served-pair discovery, one statement per non-empty section (over all
+//!     history before `endDate` when `startDate` was omitted), then the pair
+//!     bound; then, with no statement, the one served start of both sections
+//!     (step 11a).
 //! 12. One labels statement: public labels, the transaction timestamp and the
 //!     rollup frontier.
 //! 13. The engine in pair mode for each section that serves a pair.
@@ -71,7 +76,8 @@ use crate::model::{Doi, Timestamp};
 // Profile
 // ---------------------------------------------------------------------------
 
-/// The most whole months one widget read may cover.
+/// The most whole months one `MONTH` widget read may cover. A `YEAR` read is
+/// bounded by the technical date domain alone.
 pub const METRIC_WIDGET_MAX_RANGE_MONTHS: u32 = 12;
 /// The most entries `chapterDois` may hold.
 pub const METRIC_WIDGET_MAX_CHAPTER_DOIS: usize = 500;
@@ -149,7 +155,7 @@ impl std::fmt::Display for MetricWidgetSwitch {
     feature = "backend",
     derive(juniper::GraphQLInputObject),
     graphql(
-        description = "A public widget request: one work by DOI, optionally some of its child works, and a range of whole calendar months"
+        description = "A public widget request: one work by DOI, optionally some of its child works, a range of whole calendar months, and a monthly or yearly timeline"
     )
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,17 +177,68 @@ pub struct MetricWidgetInput {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "First day of the first month of the range, inclusive. It must be the first day of a month, on or after 2000-01-01"
+            description = "First day of the range, inclusive: the first day of a month, on or after 2000-01-01. Required for a MONTH timeline; for a YEAR timeline it may be omitted to serve all history"
         )
     )]
-    pub start_date: NaiveDate,
+    pub start_date: Option<NaiveDate>,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "First day of the month after the range, exclusive. It must be the first day of a month, later than startDate, at most 12 months after it and at most 366 days after today (UTC)"
+            description = "First day of the month after the range, exclusive, later than startDate and at most 366 days after today (UTC). A MONTH timeline may cover at most 12 months; a YEAR timeline has no maximum. When startDate is omitted, endDate must be after 2000-01-01"
         )
     )]
     pub end_date: NaiveDate,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            default = MetricWidgetGrain::Month,
+            description = "The size of each timeline bucket. Omitted or null means MONTH"
+        )
+    )]
+    pub timeline_grain: Option<MetricWidgetGrain>,
+}
+
+/// The timeline bucket size of a widget read. The widget's own enum, mapped
+/// to the engine's grain by [`MetricWidgetGrain::engine`], so the widget never
+/// accepts or matches the dashboard's other grains.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "The size of each timeline bucket in a widget response")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetricWidgetGrain {
+    #[default]
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "One bucket per calendar month of the served range")
+    )]
+    Month,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "One bucket per calendar year, clipped to the served range. Each bucket is the exact sum of the daily values it contains"
+        )
+    )]
+    Year,
+}
+
+impl MetricWidgetGrain {
+    /// The engine's grain for this widget grain.
+    fn engine(self) -> MetricTimelineGrain {
+        match self {
+            MetricWidgetGrain::Month => MetricTimelineGrain::Month,
+            MetricWidgetGrain::Year => MetricTimelineGrain::Year,
+        }
+    }
+
+    /// The name the log line prints.
+    fn name(self) -> &'static str {
+        match self {
+            MetricWidgetGrain::Month => "MONTH",
+            MetricWidgetGrain::Year => "YEAR",
+        }
+    }
 }
 
 /// One widget response.
@@ -189,7 +246,7 @@ pub struct MetricWidgetInput {
     feature = "backend",
     derive(juniper::GraphQLObject),
     graphql(
-        description = "Public monthly metrics for one work and its child works, read from one consistent database snapshot"
+        description = "Public metrics for one work and its child works, read from one consistent database snapshot"
     )
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,7 +279,9 @@ pub struct MetricWidget {
     pub measures: Vec<MetricWidgetMeasure>,
     #[cfg_attr(
         feature = "backend",
-        graphql(description = "First day of the range, inclusive")
+        graphql(
+            description = "First day served, inclusive: startDate when given, otherwise the first day of the earliest month with a served value in either section, or of the month before endDate when there is none"
+        )
     )]
     pub start_date: NaiveDate,
     #[cfg_attr(
@@ -251,7 +310,7 @@ pub struct MetricWidget {
     feature = "backend",
     derive(juniper::GraphQLObject),
     graphql(
-        description = "Monthly values and coverage of one widget section, for each platform and measure it serves"
+        description = "Values and coverage of one widget section, for each platform and measure it serves"
     )
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -266,14 +325,14 @@ pub struct MetricWidgetSection {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "One bucket per calendar month of the range for each served platform and measure, ordered by platform ID, measure ID and month"
+            description = "One bucket per calendar month, or per calendar year clipped to the served range, for each served platform and measure, ordered by platform ID, measure ID and bucket start"
         )
     )]
     pub timeline: Vec<MetricTimeBucket>,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "Known per-country totals over the range for the served platforms and measures, ordered by platform ID, measure ID and country code. A country without a row is not a zero"
+            description = "Known per-country totals over the served range for the served platforms and measures, ordered by platform ID, measure ID and country code. A country without a row is not a zero"
         )
     )]
     pub countries: Vec<MetricCountryTotal>,
@@ -313,21 +372,21 @@ pub struct MetricWidgetPairCoverage {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "COMPLETE only when every day of the range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL"
+            description = "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL"
         )
     )]
     pub status: MetricCoverageStatus,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The last day of the unbroken run from startDate in which every day is completely covered and its values settled, or null when the first day is not"
+            description = "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not"
         )
     )]
     pub data_through: Option<NaiveDate>,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "True only when every day of the range has coverage that includes the country dimension"
+            description = "True only when every day of the served range has coverage that includes the country dimension"
         )
     )]
     pub country_coverage: bool,
@@ -399,7 +458,10 @@ const DATES_MESSAGE: &str =
     "startDate and endDate must be first days of months, with startDate before endDate.";
 const DATE_DOMAIN_MESSAGE: &str =
     "startDate must be on or after 2000-01-01, and endDate at most 366 days after today (UTC).";
-const RANGE_MESSAGE: &str = "The date range may cover at most 12 months.";
+const RANGE_MESSAGE: &str = "A MONTH timeline may cover at most 12 months.";
+const START_REQUIRED_MESSAGE: &str = "startDate is required for a MONTH timeline.";
+const OMITTED_START_DOMAIN_MESSAGE: &str = "When startDate is omitted, endDate must be after 2000-01-01 and at most 366 days after today (UTC).";
+const HISTORY_FLOOR_MESSAGE: &str = "Metrics for this work or its child works start before 2000-01-01. Give a startDate on or after 2000-01-01.";
 const TOO_MANY_CHAPTER_DOIS_MESSAGE: &str = "chapterDois may hold at most 500 DOIs.";
 const DUPLICATE_CHAPTER_DOI_MESSAGE: &str = "chapterDois must not repeat a DOI.";
 const NOT_A_CHILD_MESSAGE: &str = "chapterDois must list child works of doi.";
@@ -649,6 +711,14 @@ pub(crate) struct WidgetFacts {
     pub(crate) doi: Option<Doi>,
     pub(crate) work: Option<SectionSize>,
     pub(crate) chapters: Option<SectionSize>,
+    /// The timeline grain, once the input passed step 4.
+    pub(crate) grain: Option<MetricWidgetGrain>,
+    /// Whether `startDate` was omitted (an all-history read), once the input
+    /// passed step 4.
+    pub(crate) history: Option<bool>,
+    /// Timeline buckets per pair over the served range, once step 11a has
+    /// fixed it.
+    pub(crate) buckets: Option<usize>,
     /// The section whose engine run failed, if one did.
     pub(crate) engine_section: Option<WidgetSection>,
     /// The last statement admitted against the deadline: the engine's last,
@@ -685,6 +755,9 @@ pub(crate) struct WidgetLogLine {
     pub(crate) doi: Option<Doi>,
     pub(crate) work: Option<SectionSize>,
     pub(crate) chapters: Option<SectionSize>,
+    pub(crate) grain: Option<MetricWidgetGrain>,
+    pub(crate) history: Option<bool>,
+    pub(crate) buckets: Option<usize>,
     pub(crate) reason: Option<WidgetReason>,
     pub(crate) engine_section: Option<WidgetSection>,
     pub(crate) last_statement: Option<&'static str>,
@@ -701,6 +774,9 @@ impl WidgetLogLine {
             doi: None,
             work: None,
             chapters: None,
+            grain: None,
+            history: None,
+            buckets: None,
             reason: None,
             engine_section: None,
             last_statement: None,
@@ -732,6 +808,15 @@ impl WidgetLogLine {
                 size(self.work),
                 size(self.chapters)
             ));
+            // Only the line of a read that passed step 4 carries its grain.
+            if let (Some(grain), Some(history)) = (self.grain, self.history) {
+                line.push_str(&format!(
+                    " grain={} history={history} buckets={}",
+                    grain.name(),
+                    self.buckets
+                        .map_or("-".to_string(), |buckets| buckets.to_string())
+                ));
+            }
         }
         if let Some(reason) = self.reason {
             line.push_str(&format!(" reason={reason:?}"));
@@ -757,7 +842,9 @@ impl WidgetLogLine {
 /// - A refused second selection (step 3): an info outcome line for the first
 ///   one of a request, debug for every later one.
 /// - Otherwise one info outcome line, carrying the DOI only for an outcome
-///   after step 9; a debug reason line for `METRIC_WIDGET_UNAVAILABLE` and
+///   after step 9, and, once the input passed step 4, the grain, whether the
+///   start was omitted and the buckets per pair (`-` until step 11a has fixed
+///   the served range); a debug reason line for `METRIC_WIDGET_UNAVAILABLE` and
 ///   `METRIC_WIDGET_BUSY`, carrying the DOI after step 8; a warn line for a
 ///   checkout failure; an error line for `INTERNAL_ERROR` with the internal
 ///   reason, the section, the step, the last statement and the elapsed time.
@@ -781,6 +868,11 @@ pub(crate) fn log_decision(facts: &WidgetFacts) -> Vec<WidgetLogLine> {
     let mut outcome = WidgetLogLine::base(facts, Level::Info, WidgetLineKind::Outcome);
     outcome.work = facts.work;
     outcome.chapters = facts.chapters;
+    if facts.step > WidgetStep::Input {
+        outcome.grain = facts.grain;
+        outcome.history = facts.history;
+        outcome.buckets = facts.buckets;
+    }
     outcome.doi = doi_after(WidgetStep::Entitlement);
     lines.push(outcome);
     match facts.error {
@@ -913,6 +1005,34 @@ pub(crate) const METRIC_WIDGET_PAIRS_SQL: &str = "SELECT served.platform_id, ser
              ORDER BY served.platform_id, served.measure_id \
              LIMIT $4";
 
+/// Step 11 of an all-history read (`startDate` omitted): the served pairs of
+/// one section over all history before `endDate` `$2`, each with its earliest
+/// served month. The eligibility of [`METRIC_WIDGET_PAIRS_SQL`]: a monthly
+/// projection row, or a total-ambiguous month, of the section's works `$1`,
+/// on an enabled platform and a public, enabled measure additive across time
+/// and works. Ordered by platform ID and measure ID, stopping after `$3` rows.
+/// The month columns are first days of months by their tables' check
+/// constraints, so `first_month` is the first day of the pair's earliest
+/// served month.
+pub(crate) const METRIC_WIDGET_HISTORY_PAIRS_SQL: &str =
+    "SELECT served.platform_id, served.measure_id, min(served.month_start) AS first_month \
+             FROM ( \
+                 SELECT mm.platform_id, mm.measure_id, mm.month_start \
+                 FROM public.metric_rollup_work_month mm \
+                 WHERE mm.work_id = ANY($1) AND mm.month_start < $2 \
+                 UNION ALL \
+                 SELECT a.platform_id, a.measure_id, a.month_start \
+                 FROM public.metric_rollup_work_month_ambiguity a \
+                 WHERE a.work_id = ANY($1) AND a.month_start < $2 AND a.total_ambiguous \
+             ) served \
+             JOIN public.metric_platform p ON p.platform_id = served.platform_id \
+             JOIN public.metric_measure m ON m.measure_id = served.measure_id \
+             WHERE p.enabled AND m.enabled AND m.public_visibility \
+               AND m.additive_across_time AND m.additive_across_works \
+             GROUP BY served.platform_id, served.measure_id \
+             ORDER BY served.platform_id, served.measure_id \
+             LIMIT $3";
+
 /// Step 12: the transaction timestamp and the rollup frontier's
 /// `watermark_at`, and the public labels of the served platforms `$1` and
 /// measures `$2`.
@@ -960,6 +1080,16 @@ struct PairRow {
 }
 
 #[derive(diesel::QueryableByName)]
+struct HistoryPairRow {
+    #[diesel(sql_type = SqlUuid)]
+    platform_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    measure_id: Uuid,
+    #[diesel(sql_type = Date)]
+    first_month: NaiveDate,
+}
+
+#[derive(diesel::QueryableByName)]
 struct LabelRow {
     #[diesel(sql_type = Text)]
     kind: String,
@@ -989,13 +1119,50 @@ struct ValidatedInput {
     doi: Doi,
     /// Canonical, lower-cased entries; empty selects every child work.
     chapter_dois: Vec<String>,
+    /// The served start. With `startDate` given it is that date. For an
+    /// all-history read ([`ValidatedInput::history`]) it is, until step 11a
+    /// fixes the served start, the start of a response that serves no pair:
+    /// the first day of the month before `end`.
     start: NaiveDate,
     end: NaiveDate,
+    grain: MetricWidgetGrain,
+    /// Whether `startDate` was omitted: a `YEAR` read of all served history.
+    history: bool,
+}
+
+impl ValidatedInput {
+    /// This request served from `start` (step 11a), for the engine and the
+    /// response.
+    fn served_from(&self, start: NaiveDate) -> ValidatedInput {
+        ValidatedInput {
+            start,
+            ..self.clone()
+        }
+    }
+
+    /// Timeline buckets per pair over `[start, end)`, both first days of
+    /// months: one per calendar month, or per calendar year it touches.
+    fn buckets(&self) -> usize {
+        let last = self.end.pred_opt().unwrap_or(self.end);
+        let count = match self.grain {
+            MetricWidgetGrain::Month => months_between(self.start, last) + 1,
+            MetricWidgetGrain::Year => i64::from(last.year() - self.start.year()) + 1,
+        };
+        usize::try_from(count).unwrap_or(0)
+    }
 }
 
 fn months_between(start: NaiveDate, end: NaiveDate) -> i64 {
     (i64::from(end.year()) * 12 + i64::from(end.month0()))
         - (i64::from(start.year()) * 12 + i64::from(start.month0()))
+}
+
+/// The first day of the month before `end`, a first day of a month: the
+/// served start when no pair is served in either section (the engine's own
+/// fallback for an omitted start).
+fn month_before(end: NaiveDate) -> NaiveDate {
+    let day = end.pred_opt().unwrap_or(end);
+    day.with_day(1).unwrap_or(day)
 }
 
 /// Parse a GraphQL `Doi` value, which the scalar accepts as any string.
@@ -1005,21 +1172,44 @@ fn parse_doi(doi: &Doi) -> Result<Doi, Failure> {
 }
 
 /// Step 4, in order; the first failure is returned, whatever work the DOI
-/// names.
+/// names. The grain is resolved first (absent or null is `MONTH`); then the
+/// DOI; then a `MONTH` read must give `startDate`; then the dates; then
+/// `chapterDois`.
 fn validate(input: &MetricWidgetInput, today: NaiveDate) -> Result<ValidatedInput, Failure> {
     let invalid = |message| Failure::input(MetricWidgetError::QueryInvalid(message));
     let limit = |message| Failure::input(MetricWidgetError::QueryLimitExceeded(message));
+    let grain = input.timeline_grain.unwrap_or_default();
     let doi = parse_doi(&input.doi)?;
-    let (start, end) = (input.start_date, input.end_date);
-    if start.day() != 1 || end.day() != 1 || start >= end {
-        return Err(invalid(DATES_MESSAGE));
-    }
-    if start < date_floor() || (end - today).num_days() > METRIC_WIDGET_END_DATE_CEILING_DAYS {
-        return Err(limit(DATE_DOMAIN_MESSAGE));
-    }
-    if months_between(start, end) > i64::from(METRIC_WIDGET_MAX_RANGE_MONTHS) {
-        return Err(limit(RANGE_MESSAGE));
-    }
+    let end = input.end_date;
+    let too_late = (end - today).num_days() > METRIC_WIDGET_END_DATE_CEILING_DAYS;
+    let (start, history) = match input.start_date {
+        Some(start) => {
+            if start.day() != 1 || end.day() != 1 || start >= end {
+                return Err(invalid(DATES_MESSAGE));
+            }
+            if start < date_floor() || too_late {
+                return Err(limit(DATE_DOMAIN_MESSAGE));
+            }
+            if grain == MetricWidgetGrain::Month
+                && months_between(start, end) > i64::from(METRIC_WIDGET_MAX_RANGE_MONTHS)
+            {
+                return Err(limit(RANGE_MESSAGE));
+            }
+            (start, false)
+        }
+        None => {
+            if grain == MetricWidgetGrain::Month {
+                return Err(invalid(START_REQUIRED_MESSAGE));
+            }
+            if end.day() != 1 {
+                return Err(invalid(DATES_MESSAGE));
+            }
+            if end <= date_floor() || too_late {
+                return Err(limit(OMITTED_START_DOMAIN_MESSAGE));
+            }
+            (month_before(end), true)
+        }
+    };
     let entries = input.chapter_dois.as_deref().unwrap_or_default();
     if entries.len() > METRIC_WIDGET_MAX_CHAPTER_DOIS {
         return Err(limit(TOO_MANY_CHAPTER_DOIS_MESSAGE));
@@ -1036,6 +1226,8 @@ fn validate(input: &MetricWidgetInput, today: NaiveDate) -> Result<ValidatedInpu
         chapter_dois: parsed,
         start,
         end,
+        grain,
+        history,
     })
 }
 
@@ -1107,6 +1299,9 @@ fn resolve(
         doi: None,
         work: None,
         chapters: None,
+        grain: None,
+        history: None,
+        buckets: None,
         engine_section: None,
         last_statement: None,
     };
@@ -1146,6 +1341,8 @@ fn read(
     facts.step = WidgetStep::Input;
     let request = validate(input, profile.today)?;
     facts.doi = Some(request.doi.clone());
+    facts.grain = Some(request.grain);
+    facts.history = Some(request.history);
 
     // 5. A slot, without waiting; the deadline starts here.
     facts.step = WidgetStep::Slot;
@@ -1332,6 +1529,73 @@ fn served_pairs(
         .collect())
 }
 
+/// Step 11 for one section of an all-history read: its served pairs, each
+/// with its earliest served month, over all history before `end`.
+fn history_pairs(
+    connection: &mut PgConnection,
+    works: &[Uuid],
+    request: &ValidatedInput,
+    deadline: &Deadline,
+) -> Result<Vec<HistoryPairRow>, Failure> {
+    deadline.admit("METRIC_WIDGET_HISTORY_PAIRS_SQL")?;
+    Ok(diesel::sql_query(METRIC_WIDGET_HISTORY_PAIRS_SQL)
+        .bind::<Array<SqlUuid>, _>(works)
+        .bind::<Date, _>(request.end)
+        .bind::<SqlBigInt, _>(METRIC_WIDGET_MAX_PAIRS as i64 + 1)
+        .load(connection)?)
+}
+
+/// The served pairs of one section, and, for an all-history read, the first
+/// day of its earliest served month.
+struct SectionPairs {
+    pairs: Vec<(Uuid, Uuid)>,
+    first_month: Option<NaiveDate>,
+}
+
+/// Step 11 for one section.
+fn section_pairs(
+    connection: &mut PgConnection,
+    works: &[Uuid],
+    request: &ValidatedInput,
+    deadline: &Deadline,
+) -> Result<SectionPairs, Failure> {
+    if !request.history {
+        return Ok(SectionPairs {
+            pairs: served_pairs(connection, works, request, deadline)?,
+            first_month: None,
+        });
+    }
+    let rows = history_pairs(connection, works, request, deadline)?;
+    Ok(SectionPairs {
+        first_month: rows.iter().map(|row| row.first_month).min(),
+        pairs: rows
+            .into_iter()
+            .map(|row| (row.platform_id, row.measure_id))
+            .collect(),
+    })
+}
+
+/// Step 11a: the served start. With `startDate` it is that date; without, the
+/// first day of the earliest served month of either section, or, when
+/// neither serves a pair, the first day of the month before `endDate`. A
+/// served start before 2000-01-01 is refused, never clamped.
+fn served_start(
+    request: &ValidatedInput,
+    firsts: [Option<NaiveDate>; 2],
+) -> Result<NaiveDate, Failure> {
+    let start = if request.history {
+        firsts.into_iter().flatten().min().unwrap_or(request.start)
+    } else {
+        request.start
+    };
+    if start < date_floor() {
+        return Err(Failure::input(MetricWidgetError::QueryLimitExceeded(
+            HISTORY_FLOOR_MESSAGE,
+        )));
+    }
+    Ok(start)
+}
+
 /// Step 13 for one section with at least one served pair.
 #[allow(clippy::too_many_arguments)]
 fn engine_section(
@@ -1346,7 +1610,7 @@ fn engine_section(
     facts: &mut WidgetFacts,
 ) -> Result<MetricWidgetSection, Failure> {
     let read = MetricPairRead::new(publisher_id, works, pairs, request.start, request.end)
-        .with_timeline_grain(MetricTimelineGrain::Month)
+        .with_timeline_grain(request.grain.engine())
         .with_countries(true)
         .with_institutions(false)
         .with_capability(PublisherCapability::MetricsWidget);
@@ -1463,24 +1727,39 @@ fn transact(
     (profile.hook)(WidgetStep::Children);
     let children = select_children(request, &rows, is_chapter, publisher_id)?;
 
-    // 11. Served pairs per section, then the pair bound.
+    // 11. Served pairs per section (over all history when startDate was
+    // omitted), then the pair bound.
     facts.step = WidgetStep::Pairs;
     (profile.hook)(WidgetStep::Pairs);
     let work_works = [work_id];
-    let work_pairs = served_pairs(connection, &work_works, request, deadline)?;
+    let SectionPairs {
+        pairs: work_pairs,
+        first_month: work_first,
+    } = section_pairs(connection, &work_works, request, deadline)?;
     facts.work = Some(SectionSize::of(&work_pairs));
-    let chapter_pairs = if children.served.is_empty() {
-        Vec::new()
+    let SectionPairs {
+        pairs: chapter_pairs,
+        first_month: chapters_first,
+    } = if children.served.is_empty() {
+        SectionPairs {
+            pairs: Vec::new(),
+            first_month: None,
+        }
     } else {
-        let pairs = served_pairs(connection, &children.served, request, deadline)?;
-        facts.chapters = Some(SectionSize::of(&pairs));
-        pairs
+        let section = section_pairs(connection, &children.served, request, deadline)?;
+        facts.chapters = Some(SectionSize::of(&section.pairs));
+        section
     };
     if work_pairs.len() > METRIC_WIDGET_MAX_PAIRS || chapter_pairs.len() > METRIC_WIDGET_MAX_PAIRS {
         return Err(Failure::input(MetricWidgetError::QueryLimitExceeded(
             TOO_MANY_PAIRS_MESSAGE,
         )));
     }
+
+    // 11a. One served start for both sections; no statement. It logs as
+    // step 11.
+    let served = request.served_from(served_start(request, [work_first, chapters_first])?);
+    facts.buckets = Some(served.buckets());
 
     // 12. Labels and the frontier, on every path that reaches here.
     facts.step = WidgetStep::Labels;
@@ -1515,7 +1794,7 @@ fn transact(
             publisher_id,
             &work_works,
             &work_pairs,
-            request,
+            &served,
             frontier,
             deadline,
             facts,
@@ -1534,7 +1813,7 @@ fn transact(
             publisher_id,
             &children.served,
             &chapter_pairs,
-            request,
+            &served,
             frontier,
             deadline,
             facts,
@@ -1552,8 +1831,8 @@ fn transact(
             .map_err(|_| Failure::new(MetricWidgetError::Internal, WidgetReason::UnexpectedRow))?,
         platforms,
         measures,
-        start_date: request.start,
-        end_date: request.end,
+        start_date: served.start,
+        end_date: served.end,
         as_of: frontier.0,
         rollup_watermark: frontier.1,
     })
