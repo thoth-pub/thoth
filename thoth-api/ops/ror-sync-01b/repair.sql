@@ -26,15 +26,23 @@
 --   4. inserts one `institution_history` row on the restored row, user_id
 --      `ROR-SYNC-01B-REPAIR`, whose `data` names the merge row.
 --
+-- Without `--single-transaction` (or an enclosing transaction) the script
+-- fails with `relation "ror_sync_01b_repair_report" does not exist` and
+-- changes nothing. A second run in the same transaction starts from an empty
+-- report.
+--
 -- The report is the result of the final SELECT: one row per listed ID, with
--- `outcome` `moved`, `missing` (the row no longer exists) or `elsewhere` (it
--- now references another institution, named in `now_references`).
+-- `outcome` `moved`, `missing` (the row no longer exists), `cleared` (it now
+-- references no institution, as when the survivor was deleted after the
+-- merge) or `elsewhere` (it now references another institution, named in
+-- `now_references`).
 --
 -- The repointed links bump their works again (their AFTER triggers), which
 -- counts against the Internet Archive bound of the repair grant.
 
 SET LOCAL lock_timeout = '10s';
 
+DROP TABLE IF EXISTS pg_temp.ror_sync_01b_repair_report;
 CREATE TEMPORARY TABLE ror_sync_01b_repair_report (
     tbl text NOT NULL,
     row_id uuid NOT NULL,
@@ -116,7 +124,9 @@ BEGIN
         EXECUTE format(
             'INSERT INTO ror_sync_01b_repair_report (tbl, row_id, outcome, now_references) '
             'SELECT %1$L, listed.id, '
-            '       CASE WHEN t.%2$I IS NULL THEN ''missing'' ELSE ''elsewhere'' END, t.%3$I '
+            '       CASE WHEN t.%2$I IS NULL THEN ''missing'' '
+            '            WHEN t.%3$I IS NULL THEN ''cleared'' '
+            '            ELSE ''elsewhere'' END, t.%3$I '
             'FROM unnest($1::uuid[]) AS listed (id) '
             'LEFT JOIN %4$I t ON t.%2$I = listed.id '
             'WHERE NOT EXISTS (SELECT 1 FROM ror_sync_01b_repair_report r '

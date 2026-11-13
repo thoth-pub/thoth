@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -26,7 +26,7 @@ use crate::model::imprint::Imprint;
 use crate::model::institution::{Institution, NewInstitution};
 use crate::model::tests::db::{
     create_contribution, create_contributor, create_imprint, create_publisher, create_work,
-    reset_db, setup_test_db, test_db_url, TestDbGuard,
+    db_pool, reset_db, setup_test_db, test_db_url, test_lock, TestDbGuard,
 };
 use crate::model::{Crud, Ror};
 
@@ -42,8 +42,6 @@ const DOI_CONFLICT: &str = "An institution with this DOI already exists.";
 /// The terminate pass of the kill switch, spec R11.1 §6.1 step (2)(b), verbatim.
 const TERMINATE_PASS: &str = "SELECT pg_terminate_backend(l.pid) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE l.locktype = 'relation' AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database()) AND l.relation = 'institution'::regclass AND l.mode IN ('ShareLock', 'ShareRowExclusiveLock', 'ExclusiveLock', 'AccessExclusiveLock') AND a.usename = current_user";
 const TENTH_REFERENCE_TABLE: &str = "ror_sync_01b_tenth_reference";
-const OTHER_ROLE: &str = "ror_sync_01b_other_role";
-const OTHER_ROLE_PASSWORD: &str = "ror-sync-01b-other";
 /// The tables whose row counts §4 I2 constrains.
 const LINK_TABLES: [&str; 4] = ["affiliation", "funding", "book_review", "endorsement"];
 
@@ -197,6 +195,9 @@ fn snapshot(connection: &mut PgConnection) -> BTreeMap<&'static str, String> {
         "endorsement",
         "institution_history",
         "work",
+        "metric_record",
+        "metric_rollup_work_day",
+        "metric_rollup_work_institution_month",
         "metric_rollup_work_institution_year",
     ]
     .into_iter()
@@ -211,6 +212,14 @@ fn snapshot(connection: &mut PgConnection) -> BTreeMap<&'static str, String> {
         (table, rows)
     })
     .collect()
+}
+
+/// The part of [`snapshot`] that holds the four Metrics tables.
+fn metrics_rows(connection: &mut PgConnection) -> BTreeMap<&'static str, String> {
+    snapshot(connection)
+        .into_iter()
+        .filter(|(table, _)| table.starts_with("metric_"))
+        .collect()
 }
 
 fn table_count(connection: &mut PgConnection, table: &str) -> i64 {
@@ -382,19 +391,7 @@ struct Restore(Arc<PgPool>);
 impl Drop for Restore {
     fn drop(&mut self) {
         let mut connection = connect();
-        let _ = connection.batch_execute(&format!(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '{OTHER_ROLE}'"
-        ));
-        let _ = connection.batch_execute(&format!(
-            "DROP TABLE IF EXISTS {TENTH_REFERENCE_TABLE}; \
-             ALTER TABLE institution DROP COLUMN IF EXISTS ror_sync_01b_standin; \
-             DO $$ BEGIN \
-               IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{OTHER_ROLE}') THEN \
-                 EXECUTE 'DROP OWNED BY {OTHER_ROLE}'; EXECUTE 'DROP ROLE {OTHER_ROLE}'; \
-               END IF; \
-             END $$;"
-        ));
-        drop_stand_in_c_columns(&mut connection);
+        drop_fixture_objects(&mut connection);
         let _ = reset_db(&self.0);
         if let Err(error) = apply(&mut connection) {
             eprintln!("ROR-SYNC-01B tests could not re-apply the migrations: {error}");
@@ -402,12 +399,94 @@ impl Drop for Restore {
     }
 }
 
-/// Lock the test database, revert B, and arm [`Restore`]. The returned
-/// connection is the one that runs the migration.
+/// The second login role of the kill-switch test. Roles are cluster-wide, so
+/// its name carries the test database's name: runs against two databases of
+/// one cluster do not collide.
+fn other_role() -> String {
+    let url = test_db_url();
+    let database = url.rsplit('/').next().unwrap_or_default();
+    let database = database.split('?').next().unwrap_or_default();
+    let suffix: String = database
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let mut role = format!("ror_sync_01b_other_{suffix}");
+    role.truncate(63);
+    role
+}
+
+/// The second role's password, new for each test process.
+fn other_role_password() -> &'static str {
+    static PASSWORD: OnceLock<String> = OnceLock::new();
+    PASSWORD.get_or_init(|| Uuid::new_v4().simple().to_string())
+}
+
+/// Drop every object a test of this module creates besides rows: the
+/// stand-in migration's column, the second role (after ending its sessions),
+/// the stand-in C columns, and the tenth foreign key's table (which the tests
+/// create only in a transaction they never commit). Never panics: it runs in
+/// [`Restore`], and in [`begin`] to heal a run killed before its `Restore`
+/// ran.
+fn drop_fixture_objects(connection: &mut PgConnection) {
+    let role = other_role();
+    let _ = connection.batch_execute(&format!(
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = '{role}'"
+    ));
+    let _ = connection.batch_execute(&format!("DROP TABLE IF EXISTS {TENTH_REFERENCE_TABLE}"));
+    let _ = connection.batch_execute(
+        "ALTER TABLE IF EXISTS institution DROP COLUMN IF EXISTS ror_sync_01b_standin",
+    );
+    let _ = connection.batch_execute(&format!(
+        "DO $$ BEGIN \
+           IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{role}') THEN \
+             EXECUTE 'DROP OWNED BY {role}'; EXECUTE 'DROP ROLE {role}'; \
+           END IF; \
+         END $$;"
+    ));
+    drop_stand_in_c_columns(connection);
+}
+
+/// Empty every table, as `reset_db` does, on one connection.
+const EMPTY_TABLES: &str = "DO $$ \
+    DECLARE tbls text; \
+    BEGIN \
+        SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') INTO tbls \
+        FROM pg_tables \
+        WHERE schemaname = 'public' AND tablename <> '__diesel_schema_migrations'; \
+        IF tbls IS NOT NULL THEN \
+            EXECUTE 'TRUNCATE TABLE ' || tbls || ' RESTART IDENTITY CASCADE'; \
+        END IF; \
+    END $$;";
+
+/// Lock the test database, heal what a killed run may have left, revert B,
+/// and arm [`Restore`]. The returned connection is the one that runs the
+/// migration.
 fn begin() -> (TestDbGuard, Arc<PgPool>, Restore, PgConnection) {
-    let (guard, pool) = setup_test_db();
-    let restore = Restore(pool.clone());
+    let guard = test_lock();
     let mut connection = connect();
+    // A run killed before its `Restore` ran can leave fixture objects, and B
+    // reverted over seeded groups that may block it. Heal both before the
+    // pool applies the migrations; a fresh database has nothing to heal.
+    drop_fixture_objects(&mut connection);
+    if text(
+        &mut connection,
+        "SELECT to_regclass('__diesel_schema_migrations')::text AS t",
+    )
+    .is_some()
+        && !b_applied(&mut connection)
+    {
+        exec(&mut connection, EMPTY_TABLES);
+        apply(&mut connection).expect("the migrations re-apply");
+    }
+    let pool = db_pool();
+    let restore = Restore(pool.clone());
+    reset_db(&pool).expect("Failed to reset DB");
     revert_through_b(&mut connection);
     assert!(!unique_index_exists(&mut connection));
     (guard, pool, restore, connection)
@@ -466,11 +545,28 @@ struct Link {
     work: Option<Uuid>,
 }
 
+/// The four Metrics tables that reference `institution`.
+#[derive(Clone, Copy, Debug)]
+enum MetricsTable {
+    Record,
+    Day,
+    Month,
+    Year,
+}
+
+const METRICS_TABLES: [MetricsTable; 4] = [
+    MetricsTable::Record,
+    MetricsTable::Day,
+    MetricsTable::Month,
+    MetricsTable::Year,
+];
+
 struct Seed {
     pool: Arc<PgPool>,
     connection: PgConnection,
     imprint: Imprint,
     platform_and_measure: Option<(Uuid, Uuid)>,
+    source_account: Option<Uuid>,
     links: Vec<Link>,
 }
 
@@ -483,6 +579,7 @@ impl Seed {
             connection: connect(),
             imprint,
             platform_and_measure: None,
+            source_account: None,
             links: Vec::new(),
         }
     }
@@ -498,6 +595,16 @@ impl Seed {
     }
 
     fn institution(&mut self, ror: Option<&str>, doi: bool, created_at: &str) -> Uuid {
+        self.institution_with_id(Uuid::new_v4(), ror, doi, created_at)
+    }
+
+    fn institution_with_id(
+        &mut self,
+        institution_id: Uuid,
+        ror: Option<&str>,
+        doi: bool,
+        created_at: &str,
+    ) -> Uuid {
         let ror = ror.map_or("NULL".to_string(), |ror| format!("'{ror}'"));
         let doi = if doi {
             format!("'{}'", random_doi())
@@ -507,8 +614,8 @@ impl Seed {
         id(
             &mut self.connection,
             &format!(
-                "INSERT INTO institution (institution_name, ror, institution_doi, country_code, created_at) \
-                 VALUES ('Institution {}', {ror}, {doi}, 'gbr', '{created_at}') \
+                "INSERT INTO institution (institution_id, institution_name, ror, institution_doi, country_code, created_at) \
+                 VALUES ('{institution_id}', 'Institution {}', {ror}, {doi}, 'gbr', '{created_at}') \
                  RETURNING institution_id AS id",
                 Uuid::new_v4()
             ),
@@ -599,6 +706,11 @@ impl Seed {
 
     /// A Metrics reference: a yearly per-institution rollup row.
     fn metrics(&mut self, work: WorkRef, institution: Uuid) {
+        self.metrics_in(MetricsTable::Year, work, institution);
+    }
+
+    /// A Metrics reference in `table`.
+    fn metrics_in(&mut self, table: MetricsTable, work: WorkRef, institution: Uuid) {
         let (platform, measure) = match self.platform_and_measure {
             Some(pair) => pair,
             None => {
@@ -626,15 +738,59 @@ impl Seed {
                 (platform, measure)
             }
         };
-        exec(
-            &mut self.connection,
-            &format!(
+        let work = work.work;
+        let sql = match table {
+            MetricsTable::Record => {
+                let account = match self.source_account {
+                    Some(account) => account,
+                    None => {
+                        let source = id(
+                            &mut self.connection,
+                            &format!(
+                                "INSERT INTO metric_source (code, acquisition_type, enabled) \
+                                 VALUES ('ror_sync_01b_{}', 'ADMIN_IMPORT', TRUE) \
+                                 RETURNING source_id AS id",
+                                Uuid::new_v4().simple()
+                            ),
+                        );
+                        let account = id(
+                            &mut self.connection,
+                            &format!(
+                                "INSERT INTO metric_source_account (code, source_id, platform_id, external_key, enabled) \
+                                 VALUES ('ror_sync_01b_{}', '{source}', '{platform}', 'ror-sync-01b', TRUE) \
+                                 RETURNING source_account_id AS id",
+                                Uuid::new_v4().simple()
+                            ),
+                        );
+                        self.source_account = Some(account);
+                        account
+                    }
+                };
+                format!(
+                    "INSERT INTO metric_record (identity_hash, work_id, platform_id, measure_id, \
+                         period_start, period_end, reporting_grain, winning_source_account_id, institution_id) \
+                     VALUES ('ror-sync-01b-{}', '{work}', '{platform}', '{measure}', \
+                         DATE '2026-01-01', DATE '2026-01-02', 'DAY', '{account}', '{institution}')",
+                    Uuid::new_v4().simple()
+                )
+            }
+            MetricsTable::Day => format!(
+                "INSERT INTO metric_rollup_work_day (work_id, platform_id, measure_id, day, \
+                     institution_id, value, watermark) \
+                 VALUES ('{work}', '{platform}', '{measure}', DATE '2026-01-01', '{institution}', 1, 1)"
+            ),
+            MetricsTable::Month => format!(
+                "INSERT INTO metric_rollup_work_institution_month (work_id, platform_id, measure_id, \
+                     month_start, institution_id, value, requires_country_coverage, watermark) \
+                 VALUES ('{work}', '{platform}', '{measure}', DATE '2026-01-01', '{institution}', 1, FALSE, 1)"
+            ),
+            MetricsTable::Year => format!(
                 "INSERT INTO metric_rollup_work_institution_year (work_id, platform_id, measure_id, \
                      year_start, institution_id, value, requires_country_coverage, watermark) \
-                 VALUES ('{}', '{platform}', '{measure}', DATE '2026-01-01', '{institution}', 1, FALSE, 1)",
-                work.work
+                 VALUES ('{work}', '{platform}', '{measure}', DATE '2026-01-01', '{institution}', 1, FALSE, 1)"
             ),
-        );
+        };
+        exec(&mut self.connection, &sql);
     }
 
     /// `n` affiliations of `institution`, each on a new work.
@@ -643,6 +799,15 @@ impl Seed {
             let work = self.work();
             self.affiliation(work, institution);
         }
+    }
+
+    /// One funding, one book review and one endorsement of `institution`, on
+    /// a new work.
+    fn other_references(&mut self, institution: Uuid) {
+        let work = self.work();
+        self.funding(work, institution);
+        self.book_review(work, institution);
+        self.endorsement(work, institution);
     }
 
     fn links_of(&self, institution: Uuid) -> Vec<Link> {
@@ -662,6 +827,8 @@ impl Seed {
 struct Before {
     institutions: BTreeMap<Uuid, Value>,
     counts: BTreeMap<&'static str, i64>,
+    /// Every row of the four Metrics tables, which the merge never touches.
+    metrics: BTreeMap<&'static str, String>,
     bumps: BTreeMap<Uuid, String>,
     query_2: Vec<Query2Row>,
     query_3: BTreeSet<Uuid>,
@@ -678,6 +845,7 @@ fn before(connection: &mut PgConnection) -> Before {
     Before {
         institutions: institution_rows(connection),
         counts,
+        metrics: metrics_rows(connection),
         bumps: work_bumps(connection),
         query_2: query_2(connection),
         query_3: query_3(connection),
@@ -747,6 +915,11 @@ fn assert_merged(
     assert_eq!(
         table_count(connection, "institution_history"),
         before.counts["institution_history"] + expected.len() as i64
+    );
+    assert_eq!(
+        metrics_rows(connection),
+        before.metrics,
+        "the Metrics tables are unchanged"
     );
 
     // Every reference of a merged row is on its survivor; every other
@@ -1044,33 +1217,77 @@ fn a_populated_database_keeps_one_row_per_ror_id_and_every_link_and_history_row(
 // §5.2 Survivor rule
 // ---------------------------------------------------------------------------
 
-/// Seed one group per entry: each row's DOI, Metrics reference, number of
-/// affiliations and `created_at`. Returns the row IDs per group.
+/// One row of a group: its DOI, its Metrics reference, its number of
+/// affiliations, whether it also has one funding, one book review and one
+/// endorsement, and its `created_at`.
 struct RowSpec {
     doi: bool,
-    metrics: bool,
+    metrics: Option<MetricsTable>,
     references: usize,
+    other_references: bool,
     created_at: &'static str,
 }
 
+/// A row whose Metrics reference, if any, is a yearly rollup row.
 const fn row(doi: bool, metrics: bool, references: usize, created_at: &'static str) -> RowSpec {
     RowSpec {
         doi,
-        metrics,
+        metrics: if metrics {
+            Some(MetricsTable::Year)
+        } else {
+            None
+        },
         references,
+        other_references: false,
         created_at,
     }
 }
 
+impl RowSpec {
+    /// The same row, with its Metrics reference in `table`.
+    const fn metrics_in(self, table: MetricsTable) -> Self {
+        Self {
+            metrics: Some(table),
+            ..self
+        }
+    }
+
+    /// The same row, with one funding, one book review and one endorsement
+    /// besides its affiliations.
+    const fn with_other_references(self) -> Self {
+        Self {
+            other_references: true,
+            ..self
+        }
+    }
+}
+
+/// Seed one group. The newer a row's `created_at`, the lower its
+/// `institution_id`, so that rule 4 always picks another row than rule 3
+/// would: a test of rule 3 fails every time if rule 3 is missing. Returns
+/// the row IDs, in the order of `rows`.
 fn group(seed: &mut Seed, rows: &[RowSpec]) -> Vec<Uuid> {
     let ror = random_ror();
+    let mut ids: Vec<Uuid> = rows.iter().map(|_| Uuid::new_v4()).collect();
+    ids.sort();
+    let mut newest_first: Vec<usize> = (0..rows.len()).collect();
+    newest_first.sort_by(|a, b| rows[*b].created_at.cmp(rows[*a].created_at));
+    let mut assigned = vec![Uuid::nil(); rows.len()];
+    for (rank, index) in newest_first.into_iter().enumerate() {
+        assigned[index] = ids[rank];
+    }
     rows.iter()
-        .map(|spec| {
-            let institution = seed.institution(Some(&ror), spec.doi, spec.created_at);
+        .zip(assigned)
+        .map(|(spec, institution_id)| {
+            let institution =
+                seed.institution_with_id(institution_id, Some(&ror), spec.doi, spec.created_at);
             seed.references(institution, spec.references);
-            if spec.metrics {
+            if spec.other_references {
+                seed.other_references(institution);
+            }
+            if let Some(table) = spec.metrics {
                 let work = seed.work();
-                seed.metrics(work, institution);
+                seed.metrics_in(table, work, institution);
             }
             institution
         })
@@ -1120,6 +1337,25 @@ fn rule_0_the_metrics_referenced_row_survives() {
 }
 
 #[test]
+fn rule_0_counts_a_reference_in_each_of_the_four_metrics_tables() {
+    assert_survivors(
+        METRICS_TABLES
+            .into_iter()
+            .map(|table| {
+                (
+                    vec![
+                        row(false, false, 0, "2024-01-01 00:00:00+00").metrics_in(table),
+                        row(false, false, 3, "2020-01-01 00:00:00+00"),
+                    ],
+                    0,
+                    0,
+                )
+            })
+            .collect(),
+    );
+}
+
+#[test]
 fn rule_1_the_doi_holder_survives() {
     assert_survivors(vec![(
         vec![
@@ -1133,14 +1369,26 @@ fn rule_1_the_doi_holder_survives() {
 
 #[test]
 fn rule_2_the_row_with_most_references_survives() {
-    assert_survivors(vec![(
-        vec![
-            row(false, false, 1, "2020-01-01 00:00:00+00"),
-            row(false, false, 3, "2024-01-01 00:00:00+00"),
-        ],
-        1,
-        2,
-    )]);
+    assert_survivors(vec![
+        (
+            vec![
+                row(false, false, 1, "2020-01-01 00:00:00+00"),
+                row(false, false, 3, "2024-01-01 00:00:00+00"),
+            ],
+            1,
+            2,
+        ),
+        // Rule 2 counts fundings, book reviews and endorsements too: four
+        // references of four kinds outweigh three affiliations.
+        (
+            vec![
+                row(false, false, 3, "2020-01-01 00:00:00+00"),
+                row(false, false, 1, "2024-01-01 00:00:00+00").with_other_references(),
+            ],
+            1,
+            2,
+        ),
+    ]);
 }
 
 #[test]
@@ -1236,7 +1484,15 @@ const TWO_DOIS: &str =
 const RULES_DISAGREE: &str = "the row with Metrics references (rule 0) and the row holding the DOI (rule 1) differ. Remedy: move the DOI by hand to the Metrics-referenced row (clear it on the holder first, because the DOI index is unique), or contact the maintainers.";
 const TENTH_FOREIGN_KEY: &str = "The foreign keys on institution differ from the nine this migration expects (unexpected: public.ror_sync_01b_tenth_reference.institution_id.a; missing: none). Remedy: contact the maintainers before upgrading.";
 
+/// A tenth foreign key on `institution`. It is created in a transaction on
+/// `connection` that is never committed, so that not even a killed run leaves
+/// it behind to make every later application of B abort; everything after
+/// it on `connection`, the migration included (as a savepoint), runs in that
+/// transaction.
 fn add_tenth_foreign_key(connection: &mut PgConnection) {
+    connection
+        .begin_test_transaction()
+        .expect("Failed to open the test transaction");
     exec(
         connection,
         &format!(
@@ -1297,6 +1553,22 @@ fn rules_0_and_1_disagreeing_abort() {
 }
 
 #[test]
+fn a_metrics_row_without_a_doi_beside_two_doi_holders_names_both_blockers() {
+    let (_guard, pool, _restore, mut connection) = begin();
+    let mut seed = Seed::new(&pool);
+    group(
+        &mut seed,
+        &[
+            row(false, true, 0, "2020-01-01 00:00:00+00"),
+            row(true, false, 1, "2021-01-01 00:00:00+00"),
+            row(true, false, 1, "2022-01-01 00:00:00+00"),
+        ],
+    );
+    let error = assert_aborts(&mut connection, &[TWO_DOIS, RULES_DISAGREE]);
+    assert!(error.contains("2 blocker(s)"), "{error}");
+}
+
+#[test]
 fn a_tenth_foreign_key_aborts_and_query_1_lists_it() {
     let (_guard, pool, _restore, mut connection) = begin();
     let mut seed = Seed::new(&pool);
@@ -1311,14 +1583,9 @@ fn a_tenth_foreign_key_aborts_and_query_1_lists_it() {
     assert!(query_1(&mut connection).contains(&format!("{TENTH_REFERENCE_TABLE}.institution_id.a")));
     // The tenth key blocks every group; query 2 sees none of the groups as
     // blocked, so the message names the key and no group.
-    let before = snapshot(&mut connection);
-    let error = apply(&mut connection).expect_err("the migration aborts");
-    assert!(error.contains(TENTH_FOREIGN_KEY), "{error}");
+    let error = assert_aborts(&mut connection, &[TENTH_FOREIGN_KEY]);
     assert!(error.contains("1 blocker(s)"), "{error}");
     assert!(!error.contains("ROR ID https://ror.org"), "{error}");
-    assert!(!b_applied(&mut connection));
-    assert!(!unique_index_exists(&mut connection));
-    assert_eq!(snapshot(&mut connection), before);
 }
 
 #[test]
@@ -1569,6 +1836,23 @@ fn at_once(sql: &str) {
 
 /// Open a connection, start a transaction and run the whole of `up.sql` in
 /// it, leaving it open: the migration holding its locks before commit.
+#[test]
+fn the_migration_opens_with_the_three_statements_of_s2() {
+    let body: Vec<&str> = UP_SQL
+        .lines()
+        .skip_while(|line| line.trim().is_empty() || line.starts_with("--"))
+        .take(3)
+        .collect();
+    assert_eq!(
+        body,
+        [
+            "SET LOCAL lock_timeout = '10s';",
+            "SET LOCAL statement_timeout = '60s';",
+            "LOCK TABLE institution IN SHARE ROW EXCLUSIVE MODE;",
+        ]
+    );
+}
+
 fn hold_migration() -> PgConnection {
     let mut hold = connect();
     exec(&mut hold, "BEGIN");
@@ -1860,7 +2144,11 @@ fn other_role_url() -> String {
     let url = test_db_url();
     let (scheme, rest) = url.split_once("://").unwrap();
     let host = rest.rsplit_once('@').map_or(rest, |(_, host)| host);
-    format!("{scheme}://{OTHER_ROLE}:{OTHER_ROLE_PASSWORD}@{host}")
+    format!(
+        "{scheme}://{}:{}@{host}",
+        other_role(),
+        other_role_password()
+    )
 }
 
 #[test]
@@ -1988,12 +2276,14 @@ fn the_kill_switch_ends_every_copy_and_nothing_else() {
 
     // A backend of a second role that awaits SHARE on `institution` behind
     // the guard is not matched, and the pass raises no error.
+    let role = other_role();
     exec(
         &mut connection,
         &format!(
-            "CREATE ROLE {OTHER_ROLE} LOGIN PASSWORD '{OTHER_ROLE_PASSWORD}'; \
-             GRANT USAGE ON SCHEMA public TO {OTHER_ROLE}; \
-             GRANT SELECT, UPDATE ON institution TO {OTHER_ROLE};"
+            "CREATE ROLE {role} LOGIN PASSWORD '{}'; \
+             GRANT USAGE ON SCHEMA public TO {role}; \
+             GRANT SELECT, UPDATE ON institution TO {role};",
+            other_role_password()
         ),
     );
     let other_waiting = Probe::spawn_with(
@@ -2062,18 +2352,30 @@ struct ReportRow {
 /// Run `repair.sql` for one merge row in one transaction, as
 /// `psql --single-transaction` does, and return its report.
 fn repair(merge_row: Uuid) -> Result<Vec<ReportRow>, String> {
+    repair_in_one_transaction(&[merge_row]).map(|mut reports| reports.remove(0))
+}
+
+/// Run `repair.sql` once per merge row, all in one transaction, and return
+/// each run's report.
+fn repair_in_one_transaction(merge_rows: &[Uuid]) -> Result<Vec<Vec<ReportRow>>, String> {
     let mut connection = connect();
     connection
         .transaction(|connection| {
-            connection.batch_execute(&format!(
-                "SET LOCAL ror_sync_01b.merge_row = '{merge_row}'"
-            ))?;
-            connection.batch_execute(REPAIR_SQL)?;
-            diesel::sql_query(
-                "SELECT tbl, row_id::text AS row_id, outcome, now_references::text AS now_references \
-                 FROM ror_sync_01b_repair_report ORDER BY tbl, row_id",
-            )
-            .load::<ReportRow>(connection)
+            let mut reports = Vec::new();
+            for merge_row in merge_rows {
+                connection.batch_execute(&format!(
+                    "SET LOCAL ror_sync_01b.merge_row = '{merge_row}'"
+                ))?;
+                connection.batch_execute(REPAIR_SQL)?;
+                reports.push(
+                    diesel::sql_query(
+                        "SELECT tbl, row_id::text AS row_id, outcome, now_references::text AS now_references \
+                         FROM ror_sync_01b_repair_report ORDER BY tbl, row_id",
+                    )
+                    .load::<ReportRow>(connection)?,
+                );
+            }
+            Ok(reports)
         })
         .map_err(|error: diesel::result::Error| error.to_string())
 }
@@ -2105,10 +2407,17 @@ fn the_repair_restores_a_merged_row_and_its_links_and_reports_what_it_left() {
         .map(|link| link.id)
         .collect();
     assert_eq!(affiliations.len(), 2);
-    // After the merge, one listed affiliation is deleted and one is moved to
-    // a third institution.
+    let reviews: Vec<Uuid> = links
+        .iter()
+        .filter(|link| link.table == "book_review")
+        .map(|link| link.id)
+        .collect();
+    assert_eq!(reviews.len(), 1);
+    // After the merge, one listed affiliation is deleted, one is moved to a
+    // third institution, and the book review loses its institution.
     let deleted = affiliations[0];
     let moved_away = affiliations[1];
+    let cleared = reviews[0];
     let third = fixture
         .seed
         .institution(Some(&random_ror()), false, "2020-01-01 00:00:00+00");
@@ -2116,7 +2425,8 @@ fn the_repair_restores_a_merged_row_and_its_links_and_reports_what_it_left() {
         &mut connection,
         &format!(
             "DELETE FROM affiliation WHERE affiliation_id = '{deleted}'; \
-             UPDATE affiliation SET institution_id = '{third}' WHERE affiliation_id = '{moved_away}';"
+             UPDATE affiliation SET institution_id = '{third}' WHERE affiliation_id = '{moved_away}'; \
+             UPDATE book_review SET reviewer_institution_id = NULL WHERE book_review_id = '{cleared}';"
         ),
     );
     let merge_row = merge_row_id(&mut connection, merged);
@@ -2161,6 +2471,10 @@ fn the_repair_restores_a_merged_row_and_its_links_and_reports_what_it_left() {
             assert_eq!(now, vec![Some(third.to_string())]);
             assert_eq!(entry.outcome, "elsewhere");
             assert_eq!(entry.now_references, Some(third.to_string()));
+        } else if link.id == cleared {
+            assert_eq!(now, vec![None]);
+            assert_eq!(entry.outcome, "cleared");
+            assert_eq!(entry.now_references, None);
         } else {
             assert_eq!(
                 now,
@@ -2211,6 +2525,35 @@ fn the_repair_restores_a_merged_row_and_its_links_and_reports_what_it_left() {
             "SELECT count(*) AS n FROM institution_history WHERE user_id = 'ROR-SYNC-01B-REPAIR'"
         ),
         1
+    );
+
+    // Two repairs in one transaction: the second starts from an empty report.
+    let others = [fixture.merged_b, fixture.merged_a[1]];
+    let reports = repair_in_one_transaction(&[
+        merge_row_id(&mut connection, others[0]),
+        merge_row_id(&mut connection, others[1]),
+    ])
+    .expect("two repairs run in one transaction");
+    for (merged, report) in others.iter().zip(&reports) {
+        let listed: BTreeSet<String> = fixture
+            .seed
+            .links_of(*merged)
+            .iter()
+            .map(|link| link.id.to_string())
+            .collect();
+        let reported: BTreeSet<String> = report.iter().map(|row| row.row_id.clone()).collect();
+        assert_eq!(reported, listed, "the report of {merged}");
+        assert!(
+            report.iter().all(|row| row.outcome == "moved"),
+            "{report:?}"
+        );
+    }
+    assert_eq!(
+        count(
+            &mut connection,
+            "SELECT count(*) AS n FROM institution_history WHERE user_id = 'ROR-SYNC-01B-REPAIR'"
+        ),
+        3
     );
 }
 

@@ -40,9 +40,10 @@
 -- each of the seven referencing tables without a leading index per deleted
 -- row. A bound that fires fails the migration with nothing applied.
 --
--- Temporary tables: `ror_sync_01b_map` and `ror_sync_01b_moved`, ON COMMIT
--- DROP. Where the TEMPORARY privilege has been revoked, the migration aborts
--- before any write.
+-- Temporary tables: `ror_sync_01b_map` and `ror_sync_01b_moved` (indexed on
+-- merged row and table before the merge rows read it), ON COMMIT DROP. Where
+-- the TEMPORARY privilege has been revoked, the migration aborts before any
+-- write.
 --
 -- Retry and idempotency: one transaction; a failure leaves nothing applied. A
 -- re-run on a database without duplicates merges nothing and creates only the
@@ -209,7 +210,7 @@ BEGIN
                         'ROR ID %s, rows %s: two rows hold a DOI. Remedy: clear the DOI by hand on the row that should not survive.',
                         candidate.ror, candidate.rows_described);
                 END IF;
-                IF candidate.metrics_rows_in_group = 1 AND candidate.doi_holders_in_group = 1 AND NOT candidate.one_row_has_both THEN
+                IF candidate.metrics_rows_in_group = 1 AND candidate.doi_holders_in_group >= 1 AND NOT candidate.one_row_has_both THEN
                     blockers := blockers || format(
                         'ROR ID %s, rows %s: the row with Metrics references (rule 0) and the row holding the DOI (rule 1) differ. Remedy: move the DOI by hand to the Metrics-referenced row (clear it on the holder first, because the DOI index is unique), or contact the maintainers.',
                         candidate.ror, candidate.rows_described);
@@ -303,6 +304,9 @@ BEGIN
         RETURNING m.merged_id, t.institution_history_id AS row_id)
     INSERT INTO ror_sync_01b_moved (merged_id, tbl, row_id)
     SELECT merged_id, 'institution_history', row_id FROM moved;
+
+    -- Each merge row below looks up its moved links by merged row and table.
+    CREATE INDEX ON ror_sync_01b_moved (merged_id, tbl);
 
     -- S5.4: one merge row per merged row, on its survivor, in the existing
     -- shape of `data` (a JSON string).
