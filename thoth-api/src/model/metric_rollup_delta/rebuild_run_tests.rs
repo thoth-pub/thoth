@@ -2406,18 +2406,46 @@ fn every_orphan_is_deleted_by_exactly_one_step_and_counted_by_exactly_one_page()
 #[test]
 fn per_range_counts_add_up_to_the_whole_table_verification_for_every_cut() {
     let (_guard, pool) = setup();
-    let (corpus, works, frontier) = built_layered(&pool);
+    let (corpus, works, frontier) = layered(&pool);
+    // One total-family work-day row of work 0x20 in June 2024, on a day the
+    // fixture leaves empty, so the monthly row corrupted below exists
+    // whatever the fixture's random platform ids make of its own cells.
+    assert_eq!(
+        exec_count(
+            &pool,
+            &format!(
+                "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                     measure_id, day, country_code, institution_id, value, watermark) \
+                 VALUES ('{work}', NULL, '{platform}', '{measure}', DATE '2024-06-02', NULL, \
+                         NULL, 1, {frontier})",
+                work = works[0],
+                platform = corpus.platforms[0],
+                measure = corpus.fixture.measure_id,
+            )
+        ),
+        1
+    );
+    assert!(
+        rebuild(&pool, frontier)
+            .expect("the OPS-02 rebuild")
+            .rebuilt
+    );
+    assert!(verification(&pool).matches);
     let orphans = insert_orphans(&pool, &corpus, &works);
     // Corruptions at known units: a value in work 0x20's 2024, a missing
     // ambiguity row, and the orphans.
-    exec(
-        &pool,
-        &format!(
-            "UPDATE metric_rollup_work_month SET value = value + 1 WHERE rollup_work_month_id = \
-             (SELECT rollup_work_month_id FROM metric_rollup_work_month WHERE work_id = '{}' \
-              AND month_start = DATE '2024-06-01' ORDER BY rollup_work_month_id LIMIT 1)",
-            works[0]
+    assert_eq!(
+        exec_count(
+            &pool,
+            &format!(
+                "UPDATE metric_rollup_work_month SET value = value + 1 WHERE \
+                 rollup_work_month_id = (SELECT rollup_work_month_id FROM \
+                 metric_rollup_work_month WHERE work_id = '{}' AND month_start = DATE \
+                 '2024-06-01' ORDER BY rollup_work_month_id LIMIT 1)",
+                works[0]
+            )
         ),
+        1
     );
     // The last ambiguity row of a work that has work-day rows (not an
     // orphan).
@@ -3228,7 +3256,7 @@ fn a_post_verify_mismatch_or_a_delete_count_mismatch_is_blocked_and_rolled_back(
 #[test]
 fn an_overflow_in_a_pre_verify_a_page_or_a_re_executed_insert_is_blocked() {
     let (_guard, pool) = setup();
-    let (_corpus, works, _frontier) = built_layered(&pool);
+    let (corpus, works, frontier) = built_layered(&pool);
     let budgets = RunBudgets::PRODUCTION;
 
     // A re-executed insert that overflows (injected: the pre-verify would
@@ -3255,30 +3283,58 @@ fn an_overflow_in_a_pre_verify_a_page_or_a_re_executed_insert_is_blocked() {
     abandon(&pool, run.run_id).expect("abandon");
 
     // Two work-day values of one month key whose sum overflows: the
-    // pre-verify of a step and a page both refuse.
-    exec(
-        &pool,
-        &format!(
-            "UPDATE metric_rollup_work_day SET value = 9223372036854775807 \
-             WHERE rollup_work_day_id IN (SELECT rollup_work_day_id FROM metric_rollup_work_day \
-                 WHERE work_id = '{}' AND country_code IS NULL AND institution_id IS NULL \
-                 AND publication_id IS NULL AND day = DATE '2024-06-01' \
-                 UNION ALL \
-                 SELECT rollup_work_day_id FROM metric_rollup_work_day \
-                 WHERE work_id = '{}' AND country_code IS NULL AND institution_id IS NULL \
-                 AND publication_id IS NULL AND day = DATE '2024-06-15')",
-            works[2], works[2]
+    // pre-verify of a step and a page both refuse. The two rows are inserted
+    // on days the fixture leaves empty, on one platform and with no
+    // dimension, so they share one month key whatever the fixture's random
+    // platform ids make of its own cells.
+    assert_eq!(
+        exec_count(
+            &pool,
+            &format!(
+                "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                     measure_id, day, country_code, institution_id, value, watermark) \
+                 SELECT '{work}'::uuid, NULL, '{platform}'::uuid, '{measure}'::uuid, day, \
+                     NULL, NULL, 9223372036854775807, {frontier} \
+                 FROM (VALUES (DATE '2024-06-02'), (DATE '2024-06-03')) AS d(day)",
+                work = works[2],
+                platform = corpus.platforms[0],
+                measure = corpus.fixture.measure_id,
+            )
         ),
+        2
     );
     for mode in [Rebuild, Verify] {
         let mut run = start(&pool, mode);
-        let refusal = loop {
+        let (refusal, before) = loop {
+            let before = (run_row(&pool, run.run_id), fingerprints(&pool));
             match try_advance(&pool, &run, &budgets) {
-                Ok(advanced) => run = advanced.run,
-                Err(error) => break error,
+                Ok(advanced) => {
+                    assert!(advanced.advanced, "{mode:?}: the advance committed nothing");
+                    run = advanced.run;
+                    assert!(
+                        run.status.is_open(),
+                        "{mode:?}: the run ended without the overflow"
+                    );
+                }
+                Err(error) => break (error, before),
             }
         };
         assert_eq!(refusal, Error::Blocked(reason::BIGINT_OVERFLOW), "{mode:?}");
+        assert_eq!(
+            (run_row(&pool, run.run_id), fingerprints(&pool)),
+            before,
+            "{mode:?}: the refused advance rolled back and left the cursor"
+        );
+        assert_eq!(
+            try_advance(&pool, &run, &budgets),
+            Err(refusal),
+            "{mode:?}: the refusal repeats"
+        );
+        assert_eq!(
+            (run_row(&pool, run.run_id), fingerprints(&pool)),
+            before,
+            "{mode:?}: nothing was written"
+        );
         assert!(run.status.is_open());
         abandon(&pool, run.run_id).expect("abandon");
     }
@@ -3523,14 +3579,53 @@ fn measure_step(
 #[test]
 fn the_state_row_and_work_row_holds_never_exceed_their_budgets() {
     let (_guard, pool) = setup();
-    let (corpus, works, _frontier) = built_layered(&pool);
+    let (corpus, works, frontier) = layered(&pool);
+    let publication = publication_of(&pool, works[0]);
+    // One work-day row of work 0x20's first unit carrying the publication
+    // held below, alone on a day the fixture leaves empty, so the step
+    // re-inserts a projection row referencing that publication whatever the
+    // fixture's random platform ids make of its own cells.
+    assert_eq!(
+        exec_count(
+            &pool,
+            &format!(
+                "INSERT INTO metric_rollup_work_day (work_id, publication_id, platform_id, \
+                     measure_id, day, country_code, institution_id, value, watermark) \
+                 VALUES ('{work}', '{publication}', '{platform}', '{measure}', \
+                         DATE '2023-01-02', 'GB', NULL, 1, {frontier})",
+                work = works[0],
+                platform = corpus.platforms[0],
+                measure = corpus.fixture.measure_id,
+            )
+        ),
+        1
+    );
+    assert!(
+        rebuild(&pool, frontier)
+            .expect("the OPS-02 rebuild")
+            .rebuilt
+    );
+    assert!(verification(&pool).matches);
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            &format!(
+                "(SELECT count(*) FROM metric_rollup_work_country_month \
+                  WHERE work_id = '{work}' AND publication_id = '{publication}' \
+                  AND platform_id = '{platform}' AND month_start = DATE '2023-01-01' \
+                  AND country_code = 'GB')",
+                work = works[0],
+                platform = corpus.platforms[0],
+            )
+        ),
+        1
+    );
     let budgets = short(1_000);
     let margin = Duration::from_millis(400);
     corrupt_one_value(&pool);
     let run = start(&pool, Rebuild);
     let row = run_row(&pool, run.run_id);
     let timed = timed_pool();
-    let publication = publication_of(&pool, works[0]);
 
     let mut cases: Vec<(String, Delay)> = vec![
         (
