@@ -178,6 +178,10 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_source_registry_history_action"))]
     pub struct MetricSourceRegistryHistoryAction;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "ror_status"))]
+    pub struct RorStatus;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -576,6 +580,7 @@ table! {
 table! {
 use diesel::sql_types::*;
     use super::sql_types::CountryCode;
+    use super::sql_types::RorStatus;
 
     institution (institution_id) {
         institution_id -> Uuid,
@@ -585,6 +590,8 @@ use diesel::sql_types::*;
         updated_at -> Timestamptz,
         ror -> Nullable<Text>,
         country_code -> Nullable<CountryCode>,
+        ror_status -> RorStatus,
+        ror_successor -> Nullable<Text>,
     }
 }
 

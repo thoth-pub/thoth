@@ -31,7 +31,7 @@ use crate::model::{
     file::{ChecksumAlgorithm, File, FileType},
     funding::Funding,
     imprint::{Imprint, ImprintField, ImprintOrderBy},
-    institution::Institution,
+    institution::{Institution, RorStatus},
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -2568,6 +2568,20 @@ impl Institution {
     )]
     pub fn ror(&self) -> Option<&Ror> {
         self.ror.as_ref()
+    }
+
+    #[graphql(
+        description = "Status of the ROR record named by `ror`. ACTIVE is the default, and is not evidence of anything when `ror` is null or has just changed; the next ROR sync corrects it."
+    )]
+    pub fn ror_status(&self) -> RorStatus {
+        self.ror_status
+    }
+
+    #[graphql(
+        description = "ROR ID of the single successor that ROR lists for an inactive or withdrawn record; null otherwise."
+    )]
+    pub fn ror_successor(&self) -> Option<&Ror> {
+        self.ror_successor.as_ref()
     }
 
     #[graphql(description = "Date and time at which the institution record was created")]

@@ -75,6 +75,9 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
         // as inert repository configuration only. This bootstrap declaration
         // adds no Metrics role grant, and `MET-WP5-01` wires no GraphQL
         // operation to either role.
+        //
+        // `ROR_SYNC_SERVICE` (ROR-SYNC-01C, thoth#1024) is declared the same
+        // way: declaring it grants it to no account.
         let roles = [
             ("SUPERUSER", "Superuser", "Superusers"),
             ("PUBLISHER_ADMIN", "Publisher Admin", "Publisher admins"),
@@ -94,6 +97,7 @@ pub fn setup(arguments: &ArgMatches) -> ThothResult<()> {
                 "Metrics Read Service",
                 "Metrics services",
             ),
+            ("ROR_SYNC_SERVICE", "ROR Sync Service", "ROR services"),
         ];
         for (role_key, display_name, group) in roles {
             management_client

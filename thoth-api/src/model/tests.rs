@@ -8,17 +8,19 @@ pub(crate) mod db {
     use std::collections::HashMap;
     use std::env;
     use std::fs::OpenOptions;
-    use std::sync::{Arc, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
     use std::time::Duration;
 
     use diesel::pg::PgConnection;
     use diesel::r2d2::ConnectionManager;
-    use diesel::RunQueryDsl;
+    use diesel::sql_types::{BigInt, Text};
+    use diesel::{Connection, QueryableByName, RunQueryDsl};
+    use diesel_migrations::MigrationHarness;
     use fs2::FileExt;
     use uuid::Uuid;
     use zitadel::actix::introspection::IntrospectedUser;
 
-    use crate::db::{init_pool, run_migrations, PgPool};
+    use crate::db::{init_pool, run_migrations, PgPool, MIGRATIONS as EMBEDDED_MIGRATIONS};
     use crate::graphql::Context;
     use crate::model::contribution::{Contribution, ContributionType, NewContribution};
     use crate::model::contributor::{Contributor, NewContributor};
@@ -34,7 +36,8 @@ pub(crate) mod db {
     use crate::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 
     static MIGRATIONS: OnceLock<Result<(), String>> = OnceLock::new();
-    static POOL: OnceLock<Arc<PgPool>> = OnceLock::new();
+    /// The shared pool, with the enum-type fingerprint it was created under.
+    static POOL: Mutex<Option<(String, Arc<PgPool>)>> = Mutex::new(None);
     static CLIENTS: OnceLock<(Arc<S3Client>, Arc<CloudFrontClient>)> = OnceLock::new();
 
     pub(crate) struct TestDbGuard {
@@ -61,14 +64,94 @@ pub(crate) mod db {
         env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set for backend tests")
     }
 
+    #[derive(QueryableByName)]
+    struct EnumTypeFingerprint {
+        #[diesel(sql_type = Text)]
+        fingerprint: String,
+    }
+
+    /// The OIDs of every enum type in `public`, in one string.
+    const ENUM_TYPE_FINGERPRINT_SQL: &str =
+        "SELECT COALESCE(string_agg(oid::text, ',' ORDER BY oid), '') AS fingerprint \
+         FROM pg_catalog.pg_type \
+         WHERE typtype = 'e' AND typnamespace = 'public'::regnamespace";
+
+    fn enum_type_fingerprint(connection: &mut PgConnection) -> String {
+        diesel::sql_query(ENUM_TYPE_FINGERPRINT_SQL)
+            .get_result::<EnumTypeFingerprint>(connection)
+            .expect("Failed to read the enum type fingerprint")
+            .fingerprint
+    }
+
+    #[derive(QueryableByName)]
+    struct HighestColumnNumber {
+        #[diesel(sql_type = BigInt)]
+        highest: i64,
+    }
+
+    /// The highest column number of any table in `public`, dropped columns
+    /// included.
+    const HIGHEST_COLUMN_NUMBER_SQL: &str = "SELECT COALESCE(max(a.attnum), 0)::bigint AS highest \
+         FROM pg_catalog.pg_attribute a \
+         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+         WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')";
+
+    /// Rebuild the schema when a table nears PostgreSQL's 1600-column limit.
+    const COLUMN_NUMBER_REBUILD_THRESHOLD: i64 = 1400;
+
+    /// PostgreSQL never reuses the number of a dropped column, and a table may
+    /// hold at most 1600 columns, dropped ones included. Each revert-and-reapply
+    /// cycle of a migration that adds columns to an existing table uses up
+    /// numbers on that table, and the suite runs hundreds of such cycles: every
+    /// test that reverts through an older migration also cycles every newer
+    /// one, such as ROR-SYNC-01C's on `institution`. Near the limit, this
+    /// reverts every migration and runs them again, which recreates every table.
+    fn rebuild_schema_near_the_column_limit(connection: &mut PgConnection) {
+        let highest = diesel::sql_query(HIGHEST_COLUMN_NUMBER_SQL)
+            .get_result::<HighestColumnNumber>(connection)
+            .expect("Failed to read the highest column number")
+            .highest;
+        if highest > COLUMN_NUMBER_REBUILD_THRESHOLD {
+            connection
+                .revert_all_migrations(EMBEDDED_MIGRATIONS)
+                .expect("Failed to revert every migration of the test database");
+            connection
+                .run_pending_migrations(EMBEDDED_MIGRATIONS)
+                .expect("Failed to rebuild the test database");
+        }
+    }
+
+    /// The shared test pool.
+    ///
+    /// Tests that revert migrations and re-apply them recreate the enum types
+    /// of every reverted migration, with new OIDs. A pooled connection that
+    /// cached a statement or a type OID from before would then fail with
+    /// "cached plan must not change result type" or a stale-OID lookup, in
+    /// whichever later test reuses it. So the pool is replaced whenever the
+    /// enum types' OIDs differ from those it was created under, which also
+    /// covers [`rebuild_schema_near_the_column_limit`]. Callers hold the test
+    /// database lock, so no revert runs while this reads.
     pub(crate) fn db_pool() -> Arc<PgPool> {
         let url = test_db_url();
+        let mut connection =
+            PgConnection::establish(&url).expect("Failed to connect to the test database");
+        rebuild_schema_near_the_column_limit(&mut connection);
         let migrations = MIGRATIONS
             .get_or_init(|| run_migrations(&url).map_err(|err| err.to_string()))
             .clone();
         migrations.expect("Failed to run migrations for test DB");
-        let pool = POOL.get_or_init(|| Arc::new(init_pool(&url)));
-        pool.clone()
+
+        let mut slot = POOL.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fingerprint = enum_type_fingerprint(&mut connection);
+        drop(connection);
+        match slot.as_ref() {
+            Some((created_under, pool)) if *created_under == fingerprint => pool.clone(),
+            _ => {
+                let pool = Arc::new(init_pool(&url));
+                *slot = Some((fingerprint, pool.clone()));
+                pool
+            }
+        }
     }
 
     pub(crate) fn failing_pool() -> PgPool {

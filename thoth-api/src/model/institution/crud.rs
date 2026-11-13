@@ -1,21 +1,120 @@
 use super::{
-    Institution, InstitutionField, InstitutionHistory, InstitutionOrderBy, NewInstitution,
-    NewInstitutionHistory, PatchInstitution,
+    Institution, InstitutionChangeset, InstitutionField, InstitutionHistory, InstitutionOrderBy,
+    InstitutionRorStatePatch, NewInstitution, NewInstitutionHistory, PatchInstitution, RorStatus,
 };
 use crate::db::PgPool;
 use crate::model::{Crud, DbInsert, HistoryEntry, PublisherIds};
+use crate::policy::{PolicyContext, UserAccess};
 use crate::schema::{institution, institution_history};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, PgTextExpressionMethods, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, Connection, ExpressionMethods, PgTextExpressionMethods, QueryDsl,
+    RunQueryDsl,
 };
 use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
+
+/// The message of the error `Crud::create` returns for `Institution` outside
+/// thoth-api's own unit tests.
+pub(crate) const CREATE_WITHOUT_HISTORY_ERROR: &str =
+    "Institutions are created only through `Institution::create_with_history`, which records the created row in `institution_history`";
+
+/// The lock taken before the row is read for update.
+///
+/// `ROW EXCLUSIVE` is the lock the `UPDATE` takes anyway, so only the order
+/// changes: while a migration holds `SHARE ROW EXCLUSIVE` on `institution`,
+/// an update waits here holding no row lock, and cannot deadlock with it.
+pub(crate) const UPDATE_TABLE_LOCK_SQL: &str = "LOCK TABLE institution IN ROW EXCLUSIVE MODE";
+
+/// Whether the caller may write `ror_status` and `ror_successor`.
+///
+/// The predicate is this stage's matrix decision (ROR-SYNC-01C, thoth#1024):
+/// `SUPERUSER` or `ROR_SYNC_SERVICE`. It does not make `SUPERUSER` hold the
+/// machine role: `is_ror_sync_service()` stays false for a superuser without it.
+pub(crate) fn may_write_ror_state<C: PolicyContext>(ctx: &C) -> bool {
+    ctx.user()
+        .is_some_and(|user| user.is_superuser() || user.is_ror_sync_service())
+}
+
+impl InstitutionRorStatePatch {
+    /// Build the status and successor changeset for one update.
+    ///
+    /// - `privileged` is [`may_write_ror_state`] for the caller. An
+    ///   unprivileged caller's values are never copied: `InstitutionPolicy`
+    ///   has already denied a differing value, and an equal one is dropped, so
+    ///   a concurrent privileged write is not reverted.
+    /// - `ror_changes` compares the patch's `ror` with the row re-read under
+    ///   lock. When it changes, each field the caller did not supply, or was
+    ///   not allowed to supply, is reset: the status to `ACTIVE`, the successor
+    ///   to NULL.
+    pub(crate) fn for_update(
+        patch: &PatchInstitution,
+        privileged: bool,
+        ror_changes: bool,
+    ) -> Self {
+        let (status, successor) = if privileged {
+            let successor = match &patch.ror_successor {
+                juniper::Nullable::ImplicitNull => None,
+                juniper::Nullable::ExplicitNull => Some(None),
+                juniper::Nullable::Some(successor) => Some(Some(successor.clone())),
+            };
+            (patch.ror_status, successor)
+        } else {
+            (None, None)
+        };
+
+        if ror_changes {
+            Self {
+                ror_status: status.or(Some(RorStatus::Active)),
+                ror_successor: successor.or(Some(None)),
+            }
+        } else {
+            Self {
+                ror_status: status,
+                ror_successor: successor,
+            }
+        }
+    }
+}
+
+impl Institution {
+    /// Create an institution and record the created row in
+    /// `institution_history`, under the caller's user ID, in one transaction.
+    ///
+    /// This is the only way to create an institution outside thoth-api's own
+    /// unit tests: `Crud::create` for `Institution` writes no history and
+    /// returns an error there.
+    pub(crate) fn create_with_history<C: PolicyContext>(
+        ctx: &C,
+        data: &NewInstitution,
+    ) -> ThothResult<Self> {
+        let user_id = ctx.user_id()?.to_string();
+        let mut connection = ctx.db().get()?;
+        connection.transaction(|connection| {
+            let created = diesel::insert_into(institution::table)
+                .values(data)
+                .get_result::<Institution>(connection)?;
+            created.new_history_entry(&user_id).insert(connection)?;
+            Ok(created)
+        })
+    }
+}
+
+/// Call `Crud::create` for `Institution`.
+///
+/// This exists only so that thoth-api's integration tests, which build the
+/// library without `cfg(test)`, can prove that `Crud::create` refuses there
+/// (the trait is crate-private). Outside thoth-api's unit tests it always
+/// returns the error and never writes.
+#[doc(hidden)]
+pub fn crud_create_without_history(db: &PgPool, data: &NewInstitution) -> ThothResult<Institution> {
+    <Institution as Crud>::create(db, data)
+}
 
 impl Crud for Institution {
     type NewEntity = NewInstitution;
     type PatchEntity = PatchInstitution;
     type OrderByEntity = InstitutionOrderBy;
-    type FilterParameter1 = ();
+    type FilterParameter1 = RorStatus;
     type FilterParameter2 = ();
     type FilterParameter3 = ();
     type FilterParameter4 = ();
@@ -33,7 +132,7 @@ impl Crud for Institution {
         _: Vec<Uuid>,
         _: Option<Uuid>,
         _: Option<Uuid>,
-        _: Vec<Self::FilterParameter1>,
+        ror_statuses: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
@@ -62,7 +161,13 @@ impl Crud for Institution {
             InstitutionField::UpdatedAt => {
                 apply_directional_order!(query, order.direction, order, updated_at)
             }
+            InstitutionField::RorStatus => {
+                apply_directional_order!(query, order.direction, order, ror_status, institution_id)
+            }
         };
+        if !ror_statuses.is_empty() {
+            query = query.filter(ror_status.eq_any(ror_statuses));
+        }
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
@@ -82,7 +187,7 @@ impl Crud for Institution {
         db: &crate::db::PgPool,
         filter: Option<String>,
         _: Vec<Uuid>,
-        _: Vec<Self::FilterParameter1>,
+        ror_statuses: Vec<Self::FilterParameter1>,
         _: Vec<Self::FilterParameter2>,
         _: Option<Self::FilterParameter3>,
         _: Option<Self::FilterParameter4>,
@@ -90,6 +195,9 @@ impl Crud for Institution {
         use crate::schema::institution::dsl::*;
         let mut connection = db.get()?;
         let mut query = institution.into_boxed();
+        if !ror_statuses.is_empty() {
+            query = query.filter(ror_status.eq_any(ror_statuses));
+        }
         if let Some(filter) = filter {
             query = query.filter(
                 institution_name
@@ -110,7 +218,80 @@ impl Crud for Institution {
             .map_err(Into::into)
     }
 
-    crud_methods!(institution::table, institution::dsl::institution);
+    // `crud_methods!` is not used: it emits these four methods together, and
+    // `create` and `update` differ here (ROR-SYNC-01C, thoth#1024).
+
+    fn from_id(db: &PgPool, entity_id: &Uuid) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        institution::table
+            .find(entity_id)
+            .get_result::<Self>(&mut connection)
+            .map_err(Into::into)
+    }
+
+    /// Writes no history. Outside thoth-api's own unit tests it returns an
+    /// internal error naming [`Institution::create_with_history`], so that no
+    /// caller, direct or through the trait, creates an institution without a
+    /// history row. Unit-test fixtures may still use it.
+    fn create(db: &PgPool, data: &NewInstitution) -> ThothResult<Self> {
+        #[cfg(not(test))]
+        {
+            let _ = (db, data);
+            Err(ThothError::InternalError(
+                CREATE_WITHOUT_HISTORY_ERROR.to_string(),
+            ))
+        }
+        #[cfg(test)]
+        {
+            let mut connection = db.get()?;
+            diesel::insert_into(institution::table)
+                .values(data)
+                .get_result::<Self>(&mut connection)
+                .map_err(Into::into)
+        }
+    }
+
+    /// Update the institution in one transaction:
+    ///
+    /// 1. take `ROW EXCLUSIVE` on `institution` (see [`UPDATE_TABLE_LOCK_SQL`]),
+    ///    then lock the row `FOR NO KEY UPDATE` and re-read it, so that new
+    ///    affiliations and fundings referencing it are not blocked;
+    /// 2. record the re-read row in `institution_history` under the caller's
+    ///    user ID;
+    /// 3. build [`InstitutionRorStatePatch`] from the caller's privilege and
+    ///    from whether `ror` changes against the re-read row;
+    /// 4. write both changesets in one `UPDATE`, because each CHECK is
+    ///    evaluated on every row version written: two statements would write an
+    ///    intermediate row that violates `institution_ror_state_check` when
+    ///    `ror` is cleared on a non-active row.
+    fn update<C: PolicyContext>(&self, ctx: &C, data: &PatchInstitution) -> ThothResult<Self> {
+        let user_id = ctx.user_id()?.to_string();
+        let privileged = may_write_ror_state(ctx);
+        let changeset = InstitutionChangeset::from(data);
+        let mut connection = ctx.db().get()?;
+        connection.transaction(|connection| {
+            diesel::sql_query(UPDATE_TABLE_LOCK_SQL).execute(connection)?;
+            let current = institution::table
+                .find(self.pk())
+                .for_no_key_update()
+                .get_result::<Institution>(connection)?;
+            current.new_history_entry(&user_id).insert(connection)?;
+            let state =
+                InstitutionRorStatePatch::for_update(data, privileged, data.ror != current.ror);
+            diesel::update(institution::table.find(self.pk()))
+                .set((&changeset, &state))
+                .get_result::<Institution>(connection)
+                .map_err(Into::into)
+        })
+    }
+
+    fn delete(self, db: &PgPool) -> ThothResult<Self> {
+        let mut connection = db.get()?;
+        diesel::delete(institution::table.find(self.pk()))
+            .execute(&mut connection)
+            .map(|_| self)
+            .map_err(Into::into)
+    }
 }
 
 impl PublisherIds for Institution {
