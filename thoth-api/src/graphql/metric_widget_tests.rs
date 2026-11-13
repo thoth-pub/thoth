@@ -79,6 +79,23 @@ async fn widget(
     serde_json::to_value(response).expect("a serialized response")
 }
 
+/// Execute the widget query once with `literal` as an inline input object
+/// and no variables, with a fresh context.
+async fn widget_inline(pool: &Arc<PgPool>, switch: MetricWidgetSwitch, literal: &str) -> JsonValue {
+    let query = WIDGET.replacen(
+        "query Widget($input: MetricWidgetInput!) { metricWidget(input: $input)",
+        &format!("query Widget {{ metricWidget(input: {literal})"),
+        1,
+    );
+    assert_ne!(query, WIDGET, "the inline document differs");
+    let request: GraphQLRequest =
+        serde_json::from_value(json!({ "query": query })).expect("a GraphQL request");
+    let response = request
+        .execute(&create_schema(), &context(pool, None, switch))
+        .await;
+    serde_json::to_value(response).expect("a serialized response")
+}
+
 fn input(doi: &str) -> JsonValue {
     json!({ "doi": doi, "startDate": "2026-03-01", "endDate": "2026-04-01" })
 }
@@ -355,6 +372,74 @@ async fn off_unknown_and_unentitled_are_one_indistinguishable_refusal() {
     // The same book is served with the switch on.
     let book = served(&widget(&pool, None, MetricWidgetSwitch::On, input(BOOK_DOI)).await);
     assert_eq!(book["work"]["totals"][0]["value"], json!("5"));
+}
+
+/// The two new input shapes: an all-history `YEAR` read and a `YEAR` read
+/// with a start.
+fn year_inputs(doi: &str) -> [JsonValue; 2] {
+    [
+        json!({ "doi": doi, "endDate": "2026-04-01", "timelineGrain": "YEAR" }),
+        json!({
+            "doi": doi,
+            "startDate": "2025-01-01",
+            "endDate": "2026-04-01",
+            "timelineGrain": "YEAR",
+        }),
+    ]
+}
+
+#[test]
+fn a_disabled_switch_refuses_year_requests_without_the_database() {
+    // A pool that cannot connect: the switch refuses before any checkout.
+    let pool = Arc::new(test_db::failing_pool());
+    let runtime = tokio::runtime::Runtime::new().expect("a runtime");
+    for doi in [BOOK_DOI, UNENTITLED_DOI, "10.1234/unknown", "not a doi", ""] {
+        for request in year_inputs(doi) {
+            let response = runtime.block_on(widget(
+                &pool,
+                None,
+                MetricWidgetSwitch::Off,
+                request.clone(),
+            ));
+            assert_eq!(
+                only_error(&response),
+                expected(UNAVAILABLE.0, UNAVAILABLE.1),
+                "{request}"
+            );
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn off_unknown_and_unentitled_year_requests_are_the_month_refusal() {
+    let (_guard, fx) = fixture();
+    let pool = Arc::clone(&fx.pool);
+    let text = |response: &JsonValue| serde_json::to_string(response).expect("a JSON text");
+    // R11's MONTH refusal, as the existing test produces it.
+    let month = text(&widget(&pool, None, MetricWidgetSwitch::Off, input(BOOK_DOI)).await);
+    for doi in ["10.1234/unknown", UNENTITLED_DOI] {
+        let response = widget(&pool, None, MetricWidgetSwitch::On, input(doi)).await;
+        assert_eq!(text(&response), month, "{doi}");
+    }
+    assert_eq!(
+        only_error(&serde_json::from_str(&month).expect("a JSON value")),
+        expected(UNAVAILABLE.0, UNAVAILABLE.1)
+    );
+    for (switch, doi) in [
+        (MetricWidgetSwitch::Off, BOOK_DOI),
+        (MetricWidgetSwitch::On, "10.1234/unknown"),
+        (MetricWidgetSwitch::On, UNENTITLED_DOI),
+    ] {
+        for request in year_inputs(doi) {
+            let response = widget(&pool, None, switch, request.clone()).await;
+            assert_eq!(text(&response), month, "{switch:?} {request}");
+        }
+    }
+    // The same book is served with the switch on, for both shapes.
+    for request in year_inputs(BOOK_DOI) {
+        let book = served(&widget(&pool, None, MetricWidgetSwitch::On, request).await);
+        assert_eq!(book["work"]["totals"][0]["value"], json!("5"));
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -760,20 +845,62 @@ fn without_as_of(mut response: JsonValue) -> JsonValue {
 async fn an_omitted_or_null_grain_is_a_month_read_and_needs_a_start() {
     let (_guard, fx) = fixture();
     let pool = Arc::clone(&fx.pool);
-    let mut month = input(BOOK_DOI);
-    month["timelineGrain"] = json!("MONTH");
-    let mut null = input(BOOK_DOI);
-    null["timelineGrain"] = JsonValue::Null;
-    let explicit = widget(&pool, None, MetricWidgetSwitch::On, month).await;
-    let explicit_widget = served(&explicit);
-    assert_eq!(
-        explicit_widget["work"]["timeline"].as_array().map(Vec::len),
-        Some(1)
-    );
-    for other in [input(BOOK_DOI), null] {
+    // Four months across one 1 January: four MONTH buckets per pair, two
+    // YEAR buckets.
+    let window = |grain: Option<JsonValue>| {
+        let mut request =
+            json!({ "doi": BOOK_DOI, "startDate": "2025-12-01", "endDate": "2026-04-01" });
+        if let Some(grain) = grain {
+            request["timelineGrain"] = grain;
+        }
+        request
+    };
+    let timeline_len = |response: &JsonValue| {
+        let widget = served(response);
+        let pairs = widget["work"]["totals"].as_array().map_or(0, Vec::len);
+        assert_eq!(pairs, 1, "{response}");
+        widget["work"]["timeline"].as_array().map_or(0, Vec::len) / pairs
+    };
+    let explicit = widget(
+        &pool,
+        None,
+        MetricWidgetSwitch::On,
+        window(Some(json!("MONTH"))),
+    )
+    .await;
+    assert_eq!(timeline_len(&explicit), 4);
+    for other in [window(None), window(Some(JsonValue::Null))] {
         let response = widget(&pool, None, MetricWidgetSwitch::On, other).await;
+        assert_eq!(timeline_len(&response), 4);
         assert_eq!(without_as_of(response), without_as_of(explicit.clone()));
     }
+    let year = widget(
+        &pool,
+        None,
+        MetricWidgetSwitch::On,
+        window(Some(json!("YEAR"))),
+    )
+    .await;
+    assert_eq!(timeline_len(&year), 2);
+    assert_eq!(
+        served(&year)["work"]["timeline"],
+        json!([
+            {
+                "platformId": fx.platform_id,
+                "measureId": fx.sessions,
+                "startDate": "2025-12-01",
+                "endDate": "2026-01-01",
+                "value": null,
+            },
+            {
+                "platformId": fx.platform_id,
+                "measureId": fx.sessions,
+                "startDate": "2026-01-01",
+                "endDate": "2026-04-01",
+                "value": "5",
+            },
+        ])
+    );
     let required = expected(
         "startDate is required for a MONTH timeline.",
         "METRIC_QUERY_INVALID",
@@ -822,4 +949,72 @@ async fn a_null_start_on_a_year_read_is_an_omitted_start() {
             "METRIC_QUERY_LIMIT_EXCEEDED",
         )
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn inline_null_grain_and_start_literals_equal_their_variable_cases() {
+    let (_guard, fx) = fixture();
+    let pool = Arc::clone(&fx.pool);
+    // An inline `timelineGrain: null` with a start is the variable case.
+    let mut variable = input(BOOK_DOI);
+    variable["timelineGrain"] = JsonValue::Null;
+    let by_variable = widget(&pool, None, MetricWidgetSwitch::On, variable).await;
+    let inline = widget_inline(
+        &pool,
+        MetricWidgetSwitch::On,
+        &format!(
+            "{{doi: \"{BOOK_DOI}\", startDate: \"2026-03-01\", endDate: \"2026-04-01\", \
+             timelineGrain: null}}"
+        ),
+    )
+    .await;
+    served(&inline);
+    assert_eq!(without_as_of(inline), without_as_of(by_variable));
+    // Without a start, it is the variable case's refusal.
+    let by_variable = widget(
+        &pool,
+        None,
+        MetricWidgetSwitch::On,
+        json!({ "doi": BOOK_DOI, "endDate": "2026-04-01", "timelineGrain": null }),
+    )
+    .await;
+    let inline = widget_inline(
+        &pool,
+        MetricWidgetSwitch::On,
+        &format!("{{doi: \"{BOOK_DOI}\", endDate: \"2026-04-01\", timelineGrain: null}}"),
+    )
+    .await;
+    assert_eq!(only_error(&inline), only_error(&by_variable));
+    assert_eq!(
+        only_error(&inline),
+        expected(
+            "startDate is required for a MONTH timeline.",
+            "METRIC_QUERY_INVALID",
+        )
+    );
+    // An inline `startDate: null` on a YEAR read is the variable case, and
+    // so an omitted start.
+    let by_variable = widget(
+        &pool,
+        None,
+        MetricWidgetSwitch::On,
+        json!({
+            "doi": BOOK_DOI,
+            "startDate": null,
+            "endDate": "2026-04-01",
+            "timelineGrain": "YEAR",
+        }),
+    )
+    .await;
+    let inline = widget_inline(
+        &pool,
+        MetricWidgetSwitch::On,
+        &format!(
+            "{{doi: \"{BOOK_DOI}\", startDate: null, endDate: \"2026-04-01\", \
+             timelineGrain: YEAR}}"
+        ),
+    )
+    .await;
+    assert_eq!(served(&inline)["startDate"], json!("2026-03-01"));
+    assert_eq!(without_as_of(inline), without_as_of(by_variable));
 }
