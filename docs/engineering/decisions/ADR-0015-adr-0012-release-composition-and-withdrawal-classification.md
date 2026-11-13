@@ -451,7 +451,7 @@ The stale-scan rule is unchanged. It stays binding on every anomaly-creating pat
 22. An event of a kind in `K(route)` that its own epoch's revision does not consume: it never needs a marker and never counts as backlog.
 23. An event insert inside a savepoint that rolls back, followed by an insert of the same kind: the key is taken again.
 24. A detector and a withdrawal classifying the same events, including a detector that is mid-transaction on an event when the withdrawal reaches it: the withdrawal waits within its `lock_timeout` under the savepoint of rule 4, then classifies or commits a retryable refusal, and no deadlock occurs.
-25. A member that has taken its first lock and then requests a route boundary that a control operation holds in the control mode: the request fails without waiting, and the member rolls back and retries (rule 1(e)). This tests the existing non-waiting rule, which tests 9 and 16 no longer exercise.
+25. A member that has taken its first lock and then requests a route boundary that a control operation holds in the control mode: the request fails without waiting, and the member rolls back and retries (rule 1(e)). This tests the existing non-waiting rule.
 
 ### 5.5 Why this closes the window
 
