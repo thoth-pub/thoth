@@ -1445,13 +1445,14 @@ STEP_PRESIZE_BUDGET         5 s    (pre-sizing, before any row lock)
 STEP_LOCK_BUDGET            2 s    (first work-row lock until the state row is held)
 STEP_HOLD_BUDGET            5 s    (state-row hold, enforced per statement)
 STEP_MAX_MONTH_KEYS         1,000
-STEP_MAX_WORK_DAY_ROWS      50,000
-STEP_MAX_REPLACING_READ     4,000,000  (replacing-read figure of a step; provisional, F4 confirms)
+STEP_MAX_WORK_DAY_ROWS      8,000      (budget amendment R11; was 50,000)
+STEP_MAX_REPLACING_READ     600,000    (budget amendment R11; was 4,000,000; replacing-read figure of a
+                                       step; provisional, F4 confirms)
 STEP_CHUNK_KEYS             50     (= the section 3.7 chunk; months and years)
 SIZING_BATCH_WORKS          256    (works per sizing statement)
 PAGE_BUDGET                 15 s   (from LOCK TABLE to commit, enforced per statement)
 PAGE_MAX_MONTH_KEYS         10,000
-PAGE_MAX_WORK_DAY_ROWS      500,000
+PAGE_MAX_WORK_DAY_ROWS      150,000    (budget amendment R11; was 500,000)
 lock_timeout                5 s    (run row, LOCK TABLE, start and abandon)
 statement_timeout ceiling   30 s
 dispatch and status reads   1 s    (lock_timeout and statement_timeout)
@@ -1572,9 +1573,9 @@ Operator procedure:
   the whole-work threshold, is a HOLD too. A `VERIFY` run never replaces, so
   the check does not apply to it. The step budgets are bind parameters, bound
   by the grant to the bounds above:
-  `$1` = 50000 (`STEP_MAX_WORK_DAY_ROWS`),
+  `$1` = 8000 (`STEP_MAX_WORK_DAY_ROWS`),
   `$2` = 1000 (`STEP_MAX_MONTH_KEYS`) and
-  `$3` = 4000000 (`STEP_MAX_REPLACING_READ`).
+  `$3` = 600000 (`STEP_MAX_REPLACING_READ`).
   A test compares this quotation and these values with the constants, and
   another asserts that the aggregate returns exactly the units sizing finds
   over a step budget on every fixture.

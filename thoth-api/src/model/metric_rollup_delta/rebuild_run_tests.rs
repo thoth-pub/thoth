@@ -52,6 +52,7 @@ use super::{
     MetricRollupMonthRebuildMode, MetricRollupMonthRebuildRun, MetricRollupMonthRebuildStatus,
     StartMetricRollupMonthRebuildInput, METRIC_ROLLUP_REBUILD_MAX_MONTH_KEYS,
     METRIC_ROLLUP_RUN_CHECKOUT_TIMEOUT, METRIC_ROLLUP_RUN_PAGE_BUDGET,
+    METRIC_ROLLUP_RUN_PAGE_MAX_MONTH_KEYS, METRIC_ROLLUP_RUN_PAGE_MAX_WORK_DAY_ROWS,
     METRIC_ROLLUP_RUN_SIZING_BATCH_WORKS, METRIC_ROLLUP_RUN_STEP_CHUNK_KEYS,
     METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET, METRIC_ROLLUP_RUN_STEP_LOCK_BUDGET,
     METRIC_ROLLUP_RUN_STEP_MAX_MONTH_KEYS, METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ,
@@ -4619,9 +4620,28 @@ fn the_register_quotes_the_run_grant_aggregate_and_the_step_budgets_exactly() {
         let quotation = format!("`{bind}` = {value}");
         assert!(section.contains(&quotation), "{quotation}");
     }
-    assert_eq!(METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS, 50_000);
+    assert_eq!(METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS, 8_000);
     assert_eq!(METRIC_ROLLUP_RUN_STEP_MAX_MONTH_KEYS, 1_000);
-    assert_eq!(METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ, 4_000_000);
+    assert_eq!(METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ, 600_000);
+    assert_eq!(METRIC_ROLLUP_RUN_PAGE_MAX_MONTH_KEYS, 10_000);
+    assert_eq!(METRIC_ROLLUP_RUN_PAGE_MAX_WORK_DAY_ROWS, 150_000);
+    for (name, value) in [
+        ("STEP_MAX_WORK_DAY_ROWS", "8,000"),
+        ("STEP_MAX_REPLACING_READ", "600,000"),
+        ("PAGE_MAX_WORK_DAY_ROWS", "150,000"),
+        ("PAGE_MAX_MONTH_KEYS", "10,000"),
+        ("STEP_MAX_MONTH_KEYS", "1,000"),
+    ] {
+        let quoted = section
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(name))
+            .unwrap_or_else(|| panic!("register 3.8 quotes {name}"));
+        assert_eq!(
+            quoted.split_whitespace().nth(1),
+            Some(value),
+            "register 3.8 quotes {name} as {value}"
+        );
+    }
     assert_eq!(
         METRIC_ROLLUP_RUN_STEP_PRESIZE_BUDGET,
         Duration::from_secs(5)

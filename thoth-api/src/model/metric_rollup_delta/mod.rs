@@ -559,14 +559,20 @@ pub const METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET: Duration = Duration::from_secs(5);
 pub const METRIC_ROLLUP_RUN_STEP_MAX_MONTH_KEYS: i64 = 1_000;
 
 /// The work-day rows one build step takes, unless one unit alone exceeds it.
-pub const METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS: i64 = 50_000;
+/// It bounds the cost a replacing step pays per work-day row (each row is
+/// written into every monthly and yearly section row it reaches, and every
+/// section row runs its foreign-key checks), which the replacing-read figure
+/// does not count. Set from the section 17 evidence by budget amendment
+/// R11 (was 50,000).
+pub const METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS: i64 = 8_000;
 
 /// The replacing-read figure one build step takes, unless one unit alone
 /// exceeds it: over the step's work-months, the month keys of the
 /// work-month times the work's work-day rows in that month, plus, over the
 /// step's year keys, the work's work-day rows across its whole history.
-/// Provisional: the section 17 F4 evidence confirms it.
-pub const METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ: i64 = 4_000_000;
+/// Set by budget amendment R11 (was 4,000,000); provisional, the section 17
+/// F4 evidence confirms it.
+pub const METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ: i64 = 600_000;
 
 /// The month keys, and separately the year keys, one recompute chunk of a
 /// replacing build step takes: the same bound as a rebuild chunk and a claim
@@ -584,7 +590,8 @@ pub const METRIC_ROLLUP_RUN_PAGE_BUDGET: Duration = Duration::from_secs(15);
 pub const METRIC_ROLLUP_RUN_PAGE_MAX_MONTH_KEYS: i64 = 10_000;
 
 /// The work-day rows one verify page takes, unless one unit alone exceeds it.
-pub const METRIC_ROLLUP_RUN_PAGE_MAX_WORK_DAY_ROWS: i64 = 500_000;
+/// Set from the section 17 evidence by budget amendment R11 (was 500,000).
+pub const METRIC_ROLLUP_RUN_PAGE_MAX_WORK_DAY_ROWS: i64 = 150_000;
 
 /// The `lock_timeout` of every run transaction except the dispatch and
 /// status reads: the run row, `LOCK TABLE`, start and abandon. A step's
