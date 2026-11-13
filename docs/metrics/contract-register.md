@@ -1702,7 +1702,73 @@ Stop: abandonMetricRollupMonthRebuild(runId). This is safe at any time (I3).
 Evidence (section 17 of the specification; raw numbers in the implementation
 report):
 
-- Pending: recorded when the section 17 evidence is run.
+- **Host.** One local evidence host: PostgreSQL 16.15 with default settings
+  (`shared_buffers` 128 MB), 4 CPUs, 15 GiB RAM. Production's PostgreSQL
+  major version and host class were not available to the stage, and CI's
+  PostgreSQL 17 was not measured, so every value below holds for this host
+  only.
+- **Outcome.** On this host the following missed their section 17 bounds:
+  the F4 line in both mixes, from-empty and repair steps alike; the pooled
+  fit's predicted hold at both corners; the replacing-step hold p95 of F2
+  (from empty and in its repair run) and of F3; the verify page time p95 of
+  F4's pages; and, as written, the `EXPLAIN` line, whose only sequential
+  scans read the empty ambiguity table. Under the production budgets every
+  F4 step was refused at `STEP_HOLD_BUDGET` on every retry. F1 and F7 met
+  every bound, as did F6 (run without F3 and F4, below) and the non-replacing
+  steps and the pages of F2 and F3. This evidence therefore does not confirm
+  the provisional `STEP_MAX_REPLACING_READ`, no bound above is changed by it,
+  and the missed bounds are a HOLD for a decision on #1012.
+- **F4 (`STEP_MAX_REPLACING_READ`).** Two full runs. Mix (a): two works with
+  24 series and eight years of history, 60 rows per key-month, each work with
+  138,240 country and 138,240 institution month rows; its replacing steps
+  filled 0.933 to 0.982 and held 9.4 to 11.8 s from empty and 9.9 to 12.2 s
+  as repair steps (max hold / fill 11.3 to 12.1 s and 11.9 to 12.4 s). Mix
+  (b): eight works with k = 40 series and one year of history, 100 rows per
+  key-month, each work with 48,000 country and 48,000 institution month rows;
+  fill 0.960 to 0.962, holds 11.8 to 12.5 s from empty and 12.9 to 14.1 s as
+  repair steps (max hold / fill 12.9 to 13.0 s and 14.2 to 14.7 s). The F4
+  line (at most 4 s) is not met in either mix.
+- **Floor.** F2's density is 31.5 work-day rows per key, so the floor's
+  figure is 3,402 R^2 and 4,000,000 admits R <= 34. F4 is judged against the
+  production pair count, from the read named under "Floor" above.
+- **Month keys per work-month.** F4's mix (b) reached k = 40, the k every run
+  grant compares with.
+- **Whole-work threshold.** 76,800 rows, from F5's second growth (40 series,
+  eight years of history): no F4 replacing step committed within 4 s on this
+  host, so F4 contributes no total. It is above F3's whole-work totals
+  (56,907 to 56,912 rows), the census maximum. It must also cover
+  production's largest whole-work total, from the read named under
+  "Whole-work threshold" above.
+- **F5's growths** (repair steps over fully built tables, at F4's
+  section-row ratio, production budgets). The largest unit committing within
+  4 s, per growth: (1) 40 series, one year of history: 14,400 rows, 480 month
+  keys, figure 1,152,000, whole-work 14,400 rows, hold 3.0 s, sizing 16 ms;
+  (2) 40 series, eight years: 9,600 rows, 480 keys, figure 3,456,000,
+  whole-work 76,800 rows, holds up to 3.2 s, sizing up to 258 ms; (3) F3's
+  four series, eight years: 1,920 rows, 48 keys, figure 69,120, whole-work
+  15,360 rows, hold 3.6 s (one step took the whole work), sizing 16 ms. The
+  next level of each growth (19,200, 14,400 and 2,880 rows per unit) held
+  more than 4 s or was refused at `STEP_HOLD_BUDGET`.
+- **Fitted per-term costs.** Non-negative least squares over the 737
+  replacing steps of F2 to F4 in the second run (its from-empty build, F4
+  repair pass and repair `REBUILD`): intercept 572 ms, 2.89 ms per statement,
+  3.91e-3 ms per month-term row, 2.12e-3 ms per year-term row and 6.27e-3 ms
+  per whole-work row; absolute residuals median 127 ms, max 3,433 ms. At full
+  fill, 248 statements (the largest measured) and 76,800 whole-work rows the
+  predicted hold is 10.2 s at the year-only corner and 13.8 s at the mix (b)
+  corner (k = 40), against 4.5 s. The F3-F4-only fit (75 steps): intercept
+  3,240 ms, nothing per statement or whole-work row, 3.28e-3 ms per
+  month-term row and 1.74e-3 ms per year-term row; corners 10.2 s and 13.3 s.
+- **F6 (concurrency).** Run on F2 without its F3 and F4 works, because under
+  the production budgets a run over those stops at their first range. A
+  `REBUILD` from empty under the production budgets, paced by the pacing
+  rule above, with two overlapping `DAY` ingestion streams, claims and
+  completions running throughout its build phase: no ingestion or completion
+  failure and no deadlock; the longest wait attributable to a step was 3.9 s
+  on the state row (p95 3.4 s), 3.0 s on a work row and 3.9 s with a step
+  anywhere in the blocking chain, against bounds of 6, 8 and 13 s; without a
+  run the same workload waited at most 0.2 s. The build phase (542 steps) had
+  no refusal, so its longest run of consecutive refusals is 0.
 
 Scope boundaries a consumer must not infer:
 
