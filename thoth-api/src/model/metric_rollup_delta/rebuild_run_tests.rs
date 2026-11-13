@@ -4839,6 +4839,10 @@ mod evidence {
             setting("jit"),
             setting("random_page_cost"),
         );
+        println!(
+            "BUDGETS|{}|F6 and the F4 probe always use the production budgets",
+            budget_note(&evidence_budgets())
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -4954,9 +4958,11 @@ mod evidence {
         work_hold: Duration,
         /// The sizing statements' time, pre-size and re-size together.
         sizing: Duration,
-        /// Every statement the call sent, the pool's checkout check included.
+        /// Every statement the call sent, the pool's checkout check and the
+        /// dispatch read's own transaction included.
         statements: usize,
-        /// The transaction's statements, `BEGIN` and `COMMIT` included.
+        /// The statements of the call's last transaction (the step's or the
+        /// page's), `BEGIN` and `COMMIT` included.
         in_transaction: usize,
         set_locals: usize,
     }
@@ -4965,6 +4971,9 @@ mod evidence {
         text.starts_with(&statement[..statement.len().min(HEAD_BYTES / 2)])
     }
 
+    /// The call's timing from its statement log. A call runs the dispatch
+    /// read in a transaction of its own before the step's or the page's, so
+    /// every transaction measure is taken over the last transaction.
     fn timing(events: &[Event], end: Instant) -> Timing {
         let mut timing = Timing::default();
         let mut begun: Option<Instant> = None;
@@ -4972,15 +4981,20 @@ mod evidence {
         let mut state_locked: Option<Instant> = None;
         let mut works_locked: Option<Instant> = None;
         let mut started: Option<Instant> = None;
+        let mut inside = false;
+        let mut current = 0;
         for (at, done, text) in events {
             if !*done {
                 started = Some(*at);
                 timing.statements += 1;
                 if text.starts_with("BEGIN") {
                     begun = Some(*at);
+                    ended = None;
+                    inside = true;
+                    current = 0;
                 }
-                if begun.is_some() && ended.is_none() {
-                    timing.in_transaction += 1;
+                if inside {
+                    current += 1;
                 }
                 if is_set_local(text) {
                     timing.set_locals += 1;
@@ -4996,11 +5010,14 @@ mod evidence {
                 state_locked = Some(*at);
             } else if is_statement(text, LOCK_WORKS_SQL) {
                 works_locked = Some(*at);
-            } else if begun.is_some()
-                && (text.starts_with("COMMIT") || text.starts_with("ROLLBACK"))
-            {
+            } else if inside && (text.starts_with("COMMIT") || text.starts_with("ROLLBACK")) {
                 ended = Some(*at);
+                inside = false;
+                timing.in_transaction = current;
             }
+        }
+        if inside {
+            timing.in_transaction = current;
         }
         let end = ended.unwrap_or(end);
         let since = |from: Option<Instant>| {
@@ -5132,6 +5149,108 @@ mod evidence {
     }
 
     // -----------------------------------------------------------------------
+    // Statement profiles
+    // -----------------------------------------------------------------------
+
+    /// The five statements of a month chunk, in the order a chunk issues
+    /// them. Their texts share a long head, so they are told apart by
+    /// position.
+    const MONTH_CHUNK_LABELS: [&str; 5] = [
+        "month watermark",
+        "month total insert",
+        "month country insert",
+        "month institution insert",
+        "month ambiguity insert",
+    ];
+
+    /// The head the month chunk statements share, up to `k.month_start`:
+    /// the year statements' head differs there (`k.year_start`).
+    const MONTH_CHUNK_HEAD: usize = 87;
+
+    /// A label for one logged statement; `month_position` counts the month
+    /// chunk statements in a row.
+    fn statement_label(text: &str, month_position: &mut usize) -> String {
+        if is_set_local(text) {
+            return "set local".to_string();
+        }
+        if text.starts_with(&MONTH_SOURCE_WATERMARK_SQL[..MONTH_CHUNK_HEAD]) {
+            let label = MONTH_CHUNK_LABELS[*month_position % MONTH_CHUNK_LABELS.len()];
+            *month_position += 1;
+            return label.to_string();
+        }
+        *month_position = 0;
+        if text.starts_with(&YEAR_COUNTRY_INSERT_SQL[..MONTH_CHUNK_HEAD - 1]) {
+            return if text.contains("INSERT INTO public.metric_rollup_work_country_year") {
+                "year country insert".to_string()
+            } else {
+                "year institution insert".to_string()
+            };
+        }
+        if let Some(index) = RANGE_DELETE_STATEMENTS
+            .iter()
+            .position(|statement| is_statement(text, statement))
+        {
+            return format!("range delete {}", index + 1);
+        }
+        let named = [
+            ("sizing", SIZING_SQL),
+            ("per-year sizing", PER_YEAR_SQL),
+            ("lock works", LOCK_WORKS_SQL),
+            ("lock state", LOCK_STATE_SQL),
+            ("range verifier", RANGE_VERIFICATION_SQL),
+            ("month keys", RANGE_MONTH_KEYS_SQL),
+            ("run lock", RUN_LOCK_SQL),
+            ("run read", RUN_READ_SQL),
+        ];
+        if let Some((label, _)) = named
+            .iter()
+            .find(|(_, statement)| is_statement(text, statement))
+        {
+            return (*label).to_string();
+        }
+        if is_transaction_control(text) {
+            return "transaction control".to_string();
+        }
+        let head: String = text.chars().take(40).collect();
+        format!("other: {head}")
+    }
+
+    /// Where a call's time went: per statement label, its count, total and
+    /// longest duration, the largest total first.
+    fn statement_profile(events: &[Event]) -> String {
+        let mut by_label: BTreeMap<String, (usize, Duration, Duration)> = BTreeMap::new();
+        let mut month_position = 0;
+        let mut started: Option<Instant> = None;
+        for (at, done, text) in events {
+            if !*done {
+                started = Some(*at);
+                continue;
+            }
+            let took = started
+                .take()
+                .map_or(Duration::ZERO, |from| at.saturating_duration_since(from));
+            let entry = by_label
+                .entry(statement_label(text, &mut month_position))
+                .or_insert((0, Duration::ZERO, Duration::ZERO));
+            entry.0 += 1;
+            entry.1 += took;
+            entry.2 = entry.2.max(took);
+        }
+        let mut rows: Vec<(String, (usize, Duration, Duration))> = by_label.into_iter().collect();
+        rows.sort_by_key(|row| std::cmp::Reverse(row.1 .1));
+        rows.iter()
+            .map(|(label, (count, total, max))| {
+                format!(
+                    "{label} x{count} total {} ms max {} ms",
+                    ms(*total),
+                    ms(*max)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    }
+
+    // -----------------------------------------------------------------------
     // Driving a run and measuring each call
     // -----------------------------------------------------------------------
 
@@ -5153,6 +5272,8 @@ mod evidence {
         terms: Terms,
         lo: Option<Unit>,
         hi: Option<Unit>,
+        /// Where the call's time went, by statement.
+        profile: String,
     }
 
     impl Sample {
@@ -5183,11 +5304,41 @@ mod evidence {
         max_streak: usize,
     }
 
+    /// The budgets a pass drives with: production's, unless
+    /// `THOTH_EVIDENCE_STEP_HOLD_SECS` raises the step hold budget for a
+    /// diagnostic run that measures how long an over-budget step really
+    /// holds. Such a run is labelled as diagnostic in every summary, and a
+    /// hold above the production budget counts as a would-be refusal in every
+    /// acceptance line.
+    fn evidence_budgets() -> RunBudgets {
+        let mut budgets = RunBudgets::PRODUCTION;
+        if let Some(seconds) = std::env::var("THOTH_EVIDENCE_STEP_HOLD_SECS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+        {
+            budgets.step_hold = Duration::from_secs(seconds);
+        }
+        budgets
+    }
+
+    /// How a pass's budgets differ from production's, for its summaries.
+    fn budget_note(budgets: &RunBudgets) -> String {
+        if *budgets == RunBudgets::PRODUCTION {
+            "production budgets".to_string()
+        } else {
+            format!(
+                "DIAGNOSTIC budgets: step hold {} s instead of {} s",
+                budgets.step_hold.as_secs(),
+                METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET.as_secs()
+            )
+        }
+    }
+
     impl Drive {
         fn new(pass: &str, classes: &Classes) -> Self {
             Drive {
                 pass: pass.to_string(),
-                budgets: RunBudgets::PRODUCTION,
+                budgets: evidence_budgets(),
                 paced: false,
                 build_only: false,
                 terms: true,
@@ -5200,6 +5351,7 @@ mod evidence {
     /// One pass's outcome.
     struct Driven {
         pass: String,
+        budgets: RunBudgets,
         run: Run,
         samples: Vec<Sample>,
         refusals: BTreeMap<String, usize>,
@@ -5308,6 +5460,24 @@ mod evidence {
             terms,
             lo,
             hi,
+            profile: statement_profile(call.events),
+        }
+    }
+
+    /// The class of the first unit after `cursor`: where a refused step's
+    /// range starts.
+    fn class_after(pool: &PgPool, classes: &Classes, cursor: Option<Unit>) -> &'static str {
+        let range = range_sql(cursor, None);
+        let next = text_scalar(
+            pool,
+            &format!(
+                "SELECT work_id::text FROM metric_rollup_work_day WHERE {range} \
+                 ORDER BY work_id, day LIMIT 1"
+            ),
+        );
+        match next.and_then(|work_id| Uuid::parse_str(&work_id).ok()) {
+            Some(work_id) => class_of(classes, &[work_id]),
+            None => "none",
         }
     }
 
@@ -5315,9 +5485,11 @@ mod evidence {
     /// measuring every committed step and page. A retryable refusal is
     /// retried with the same step count after the section 15 back-off; any
     /// other refusal, or `max_streak` refusals in a row, stops the pass.
+    /// Every refusal is printed (`REFUSED` lines) with where its time went.
     fn drive_measured(pool: &PgPool, evidence: &Evidence, mut run: Run, drive: &Drive) -> Driven {
         let mut driven = Driven {
             pass: drive.pass.clone(),
+            budgets: drive.budgets,
             run: run.clone(),
             samples: Vec::new(),
             refusals: BTreeMap::new(),
@@ -5363,6 +5535,29 @@ mod evidence {
                     *driven.refusals.entry(refusal.clone()).or_insert(0) += 1;
                     streak += 1;
                     driven.longest_streak = driven.longest_streak.max(streak);
+                    let timing = timing(&events, end);
+                    println!(
+                        "REFUSED|{}|{}|step count {}|{refusal}|streak {streak}|range starts in {}|\
+                         call_ms={}|hold_ms={}|work_hold_ms={}|statements={}|{}|profile {}",
+                        drive.pass,
+                        if building { "step" } else { "page" },
+                        run.step_count,
+                        if drive.classes.is_empty() {
+                            "base"
+                        } else {
+                            class_after(pool, &drive.classes, before.cursor().ok().flatten())
+                        },
+                        ms(call),
+                        ms(if building {
+                            timing.state_hold
+                        } else {
+                            timing.transaction
+                        }),
+                        ms(timing.work_hold),
+                        timing.statements,
+                        budget_note(&drive.budgets),
+                        statement_profile(&events),
+                    );
                     if !matches!(error, Error::Retryable(_)) || streak >= drive.max_streak {
                         driven.stuck = Some(format!(
                             "{refusal} after {streak} consecutive refusals at step count {}",
@@ -5446,7 +5641,32 @@ mod evidence {
                 unit_text(sample.lo),
                 unit_text(sample.hi),
             );
+            if sample.replaced {
+                println!(
+                    "PROFILE|{}|step|{}|{}|{}",
+                    sample.pass, sample.index, sample.class, sample.profile
+                );
+            }
         }
+    }
+
+    /// The production time budget of a step's hold or of a page.
+    fn production_budget(sample: &Sample) -> Duration {
+        if sample.page {
+            METRIC_ROLLUP_RUN_PAGE_BUDGET
+        } else {
+            METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET
+        }
+    }
+
+    /// Committed steps or pages whose hold exceeded the production budget:
+    /// possible only under diagnostic budgets, and each a refusal under the
+    /// production budgets.
+    fn over_budget(samples: &[&Sample]) -> usize {
+        samples
+            .iter()
+            .filter(|sample| sample.hold() > production_budget(sample))
+            .count()
     }
 
     /// p50, p95 and max of `pick` over `samples`, in microseconds.
@@ -5533,7 +5753,7 @@ mod evidence {
             "SUMMARY|{}|run|status {:?}|steps {}|pages {}|build {} s|verify {} s|total {} s|\
              month keys {keys}|keys per second {rate:.0}|projected at 460,000 keys {:.0} s|\
              projected at 1,000,000 keys {:.0} s|refusals {:?}|budget refusals {}|\
-             longest run of refusals {}|stuck {:?}",
+             longest run of refusals {}|stuck {:?}|{}|holds above the production budget {}",
             driven.pass,
             driven.run.status,
             driven.samples.iter().filter(|sample| !sample.page).count(),
@@ -5547,6 +5767,8 @@ mod evidence {
             driven.budget_refusals(),
             driven.longest_streak,
             driven.stuck,
+            budget_note(&driven.budgets),
+            over_budget(&driven.samples.iter().collect::<Vec<_>>()),
         );
     }
 
@@ -5563,16 +5785,20 @@ mod evidence {
         assert_eq!(driven.run.status, expected, "{}", driven.pass);
     }
 
-    /// One section 17 acceptance line on the p95 of `samples`' holds.
+    /// One section 17 acceptance line on the p95 of `samples`' holds. A hold
+    /// above the production budget, committed under diagnostic budgets,
+    /// counts as a budget refusal.
     fn accept(line: &str, samples: &[&Sample], bound: Duration, budget_refusals: usize) {
         let measured = spread(samples, Sample::hold);
+        let over = over_budget(samples);
         let verdict = match measured {
             None => "NOT MEASURED",
-            Some((_, p95, _)) if p95 <= bound.as_micros() && budget_refusals == 0 => "MET",
+            Some((_, p95, _)) if p95 <= bound.as_micros() && budget_refusals + over == 0 => "MET",
             Some(_) => "MISSED",
         };
         println!(
-            "ACCEPT|{line}|n={}|{}|budget refusals {budget_refusals}|bound p95 <= {} ms|{verdict}",
+            "ACCEPT|{line}|n={}|{}|budget refusals {budget_refusals}|holds above the production \
+             budget {over}|bound p95 <= {} ms|{verdict}",
             samples.len(),
             spread_text(measured),
             bound.as_millis(),
@@ -5842,6 +6068,26 @@ mod evidence {
                 quoted(works)
             ),
         )
+    }
+
+    /// The on-disk size of the rollup tables, with their indexes, and of the
+    /// database.
+    fn print_sizes(pool: &PgPool, label: &str) {
+        println!(
+            "SIZE|{label}|{}|database {}",
+            text_scalar(
+                pool,
+                "SELECT string_agg(relname || ' ' || pg_size_pretty(pg_total_relation_size(oid)), \
+                                   '; ' ORDER BY relname) \
+                 FROM pg_class WHERE relname LIKE 'metric_rollup_work%' AND relkind = 'r'"
+            )
+            .unwrap_or_default(),
+            text_scalar(
+                pool,
+                "SELECT pg_size_pretty(pg_database_size(current_database()))"
+            )
+            .unwrap_or_default()
+        );
     }
 
     /// The vacuum counters and dead tuples of the rollup tables.
@@ -6582,20 +6828,27 @@ mod evidence {
         }
     }
 
-    fn mix_line(line: &str, steps: &[&Sample]) {
+    /// One F4 acceptance line: the largest hold over fill of `steps`, with
+    /// the pass's budget refusals (steps that never committed) and the holds
+    /// above the production budget (steps that committed only under
+    /// diagnostic budgets).
+    fn mix_line(line: &str, steps: &[&Sample], budget_refusals: usize) {
         let worst = steps
             .iter()
             .map(|sample| sample.hold().as_secs_f64() * 1_000.0 / sample.terms.fill().max(1e-9))
             .fold(0.0, f64::max);
         let fills: Vec<f64> = steps.iter().map(|sample| sample.terms.fill()).collect();
+        let over = over_budget(steps);
         println!(
-            "ACCEPT|{line}|n={}|fill {:.3} to {:.3}|max hold / fill {worst:.1} ms|bound 4000 ms|{}",
+            "ACCEPT|{line}|n={}|fill {:.3} to {:.3}|max hold / fill {worst:.1} ms|budget refusals \
+             in the pass {budget_refusals}|holds above the production budget {over}|bound 4000 \
+             ms|{}",
             steps.len(),
             fills.iter().copied().fold(f64::INFINITY, f64::min),
             fills.iter().copied().fold(0.0, f64::max),
             if steps.is_empty() {
                 "NOT MEASURED"
-            } else if worst <= 4_000.0 {
+            } else if worst <= 4_000.0 && over == 0 {
                 "MET"
             } else {
                 "MISSED"
@@ -6706,16 +6959,7 @@ mod evidence {
             108.0 * density,
             largest_r.floor()
         );
-        println!(
-            "SIZE|{}",
-            text_scalar(
-                &pool,
-                "SELECT string_agg(relname || ' ' || pg_size_pretty(pg_total_relation_size(oid)), \
-                                   '; ' ORDER BY relname) \
-                 FROM pg_class WHERE relname LIKE 'metric_rollup_work%' AND relkind = 'r'"
-            )
-            .unwrap_or_default()
-        );
+        print_sizes(&pool, "after seeding");
 
         let f3_works = tagged_works(&pool, &f3.tag, f3.works);
         let f4a_works = tagged_works(&pool, &f4a.tag, f4a.works);
@@ -6727,6 +6971,25 @@ mod evidence {
         ];
         let evidence = Evidence::new();
 
+        // With THOTH_EVIDENCE_F2_PASSES=0, F6 alone on a freshly seeded F2:
+        // the projections are first built by an unmeasured REBUILD, so the
+        // baseline meets fully built tables, as after the F2 passes.
+        if knob("THOTH_EVIDENCE_F2_PASSES", 1) == 0 {
+            let mut setup_build = Drive::new("F6 setup REBUILD (unmeasured)", &Classes::new());
+            setup_build.terms = false;
+            let built = drive_measured(&pool, &evidence, start(&pool, Rebuild), &setup_build);
+            assert_eq!(built.run.status, Reconciled, "{:?}", built.stuck);
+            println!(
+                "SETUP|F6 setup REBUILD|{:?}|build {} s|verify {} s",
+                built.run.status,
+                secs(built.build),
+                secs(built.verify)
+            );
+            let book_works = tagged_works(&pool, &books.tag, books.works.min(80));
+            f6(&pool, &corpus, &evidence, &book_works, keys);
+            return;
+        }
+
         // REBUILD from empty.
         let from_empty = drive_measured(
             &pool,
@@ -6735,6 +6998,7 @@ mod evidence {
             &Drive::new("F2 REBUILD from empty", &classes),
         );
         finish_pass(&from_empty, keys, Reconciled);
+        print_sizes(&pool, "after the from-empty build");
         let after_build = vacuum_facts(&pool);
         println!("VACUUM|after the from-empty build|{after_build}");
         f4_work_facts(&pool, "F4a", &f4a_works);
@@ -6842,7 +7106,15 @@ mod evidence {
             );
         }
         accept(
-            "F2 replacing step hold p95 <= 3 s (its repair run)",
+            "F2 replacing step hold p95 <= 3 s (its repair run; F2 and F3 ranges)",
+            &of_class(repaired.steps(true), &["base", "F3"]),
+            Duration::from_secs(3),
+            repaired.budget_refusals(),
+        );
+        // F4 ranges are judged by the F4 line; their repair-run holds are
+        // reported beside it.
+        accept(
+            "F2 repair run, every replacing step including F4 ranges (report only)",
             &repaired.steps(true),
             Duration::from_secs(3),
             repaired.budget_refusals(),
@@ -6859,14 +7131,17 @@ mod evidence {
             mix_line(
                 &format!("F4 {mix} from-empty steps: max of hold / fill <= 4 s"),
                 &of_class(from_empty.steps(true), &[class]),
+                from_empty.budget_refusals(),
             );
             mix_line(
                 &format!("F4 {mix} repair steps: max of hold / fill <= 4 s"),
                 &of_class(repairs[0].steps(true), &[class]),
+                repairs[0].budget_refusals(),
             );
             mix_line(
                 &format!("F4 {mix} repair steps repeated without vacuum (report only)"),
                 &of_class(repairs[1].steps(true), &[class]),
+                repairs[1].budget_refusals(),
             );
         }
 
@@ -6912,6 +7187,38 @@ mod evidence {
             threshold as f64,
             k,
         );
+
+        // Under diagnostic budgets, the F4 repair once more under the
+        // production budgets, to record what production would do; the
+        // damage is then repaired under the diagnostic budgets, unmeasured.
+        if evidence_budgets() != RunBudgets::PRODUCTION {
+            let damaged = damage_units(&pool, &f4_works);
+            let mut probe = Drive::new("F4 repair under the production budgets (probe)", &classes);
+            probe.budgets = RunBudgets::PRODUCTION;
+            probe.build_only = true;
+            probe.max_streak = 3;
+            let probed = drive_measured(&pool, &evidence, start(&pool, Rebuild), &probe);
+            print_raw(&probed);
+            summarise(&probed, keys);
+            println!(
+                "PROBE|F4 repair under the production budgets|damaged rows {damaged}|status \
+                 {:?}|replacing steps committed {}|holds above the production budget {}|budget \
+                 refusals {}|refusals {:?}|stuck {:?}",
+                probed.run.status,
+                probed.steps(true).len(),
+                over_budget(&probed.steps(true)),
+                probed.budget_refusals(),
+                probed.refusals,
+                probed.stuck,
+            );
+            if probed.run.status == Building {
+                let _ = abandon(&pool, probed.run.run_id);
+            }
+            let mut restore = Drive::new("F4 restore after the probe (unmeasured)", &classes);
+            restore.terms = false;
+            let restored = drive_measured(&pool, &evidence, start(&pool, Rebuild), &restore);
+            finish_pass(&restored, keys, Reconciled);
+        }
 
         if knob("THOTH_EVIDENCE_F6", 1) != 0 {
             let book_works = tagged_works(&pool, &books.tag, books.works.min(80));
@@ -7369,7 +7676,10 @@ mod evidence {
         if knob("THOTH_EVIDENCE_F6_FROM_EMPTY", 1) != 0 {
             truncate_projections(pool);
         }
+        // F6's bounds are stated for the production budgets, so F6 always
+        // runs with them.
         let mut drive = Drive::new("F6 paced REBUILD build phase", &Classes::new());
+        drive.budgets = RunBudgets::PRODUCTION;
         drive.paced = true;
         drive.build_only = true;
         drive.terms = false;
@@ -7425,6 +7735,7 @@ mod evidence {
             }
         );
         let mut verify = Drive::new("F6 verify phase after the workload", &Classes::new());
+        verify.budgets = RunBudgets::PRODUCTION;
         verify.terms = false;
         let ended = drive_measured(pool, evidence, built.run.clone(), &verify);
         finish_pass(&ended, keys, Reconciled);
