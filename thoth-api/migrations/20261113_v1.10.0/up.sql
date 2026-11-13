@@ -16,10 +16,13 @@
 -- CHECKs scans the table once; every existing row satisfies all four.
 --
 -- Locking: `ACCESS EXCLUSIVE` on `institution` from the ALTER until commit,
--- with `lock_timeout` 5 s on every lock wait. While the ALTER waits for its
--- lock, new statements on `institution` (reads, writes and the foreign-key
--- checks of new affiliations and fundings) queue behind it. A lock timeout
--- fails `init` with nothing applied, and the old tasks keep serving.
+-- with `lock_timeout` 5 s on every lock wait. The ALTER waits behind every
+-- open transaction that has touched `institution`, including Metrics
+-- ingestion's `FOR SHARE` on the rows it resolves. While it waits, new
+-- statements on `institution` (reads, writes and the foreign-key checks of
+-- new affiliations and fundings) queue behind it. A lock timeout fails `init`
+-- with nothing applied, and the old tasks keep serving. Expected hold: under
+-- 1 s; measured at 16 to 33 ms for the whole migration on 150,000 rows.
 --
 -- Retry and idempotency: one transaction. A concurrent second copy waits at
 -- `CREATE TYPE ror_status` on the first copy's uncommitted catalogue row, then

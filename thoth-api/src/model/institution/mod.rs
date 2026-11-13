@@ -79,7 +79,11 @@ pub struct Institution {
     pub updated_at: Timestamp,
     pub ror: Option<Ror>,
     pub country_code: Option<CountryCode>,
+    // Snapshots serialized before ROR-SYNC-01C lack these fields;
+    // deserialization must not require them, so the column defaults apply.
+    #[serde(default)]
     pub ror_status: RorStatus,
+    #[serde(default)]
     pub ror_successor: Option<Ror>,
 }
 

@@ -21,6 +21,24 @@ mod defaults {
         let fundfield: InstitutionField = Default::default();
         assert_eq!(fundfield, InstitutionField::InstitutionName);
     }
+
+    #[test]
+    fn a_snapshot_from_before_the_ror_state_fields_reads_as_active_with_no_successor() {
+        let snapshot = r#"{
+            "institutionId": "00000000-0000-0000-0000-000000000001",
+            "institutionName": "Snapshot Institution",
+            "institutionDoi": null,
+            "createdAt": "2020-01-01T00:00:00Z",
+            "updatedAt": "2020-01-01T00:00:00Z",
+            "ror": "https://ror.org/051z6e826",
+            "countryCode": null
+        }"#;
+        let institution: Institution =
+            serde_json::from_str(snapshot).expect("a pre-ROR-SYNC-01C snapshot deserializes");
+        assert_eq!(institution.ror_status, RorStatus::Active);
+        assert_eq!(institution.ror_successor, None);
+        assert_eq!(institution.institution_name, "Snapshot Institution");
+    }
 }
 
 mod display_and_parse {
