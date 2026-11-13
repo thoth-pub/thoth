@@ -1722,10 +1722,10 @@ and refusal rules.
   host stands in for production's; production's behaviour is judged again
   at each run grant (register 3.8).
 - F4's mix (b) reached k = 39, and T is 107,520. The production registry
-  pair count (against the floor, R <= 13) and production's largest
-  whole-work total (against T) are not known to this stage: they come from
-  the census's counts-only read or a separately authorized read, are stated
-  on #1012, and every `REBUILD` run grant checks them again.
+  pair count (against the floor, R <= 13) was stated on #1012 on 2026-11-13,
+  within the floor, from a read outside this stage's grant. Production's
+  largest whole-work total (against T) is still to be stated. Every
+  `REBUILD` run grant checks both again.
 - The few-series limit (section 10, Limits) is measured by mix (c), report
   only: its dearest step held 4.52 s, inside `STEP_HOLD_BUDGET`. A step of
   that shape that could not finish would be refused on every retry, a HOLD,
@@ -1740,11 +1740,12 @@ The R14 re-run (section 10.7) met every gated section 17 line on PostgreSQL
 so specification section 19 raises no HOLD. The first run's HOLD, which the
 amendment answered, is kept below as history.
 
-1. **Inputs still to be stated on #1012** (register 3.8): the production
-   registry pair count, which must be at most 13 (the floor), and
-   production's largest whole-work total, which must be at most T
-   (107,520), each from the census's counts-only read or a separately
-   authorized read. Every `REBUILD` run grant checks both again.
+1. **Inputs for the run grants** (register 3.8): the production registry
+   pair count, which must be at most 13 (the floor), was stated on #1012 on
+   2026-11-13 and was within it. Production's largest whole-work total,
+   which must be at most T (107,520), is still to be stated, from the
+   census's counts-only read or a separately authorized read. Every
+   `REBUILD` run grant checks both again.
 2. **Evidence not run**: the unpaced F6 run, which is information only.
    PostgreSQL 16 was not run again; the first run's numbers stay in
    sections 10.1 to 10.6.
