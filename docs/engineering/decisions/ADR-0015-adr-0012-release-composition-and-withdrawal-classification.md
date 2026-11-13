@@ -9,7 +9,7 @@ Parent programme: [THOTH-ASYNC-01 #957](https://github.com/thoth-pub/thoth/issue
 Authoring task: [THOTH-ASYNC-01-ENGINE-01 #1026](https://github.com/thoth-pub/thoth/issues/1026)
 Supersedes in part:
 - `ADR-0012` release composition: section 4.1 (the Release N list) and section 8 item 1 (one release for the whole shared engine, and its consumer contracts); the precondition of section 4.3 and the Phase A to Phase B rule of section 9; section 9's "Rollout should prove in order" list (items 1 to 11) and its migration test matrix, which are partitioned; the route-epoch rollback rules of section 10, which bind from Release R; and section 11's single approval gate, which is partitioned.
-- `ADR-0012` text narrowed by Property P: section 3.2's withdrawal-first order of anomaly creation against withdrawal; invariant 43's withdrawal-first sentence; section 11's withdrawal-first race item and withdrawal-first detection item; the detector clause of `A13-T15`; the withdrawal-first race of `A13-T17`; the serializable-failure-and-retry schedule of `A13-T03`; and section 3.2's first-observer provenance, which admits a third observer.
+- `ADR-0012` text narrowed by Property P and its rules: section 3.2's withdrawal-first order of anomaly creation against withdrawal; invariant 43's withdrawal-first sentence; section 11's withdrawal-first race item and withdrawal-first detection item; the detector clause of `A13-T15`; the withdrawal-first race of `A13-T17`; the serializable-failure-and-retry schedule of `A13-T03`; section 3.2's first-observer provenance, which admits a third observer; and the serializable and predicate-conflict mechanism options of section 3.2, which are removed for routing-protocol members and event-emitting transactions.
 Superseded by: None
 
 Decision: The shared engine of `ADR-0012` is delivered in two releases. Release N carries the job engine. Release R carries events, logical routes and coalescing, and must be deployed before the first route is registered or the first coalescing kind activates. Release R must also meet a new strand-safety requirement, Property P: when a revision withdrawal or a route retirement decides strand safety, every committed event that could be an in-epoch contract mismatch for the route has already been classified. This ADR also records that the staff `ACCEPT_REGRESSION` resolution of the Release N engine is an "explicitly authorized historical replay/rollback operation" in the sense of `ADR-0012` section 3.3. Every other clause of `ADR-0012` is unchanged.
@@ -18,7 +18,7 @@ Authority condition: this ADR becomes repository-authoritative only when this ex
 
 ---
 
-Line numbers in this ADR are lines of `ADR-0012` blob `896195c8e95f0590fae2d26237b6265c5bf9d1c9`, the version that was repository-authoritative when this ADR was written. This ADR's change to the `ADR-0012` header adds one line, so in later versions every line after the header is one line lower.
+Line numbers in this ADR are lines of `ADR-0012` blob `896195c8e95f0590fae2d26237b6265c5bf9d1c9`, the version that was repository-authoritative when this ADR was written. This ADR's change to the `ADR-0012` header adds one line, so in later versions every later line has a line number one higher.
 
 ## 1. Context
 
@@ -102,7 +102,8 @@ Step 1 of the programme delivers the job engine only. The clauses below supersed
 
 - The Publisher Services generic creation, cancellation and activation-guard contract, and the `thoth-app` read fields, land in Release N or in a later Thoth release.
 - Section 4.3's "After Release N is the deployed/rollback-safe Thoth version" (line 2809) becomes: after the Thoth release that carries the contract the consumer migrates onto is the deployed and rollback-safe version.
-- Section 9's rule that Release N "must be fully deployed and become a valid rollback target before any downstream consumer migration starts" (lines 3613-3614) is extended the same way. Phase A is repeated, unchanged, for Release R and for any such later release.
+- Section 9's rule that Release N "must be fully deployed and become a valid rollback target before any downstream consumer migration starts" (lines 3613-3614) is extended the same way.
+- Phase A is repeated for Release R and for any such later release. Its condition that legacy BE-04 schema and API remain present and unchanged (lines 3600-3602) applies only if BE-04 is still present when that release deploys. Every other rule of Phase A applies unchanged. This ADR decides no order between Release R and BE-04 retirement.
 - Section 4.7 (development and fresh-database path) is unchanged in effect. Release N's migration is the "additive generic schema migration" it names (line 2934). Release R's migrations follow in the same ordered history.
 
 ### 4.3 Rollout order (replaces section 9's "Rollout should prove in order", items 1 to 11)
@@ -120,6 +121,7 @@ The order of `ADR-0012` therefore changes in one respect: for non-routed, non-co
 
 - These matrix items gate Release R: event-route activation and every reactivation or revision-transition epoch; producer deployments and rollbacks that keep the emission set within the accepted-version set; closing the current epoch before a rollback below an emission floor or to an uncovered producer version; and current-state reconciliation or backfill of an authorized emission gap.
 - Every other matrix item gates Release N or the later programme step that carries it. The production-like schema with v1.7.0 applied, the pre-v1.7 upgrade, the full empty-database chain and the mixed-version rolling deploy during Phase A gate Release N. The retirement rollback window, the proof of zero runtime legacy-table access and the two contraction items gate BE-04 retirement and contraction (programme step 5 and the later storage contraction).
+- When Phase A is repeated for Release R or for a later release (section 4.2), the four items that gate Release N apply again to that release's own migrations and rolling deploy. Release N does not discharge them for a later release.
 
 ### 4.5 Rollback (section 10)
 
@@ -162,21 +164,26 @@ The single gate at line 3789 is partitioned. The table lists every job-engine it
 | full empty-database migration chain | yes | |
 | per-kind retention, coalescing and admission before high-volume activation | none | the first high-volume kind |
 | more than one compatible worker task | engine part: claims over several connections | steps 2 and 3 |
-| every routing, epoch, revision, anomaly, enrollment, withdrawal, disposition and coalescing item, and `A13-T01` to `A13-T31` | none | Release R |
+| every routing, epoch, revision, anomaly, enrollment, withdrawal, disposition and coalescing item, the thirty active A13 cases (`A13-T01` to `A13-T31`; `A13-T25` is retired) and `A14-T01` to `A14-T34` | none | Release R |
 
 ### 4.7 The legal transition table of Release N
 
-- The legal transition table of the Release N engine, as its approved specification on #1026 defines it, is the contract for non-routed jobs.
+- The contract for non-routed jobs is the trigger-enforced legal transition table that the Release N migration ships, once that migration is reviewed and merged under its own grant.
 - Release R may add preconditions to existing transitions for routed or coalescing kinds (`ADR-0012` section 3.4, obligation accounting; section 3.5, the attachment boundary). A new legal status pair needs its own reviewed specification.
-- Release N's kind policy type has no field that declares event consumption or coalescing. No routed or coalescing kind can therefore exist before Release R.
+- Release N's kind policy type must have no field that declares event consumption or coalescing, so that no routed or coalescing kind can exist before Release R.
 
 ### 4.8 The `ACCEPT_REGRESSION` reading
 
 `ADR-0012` section 3.3 says of applied-revision evidence: "It is monotonic and must not move backwards except through an explicitly authorized historical replay/rollback operation" (lines 1433-1435).
 
-The Release N engine has a protected staff command that resolves a job in `RECONCILIATION_REQUIRED`. One of its outcomes is `ACCEPT_REGRESSION`. It serves one case. A `REVISION_BOUND` job has written its revision at the provider, although the stored evidence for the target is newer (a regression) or records the same order with other content (a conflict). A forward `SUCCEEDED` cannot record that write, and `FAILED` or `CANCELLED` would deny an effect that happened. The command, with kind-validated evidence that the provider holds the job's own revision, sets the stored evidence to that revision and ends the job `SUCCEEDED`.
+The reading covers one resolution, `ACCEPT_REGRESSION`, and Release N must keep it within these limits:
 
-This ADR records that this resolution is an "explicitly authorized historical replay/rollback operation" in the sense of section 3.3, in its narrowest form. It records a regression or conflict that already happened at the provider. It performs none. An executor reconciler can never accept a regression.
+- It is an outcome of a protected staff command that resolves a job in `RECONCILIATION_REQUIRED`.
+- It serves one case. A `REVISION_BOUND` job has written its revision at the provider, although the stored evidence for the target is newer (a regression) or records the same order with other content (a conflict). A forward `SUCCEEDED` cannot record that write, and `FAILED` or `CANCELLED` would deny an effect that happened.
+- The command must carry kind-validated evidence that the provider holds the job's own revision. It sets the stored evidence to that revision and ends the job `SUCCEEDED`.
+- An executor reconciler must never accept a regression.
+
+This ADR records that such a resolution is an "explicitly authorized historical replay/rollback operation" in the sense of section 3.3, in its narrowest form. It records a regression or conflict that already happened at the provider. It performs none. The same reading applies where section 11 states the exception as "explicit historical replay authorization" (lines 4014-4015) and "authorized historical replay" (lines 4019-4021).
 
 This reading does not depend on the release composition: this ADR records it under either option of section 3.1. The Release N engine rests on `ADR-0012` lines 1433-1435 themselves.
 
@@ -195,6 +202,8 @@ When a revision withdrawal or a route retirement decides strand safety, every ev
 A committed but unclassified event can therefore never be part of a withdrawal or retirement decision. Events committed after the decision are the producer violations that `ADR-0012` already accepts (withdrawal-first).
 
 Property P changes when classification must have happened. It does not change the strand-safety predicate.
+
+**What a retirement decides.** `ADR-0012` refuses or holds for strand safety only a revision withdrawal (lines 1076-1082). It gives a route retirement no strand-safety refusal, and this ADR adds none and defines no retirement predicate. For a retirement, the decision is the point at which it commits: it commits only after it has classified every committed, unclassified event of `K(route)` (rule 2). Where a rule of this section speaks of the strand-safety scan or of a refusal for strand safety, it applies to a withdrawal. Under this ADR a retirement is refused only by rule 1(b) (locks and retry bound), rule 4 (backlog bound) and rule 7 (deadline).
 
 ### 5.3 Definitions
 
@@ -218,7 +227,7 @@ The set is read before the keys are held. A control operation therefore re-reads
 
 **Control operation.** A revision withdrawal, a route retirement, an epoch opening or an epoch closing.
 
-**Route boundary.** The route's lifecycle serialization boundary of `ADR-0012` section 3.2 (the per-`route_key` boundary, lines 1217-1222).
+**Route boundary.** The route's lifecycle serialization boundary of `ADR-0012` section 3.2 (the per-`route_key` boundary, defined at lines 292-297 and named for withdrawal and selection at lines 1217-1222).
 
 **Pair gate.** The single claim that every writer takes for an (event, route) pair before it writes a marker, an anomaly or a disposition for that pair (rule 2).
 
@@ -303,10 +312,10 @@ The routing key of an event kind is `(NS_ROUTING, hashtext(event_kind))` in the 
 
 **1(h) Routed-job identity.**
 
-- This ADR does not fix how a member avoids waiting, at a routed job's unique identity (idempotency key or coalescing identity), on a transaction outside the protocol. Every Release N idempotency key begins with its job kind, so only writers of the same routed kind can share an identity.
+- This ADR does not fix how a member avoids waiting, at a routed job's unique identity (idempotency key or coalescing identity), on a transaction outside the protocol. Every Release N idempotency key must begin with its job kind, so that only writers of the same routed kind can share an identity.
 - The Release R specification states that mechanism (for example a per-identity lock that members take without waiting), its lock order and its collision handling. It proves two things for it: no member waits on a transaction outside the protocol; and the mechanism adds no deadlock between two transactions outside the protocol that their own writes would not already create.
 - **Scope of "their own writes would not already create".** The phrase is a baseline for that second proof and for its tests: it separates what the mechanism adds from what was there without it. It is not a licence. A deadlock that two transactions outside the protocol can form through their own routed-job writes, at a shared job identity or at an attached job's row, stays forbidden by the `ADR-0012` clauses named in the next bullet. For an inline writer it is covered by the lock-order proof of rule 1(f), which includes the inline writer's own waits at a shared identity and at an attached job's row.
-- **No refusal on a collision.** A collision here means two different identities that share one key under the mechanism. The mechanism must not refuse, fail or abort a transaction outside the protocol because of a collision. Such a transaction may wait, within the stall bound of rule 7. A true conflict on one identity is not a collision in this sense: the rules of `ADR-0012` decide it (for example the atomic refusal of a stale attachment, `A14-T02`).
+- **No refusal on a collision.** A collision here means two different identities that share one key under the mechanism. The mechanism must not refuse, fail or abort a transaction outside the protocol because of a collision. Such a transaction may wait instead. A true conflict on one identity is not a collision in this sense: the rules of `ADR-0012` decide it (for example the atomic refusal of a stale attachment, `A14-T02`).
 - No residual is allowed. The no-deadlock clauses of `ADR-0012` for successor selection and creation, coalescing attachment and job-key-collision races stay binding: "deadlock-safe lock order" (line 1786), invariant 46 (lines 3366-3370), the uniqueness and rollback race tests (lines 4156-4161) and `A14-T16`. A mechanism that cannot meet them needs an ADR that supersedes those clauses, not a task specification.
 
 **1(i) Retry bounds and exhaustion outcomes.** Every member has a retry bound stated in the Release R specification. When it is exhausted:
@@ -323,6 +332,7 @@ None loops silently.
 - Every member that can hold a route boundary, a job row or an identity lock sets a `lock_timeout` for its waits on other members and has a total deadline, as a control operation does.
 - The Release R specification states the boundary's lock modes. It shows, by mode compatibility or by measurement, that transactions outside the protocol cannot starve a member at the boundary, at a job row, at a referenced row's `KEY SHARE` lock or at an identity lock.
 - It shows in the same way that members holding the boundary in the admission mode cannot starve a control operation at the boundary. This covers withdrawal, retirement, and the epoch close that `ADR-0012` section 10 requires before a rollback, for example while a materialization backlog keeps several admissions on one route.
+- This ADR states no liveness guarantee for a control operation that waits for its first routing key behind a long-running event-emitting transaction. That case is left to the Release R specification.
 
 **1(k) Enrollment and divergence keys.**
 
@@ -334,7 +344,7 @@ None loops silently.
 
 #### Rule 2 - Classify, then decide
 
-- Holding its exclusive keys, a withdrawal or retirement first runs the ordinary classifier (the detector's code path and canonical anomaly identity) over every unclassified committed event of `K(route)`. It then runs its strand-safety scan. Each runs in statements issued after the grant.
+- Holding its exclusive keys, a withdrawal or retirement first runs the ordinary classifier (the detector's code path and canonical anomaly identity) over every unclassified committed event of `K(route)`. A withdrawal then runs its strand-safety scan; a retirement has none (section 5.2). Each runs in statements issued after the grant.
 - Detection otherwise stays asynchronous, exactly as `ADR-0012` describes.
 - An asynchronous detector run commits after each (event, route) pair. Within a pair it takes or waits for the pair's gate before its first write, so it never waits while it holds an uncommitted marker or anomaly.
 - A control's classify step writes its markers and anomalies in ascending canonical order.
@@ -353,9 +363,9 @@ None loops silently.
 
 #### Rule 4 - Bounded work and refusals
 
-- If the unclassified backlog of `K(route)` exceeds a bound stated in the Release R specification, the control operation refuses with a retryable code before classifying. The exclusive section therefore stays short.
+- If the unclassified backlog of `K(route)` exceeds a bound stated in the Release R specification, a withdrawal or retirement refuses with a retryable code before classifying. Epoch opening and closing never refuse on backlog (rule 2). The exclusive section therefore stays short.
 - The backlog count and the scan are index-bounded. There is no full event scan.
-- A control operation that classifies and then refuses for strand safety commits its markers, its anomalies and its refusal record together (a committed refusal), so a retry does not repeat the work.
+- A withdrawal that classifies and then refuses for strand safety commits its markers, its anomalies and its refusal record together (a committed refusal), so a retry does not repeat the work.
 - Each classify batch and the strand-safety scan run under a savepoint. A `lock_timeout` or `statement_timeout` therefore rolls back only that statement's batch, and the control still commits its earlier batches with a retryable committed refusal (rule 7).
 
 #### Rule 5 - Isolation
@@ -389,7 +399,7 @@ So a business transaction that waits on a lock a member holds is behind a member
 **Timeouts of business transactions.** A business transaction with its own `lock_timeout` or `statement_timeout` can still time out during the stall. The repository has such paths, for example `SET LOCAL lock_timeout = '1s'` in `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs`. Therefore:
 
 - The Release R specification bounds the stall in time. The bound includes waits behind a member's identity lock, job row or boundary, and the `deadlock_timeout` that passes before a queue-order wait is reordered.
-- Because `lock_timeout` bounds each wait separately, a control also has a total deadline for its transaction, stated in the Release R specification and checked before each classify batch. The stall is then bounded by that deadline plus one batch, its strand-safety scan and its commit, rather than by a sum of waits. The Release R specification states that sum, or runs each statement after the check with `statement_timeout` set to the time left, under the savepoint of rule 4.
+- Because `lock_timeout` bounds each wait separately, a control also has a total deadline for its transaction, stated in the Release R specification. A withdrawal or retirement checks it before each classify batch. The stall is then bounded by that deadline plus one batch, the strand-safety scan of a withdrawal and the commit, rather than by a sum of waits. The Release R specification states that sum, or runs each statement after the check with `statement_timeout` set to the time left, under the savepoint of rule 4.
 - A control that reaches its deadline commits the markers and anomalies it has written together with a retryable committed refusal, as rule 4 does.
 - Every event-emitting path states its timeouts against that bound.
 
@@ -426,7 +436,7 @@ The stale-scan rule is unchanged. It stays binding on every anomaly-creating pat
 7. A multi-event enrollment against concurrent single-pair detector runs.
 8. An inline writer that creates a routed job, and one that attaches to a coalescing-admission-open job, while an enrollment or an asynchronous materializer writes a job with the same identity, in both orders and with two identities taken in opposite orders: no cycle and no aborted business transaction, because after its first lock the member never waits outside the protocol (rule 1(e)).
 9. An enrollment that has written its job and needs a route boundary held by an inline writer, which is itself waiting for a business row whose holder then writes a job with the same identity. Both the enrollment and the inline writer are admissions, so the shared admission mode grants the enrollment's boundary request at once: no wait, no retry and no deadlock, and the business transactions finish.
-10. Two transactions outside the protocol that both write routed jobs A then B (ascending idempotency-key order, which Release N requires of a caller that creates more than one job in one transaction), while one of them learns both identities together, so that a mechanism that orders by its own key would take them in the other order; and two whose identities share a key under the mechanism (a forced collision). Neither pair deadlocks, and no transaction is refused because of the collision.
+10. Two transactions outside the protocol that both write routed jobs A then B (ascending idempotency-key order, which a Release N caller that creates more than one job in one transaction must follow), while one of them learns both identities together, so that a mechanism that orders by its own key would take them in the other order; and two whose identities share a key under the mechanism (a forced collision). Neither pair deadlocks, and no transaction is refused because of the collision.
 11. A forced collision of two pairs' gates, if the gate is hashed.
 12. For each member type (detector, control operation, enrollment, divergence, asynchronous materializer and staff terminal disposition writer), a run that exhausts its retry bound and ends in the outcome that rule 1(i) states for that type.
 13. An asynchronous materializer about to attach to a coalescing job, which needs that job's row, while an authorized current-state supersession holds that row (it is cancelling the job) and then creates its superseding job with the same identity, in both lock orders: no aborted business transaction (`A14-T16`).
@@ -441,6 +451,7 @@ The stale-scan rule is unchanged. It stays binding on every anomaly-creating pat
 22. An event of a kind in `K(route)` that its own epoch's revision does not consume: it never needs a marker and never counts as backlog.
 23. An event insert inside a savepoint that rolls back, followed by an insert of the same kind: the key is taken again.
 24. A detector and a withdrawal classifying the same events, including a detector that is mid-transaction on an event when the withdrawal reaches it: the withdrawal waits within its `lock_timeout` under the savepoint of rule 4, then classifies or commits a retryable refusal, and no deadlock occurs.
+25. A member that has taken its first lock and then requests a route boundary that a control operation holds in the control mode: the request fails without waiting, and the member rolls back and retries (rule 1(e)). This tests the existing non-waiting rule, which tests 9 and 16 no longer exercise.
 
 ### 5.5 Why this closes the window
 
@@ -452,7 +463,7 @@ Every kind the decision depends on is in `K(route)`. No schedule leaves a commit
 
 ### 5.6 `ADR-0012` text that Property P narrows, and what stays binding
 
-Property P and its rules narrow `ADR-0012` text in three ways. This is the complete list.
+Property P and its rules narrow `ADR-0012` text in four ways. This is the complete list.
 
 **First, the withdrawal-first order.** The withdrawal-first order, and the rules and proofs written for it, apply only to events committed after the withdrawal or retirement decides. An event committed before the decision is classified first. The narrowed text is:
 
@@ -468,6 +479,8 @@ The stale-scan rule ("A withdrawal transaction whose scan preceded the anomaly's
 
 **Third, the serializable schedule of `A13-T03`.** `A13-T03` requires "at least one explicit serializable-failure-and-retry schedule" (lines 4343-4344). That schedule cannot occur, because every routing-protocol member runs READ COMMITTED and fails closed otherwise (rule 5). It is replaced by the isolation fail-closed test (rule 8, test 17) and by the remaining row-lock and unique-key schedules of `A13-T03`.
 
+**Fourth, mechanism latitude and isolation.** `ADR-0012` leaves the mechanism of the canonical anomaly decision order, of the strand-safety boundary and of the withdrawal/selection order to the implementation specification (lines 900-903, 1034-1038, 1122-1130, 1217-1222 and 3289-3290), and says "this ADR selects no lock order, SQL or schema" (lines 1037-1038). This ADR fixes parts of that mechanism at ADR level: the routing keys, the boundary modes, the pair gate and READ COMMITTED isolation (rules 1, 2 and 5). The lock selections are among the options those lines allow. Rule 5 removes options those lines name: "predicate or serializable conflict detection" (lines 901-902), "serializable retries" (line 1034) and "a serializable or predicate-conflict mechanism" (lines 1124-1125) are not available to a routing-protocol member or an event-emitting transaction. Every other choice those lines leave open stays with the Release R specification, within the rules of section 5.
+
 Every other A13 case, every other part of `A13-T03` and `A13-T17`, and every decision-order rule is unchanged.
 
 Every other `ADR-0012` clause, invariant, rule and validation item stays in force unchanged, and every routing and coalescing rule binds Release R exactly as written.
@@ -479,7 +492,7 @@ These restate the decision. They add nothing to sections 4 and 5.
 1. No route is registered and no coalescing kind is activated before Release R is deployed. No routed or coalescing kind can exist in Release N.
 2. Release N keeps everything `ADR-0012` section 4.1 says about legacy BE-04 storage and its released contract.
 3. A consumer migrates only after the Thoth release that carries the contract it migrates onto is deployed and rollback-safe.
-4. Property P: a withdrawal or retirement never decides strand safety while a committed event that needs classifying for the route is unclassified.
+4. Property P: a withdrawal never decides strand safety, and a retirement never commits, while a committed event that needs classifying for the route is unclassified.
 5. The strand-safety predicate of `ADR-0012` and its stale-scan rule are unchanged.
 6. Detection stays asynchronous outside control operations. Classification never runs in a business transaction.
 7. The routing protocol never aborts a business transaction through a deadlock. No residual is allowed.
@@ -516,7 +529,7 @@ Consumers: each consumer specification shows that its job creation path is a dir
 
 Migration: none from this ADR. Release N's migration is the additive generic schema migration of `ADR-0012` section 4.7. Release R's migrations follow in the same ordered history.
 
-Rollout: documentation only, with no runtime effect. The releases roll out in the order of section 4.3. Phase A of `ADR-0012` section 9 is repeated for Release R and for any later release that carries a consumer contract (section 4.2).
+Rollout: documentation only, with no runtime effect. The releases roll out in the order of section 4.3. Phase A of `ADR-0012` section 9 is repeated for Release R and for any later release that carries a consumer contract, with the BE-04 condition of section 4.2 and the migration items of section 4.4.
 
 Rollback: Release N follows the rules of `ADR-0012` section 10 other than the route-epoch rules, which bind from Release R (section 4.5). Rollback of this decision requires a further superseding ADR.
 
@@ -524,16 +537,16 @@ Rollback: Release N follows the rules of `ADR-0012` section 10 other than the ro
 
 Release N obligations:
 
-- the Release N parts of the rollout order (section 4.3, step 1);
+- the Release N parts of the rollout order (section 4.3, part 1);
 - the matrix items that gate Release N (section 4.4);
 - every item and part in the "Release N" column of section 4.6.
 
 Release R obligations:
 
-- the Release R parts of the rollout order (section 4.3, step 3), before any routed or coalescing kind is activated;
-- the matrix items that gate Release R (section 4.4);
-- every `ADR-0012` section 11 item for routing, epochs, revisions, anomalies, enrollment, withdrawal, dispositions and coalescing, and `A13-T01` to `A13-T31`, as narrowed only by section 5.6;
-- every test of rule 8, including the proof with the asynchronous detector paused, the stale-scan test and tests 1 to 24.
+- the Release R parts of the rollout order (section 4.3, part 3), before any routed or coalescing kind is activated;
+- the matrix items that gate Release R, and the Release N matrix items again for Release R's own migrations and rolling deploy (section 4.4);
+- every `ADR-0012` section 11 item for routing, epochs, revisions, anomalies, enrollment, withdrawal, dispositions and coalescing, the thirty active A13 cases and `A14-T01` to `A14-T34`, as narrowed only by section 5.6;
+- every test of rule 8, including the proof with the asynchronous detector paused, the stale-scan test and tests 1 to 25.
 
 Evidence for this decision:
 
