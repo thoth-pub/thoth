@@ -49,11 +49,13 @@
 //! anything must be rebuilt, and after rebuilding, where an inexact result
 //! rolls the whole rebuild back.
 
+use chrono::NaiveDate;
 use diesel::pg::PgConnection;
 use diesel::result::Error as DieselError;
-use diesel::sql_types::{BigInt, Nullable, Text, Timestamptz};
-use diesel::RunQueryDsl;
+use diesel::sql_types::{BigInt, Date, Nullable, Text, Timestamptz, Uuid as SqlUuid};
+use diesel::{QueryableByName, RunQueryDsl};
 use thoth_errors::ThothResult;
+use uuid::Uuid;
 
 use super::crud::{broken_invariant, rejected};
 use super::{MetricRollupMonthProjectionVerification, MetricRollupMonthVerification};
@@ -149,7 +151,14 @@ pub(crate) fn require_work_day_within_frontier(
 // The independent expected-state derivation and comparison
 // ---------------------------------------------------------------------------
 
-/// The one comparison statement.
+/// The fragments of the one comparison statement, [`VERIFICATION_SQL`], and
+/// of its range form, [`RANGE_VERIFICATION_SQL`] (`MET-WP4-03A-OPS-03`).
+///
+/// The statement is split only where the range form adds a predicate or an
+/// output, so [`VERIFICATION_SQL`] is exactly the fragments in order with
+/// nothing between them, and its rendered text is the text the OPS-02
+/// specification approved; a hash test pins it. The fragments are
+/// verifier-only: no writer statement, constant or macro uses them.
 ///
 /// Structure, top to bottom:
 ///
@@ -200,7 +209,9 @@ pub(crate) fn require_work_day_within_frontier(
 /// `SUM(bigint)` is exact `numeric`; the cast back to `bigint` is what fails
 /// closed, from PostgreSQL itself, when an expected monthly or yearly total
 /// would overflow.
-pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
+macro_rules! verification_head_sql {
+    () => {
+        "WITH membership AS ( \
          SELECT s.s, m.m \
          FROM generate_series(0, 255) AS s(s) \
          CROSS JOIN generate_series(0, 7) AS m(m) \
@@ -270,8 +281,14 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
              SELECT CASE WHEN r.publication_id IS NULL THEN 0 ELSE 4 END \
                   + CASE WHEN r.country_code IS NULL THEN 0 ELSE 2 END \
                   + CASE WHEN r.institution_id IS NULL THEN 0 ELSE 1 END AS mask \
-         ) x \
-     ), \
+         ) x "
+    };
+}
+
+/// From the end of `day_rows` through the actual side of `total_compare`.
+macro_rules! verification_total_sql {
+    () => {
+        "), \
      resolved AS ( \
          SELECT d.work_id, d.publication_id, d.platform_id, d.measure_id, d.month_start, \
                 d.year_start, d.country_code, d.institution_id, d.value, d.watermark, d.mask, \
@@ -365,8 +382,15 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  SELECT work_id, publication_id, platform_id, measure_id, month_start, value, \
                         requires_country_coverage, requires_institution_coverage, watermark, \
                         0, 1 \
-                 FROM public.metric_rollup_work_month \
-             ) u \
+                 FROM public.metric_rollup_work_month "
+    };
+}
+
+/// From the end of `total_compare` through the actual side of
+/// `country_compare`.
+macro_rules! verification_country_sql {
+    () => {
+        ") u \
              GROUP BY work_id, publication_id, platform_id, measure_id, month_start \
          ) g \
      ), \
@@ -393,8 +417,15 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  SELECT work_id, publication_id, platform_id, measure_id, month_start, \
                         country_code, value, requires_institution_coverage, watermark, \
                         0, 1 \
-                 FROM public.metric_rollup_work_country_month \
-             ) u \
+                 FROM public.metric_rollup_work_country_month "
+    };
+}
+
+/// From the end of `country_compare` through the actual side of
+/// `institution_compare`.
+macro_rules! verification_institution_sql {
+    () => {
+        ") u \
              GROUP BY work_id, publication_id, platform_id, measure_id, month_start, country_code \
          ) g \
      ), \
@@ -420,8 +451,15 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  SELECT work_id, publication_id, platform_id, measure_id, month_start, \
                         institution_id, value, requires_country_coverage, watermark, \
                         0, 1 \
-                 FROM public.metric_rollup_work_institution_month \
-             ) u \
+                 FROM public.metric_rollup_work_institution_month "
+    };
+}
+
+/// From the end of `institution_compare` through the actual side of
+/// `ambiguity_compare`.
+macro_rules! verification_ambiguity_sql {
+    () => {
+        ") u \
              GROUP BY work_id, publication_id, platform_id, measure_id, month_start, \
                       institution_id \
          ) g \
@@ -447,8 +485,15 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  UNION ALL \
                  SELECT work_id, platform_id, measure_id, month_start, total_ambiguous, \
                         country_ambiguous, institution_ambiguous, watermark, 0, 1 \
-                 FROM public.metric_rollup_work_month_ambiguity \
-             ) u \
+                 FROM public.metric_rollup_work_month_ambiguity "
+    };
+}
+
+/// From the end of `ambiguity_compare` through the actual side of
+/// `country_year_compare`.
+macro_rules! verification_country_year_sql {
+    () => {
+        ") u \
              GROUP BY work_id, platform_id, measure_id, month_start \
          ) g \
      ), \
@@ -475,8 +520,15 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  SELECT work_id, publication_id, platform_id, measure_id, year_start, \
                         country_code, value, requires_institution_coverage, watermark, \
                         0, 1 \
-                 FROM public.metric_rollup_work_country_year \
-             ) u \
+                 FROM public.metric_rollup_work_country_year "
+    };
+}
+
+/// From the end of `country_year_compare` through the actual side of
+/// `institution_year_compare`.
+macro_rules! verification_institution_year_sql {
+    () => {
+        ") u \
              GROUP BY work_id, publication_id, platform_id, measure_id, year_start, country_code \
          ) g \
      ), \
@@ -502,13 +554,26 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
                  SELECT work_id, publication_id, platform_id, measure_id, year_start, \
                         institution_id, value, requires_country_coverage, watermark, \
                         0, 1 \
-                 FROM public.metric_rollup_work_institution_year \
-             ) u \
+                 FROM public.metric_rollup_work_institution_year "
+    };
+}
+
+/// The end of `institution_year_compare`, which closes the `WITH` list.
+macro_rules! verification_compare_end_sql {
+    () => {
+        ") u \
              GROUP BY work_id, publication_id, platform_id, measure_id, year_start, \
                       institution_id \
          ) g \
-     ) \
-     SELECT t.expected_rows AS total_expected_rows, t.actual_rows AS total_actual_rows, \
+     )"
+    };
+}
+
+/// The output columns: the five counts and the greatest actual watermark of
+/// each family.
+macro_rules! verification_columns_sql {
+    () => {
+        " SELECT t.expected_rows AS total_expected_rows, t.actual_rows AS total_actual_rows, \
             t.missing_rows AS total_missing_rows, t.extra_rows AS total_extra_rows, \
             t.mismatched_rows AS total_mismatched_rows, \
             t.actual_max_watermark AS total_actual_max_watermark, \
@@ -537,13 +602,277 @@ pub(crate) const VERIFICATION_SQL: &str = "WITH membership AS ( \
             iy.missing_rows AS institution_year_missing_rows, \
             iy.extra_rows AS institution_year_extra_rows, \
             iy.mismatched_rows AS institution_year_mismatched_rows, \
-            iy.actual_max_watermark AS institution_year_actual_max_watermark \
-     FROM total_compare t \
+            iy.actual_max_watermark AS institution_year_actual_max_watermark"
+    };
+}
+
+/// The six one-row comparisons, crossed into the one output row.
+macro_rules! verification_from_sql {
+    () => {
+        " FROM total_compare t \
      CROSS JOIN country_compare c \
      CROSS JOIN institution_compare i \
      CROSS JOIN ambiguity_compare m \
      CROSS JOIN country_year_compare cy \
-     CROSS JOIN institution_year_compare iy";
+     CROSS JOIN institution_year_compare iy"
+    };
+}
+
+/// The one comparison statement over the whole work-day projection and the
+/// whole of every derived table: the fragments above, in order, with nothing
+/// between them.
+pub(crate) const VERIFICATION_SQL: &str = concat!(
+    verification_head_sql!(),
+    verification_total_sql!(),
+    verification_country_sql!(),
+    verification_institution_sql!(),
+    verification_ambiguity_sql!(),
+    verification_country_year_sql!(),
+    verification_institution_year_sql!(),
+    verification_compare_end_sql!(),
+    verification_columns_sql!(),
+    verification_from_sql!(),
+);
+
+// ---------------------------------------------------------------------------
+// MET-WP4-03A-OPS-03: the range verifier
+// ---------------------------------------------------------------------------
+//
+// The range form applies the same generic rules to the work-day rows and the
+// derived rows of one range `(lo, hi]` of units `(work_id, year_start)`, in
+// unit order. Its bounds are four bind parameters: `$1` and `$2` are the
+// lower bound's `work_id` and the 31 December of its year (`NULL` for minus
+// infinity, with `$1` the nil uuid), and `$3` and `$4` the upper bound's
+// (`NULL` for plus infinity, with `$3` the greatest uuid). A work-day row is
+// in the range when `(work_id, day)` lies in `((lo, 31 Dec), (hi, 31 Dec)]`:
+// the `(work_id, day)` index range. A derived row is in the range when its
+// `(work_id, month_start)` or `(work_id, year_start)` lies in the same
+// interval, which places it by its own year, so orphan rows are covered; the
+// explicit `work_id` bounds are what the identity indexes lead with.
+
+/// The work-day predicate of the range form, closing `day_rows`.
+macro_rules! range_work_day_filter_sql {
+    () => {
+        "WHERE r.work_id >= $1 AND r.work_id <= $3 \
+           AND (r.work_id, r.day) > ($1, COALESCE($2, '-infinity'::date)) \
+           AND (r.work_id, r.day) <= ($3, COALESCE($4, 'infinity'::date)) "
+    };
+}
+
+/// The predicate on a monthly table's actual rows.
+macro_rules! range_month_filter_sql {
+    () => {
+        "WHERE work_id >= $1 AND work_id <= $3 \
+           AND (work_id, month_start) > ($1, COALESCE($2, '-infinity'::date)) \
+           AND (work_id, month_start) <= ($3, COALESCE($4, 'infinity'::date)) "
+    };
+}
+
+/// The predicate on a yearly table's actual rows.
+macro_rules! range_year_filter_sql {
+    () => {
+        "WHERE work_id >= $1 AND work_id <= $3 \
+           AND (work_id, year_start) > ($1, COALESCE($2, '-infinity'::date)) \
+           AND (work_id, year_start) <= ($3, COALESCE($4, 'infinity'::date)) "
+    };
+}
+
+/// The comparison statement of one range: [`VERIFICATION_SQL`] with the
+/// range predicate on the work-day rows and on every actual table, plus the
+/// range's work-day row count, represented month-key count and greatest
+/// work-day watermark, from the resolved rows of the range.
+pub(crate) const RANGE_VERIFICATION_SQL: &str = concat!(
+    verification_head_sql!(),
+    range_work_day_filter_sql!(),
+    verification_total_sql!(),
+    range_month_filter_sql!(),
+    verification_country_sql!(),
+    range_month_filter_sql!(),
+    verification_institution_sql!(),
+    range_month_filter_sql!(),
+    verification_ambiguity_sql!(),
+    range_month_filter_sql!(),
+    verification_country_year_sql!(),
+    range_year_filter_sql!(),
+    verification_institution_year_sql!(),
+    range_year_filter_sql!(),
+    verification_compare_end_sql!(),
+    ", range_stats AS ( \
+         SELECT count(*) AS work_day_rows, \
+                count(DISTINCT (work_id, platform_id, measure_id, month_start)) AS month_keys, \
+                MAX(watermark) AS max_work_day_watermark \
+         FROM resolved \
+     )",
+    verification_columns_sql!(),
+    ", s.work_day_rows, s.month_keys, s.max_work_day_watermark",
+    verification_from_sql!(),
+    " CROSS JOIN range_stats s",
+);
+
+/// The bounds of one range `(lo, hi]` of units, as the range verifier binds
+/// them. A bound's date is the 31 December of its unit's year; `None` is
+/// minus infinity for the lower bound (with the nil uuid) and plus infinity
+/// for the upper bound (with the greatest uuid).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RangeBounds {
+    pub(crate) lo_work_id: Uuid,
+    pub(crate) lo_end: Option<NaiveDate>,
+    pub(crate) hi_work_id: Uuid,
+    pub(crate) hi_end: Option<NaiveDate>,
+}
+
+/// The single row the range comparison statement returns.
+#[derive(diesel::QueryableByName)]
+struct RangeComparisonRow {
+    #[diesel(embed)]
+    comparison: ComparisonRow,
+    #[diesel(sql_type = BigInt)]
+    work_day_rows: i64,
+    #[diesel(sql_type = BigInt)]
+    month_keys: i64,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    max_work_day_watermark: Option<i64>,
+}
+
+/// The bounded result of one range verification: the five counts of each of
+/// the six families, the greatest actual watermark of each family (in the
+/// family order `total`, `country`, `institution`, `ambiguity`,
+/// `country_year`, `institution_year`), and the range's work-day facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RangeVerification {
+    pub(crate) total: MetricRollupMonthProjectionVerification,
+    pub(crate) country: MetricRollupMonthProjectionVerification,
+    pub(crate) institution: MetricRollupMonthProjectionVerification,
+    pub(crate) ambiguity: MetricRollupMonthProjectionVerification,
+    pub(crate) country_year: MetricRollupMonthProjectionVerification,
+    pub(crate) institution_year: MetricRollupMonthProjectionVerification,
+    pub(crate) actual_max_watermarks: [Option<i64>; 6],
+    pub(crate) work_day_rows: i64,
+    pub(crate) month_keys: i64,
+    pub(crate) max_work_day_watermark: Option<i64>,
+}
+
+impl RangeVerification {
+    /// The six families, in the fixed family order.
+    pub(crate) fn families(&self) -> [&MetricRollupMonthProjectionVerification; 6] {
+        [
+            &self.total,
+            &self.country,
+            &self.institution,
+            &self.ambiguity,
+            &self.country_year,
+            &self.institution_year,
+        ]
+    }
+
+    /// The missing rows summed over the six families.
+    pub(crate) fn missing_rows(&self) -> i64 {
+        self.families().iter().map(|f| f.missing_rows).sum()
+    }
+
+    /// The extra rows summed over the six families.
+    pub(crate) fn extra_rows(&self) -> i64 {
+        self.families().iter().map(|f| f.extra_rows).sum()
+    }
+
+    /// The mismatched rows summed over the six families.
+    pub(crate) fn mismatched_rows(&self) -> i64 {
+        self.families().iter().map(|f| f.mismatched_rows).sum()
+    }
+
+    /// Whether some work-day row of the range is watermarked above
+    /// `frontier`: out-of-band damage no range result can describe.
+    pub(crate) fn work_day_above(&self, frontier: i64) -> bool {
+        self.max_work_day_watermark
+            .is_some_and(|watermark| watermark > frontier)
+    }
+
+    /// Whether the range is exact at `frontier`: every family has zero
+    /// missing, extra and mismatched rows, and no derived row of the range
+    /// is watermarked above `frontier`.
+    pub(crate) fn exact_at(&self, frontier: i64) -> bool {
+        self.families().iter().all(|family| exact(family))
+            && self
+                .actual_max_watermarks
+                .iter()
+                .all(|watermark| watermark.is_none_or(|watermark| watermark <= frontier))
+    }
+}
+
+/// Compare the six families against their independently derived expected
+/// state over one range of units, in the caller's transaction and snapshot,
+/// with one statement.
+///
+/// Reads only, and returns the raw database error so the caller can classify
+/// it before any conversion; an overflow of an expected sum surfaces from
+/// PostgreSQL's own cast as `bigint out of range`.
+pub(crate) fn verify_range(
+    connection: &mut PgConnection,
+    bounds: &RangeBounds,
+) -> Result<RangeVerification, DieselError> {
+    let row: RangeComparisonRow = diesel::sql_query(RANGE_VERIFICATION_SQL)
+        .bind::<SqlUuid, _>(bounds.lo_work_id)
+        .bind::<Nullable<Date>, _>(bounds.lo_end)
+        .bind::<SqlUuid, _>(bounds.hi_work_id)
+        .bind::<Nullable<Date>, _>(bounds.hi_end)
+        .get_result(connection)?;
+    let c = row.comparison;
+    Ok(RangeVerification {
+        total: family(
+            c.total_expected_rows,
+            c.total_actual_rows,
+            c.total_missing_rows,
+            c.total_extra_rows,
+            c.total_mismatched_rows,
+        ),
+        country: family(
+            c.country_expected_rows,
+            c.country_actual_rows,
+            c.country_missing_rows,
+            c.country_extra_rows,
+            c.country_mismatched_rows,
+        ),
+        institution: family(
+            c.institution_expected_rows,
+            c.institution_actual_rows,
+            c.institution_missing_rows,
+            c.institution_extra_rows,
+            c.institution_mismatched_rows,
+        ),
+        ambiguity: family(
+            c.ambiguity_expected_rows,
+            c.ambiguity_actual_rows,
+            c.ambiguity_missing_rows,
+            c.ambiguity_extra_rows,
+            c.ambiguity_mismatched_rows,
+        ),
+        country_year: family(
+            c.country_year_expected_rows,
+            c.country_year_actual_rows,
+            c.country_year_missing_rows,
+            c.country_year_extra_rows,
+            c.country_year_mismatched_rows,
+        ),
+        institution_year: family(
+            c.institution_year_expected_rows,
+            c.institution_year_actual_rows,
+            c.institution_year_missing_rows,
+            c.institution_year_extra_rows,
+            c.institution_year_mismatched_rows,
+        ),
+        actual_max_watermarks: [
+            c.total_actual_max_watermark,
+            c.country_actual_max_watermark,
+            c.institution_actual_max_watermark,
+            c.ambiguity_actual_max_watermark,
+            c.country_year_actual_max_watermark,
+            c.institution_year_actual_max_watermark,
+        ],
+        work_day_rows: row.work_day_rows,
+        month_keys: row.month_keys,
+        max_work_day_watermark: row.max_work_day_watermark,
+    })
+}
 
 /// The single row the comparison statement returns.
 #[derive(diesel::QueryableByName)]

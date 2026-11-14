@@ -30,6 +30,16 @@
 //! signatures, the exact additive shape, the corrected descriptions, and a
 //! yearly-only corruption diagnosed and repaired through the resolvers.
 //!
+//! `MET-WP4-03A-OPS-03` adds exactly four further protected operations for
+//! the resumable run, `startMetricRollupMonthRebuild`,
+//! `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild` and
+//! `metricRollupMonthRebuildRun`, under the same boundary. The evidence here
+//! is their complete authorization matrix, that a denied call opens no
+//! transaction and issues no rollup-specific statement, a run driven through
+//! the resolvers from start to `RECONCILED`, the fixed refusals as seen
+//! through GraphQL, bounded results that carry no identity, and the strictly
+//! additive SDL.
+//!
 //! Frontier, lease, atomicity, arithmetic, watermark, monthly and yearly
 //! resolution, verification, rebuild, rollback, concurrency and migration
 //! evidence lives with the durable state itself, in
@@ -50,9 +60,17 @@ use super::{create_schema, Context, GraphQLRequest, Schema};
 use crate::db::PgPool;
 use crate::model::metric_platform::tests::setup_registry_db;
 use crate::model::metric_record_revision::tests::fixture_record;
+use crate::model::metric_rollup_delta::rebuild_run::{
+    abandon_metric_rollup_month_rebuild, metric_rollup_month_rebuild_run,
+    start_metric_rollup_month_rebuild, RunRow,
+};
 use crate::model::metric_rollup_delta::tests::{
-    commit_work_day_delta, country_year_rows, day, deltas, logging_pool, month_rows, projection,
-    state, DayDimensions, DAY_ONE, DAY_TWO,
+    commit_work_day_delta, country_year_rows, day, deltas, exec, logging_pool, month_rows,
+    projection, state, DayDimensions, HeldTransaction, DAY_ONE, DAY_TWO,
+};
+use crate::model::metric_rollup_delta::{
+    AbandonMetricRollupMonthRebuildInput, MetricRollupMonthRebuildMode,
+    MetricRollupMonthRebuildRun, StartMetricRollupMonthRebuildInput,
 };
 use crate::model::tests::db as test_db;
 use crate::policy::Role;
@@ -838,6 +856,558 @@ async fn the_bounded_rejections_reach_the_caller_without_leaking_state() {
 }
 
 // ==========================================================================
+// `MET-WP4-03A-OPS-03`: the resumable run operations
+// ==========================================================================
+
+/// One family's five bounded counts, every field once.
+const FAMILY_FIELDS: &str = "{ expectedRows actualRows missingRows extraRows mismatchedRows }";
+
+/// Every field of a run, once.
+fn run_fields() -> String {
+    format!(
+        "runId mode status stepCount positionPermille startedAt updatedAt buildCompletedAt \
+         completedAt startAppliedThroughSequence \
+         build {{ steps replacedSteps units monthKeys workDayRows foundMissingRows \
+           foundExtraRows foundMismatchedRows firstAppliedThroughSequence \
+           lastAppliedThroughSequence }} \
+         verify {{ pages units monthKeys workDayRows firstAppliedThroughSequence \
+           lastAppliedThroughSequence singleFrontier counts {{ total {FAMILY_FIELDS} \
+           country {FAMILY_FIELDS} institution {FAMILY_FIELDS} ambiguity {FAMILY_FIELDS} \
+           countryYear {FAMILY_FIELDS} institutionYear {FAMILY_FIELDS} }} }}"
+    )
+}
+
+/// The scalar leaves of one `REBUILD` run selected with [`run_fields`]: ten
+/// run fields, ten build fields, seven verify fields and six families of
+/// five counts.
+const RUN_LEAVES: usize = 10 + 10 + 7 + 6 * 5;
+
+fn start_run_document(mode: &str) -> String {
+    format!(
+        "mutation {{ startMetricRollupMonthRebuild(input: {{ mode: {mode} }}) {{ {} }} }}",
+        run_fields()
+    )
+}
+
+fn advance_run_document(run_id: &str, expected: &str) -> String {
+    format!(
+        "mutation {{ advanceMetricRollupMonthRebuild(input: {{ runId: \"{run_id}\", \
+           expectedStepCount: \"{expected}\" }}) {{ advanced run {{ {} }} }} }}",
+        run_fields()
+    )
+}
+
+fn abandon_run_document(run_id: &str) -> String {
+    format!(
+        "mutation {{ abandonMetricRollupMonthRebuild(input: {{ runId: \"{run_id}\" }}) \
+           {{ {} }} }}",
+        run_fields()
+    )
+}
+
+fn run_status_document(run_id: Option<&str>) -> String {
+    let argument = run_id.map_or(String::new(), |id| format!("(runId: \"{id}\")"));
+    format!(
+        "mutation {{ metricRollupMonthRebuildRun{argument} {{ {} }} }}",
+        run_fields()
+    )
+}
+
+const QUERY_INVALID_MESSAGE: &str = "The monthly rebuild run request is invalid: the run does \
+     not exist, or expectedStepCount is not a decimal string holding a non-negative 64-bit \
+     integer. Nothing was changed.";
+
+/// Every stored run row, principal and cursor included, oldest first.
+fn stored_runs(pool: &PgPool) -> Vec<RunRow> {
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    diesel::sql_query("SELECT * FROM metric_rollup_month_rebuild_run ORDER BY started_at, run_id")
+        .load::<RunRow>(&mut connection)
+        .expect("the run rows")
+}
+
+/// The open run, started directly as a `VERIFY` run when none is open.
+fn open_run(pool: &PgPool) -> MetricRollupMonthRebuildRun {
+    match metric_rollup_month_rebuild_run(pool, None).expect("the status read") {
+        Some(run) if run.status.is_open() => run,
+        _ => start_metric_rollup_month_rebuild(
+            pool,
+            &StartMetricRollupMonthRebuildInput {
+                mode: MetricRollupMonthRebuildMode::Verify,
+            },
+            "metrics-rebuild-test-service",
+        )
+        .expect("start"),
+    }
+}
+
+/// No open run: an open one is abandoned directly.
+fn no_open_run(pool: &PgPool) {
+    if let Some(run) = metric_rollup_month_rebuild_run(pool, None).expect("the status read") {
+        if run.status.is_open() {
+            abandon_metric_rollup_month_rebuild(
+                pool,
+                &AbandonMetricRollupMonthRebuildInput { run_id: run.run_id },
+            )
+            .expect("abandon");
+        }
+    }
+}
+
+/// Apply the two seeded deltas through the resolvers: frontier 2 and one
+/// month row of value 30.
+async fn apply_seeded(schema: &Schema, context: &Context) {
+    let claims = data(
+        &run(schema, context, CLAIM).await,
+        "claimMetricRollupDeltas",
+    )
+    .clone();
+    let token: Uuid = claims[0]["claimToken"]
+        .as_str()
+        .expect("claimToken")
+        .parse()
+        .expect("a UUID claim token");
+    data(
+        &run(schema, context, &complete(token)).await,
+        "completeMetricRollupDeltas",
+    );
+}
+
+/// The scalar leaves of a response value. A list anywhere fails: a run
+/// result has one fixed shape, whatever the data.
+fn scalar_leaves(value: &JsonValue) -> usize {
+    match value {
+        JsonValue::Array(_) => panic!("a run result holds no list: {value}"),
+        JsonValue::Object(fields) => fields.values().map(scalar_leaves).sum(),
+        _ => 1,
+    }
+}
+
+/// Every work, publication, platform and measure identity of the work-day
+/// projection, as text.
+fn fixture_identities(pool: &PgPool) -> Vec<String> {
+    projection(pool)
+        .iter()
+        .flat_map(|row| {
+            [
+                Some(row.work_id),
+                row.publication_id,
+                Some(row.platform_id),
+                Some(row.measure_id),
+            ]
+        })
+        .flatten()
+        .map(|id| id.to_string())
+        .collect()
+}
+
+/// No principal, fixture identity, SQL or database detail in a response or
+/// an error message.
+fn assert_no_identity(response: &JsonValue, identities: &[String]) {
+    let text = response.to_string();
+    for leaked in identities.iter().map(String::as_str).chain([
+        INGEST_USER,
+        "started_by",
+        "cursor",
+        "metric_rollup",
+        "SELECT",
+        "postgres",
+    ]) {
+        assert!(
+            !text.contains(leaked),
+            "the response leaked `{leaked}`: {text}"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn every_row_of_the_authorization_matrix_holds_for_the_run_operations() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let (logged, log) = logging_pool();
+    // Warm the captured connection so a checkout issues nothing later.
+    let _ = run(
+        &schema,
+        &ingest_context(&logged),
+        &run_status_document(None),
+    )
+    .await;
+
+    for operation in ["start", "advance", "abandon", "status"] {
+        for (label, user, allowed) in matrix("org-1") {
+            // Each request is valid for an authorized caller: `start` finds
+            // no open run, and the others name, or read, the open run.
+            let (document, field, open) = match operation {
+                "start" => {
+                    no_open_run(&pool);
+                    (
+                        start_run_document("VERIFY"),
+                        "startMetricRollupMonthRebuild",
+                        None,
+                    )
+                }
+                "advance" => {
+                    let open = open_run(&pool);
+                    (
+                        advance_run_document(
+                            &open.run_id.to_string(),
+                            &open.step_count.to_string(),
+                        ),
+                        "advanceMetricRollupMonthRebuild",
+                        Some(open),
+                    )
+                }
+                "abandon" => {
+                    let open = open_run(&pool);
+                    (
+                        abandon_run_document(&open.run_id.to_string()),
+                        "abandonMetricRollupMonthRebuild",
+                        Some(open),
+                    )
+                }
+                _ => (
+                    run_status_document(None),
+                    "metricRollupMonthRebuildRun",
+                    Some(open_run(&pool)),
+                ),
+            };
+            let before = stored_runs(&pool);
+            log.lock().expect("statement log").clear();
+            let context = context_for(&logged, user);
+            let response = run(&schema, &context, &document).await;
+            if allowed {
+                let result = data(&response, field).clone();
+                let open_id = open.as_ref().map(|run| json!(run.run_id.to_string()));
+                match operation {
+                    "start" => {
+                        assert_eq!(result["status"], json!("VERIFYING"), "{label}");
+                        assert_eq!(result["stepCount"], json!("0"), "{label}");
+                    }
+                    "advance" => {
+                        assert_eq!(result["advanced"], json!(true), "{label}: {response}");
+                        assert_eq!(result["run"]["runId"], open_id.expect("open"));
+                        assert_eq!(result["run"]["stepCount"], json!("1"), "{label}");
+                    }
+                    "abandon" => {
+                        assert_eq!(result["status"], json!("ABANDONED"), "{label}");
+                        assert_eq!(result["runId"], open_id.expect("open"));
+                    }
+                    _ => assert_eq!(result["runId"], open_id.expect("open"), "{label}"),
+                }
+                assert!(
+                    rollup_statements(&log)
+                        .iter()
+                        .any(|s| s.contains("metric_rollup_month_rebuild_run")),
+                    "{operation}, {label}: the authorized call reads the run"
+                );
+            } else {
+                assert_unauthorized(&response);
+                assert_eq!(
+                    rollup_statements(&log),
+                    Vec::<String>::new(),
+                    "{operation}, {label}: a denied call must open no transaction and touch \
+                     no rollup state"
+                );
+                assert_eq!(
+                    stored_runs(&pool),
+                    before,
+                    "{operation}, {label}: no run row changes"
+                );
+            }
+        }
+    }
+    // The authorized starts recorded their principal, which no response
+    // carries (see the round trip below).
+    assert!(stored_runs(&pool)
+        .iter()
+        .any(|row| row.started_by == INGEST_USER));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_run_operations_round_trip_through_the_resolvers() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let context = ingest_context(&pool);
+    apply_seeded(&schema, &context).await;
+    let identities = fixture_identities(&pool);
+    assert!(!identities.is_empty());
+    let mut responses = Vec::new();
+
+    // No run yet: the status read is null.
+    let response = run(&schema, &context, &run_status_document(None)).await;
+    assert_eq!(
+        data(&response, "metricRollupMonthRebuildRun"),
+        &JsonValue::Null
+    );
+
+    // Lose the monthly state, so the build has one range to replace.
+    exec(&pool, "TRUNCATE TABLE metric_rollup_work_month");
+    let response = run(&schema, &context, &start_run_document("REBUILD")).await;
+    let started = data(&response, "startMetricRollupMonthRebuild").clone();
+    responses.push(response);
+    assert_eq!(started["mode"], json!("REBUILD"));
+    assert_eq!(started["status"], json!("BUILDING"));
+    assert_eq!(started["stepCount"], json!("0"));
+    assert_eq!(started["positionPermille"], json!(0));
+    assert_eq!(started["startAppliedThroughSequence"], json!("2"));
+    assert!(started["startedAt"].is_string());
+    assert_eq!(started["buildCompletedAt"], JsonValue::Null);
+    assert_eq!(started["completedAt"], JsonValue::Null);
+    assert_eq!(started["build"]["steps"], json!("0"));
+    assert_eq!(
+        started["build"]["firstAppliedThroughSequence"],
+        JsonValue::Null
+    );
+    assert_eq!(started["verify"]["pages"], json!("0"));
+    let run_id = started["runId"].as_str().expect("runId").to_string();
+    run_id.parse::<Uuid>().expect("a UUID run id");
+
+    // One run is open: a second start is refused with the fixed message.
+    let response = run(&schema, &context, &start_run_document("VERIFY")).await;
+    let (message, kind) = only_error(&response);
+    assert_eq!(kind, "METRIC_REBUILD_RUN_OPEN");
+    assert_eq!(
+        message,
+        "A monthly rebuild run is already open. Adopt it, let it finish or abandon it."
+    );
+    responses.push(response);
+
+    // The caller drives every step, naming the step count it last saw.
+    let mut current = started;
+    for _ in 0..20 {
+        if !matches!(current["status"].as_str(), Some("BUILDING" | "VERIFYING")) {
+            break;
+        }
+        let expected = current["stepCount"]
+            .as_str()
+            .expect("stepCount")
+            .to_string();
+        let response = run(&schema, &context, &advance_run_document(&run_id, &expected)).await;
+        let advanced = data(&response, "advanceMetricRollupMonthRebuild").clone();
+        responses.push(response);
+        assert_eq!(advanced["advanced"], json!(true), "{advanced}");
+        let next: i64 = expected.parse::<i64>().expect("a count") + 1;
+        assert_eq!(advanced["run"]["stepCount"], json!(next.to_string()));
+        current = advanced["run"].clone();
+    }
+    assert_eq!(current["status"], json!("RECONCILED"), "{current}");
+    assert_eq!(current["positionPermille"], json!(1000));
+    assert!(current["buildCompletedAt"].is_string());
+    assert!(current["completedAt"].is_string());
+    assert_eq!(current["build"]["replacedSteps"], json!("1"));
+    assert_eq!(current["build"]["foundMissingRows"], json!("1"));
+    assert_eq!(current["build"]["firstAppliedThroughSequence"], json!("2"));
+    assert_eq!(current["verify"]["singleFrontier"], json!(true));
+    assert_eq!(
+        current["verify"]["counts"]["total"],
+        json!({
+            "expectedRows": "1", "actualRows": "1",
+            "missingRows": "0", "extraRows": "0", "mismatchedRows": "0"
+        })
+    );
+
+    // The rebuilt monthly state is exact and the frontier never moved.
+    let verification = data(
+        &run(&schema, &context, &verify_document()).await,
+        "verifyMetricRollupMonths",
+    )
+    .clone();
+    assert_eq!(verification["matches"], json!(true));
+    let rows = month_rows(&pool);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].value, 30);
+    assert_eq!(state(&pool).applied_through_sequence, 2);
+
+    // A retry after a lost response names the old count: nothing is
+    // written and the run is returned as it stands.
+    let response = run(&schema, &context, &advance_run_document(&run_id, "0")).await;
+    let retried = data(&response, "advanceMetricRollupMonthRebuild").clone();
+    responses.push(response);
+    assert_eq!(retried["advanced"], json!(false));
+    assert_eq!(retried["run"], current);
+
+    // The status read, with and without the run id; an unknown id is null.
+    for document in [
+        run_status_document(None),
+        run_status_document(Some(&run_id)),
+    ] {
+        let response = run(&schema, &context, &document).await;
+        assert_eq!(data(&response, "metricRollupMonthRebuildRun"), &current);
+        responses.push(response);
+    }
+    let unknown = Uuid::new_v4().to_string();
+    let response = run(&schema, &context, &run_status_document(Some(&unknown))).await;
+    assert_eq!(
+        data(&response, "metricRollupMonthRebuildRun"),
+        &JsonValue::Null
+    );
+
+    // Abandoning a terminal run returns it unchanged.
+    let response = run(&schema, &context, &abandon_run_document(&run_id)).await;
+    assert_eq!(data(&response, "abandonMetricRollupMonthRebuild"), &current);
+    responses.push(response);
+
+    // A `VERIFY` run carries no build progress; abandoning it while open
+    // ends it at its cursor, and it becomes the latest run.
+    let response = run(&schema, &context, &start_run_document("VERIFY")).await;
+    let verify_run = data(&response, "startMetricRollupMonthRebuild").clone();
+    responses.push(response);
+    assert_eq!(verify_run["status"], json!("VERIFYING"));
+    assert_eq!(verify_run["build"], JsonValue::Null);
+    let verify_id = verify_run["runId"].as_str().expect("runId").to_string();
+    let response = run(&schema, &context, &abandon_run_document(&verify_id)).await;
+    let abandoned = data(&response, "abandonMetricRollupMonthRebuild").clone();
+    responses.push(response);
+    assert_eq!(abandoned["status"], json!("ABANDONED"));
+    assert_eq!(abandoned["stepCount"], json!("0"));
+    assert!(abandoned["completedAt"].is_string());
+    let response = run(&schema, &context, &run_status_document(None)).await;
+    assert_eq!(
+        data(&response, "metricRollupMonthRebuildRun")["runId"],
+        json!(verify_id)
+    );
+    responses.push(response);
+
+    // Bounded: every run result has one fixed shape and no list, and no
+    // response carries the principal, a fixture identity or SQL.
+    for response in &responses {
+        assert_no_identity(response, &identities);
+        let Some(fields) = response["data"].as_object() else {
+            continue;
+        };
+        for result in fields.values().filter(|value| !value.is_null()) {
+            let run = result.get("run").unwrap_or(result);
+            let leaves = scalar_leaves(run);
+            if run["mode"] == json!("VERIFY") {
+                // The build object is a single `null` leaf.
+                assert_eq!(leaves, RUN_LEAVES - 10 + 1, "{run}");
+            } else {
+                assert_eq!(leaves, RUN_LEAVES, "{run}");
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_invalid_expected_step_count_is_rejected_by_the_resolver_without_any_statement() {
+    let (_guard, pool) = setup_registry_db();
+    let run_id = open_run(&pool).run_id.to_string();
+    let schema = create_schema();
+    let (logged, log) = logging_pool();
+    let context = ingest_context(&logged);
+    let _ = run(&schema, &context, &run_status_document(None)).await;
+
+    for invalid in [
+        "",
+        "abc",
+        "-1",
+        "+1",
+        "1.0",
+        " 1",
+        "1 ",
+        "0x1",
+        "9223372036854775808",
+        "18446744073709551616",
+    ] {
+        log.lock().expect("statement log").clear();
+        let response = run(&schema, &context, &advance_run_document(&run_id, invalid)).await;
+        let (message, kind) = only_error(&response);
+        assert_eq!(kind, "METRIC_QUERY_INVALID", "{invalid:?}");
+        assert_eq!(message, QUERY_INVALID_MESSAGE, "{invalid:?}");
+        assert_eq!(
+            log.lock().expect("statement log").clone(),
+            Vec::<String>::new(),
+            "{invalid:?}: an invalid count reaches no statement"
+        );
+    }
+    assert_eq!(open_run(&pool).step_count, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_run_refusals_reach_the_caller_with_fixed_messages_and_no_identity() {
+    let (_guard, pool) = setup_registry_db();
+    seeded(&pool);
+    let schema = create_schema();
+    let context = ingest_context(&pool);
+    apply_seeded(&schema, &context).await;
+    let identities = fixture_identities(&pool);
+
+    // RETRYABLE: the status read behind an `ACCESS EXCLUSIVE` lock on the
+    // run table gives up within about a second.
+    let held = HeldTransaction::start(
+        "LOCK TABLE metric_rollup_month_rebuild_run IN ACCESS EXCLUSIVE MODE".to_string(),
+    );
+    let started = std::time::Instant::now();
+    let response = run(&schema, &context, &run_status_document(None)).await;
+    let waited = started.elapsed();
+    held.commit();
+    let (message, kind) = only_error(&response);
+    assert_eq!(kind, "METRIC_REBUILD_RETRYABLE");
+    assert_eq!(
+        message,
+        "The monthly rebuild run could not advance now. Nothing was committed; back off and \
+         retry with the same expected step count."
+    );
+    assert!(waited < std::time::Duration::from_secs(3), "{waited:?}");
+    assert_no_identity(&response, &identities);
+
+    // BLOCKED: a work-day row above the frontier, refused before any write
+    // and repeated until the run is abandoned.
+    exec(
+        &pool,
+        "UPDATE metric_rollup_work_day SET watermark = 99 WHERE rollup_work_day_id = \
+         (SELECT rollup_work_day_id FROM metric_rollup_work_day ORDER BY day LIMIT 1)",
+    );
+    let response = run(&schema, &context, &start_run_document("REBUILD")).await;
+    let run_id = data(&response, "startMetricRollupMonthRebuild")["runId"]
+        .as_str()
+        .expect("runId")
+        .to_string();
+    let before = stored_runs(&pool);
+    let months = month_rows(&pool);
+    for _ in 0..2 {
+        let response = run(&schema, &context, &advance_run_document(&run_id, "0")).await;
+        let (message, kind) = only_error(&response);
+        assert_eq!(kind, "METRIC_REBUILD_BLOCKED");
+        assert_eq!(
+            message,
+            "The monthly rebuild run is blocked: the derived or work-day state needs a \
+             separately authorized repair. Nothing was committed."
+        );
+        assert_no_identity(&response, &identities);
+        assert_eq!(stored_runs(&pool), before, "the run row is unchanged");
+        assert_eq!(month_rows(&pool), months, "nothing was written");
+    }
+
+    // RUN_OPEN while the blocked run is open, and QUERY_INVALID for an
+    // unknown run.
+    let response = run(&schema, &context, &start_run_document("VERIFY")).await;
+    assert_eq!(only_error(&response).1, "METRIC_REBUILD_RUN_OPEN");
+    assert_no_identity(&response, &identities);
+    let unknown = Uuid::new_v4().to_string();
+    for document in [
+        advance_run_document(&unknown, "0"),
+        abandon_run_document(&unknown),
+    ] {
+        let response = run(&schema, &context, &document).await;
+        let (message, kind) = only_error(&response);
+        assert_eq!(kind, "METRIC_QUERY_INVALID");
+        assert_eq!(message, QUERY_INVALID_MESSAGE);
+        assert!(!message.contains(&unknown));
+        assert_no_identity(&response, &identities);
+    }
+
+    // Abandoning ends the blocked run at its cursor.
+    let response = run(&schema, &context, &abandon_run_document(&run_id)).await;
+    assert_eq!(
+        data(&response, "abandonMetricRollupMonthRebuild")["status"],
+        json!("ABANDONED")
+    );
+    assert_no_identity(&response, &identities);
+}
+
+// ==========================================================================
 // Generated schema: strictly additive, and no unauthorized surface
 // ==========================================================================
 
@@ -862,7 +1432,7 @@ fn signatures(block: &str) -> String {
 }
 
 #[test]
-fn the_sdl_declares_exactly_the_four_approved_operations() {
+fn the_sdl_declares_exactly_the_eight_approved_operations() {
     let sdl = create_schema().as_sdl();
     let mutation_root = sdl_block(&sdl, "type MutationRoot {");
     let mutation_signatures = signatures(mutation_root);
@@ -872,6 +1442,13 @@ fn the_sdl_declares_exactly_the_four_approved_operations() {
         "completeMetricRollupDeltas(input:CompleteMetricRollupDeltasInput!):MetricRollupWatermark!",
         "verifyMetricRollupMonths:MetricRollupMonthVerification!",
         "rebuildMetricRollupMonths(input:RebuildMetricRollupMonthsInput!):MetricRollupMonthRebuildResult!",
+        "startMetricRollupMonthRebuild(input:StartMetricRollupMonthRebuildInput!):\
+         MetricRollupMonthRebuildRun!",
+        "advanceMetricRollupMonthRebuild(input:AdvanceMetricRollupMonthRebuildInput!):\
+         MetricRollupMonthRebuildAdvance!",
+        "abandonMetricRollupMonthRebuild(input:AbandonMetricRollupMonthRebuildInput!):\
+         MetricRollupMonthRebuildRun!",
+        "metricRollupMonthRebuildRun(runId:Uuid):MetricRollupMonthRebuildRun",
     ] {
         assert_eq!(
             mutation_signatures.matches(operation).count(),
@@ -881,11 +1458,12 @@ fn the_sdl_declares_exactly_the_four_approved_operations() {
         );
     }
 
-    // Exactly four — the two `MET-WP4-01` application operations and the two
-    // `MET-WP4-03A-OPS-02` maintenance operations — and no fifth rollup
-    // operation by analogy. A retry, a release, an unclaim, a repair, a
-    // reconciliation ledger write or a scheduled rebuild each need their own
-    // authorization matrix and rollback semantics.
+    // Exactly eight — the two `MET-WP4-01` application operations, the two
+    // `MET-WP4-03A-OPS-02` maintenance operations and the four
+    // `MET-WP4-03A-OPS-03` run operations — and no ninth rollup operation by
+    // analogy. A retry, a release, an unclaim, a repair, a reconciliation
+    // ledger write or a scheduled rebuild each need their own authorization
+    // matrix and rollback semantics.
     // The two `MET-WP4-03C-B1` coverage-run maintenance operations are a
     // separately approved family with their own authorization matrix and
     // rollback semantics, not rollup operations: they are excluded by exact
@@ -909,9 +1487,13 @@ fn the_sdl_declares_exactly_the_four_approved_operations() {
                 || line.starts_with("verifyMetric")
                 || line.starts_with("reconcileMetricRollup")
                 || line.starts_with("repairMetric")
+                || line.starts_with("startMetricRollup")
+                || line.starts_with("advanceMetricRollup")
+                || line.starts_with("abandonMetricRollup")
+                || line.starts_with("metricRollup")
         })
         .collect();
-    assert_eq!(rollup_fields.len(), 4, "MutationRoot: {rollup_fields:?}");
+    assert_eq!(rollup_fields.len(), 8, "MutationRoot: {rollup_fields:?}");
     // And none of them reaches QueryRoot.
     let query_root = sdl_block(&sdl, "type QueryRoot {");
     for absent in [
@@ -1001,13 +1583,102 @@ fn the_verification_and_rebuild_types_are_bounded_and_exactly_the_approved_shape
     assert_eq!(
         month_declarations,
         [
+            "AbandonMetricRollupMonthRebuildInput",
+            "AdvanceMetricRollupMonthRebuildInput",
             "MetricRollupMonthProjectionVerification",
+            "MetricRollupMonthRebuildAdvance",
+            "MetricRollupMonthRebuildBuildProgress",
+            "MetricRollupMonthRebuildFamilies",
             "MetricRollupMonthRebuildResult",
+            "MetricRollupMonthRebuildRun",
+            "MetricRollupMonthRebuildVerifyProgress",
             "MetricRollupMonthVerification",
             "RebuildMetricRollupMonthsInput",
+            "StartMetricRollupMonthRebuildInput",
         ],
         "no other MetricRollupMonth* type may exist"
     );
+
+    // `MET-WP4-03A-OPS-03`: the run types carry the run's own id, counts,
+    // frontiers and timestamps only, every 64-bit position or count as a
+    // decimal string, and the inputs carry no size, range, key, value or SQL.
+    for (declaration, expected) in [
+        ("enum MetricRollupMonthRebuildMode {", "REBUILDVERIFY"),
+        (
+            "enum MetricRollupMonthRebuildStatus {",
+            "BUILDINGVERIFYINGRECONCILEDVERIFIEDMISMATCHEDABANDONED",
+        ),
+        (
+            "input StartMetricRollupMonthRebuildInput {",
+            "mode:MetricRollupMonthRebuildMode!",
+        ),
+        (
+            "input AdvanceMetricRollupMonthRebuildInput {",
+            "runId:Uuid!expectedStepCount:String!",
+        ),
+        (
+            "input AbandonMetricRollupMonthRebuildInput {",
+            "runId:Uuid!",
+        ),
+        (
+            "type MetricRollupMonthRebuildFamilies {",
+            "total:MetricRollupMonthProjectionVerification!\
+             country:MetricRollupMonthProjectionVerification!\
+             institution:MetricRollupMonthProjectionVerification!\
+             ambiguity:MetricRollupMonthProjectionVerification!\
+             countryYear:MetricRollupMonthProjectionVerification!\
+             institutionYear:MetricRollupMonthProjectionVerification!",
+        ),
+        (
+            "type MetricRollupMonthRebuildBuildProgress {",
+            "steps:String!replacedSteps:String!units:String!monthKeys:String!\
+             workDayRows:String!foundMissingRows:String!foundExtraRows:String!\
+             foundMismatchedRows:String!firstAppliedThroughSequence:String\
+             lastAppliedThroughSequence:String",
+        ),
+        (
+            "type MetricRollupMonthRebuildVerifyProgress {",
+            "pages:String!units:String!monthKeys:String!workDayRows:String!\
+             firstAppliedThroughSequence:StringlastAppliedThroughSequence:String\
+             singleFrontier:Boolean!counts:MetricRollupMonthRebuildFamilies!",
+        ),
+        (
+            "type MetricRollupMonthRebuildRun {",
+            "runId:Uuid!mode:MetricRollupMonthRebuildMode!\
+             status:MetricRollupMonthRebuildStatus!stepCount:String!positionPermille:Int!\
+             startedAt:Timestamp!updatedAt:Timestamp!buildCompletedAt:Timestamp\
+             completedAt:Timestamp startAppliedThroughSequence:String!\
+             build:MetricRollupMonthRebuildBuildProgress\
+             verify:MetricRollupMonthRebuildVerifyProgress!",
+        ),
+        (
+            "type MetricRollupMonthRebuildAdvance {",
+            "advanced:Boolean!run:MetricRollupMonthRebuildRun!",
+        ),
+    ] {
+        assert_eq!(sdl.matches(declaration).count(), 1, "{declaration}");
+        let block_signatures = signatures(sdl_block(&sdl, declaration));
+        assert_eq!(
+            block_signatures,
+            expected.replace(' ', ""),
+            "{declaration} must carry exactly the approved fields"
+        );
+        for forbidden in [
+            "[",
+            "cursor",
+            "workId",
+            "platform",
+            "measure",
+            "startedBy",
+            "principal",
+            "value",
+        ] {
+            assert!(
+                !block_signatures.contains(forbidden),
+                "a run type must not expose `{forbidden}`: {block_signatures}"
+            );
+        }
+    }
     for absent in [
         "input VerifyMetricRollupMonthsInput",
         "type MetricRollupMonthMismatch",
