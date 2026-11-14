@@ -1065,7 +1065,6 @@ fn engine_variants() -> Vec<MetricReadError> {
         MetricReadError::QueryLimitExceeded(AGGREGATE_OUT_OF_RANGE),
         MetricReadError::QueryLimitExceeded(TOO_MANY_CELLS),
         MetricReadError::RegistryLimitExceeded,
-        MetricReadError::SourceScopeAmbiguous,
         MetricReadError::DimensionScopeAmbiguous,
         MetricReadError::UnsupportedSourceGrain,
         MetricReadError::Unavailable,
@@ -1127,10 +1126,6 @@ fn every_engine_error_maps_to_its_widget_classification() {
         (
             MetricWidgetError::Internal,
             Some(WidgetReason::EngineRejected),
-        ),
-        (
-            MetricWidgetError::Unavailable,
-            Some(WidgetReason::SourceScopeAmbiguous),
         ),
         (
             MetricWidgetError::Unavailable,
@@ -2588,6 +2583,84 @@ fn each_served_pair_equals_its_single_pair_dashboard_read() {
             widget.chapters.as_ref().expect("chapters"),
             vec![first, second],
         ),
+    ];
+    for (section, works) in sections {
+        assert_each_served_pair_equals_its_dashboard_read(&fx, section, &works);
+    }
+}
+
+#[test]
+fn two_eligible_accounts_on_a_served_platform_are_served_and_each_pair_equals_its_dashboard_read() {
+    let (_guard, fx) = widget_setup();
+    let imprint = imprint_of(&fx.pool, fx.works[0]);
+    let chapter = add_chapter(&fx.pool, fx.works[0], imprint, None, 1);
+    // A second eligible account of the work's publisher on the served
+    // platform, beside the fixture's, asserting only the first half of
+    // March for sessions and all of it for units.
+    let (source_id, second) = (Uuid::new_v4(), Uuid::new_v4());
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            source_sql(source_id, "DRIVER", true),
+            account_sql(
+                second,
+                source_id,
+                fx.platform_id,
+                Some(fx.publisher_id),
+                true
+            )
+        ),
+    );
+    cover_march(&fx, fx.sessions);
+    cover_march(&fx, fx.units);
+    for (measure, end) in [(fx.sessions, d(2026, 3, 16)), (fx.units, d(2026, 4, 1))] {
+        let import_id = Uuid::new_v4();
+        exec(
+            &fx.pool,
+            &format!(
+                "{}{}",
+                import_sql(import_id, second, "COMPLETED", "'2026-04-10T00:00:00Z'"),
+                coverage_sql(
+                    second,
+                    import_id,
+                    fx.platform_id,
+                    measure,
+                    d(2026, 3, 1),
+                    end,
+                    "COMPLETE",
+                    true,
+                    true
+                )
+            ),
+        );
+    }
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 4);
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, day_n(3), 6);
+    commit(&fx, chapter, fx.platform_id, fx.sessions, day_n(20), 7);
+    apply_all(&fx.pool);
+
+    let widget = read(&fx.pool, &input_for(BOOK_BARE)).expect("served, not refused");
+    assert_eq!(
+        pairs_of(&widget.work),
+        sorted(&[(fx.platform_id, fx.sessions), (fx.platform_id, fx.units)])
+    );
+    // The accounts' coverage is merged: sessions are UNKNOWN after the
+    // second account's last asserted day, units COMPLETE.
+    let status = |measure: Uuid| {
+        widget
+            .work
+            .coverage
+            .iter()
+            .find(|item| (item.platform_id, item.measure_id) == (fx.platform_id, measure))
+            .expect("a served pair")
+            .status
+    };
+    assert_eq!(status(fx.sessions), MetricCoverageStatus::Unknown);
+    assert_eq!(status(fx.units), MetricCoverageStatus::Complete);
+    let sections = [
+        (&widget.work, vec![fx.works[0]]),
+        (widget.chapters.as_ref().expect("chapters"), vec![chapter]),
     ];
     for (section, works) in sections {
         assert_each_served_pair_equals_its_dashboard_read(&fx, section, &works);

@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Give each `metricDashboard` read a 20-second deadline to start its statements
   - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
   - [1029](https://github.com/thoth-pub/thoth/pull/1029) - Merge institutions that share a ROR ID into one, moving their links and history to the survivor, and make the ROR ID unique; see `thoth-api/ops/ror-sync-01b/README.md` before upgrading
+  - [1030](https://github.com/thoth-pub/thoth/issues/1030) - Let `metricDashboard` and `metricWidget` serve a publisher with more than one managed source account on a platform, combining their coverage, instead of refusing the read
 
 ### Changed
   - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)

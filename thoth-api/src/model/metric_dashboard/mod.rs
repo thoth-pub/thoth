@@ -683,8 +683,6 @@ pub enum MetricReadError {
     QueryLimitExceeded(&'static str),
     /// `METRIC_REGISTRY_LIMIT_EXCEEDED`.
     RegistryLimitExceeded,
-    /// `MOM1_SOURCE_SCOPE_AMBIGUOUS`.
-    SourceScopeAmbiguous,
     /// `MOM1_DIMENSION_SCOPE_AMBIGUOUS`.
     DimensionScopeAmbiguous,
     /// `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`: an active canonical record
@@ -708,7 +706,6 @@ impl MetricReadError {
             MetricReadError::QueryInvalid(_) => "METRIC_QUERY_INVALID",
             MetricReadError::QueryLimitExceeded(_) => "METRIC_QUERY_LIMIT_EXCEEDED",
             MetricReadError::RegistryLimitExceeded => "METRIC_REGISTRY_LIMIT_EXCEEDED",
-            MetricReadError::SourceScopeAmbiguous => "MOM1_SOURCE_SCOPE_AMBIGUOUS",
             MetricReadError::DimensionScopeAmbiguous => "MOM1_DIMENSION_SCOPE_AMBIGUOUS",
             MetricReadError::UnsupportedSourceGrain => "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN",
             MetricReadError::Unavailable => "INTERNAL_ERROR",
@@ -726,9 +723,6 @@ impl MetricReadError {
             }
             MetricReadError::RegistryLimitExceeded => {
                 "The Metrics registry holds more than 500 entries, which exceeds what this operation may return."
-            }
-            MetricReadError::SourceScopeAmbiguous => {
-                "More than one enabled managed source account serves a selected publisher and platform, so coverage cannot be resolved."
             }
             MetricReadError::DimensionScopeAmbiguous => {
                 "A served work, platform, measure and day is recorded in more than one incompatible dimensional breakdown, so its value cannot be resolved."
@@ -1431,10 +1425,13 @@ struct DimensionCellRow {
     depends_on_institution: bool,
 }
 
-/// One eligible coverage run of a represented publisher, already clipped to
-/// the served range by [`ASSERTIONS_SQL`].
+/// One eligible coverage run of one eligible source account of a
+/// represented publisher, already clipped to the served range by
+/// [`ASSERTIONS_SQL`].
 #[derive(diesel::QueryableByName)]
 struct RunRow {
+    #[diesel(sql_type = SqlUuid)]
+    source_account_id: Uuid,
     #[diesel(sql_type = SqlUuid)]
     publisher_id: Uuid,
     #[diesel(sql_type = SqlUuid)]
@@ -1728,8 +1725,10 @@ pub(crate) const REPRESENTED_SQL: &str = "SELECT represented.platform_id, repres
                  ) represented \
                  JOIN public.metric_measure m ON m.measure_id = represented.measure_id";
 
-/// Step 5: eligible managed source accounts per represented publisher and
-/// served platform.
+/// Step 5: every eligible managed source account of each represented
+/// publisher on each served platform. A publisher may have any number on a
+/// platform (`MET-WP4-MULTI-ACCOUNT-01`); the interval engine combines their
+/// coverage.
 pub(crate) const ACCOUNTS_SQL: &str =
     "SELECT sa.expected_publisher_id AS publisher_id, sa.platform_id, \
                     sa.source_account_id \
@@ -2460,28 +2459,32 @@ pub(crate) const DAY_SECTIONS_SQL: &str = "WITH day_rows AS ( \
              FROM resolved r";
 
 /// Step 10 (`MET-WP4-03C-B1` H1, #980 Amendment 1 section 5, Amendment 2
-/// section 5, Amendment 3 section 5): the coverage runs of the eligible
-/// source accounts, clipped to the served range `[$4, $5)`.
+/// section 5, Amendment 3 section 5, `MET-WP4-MULTI-ACCOUNT-01`): the
+/// coverage runs of every eligible source account, clipped to the served
+/// range `[$4, $5)`, each with the account it belongs to.
 ///
 /// The accounts are exactly those step 5 returned, passed as the parallel
 /// arrays `$1` (account), `$2` (its platform) and `$3` (its expected
 /// publisher), so the request-time eligibility of #952 Amendment 5B section 5
 /// is applied once, there: an enabled `DRIVER` account of an enabled source,
-/// of a represented publisher and a served platform. A run participates only
-/// when it is of that account, of that account's platform and of the
-/// publisher the account expects, and of a served measure (`$6`). Its
-/// historical stream identity is compared with that configuration, never
-/// replaced by it.
+/// of a represented publisher and a served platform. A publisher may have
+/// several such accounts on one platform. A run participates only when it is
+/// of that account, of that account's platform and of the publisher the
+/// account expects, and of a served measure (`$6`). Its historical stream
+/// identity is compared with that configuration, never replaced by it.
 ///
-/// Each run is the coalesced terminal winner of one stream over a half-open
-/// interval, built by `MET-WP4-03C-B1` from `COMPLETED` and
-/// `COMPLETED_WITH_ERRORS` imports with a recorded completion time, so the
-/// statement returns at most one row per eligible run, read through the run
-/// primary key, and never one row per day: no day of the range is expanded
-/// here or anywhere else in this module. Runs carry no winner identity, so
-/// two runs of one stream that cover the same served day are invalid derived
-/// state, which the read refuses in [`assemble`].
-pub(crate) const ASSERTIONS_SQL: &str = "SELECT sa.publisher_id, run.platform_id, run.measure_id, \
+/// Each run is the coalesced terminal winner of one stream (one account,
+/// platform, publisher and measure) over a half-open interval, built by
+/// `MET-WP4-03C-B1` from `COMPLETED` and `COMPLETED_WITH_ERRORS` imports with
+/// a recorded completion time, so the statement returns at most one row per
+/// eligible run, read through the run primary key, and never one row per day:
+/// no day of the range is expanded here or anywhere else in this module. Runs
+/// carry no winner identity, so two runs of one stream that cover the same
+/// served day are invalid derived state, which the read refuses in
+/// [`assemble`]. Runs of different accounts may cover the same day; the
+/// engine combines them.
+pub(crate) const ASSERTIONS_SQL: &str = "SELECT sa.source_account_id, sa.publisher_id, \
+                    run.platform_id, run.measure_id, \
                     GREATEST(run.run_start, $4) AS run_start, \
                     LEAST(run.run_end, $5) AS run_end, \
                     run.coverage_status, run.import_status::text AS import_status, \
@@ -2706,8 +2709,8 @@ pub(crate) struct ReadControls<'a> {
 /// 4. resolve and bound the platform/measure scope, and require every served
 ///    measure to be additive across time and works; with an explicit start,
 ///    fix the served grain and bound the timeline;
-/// 5. resolve the eligible managed source account per represented publisher
-///    and platform;
+/// 5. resolve every eligible managed source account of each represented
+///    publisher on each served platform;
 /// 6. refuse active native-grain canonical records, find unapplied work-day
 ///    deltas above `W`, and, when `startDate` was omitted, find where the
 ///    scope's evidence starts, then fix the served grain and bound the
@@ -2990,6 +2993,7 @@ fn read_from_publishers(
         .collect();
     let mut sections = Sections::default();
     let mut runs: Vec<CoverageRun> = Vec::new();
+    let mut eligible: BTreeSet<EligibleAccount> = BTreeSet::new();
     let window = if combinations.is_empty() {
         // Nothing is served, so nothing can start the history: an omitted
         // start serves the month before endDate.
@@ -2998,7 +3002,10 @@ fn read_from_publishers(
             None => serve(request, fallback_start(request.end), 0)?,
         }
     } else {
-        // 5. Eligible managed source accounts of the represented publishers.
+        // 5. Every eligible managed source account of the represented
+        // publishers, any number per publisher and platform. The rows are
+        // kept as they are; the interval engine derives everything it needs
+        // from them.
         let mut accounts: Vec<AccountRow> = Vec::new();
         if !scope.publishers.is_empty() {
             deadline.check()?;
@@ -3008,15 +3015,14 @@ fn read_from_publishers(
                 .bind::<Array<SqlUuid>, _>(&platform_ids)
                 .bind::<Text, _>(DRIVER_ACQUISITION)
                 .load(connection)?;
-            let mut per_scope: BTreeMap<(Uuid, Uuid), usize> = BTreeMap::new();
-            for account in &accounts {
-                *per_scope
-                    .entry((account.publisher_id, account.platform_id))
-                    .or_default() += 1;
-            }
-            if per_scope.values().any(|count| *count > 1) {
-                return Err(MetricReadError::SourceScopeAmbiguous);
-            }
+            eligible = accounts
+                .iter()
+                .map(|row| EligibleAccount {
+                    source_account_id: row.source_account_id,
+                    publisher_id: row.publisher_id,
+                    platform_id: row.platform_id,
+                })
+                .collect();
         }
         let account_ids: Vec<Uuid> = accounts.iter().map(|row| row.source_account_id).collect();
         let account_platforms: Vec<Uuid> = accounts.iter().map(|row| row.platform_id).collect();
@@ -3136,7 +3142,8 @@ fn read_from_publishers(
             }
         }
 
-        // 10. Current coverage runs of every represented publisher.
+        // 10. Current coverage runs of every eligible account of every
+        // represented publisher, each with its account.
         if !accounts.is_empty() {
             deadline.check()?;
             deadline.record("ASSERTIONS_SQL");
@@ -3167,6 +3174,7 @@ fn read_from_publishers(
                     (declared, _) => declared,
                 };
                 runs.push(CoverageRun {
+                    source_account_id: row.source_account_id,
                     publisher_id: row.publisher_id,
                     platform_id: row.platform_id,
                     measure_id: row.measure_id,
@@ -3213,6 +3221,7 @@ fn read_from_publishers(
             window: &window,
             combinations: &combinations,
             publishers: &scope.publishers,
+            accounts: &eligible,
             include_countries: request.include_countries,
             include_institutions: request.include_institutions,
             facts: &facts,
@@ -4027,9 +4036,11 @@ fn combine<'a>(
     Ok(justified().then_some(BigInt::ZERO))
 }
 
-/// One clipped coverage run of a represented publisher.
+/// One clipped coverage run of one source account of a represented
+/// publisher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CoverageRun {
+    source_account_id: Uuid,
     publisher_id: Uuid,
     platform_id: Uuid,
     measure_id: Uuid,
@@ -4081,12 +4092,17 @@ impl Tally {
         step(&mut self.without_institution, !coverage.institution);
     }
 
-    /// The combined coverage across `publishers` represented publishers:
-    /// `UNKNOWN` unless every one of them asserts it, then the worst status,
-    /// and each dimension only if every assertion includes it. With no
-    /// represented publisher there is nothing to assert.
-    fn combined(&self, publishers: usize) -> Option<DayCoverage> {
-        (publishers > 0 && self.covering == publishers).then_some(DayCoverage {
+    /// The combined coverage across the `required` streams of one platform
+    /// ([`Evaluation::required_streams`]): `UNKNOWN` unless every one of them
+    /// asserts it, then the worst status, and each dimension only if every
+    /// assertion includes it. Each eligible account opens at most one run per
+    /// measure and day and only eligible accounts' runs are counted, so the
+    /// open runs reach `required` exactly when every represented publisher
+    /// has an eligible account on the platform and every such account
+    /// asserts the day. With no represented publisher there is nothing to
+    /// assert.
+    fn combined(&self, required: usize) -> Option<DayCoverage> {
+        (required > 0 && self.covering == required).then_some(DayCoverage {
             status: if self.unknown > 0 {
                 MetricCoverageStatus::Unknown
             } else if self.partial > 0 {
@@ -4100,43 +4116,66 @@ impl Tally {
     }
 }
 
-/// Group the runs by served platform and measure, keeping only those of the
-/// represented publishers, and refuse same-stream overlap (#980 Amendment 2
-/// section 5): two runs of one publisher, platform and measure — one stream,
-/// since at most one eligible account serves a publisher and platform — that
-/// cover the same served day are invalid derived state with no winner
-/// between them, so the read fails as [`MetricReadError::Unavailable`]
-/// rather than choose one.
+/// Group the runs by served platform and measure, keeping only the runs of
+/// eligible accounts of the represented publishers, and refuse same-stream
+/// overlap (#980 Amendment 2 section 5, `MET-WP4-MULTI-ACCOUNT-01`).
+///
+/// A run is kept only if its whole `(source_account_id, publisher_id,
+/// platform_id)` triple is an eligible account and its publisher is
+/// represented; every other run is dropped first, so nothing else ever sees
+/// it and its overlap never refuses a read. Of the kept runs, two of one
+/// account, platform and measure — one stream: an account has one platform
+/// and one expected publisher — that cover the same served day are invalid
+/// derived state with no winner between them, so the read fails as
+/// [`MetricReadError::Unavailable`] rather than choose one. Runs of different
+/// accounts may cover the same day; [`Tally::combined`] combines them.
 fn coverage_streams(
     runs: &[CoverageRun],
     publishers: &[Uuid],
+    accounts: &BTreeSet<EligibleAccount>,
 ) -> Result<BTreeMap<(Uuid, Uuid), Vec<CoverageRun>>, MetricReadError> {
-    let mut ordered: Vec<CoverageRun> = runs.to_vec();
-    ordered.sort_by_key(|run| (run.platform_id, run.measure_id, run.publisher_id, run.start));
+    let represented: BTreeSet<&Uuid> = publishers.iter().collect();
+    let mut ordered: Vec<CoverageRun> = runs
+        .iter()
+        .filter(|run| {
+            represented.contains(&run.publisher_id)
+                && accounts.contains(&EligibleAccount {
+                    source_account_id: run.source_account_id,
+                    publisher_id: run.publisher_id,
+                    platform_id: run.platform_id,
+                })
+        })
+        .copied()
+        .collect();
+    ordered.sort_by_key(|run| {
+        (
+            run.platform_id,
+            run.measure_id,
+            run.source_account_id,
+            run.start,
+        )
+    });
     // Sorted by start, a stream's runs are disjoint exactly when each one
     // ends no later than the next one starts.
     if ordered.windows(2).any(|pair| {
         (
             pair[0].platform_id,
             pair[0].measure_id,
-            pair[0].publisher_id,
+            pair[0].source_account_id,
         ) == (
             pair[1].platform_id,
             pair[1].measure_id,
-            pair[1].publisher_id,
+            pair[1].source_account_id,
         ) && pair[1].start < pair[0].end
     }) {
         return Err(MetricReadError::Unavailable);
     }
-    let represented: BTreeSet<&Uuid> = publishers.iter().collect();
     let mut streams: BTreeMap<(Uuid, Uuid), Vec<CoverageRun>> = BTreeMap::new();
     for run in ordered {
-        if represented.contains(&run.publisher_id) {
-            streams
-                .entry((run.platform_id, run.measure_id))
-                .or_default()
-                .push(run);
-        }
+        streams
+            .entry((run.platform_id, run.measure_id))
+            .or_default()
+            .push(run);
     }
     record_size("runs", streams.values().map(Vec::len).sum());
     Ok(streams)
@@ -4144,12 +4183,12 @@ fn coverage_streams(
 
 /// Tile `[start, end)` with maximal segments of constant combined coverage
 /// from one pair's runs, which are already clipped to it, by one sweep over
-/// their boundaries.
+/// their boundaries; a day is asserted only when `required` runs cover it.
 fn segments(
     start: NaiveDate,
     end: NaiveDate,
     runs: &[CoverageRun],
-    publishers: usize,
+    required: usize,
 ) -> Vec<Segment> {
     // A run closing on a day is applied before one opening on it, so the
     // counts never go below zero.
@@ -4179,7 +4218,7 @@ fn segments(
         let segment_end = events
             .get(next_event)
             .map_or(end, |(day, _, _)| (*day).min(end));
-        let coverage = tally.combined(publishers);
+        let coverage = tally.combined(required);
         match segments.last_mut() {
             Some(last) if last.coverage == coverage => last.end = segment_end,
             _ => segments.push(Segment {
@@ -4253,9 +4292,19 @@ impl PairCoverage {
     /// the returned sections, so an omitted section cannot downgrade it
     /// through its own dimension, and a returned one never changes a total
     /// or timeline value.
-    fn of(evaluation: &Evaluation<'_>, facts: &PairFacts, runs: &[CoverageRun]) -> PairCoverage {
+    fn of(
+        evaluation: &Evaluation<'_>,
+        platform_id: Uuid,
+        facts: &PairFacts,
+        runs: &[CoverageRun],
+    ) -> PairCoverage {
         let window = evaluation.window;
-        let segments = segments(window.start, window.end, runs, evaluation.publishers.len());
+        let segments = segments(
+            window.start,
+            window.end,
+            runs,
+            evaluation.required_streams(platform_id),
+        );
         let lag = merge_intervals(clipped(&facts.lag, window.start, window.end));
         let quarantine = clipped(&facts.quarantine, window.start, window.end);
         record_size("lag", lag.len());
@@ -4323,16 +4372,54 @@ impl PairCoverage {
     }
 }
 
+/// One eligible managed source account, as step 5 returns it: an enabled
+/// account of an enabled `DRIVER` source, its expected publisher (a
+/// represented one) and its platform (a served one).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct EligibleAccount {
+    source_account_id: Uuid,
+    publisher_id: Uuid,
+    platform_id: Uuid,
+}
+
 /// Everything the interval engine evaluates for one read.
 struct Evaluation<'a> {
     window: &'a Window,
     combinations: &'a [(Uuid, Uuid)],
-    /// The represented publishers, whose coverage combines per day.
+    /// The represented publishers. Coverage combines per day across every
+    /// eligible account of every one of them.
     publishers: &'a [Uuid],
+    /// The eligible accounts of the represented publishers on the served
+    /// platforms, any number per publisher and platform.
+    accounts: &'a BTreeSet<EligibleAccount>,
     include_countries: bool,
     include_institutions: bool,
     facts: &'a BTreeMap<(Uuid, Uuid), PairFacts>,
     runs: &'a [CoverageRun],
+}
+
+impl Evaluation<'_> {
+    /// `required(P)`: the number of streams that must assert a day of
+    /// platform `P` for it to be asserted, the sum over the represented
+    /// publishers of the number of their distinct eligible accounts on `P`,
+    /// or 1 for a publisher with none, whose one stream never asserts, so
+    /// `P` stays `UNKNOWN`. With no represented publisher it is 0 and
+    /// nothing is asserted.
+    fn required_streams(&self, platform_id: Uuid) -> usize {
+        let mut accounts: BTreeMap<Uuid, BTreeSet<Uuid>> = BTreeMap::new();
+        for account in self.accounts {
+            if account.platform_id == platform_id {
+                accounts
+                    .entry(account.publisher_id)
+                    .or_default()
+                    .insert(account.source_account_id);
+            }
+        }
+        self.publishers
+            .iter()
+            .map(|publisher_id| accounts.get(publisher_id).map_or(1, |ids| ids.len().max(1)))
+            .sum()
+    }
 }
 
 /// Record the element count of one internal structure, so the tests can
@@ -4364,7 +4451,7 @@ fn assemble(
 ) -> Result<MetricDashboard, MetricReadError> {
     let window = evaluation.window;
     let combinations = evaluation.combinations;
-    let streams = coverage_streams(evaluation.runs, evaluation.publishers)?;
+    let streams = coverage_streams(evaluation.runs, evaluation.publishers, evaluation.accounts)?;
     record_size("buckets", window.buckets.len());
     let mut totals = Vec::with_capacity(combinations.len());
     let mut timeline = Vec::with_capacity(combinations.len() * window.buckets.len());
@@ -4381,7 +4468,7 @@ fn assemble(
         record_size("months", facts.months.len());
         record_size("days", facts.days.len());
         let runs = streams.get(&key).map_or(&[][..], Vec::as_slice);
-        let coverage = PairCoverage::of(evaluation, facts, runs);
+        let coverage = PairCoverage::of(evaluation, *platform_id, facts, runs);
 
         totals.push(MetricTotal {
             platform_id: *platform_id,
