@@ -23,10 +23,10 @@ use uuid::Uuid;
 
 use crate::db::{PgPool, MIGRATIONS};
 use crate::model::imprint::Imprint;
-use crate::model::institution::{Institution, NewInstitution};
+use crate::model::institution::{Institution, NewInstitution, PatchInstitution};
 use crate::model::tests::db::{
     create_contribution, create_contributor, create_imprint, create_publisher, create_work,
-    db_pool, reset_db, setup_test_db, test_db_url, test_lock, TestDbGuard,
+    db_pool, reset_db, setup_test_db, test_context, test_db_url, test_lock, TestDbGuard,
 };
 use crate::model::{Crud, Ror};
 
@@ -1719,6 +1719,61 @@ fn a_second_institution_with_a_ror_id_or_doi_gets_the_pinned_message() {
     Institution::create(&pool, &new_institution(None, None)).unwrap();
 }
 
+/// The paths the API uses (stage C's `create_with_history` and `update`) map
+/// a held ROR ID to the pinned message and write nothing.
+#[test]
+fn a_held_ror_id_through_create_with_history_or_update_gets_the_message_and_writes_nothing() {
+    let (_guard, pool) = setup_test_db();
+    let ctx = test_context(pool.clone(), "ror-conflict-user");
+    let ror = random_ror();
+    let holder = Institution::create_with_history(&ctx, &new_institution(Some(&ror), None))
+        .expect("the first holder is created");
+    let other = Institution::create_with_history(&ctx, &new_institution(Some(&random_ror()), None))
+        .expect("another institution is created");
+    let mut connection = connect();
+    let totals = |connection: &mut PgConnection| {
+        (
+            count(connection, "SELECT count(*) AS n FROM institution"),
+            count(connection, "SELECT count(*) AS n FROM institution_history"),
+        )
+    };
+    let before = totals(&mut connection);
+
+    let by_create = Institution::create_with_history(&ctx, &new_institution(Some(&ror), None))
+        .expect_err("a second holder is refused");
+    assert_eq!(by_create.to_string(), ROR_CONFLICT);
+    assert!(matches!(by_create, ThothError::DatabaseConstraintError(_)));
+
+    let patch = PatchInstitution {
+        institution_id: other.institution_id,
+        institution_name: other.institution_name.clone(),
+        institution_doi: other.institution_doi.clone(),
+        ror: Some(ror.parse::<Ror>().unwrap()),
+        country_code: other.country_code,
+        ror_status: None,
+        ror_successor: juniper::Nullable::ImplicitNull,
+    };
+    let by_update = other
+        .update(&ctx, &patch)
+        .expect_err("moving to a held ROR ID is refused");
+    assert_eq!(by_update.to_string(), ROR_CONFLICT);
+    assert!(matches!(by_update, ThothError::DatabaseConstraintError(_)));
+
+    assert_eq!(
+        totals(&mut connection),
+        before,
+        "no row and no history added"
+    );
+    assert_eq!(
+        Institution::from_id(&pool, &other.institution_id).unwrap(),
+        other
+    );
+    assert_eq!(
+        Institution::from_id(&pool, &holder.institution_id).unwrap(),
+        holder
+    );
+}
+
 #[test]
 fn of_two_concurrent_creates_with_one_ror_id_one_succeeds_and_the_other_gets_the_message() {
     let (_guard, _pool) = setup_test_db();
@@ -1834,8 +1889,6 @@ fn at_once(sql: &str) {
     );
 }
 
-/// Open a connection, start a transaction and run the whole of `up.sql` in
-/// it, leaving it open: the migration holding its locks before commit.
 #[test]
 fn the_migration_opens_with_the_three_statements_of_s2() {
     let body: Vec<&str> = UP_SQL
@@ -1853,6 +1906,8 @@ fn the_migration_opens_with_the_three_statements_of_s2() {
     );
 }
 
+/// Open a connection, start a transaction and run the whole of `up.sql` in
+/// it, leaving it open: the migration holding its locks before commit.
 fn hold_migration() -> PgConnection {
     let mut hold = connect();
     exec(&mut hold, "BEGIN");
@@ -2557,6 +2612,9 @@ fn the_repair_restores_a_merged_row_and_its_links_and_reports_what_it_left() {
     );
 }
 
+/// A successor no test row holds as its own ROR ID.
+const REPAIR_SUCCESSOR: &str = "https://ror.org/0zzzzzz11";
+
 #[test]
 fn the_repair_restores_the_ror_state_columns_to_their_defaults() {
     let (_guard, pool, _restore, mut connection) = begin();
@@ -2569,7 +2627,8 @@ fn the_repair_restores_the_ror_state_columns_to_their_defaults() {
     exec(
         &mut connection,
         &format!(
-            "UPDATE institution SET ror_status = 'inactive' WHERE institution_id = '{merged}'"
+            "UPDATE institution SET ror_status = 'inactive', ror_successor = '{REPAIR_SUCCESSOR}' \
+             WHERE institution_id = '{merged}'"
         ),
     );
     apply(&mut connection).expect("the migration applies");
@@ -2578,6 +2637,10 @@ fn the_repair_restores_the_ror_state_columns_to_their_defaults() {
     assert_eq!(
         merges[&merged].data["merged_row"]["ror_status"],
         json!("inactive")
+    );
+    assert_eq!(
+        merges[&merged].data["merged_row"]["ror_successor"],
+        json!(REPAIR_SUCCESSOR)
     );
     assert_eq!(merges[&merged].on, survivor);
 

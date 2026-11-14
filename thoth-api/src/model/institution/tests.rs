@@ -2315,7 +2315,8 @@ mod ror_state {
         );
         let history_before = history(pool.as_ref(), row.institution_id).len();
         let mut patch = patch_from(&row);
-        patch.ror = Some(ror(ROR_D));
+        // A ROR ID no row holds, so that only the successor CHECK can fail.
+        patch.ror = Some(ror(&nth_ror('d', 1)));
         patch.ror_successor = juniper::Nullable::Some(ror(ROR_C));
         assert_constraint_error(row.update(&sync, &patch), ACTIVE_SUCCESSOR_MESSAGE);
         let unchanged = stored(pool.as_ref(), row.institution_id);

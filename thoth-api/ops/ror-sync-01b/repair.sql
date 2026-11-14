@@ -42,7 +42,16 @@
 
 SET LOCAL lock_timeout = '10s';
 
-DROP TABLE IF EXISTS pg_temp.ror_sync_01b_repair_report;
+-- A report left by an earlier run in this transaction is dropped. The check
+-- avoids `DROP TABLE IF EXISTS pg_temp...`, which prints a NOTICE in a session
+-- that has no temporary schema yet.
+DO $$
+BEGIN
+    IF to_regclass('pg_temp.ror_sync_01b_repair_report') IS NOT NULL THEN
+        DROP TABLE pg_temp.ror_sync_01b_repair_report;
+    END IF;
+END
+$$;
 CREATE TEMPORARY TABLE ror_sync_01b_repair_report (
     tbl text NOT NULL,
     row_id uuid NOT NULL,
