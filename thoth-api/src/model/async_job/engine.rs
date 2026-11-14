@@ -3,7 +3,8 @@
 //!
 //! Every operation validates its bounded inputs before any write, runs inside
 //! the caller's READ COMMITTED transaction between [`run_op`]'s deferral and
-//! forced checks, reads `now` with `clock_timestamp()` after its locks, and
+//! forced checks, reads `now` with `clock_timestamp()` after its locks
+//! (recovery reads it just before its row locks, which never wait), and
 //! attributes each status change to a named cause in the transition log.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -2281,14 +2282,20 @@ pub(crate) fn recover_rows(
     kinds: Option<&[String]>,
     limit: i64,
 ) -> ThothResult<RecoveryReport> {
+    // One instant for the selection and for every row's handling. It is read
+    // just before the selection, which takes its row locks with SKIP LOCKED
+    // and so never waits. Bound as a parameter, unlike the volatile
+    // `clock_timestamp()`, it bounds the lease and waiting-deadline index
+    // scans by due time.
+    let now = db(clock_now(conn))?;
     // One statement locks the due rows: no current failure entry first, then
     // by the entry's last failure, then by due time and id.
     let rows = db(sql_query(format!(
         "SELECT {JOB_COLUMNS} FROM public.async_job j \
            LEFT JOIN public.async_recovery_failure f ON f.async_job_id = j.async_job_id \
           WHERE ($1::text[] IS NULL OR j.kind = ANY($1::text[])) \
-            AND ((j.claim_token IS NOT NULL AND j.lease_expires_at <= clock_timestamp()) \
-                 OR (j.status = 'WAITING' AND j.waiting_deadline <= clock_timestamp())) \
+            AND ((j.claim_token IS NOT NULL AND j.lease_expires_at <= $3::timestamptz) \
+                 OR (j.status = 'WAITING' AND j.waiting_deadline <= $3::timestamptz)) \
           ORDER BY (f.last_failed_at >= COALESCE(j.lease_expires_at, j.waiting_deadline)) IS TRUE, \
                    CASE WHEN f.last_failed_at >= COALESCE(j.lease_expires_at, j.waiting_deadline) \
                         THEN f.last_failed_at END, \
@@ -2299,8 +2306,8 @@ pub(crate) fn recover_rows(
     ))
     .bind::<Nullable<Array<Text>>, _>(kinds)
     .bind::<BigInt, _>(limit)
+    .bind::<Timestamptz, _>(now)
     .load::<JobRow>(conn))?;
-    let now = db(clock_now(conn))?;
     let mut report = RecoveryReport::default();
     for job in rows {
         let policy = registry.get(&job.kind);
