@@ -7860,3 +7860,1313 @@ fn phase_wait_with_resume_at_after_the_waiting_deadline_is_refused() {
     assert_live(c, &claim);
     assert_eq!(job(c, a.async_job_id).status, AsyncJobStatus::Running);
 }
+
+// ---------------------------------------------------------------------------
+// Input bounds (19.2)
+// ---------------------------------------------------------------------------
+
+/// Everything an engine call could write for one job: the row, its attempts,
+/// transitions and holds, its targets' state rows, and the command rows.
+#[derive(Debug, Clone, PartialEq)]
+struct Footprint {
+    job: AsyncJob,
+    attempts: Vec<AsyncJobAttempt>,
+    transitions: Vec<AsyncJobTransition>,
+    holds: Vec<String>,
+    states: Vec<Option<StateView>>,
+    commands: i64,
+}
+
+fn footprint(conn: &mut PgConnection, id: Uuid) -> Footprint {
+    let row = job(conn, id);
+    let states = row.target_keys.iter().map(|k| state(conn, k)).collect();
+    Footprint {
+        attempts: attempts(conn, id),
+        transitions: transitions(conn, id),
+        holds: holds(conn, id),
+        states,
+        commands: command_rows(conn),
+        job: row,
+    }
+}
+
+/// Nothing was written for the job, and the claim is still live.
+#[track_caller]
+fn assert_nothing_written_and_live(
+    conn: &mut PgConnection,
+    before: &Footprint,
+    claim: &WorkerClaim,
+) {
+    assert_eq!(&footprint(conn, before.job.async_job_id), before);
+    assert_live(conn, claim);
+}
+
+/// Run `op` in a caller-owned READ COMMITTED transaction and assert it is
+/// refused with `expected`; the same transaction must then still run a
+/// statement and commit a job created after the refusal.
+fn refused_in_a_usable_transaction<T: std::fmt::Debug>(
+    conn: &mut PgConnection,
+    expected: &str,
+    op: impl FnOnce(&mut PgConnection) -> ThothResult<T>,
+) {
+    let marker = format!("usable-{}", Uuid::new_v4());
+    // A kind no test here claims, so the marker never takes a claim slot.
+    let input = new_job(TEST_CAPABILITY, &marker, &[&key(NS_CS)]);
+    conn.build_transaction()
+        .read_committed()
+        .run::<_, DieselError, _>(|c| {
+            assert_code(op(c), expected);
+            c.batch_execute("SELECT 1")?;
+            let created = create_job_on(c, &REGISTRY, input).expect("a create after the refusal");
+            assert!(matches!(created, CreateOutcome::Created(_)));
+            Ok(())
+        })
+        .expect("the caller's transaction must still commit");
+    assert_eq!(
+        count(
+            conn,
+            &format!("FROM public.async_job WHERE payload->>'id' = '{marker}'")
+        ),
+        1
+    );
+}
+
+/// Two minutes from now: inside every test kind's wait bounds.
+fn in_two_minutes() -> chrono::DateTime<chrono::Utc> {
+    chrono::Utc::now() + Duration::seconds(120)
+}
+
+fn wait_req(checkpoint: &str) -> WaitRequest {
+    WaitRequest {
+        checkpoint: checkpoint.to_string(),
+        resume_at: in_two_minutes(),
+        provider_ref: None,
+    }
+}
+
+fn payload_with(id: &str, target: &str, extra: &str) -> String {
+    format!(r#"{{"id": "{id}", "targets": ["{target}"], {extra}}}"#)
+}
+
+fn commands_for(conn: &mut PgConnection, id: Uuid, outcome: &str, code: &str) -> i64 {
+    count(
+        conn,
+        &format!(
+            "FROM public.async_control_command WHERE async_job_id = '{id}' \
+               AND outcome = '{outcome}' AND outcome_code = '{code}'"
+        ),
+    )
+}
+
+/// A staff resolution command with `actor`.
+fn staff_resolve(
+    conn: &mut PgConnection,
+    actor: &StaffActor,
+    id: Uuid,
+    resolution: StaffResolution,
+) -> ThothResult<CommandResult> {
+    tx(conn, |c| {
+        resolve_reconciliation_command_on(c, &REGISTRY, actor, id, resolution)
+    })
+}
+
+#[test]
+fn bounds_u0000_in_every_input_is_refused_with_its_code_and_leaves_the_callers_transaction_usable()
+{
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+
+    // A payload, in a string and in a key: ASYNC_JOB_PAYLOAD_INVALID.
+    let x = key(NS_CS);
+    for (id, extra) in [
+        ("nul-value", r#""note": "a\u0000b""#),
+        ("nul-key", r#""a\u0000b": 1"#),
+    ] {
+        let input = NewAsyncJob {
+            payload: payload_with(id, &x, extra),
+            ..new_job(TEST_EFFECT, id, &[&x])
+        };
+        refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+            create_job_on(c, &REGISTRY, input)
+        });
+        assert_eq!(
+            count(
+                c,
+                &format!("FROM public.async_job WHERE payload->>'id' = '{id}'")
+            ),
+            0
+        );
+    }
+
+    // A worker's checkpoint: ASYNC_JOB_PAYLOAD_INVALID, the claim live.
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "nul-wait", &[&key(NS_CS)]));
+    let before = footprint(c, a.async_job_id);
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        wait_on(c, &REGISTRY, &claim, wait_req(r#"{"step": "a\u0000b"}"#))
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // A worker's evidence object, in `complete` after effect start and in
+    // `fail` with the flag: a shape fault, the claim live (never T6x).
+    let y = key(NS_CS);
+    let (b, claim) = started(c, new_job(TEST_EFFECT, "nul-evidence", &[&y]));
+    let before = footprint(c, b.async_job_id);
+    let call = CompleteRequest {
+        evidence: Some(r#"{"valid": true, "note": "a\u0000b"}"#.to_string()),
+        ..completion(CompletionOutcome::EffectApplied, vec![cs_entry(&y, "fp")])
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        complete_on(c, &REGISTRY, &claim, call)
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+    let before = footprint(c, b.async_job_id);
+    let call = no_effect_req(
+        FailureClass::Permanent,
+        Some(r#"{"valid": true, "providerRef": "p\u0000"}"#),
+    );
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        fail_on(c, &REGISTRY, &claim, call)
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+    // An entry's string is a shape fault too.
+    let before = footprint(c, b.async_job_id);
+    let call = completion(CompletionOutcome::EffectApplied, vec![cs_entry(&y, "f\0p")]);
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        complete_on(c, &REGISTRY, &claim, call)
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // A command's evidence object: ASYNC_JOB_PAYLOAD_INVALID, no command row.
+    let z = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_EFFECT, "nul-command", &[&z]));
+    let before = footprint(c, rr.async_job_id);
+    let resolution = StaffResolution {
+        entries: Some(vec![cs_entry(&z, "fp")]),
+        evidence: Some(r#"{"valid": true, "note": "a\u0000b"}"#.to_string()),
+        ..staff_res(StaffOutcome::Succeeded)
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        resolve_reconciliation_command_on(
+            c,
+            &REGISTRY,
+            &staff("resolve"),
+            rr.async_job_id,
+            resolution,
+        )
+    });
+    assert_eq!(footprint(c, rr.async_job_id), before);
+
+    // A `reason`: ASYNC_JOB_PAYLOAD_INVALID before any statement.
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        cancel_job_command_on(c, &REGISTRY, &staff("stop\0now"), rr.async_job_id)
+    });
+    assert_eq!(footprint(c, rr.async_job_id), before);
+
+    // `claimedBy`: ASYNC_JOB_PAYLOAD_INVALID, nothing claimed.
+    let pending = create(c, new_job(TEST_PEER, "nul-claimer", &[&key(NS_CS)]));
+    let executor = Executor {
+        name: "worker\0one".to_string(),
+        ..dissemination()
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        claim_on(c, &REGISTRY, &executor, request(&[TEST_PEER], 5))
+    });
+    assert_eq!(status(c, pending.async_job_id), AsyncJobStatus::Pending);
+    assert_no_unspecified(c);
+}
+
+#[test]
+fn bounds_a_value_jsonb_refuses_is_refused_with_its_code_and_leaves_the_callers_transaction_usable()
+{
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // serde accepts `1e-20000`; `jsonb` refuses it (it overflows numeric).
+    assert!(serde_json::from_str::<serde_json::Value>(r#"{"n": 1e-20000}"#).is_ok());
+
+    // A payload: ASYNC_JOB_PAYLOAD_INVALID.
+    let x = key(NS_CS);
+    let input = NewAsyncJob {
+        payload: payload_with("tiny", &x, r#""n": 1e-20000"#),
+        ..new_job(TEST_EFFECT, "tiny", &[&x])
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        create_job_on(c, &REGISTRY, input)
+    });
+    assert_eq!(
+        count(c, "FROM public.async_job WHERE payload->>'id' = 'tiny'"),
+        0
+    );
+
+    // A worker's checkpoint: ASYNC_JOB_PAYLOAD_INVALID, the claim live.
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "tiny-wait", &[&key(NS_CS)]));
+    let before = footprint(c, a.async_job_id);
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        wait_on(c, &REGISTRY, &claim, wait_req(r#"{"n": 1e-20000}"#))
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // A worker's evidence object: a shape fault, the claim live (never T6x).
+    let y = key(NS_CS);
+    let (b, claim) = started(c, new_job(TEST_EFFECT, "tiny-evidence", &[&y]));
+    let before = footprint(c, b.async_job_id);
+    let request = CompleteRequest {
+        evidence: Some(r#"{"valid": true, "n": 1e-20000}"#.to_string()),
+        ..completion(CompletionOutcome::EffectApplied, vec![cs_entry(&y, "fp")])
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        complete_on(c, &REGISTRY, &claim, request)
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+    let before = footprint(c, b.async_job_id);
+    let request = no_effect_req(
+        FailureClass::Permanent,
+        Some(r#"{"valid": true, "providerRef": "p", "n": 1e-20000}"#),
+    );
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        fail_on(c, &REGISTRY, &claim, request)
+    });
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // An executor reconciler's evidence and checkpoint (T16).
+    let z = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_PEER, "tiny-t16", &[&z]));
+    let recon = claim_recon(c, &rr);
+    let before = footprint(c, rr.async_job_id);
+    let request = ResolveReconciliation {
+        entries: Some(vec![cs_entry(&z, "fp")]),
+        ..resolution_evidence(
+            ReconcilerOutcome::Succeeded,
+            r#"{"valid": true, "n": 1e-20000}"#,
+        )
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_EVIDENCE_INVALID", |c| {
+        resolve_reconciliation_on(c, &REGISTRY, &recon, request)
+    });
+    assert_nothing_written_and_live(c, &before, &recon);
+    let before = footprint(c, rr.async_job_id);
+    let request = ResolveReconciliation {
+        checkpoint: Some(r#"{"n": 1e-20000}"#.to_string()),
+        resume_at: Some(in_two_minutes()),
+        ..resolution(ReconcilerOutcome::Waiting)
+    };
+    refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+        resolve_reconciliation_on(c, &REGISTRY, &recon, request)
+    });
+    assert_nothing_written_and_live(c, &before, &recon);
+
+    // A command's evidence or checkpoint: ASYNC_JOB_PAYLOAD_INVALID before
+    // any write, so no command row.
+    let w = key(NS_CS);
+    let staffed = rr_started(c, new_job(TEST_EFFECT, "tiny-t18", &[&w]));
+    let before = footprint(c, staffed.async_job_id);
+    for resolution in [
+        StaffResolution {
+            entries: Some(vec![cs_entry(&w, "fp")]),
+            evidence: Some(r#"{"valid": true, "n": 1e-20000}"#.to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        StaffResolution {
+            checkpoint: Some(r#"{"n": 1e-20000}"#.to_string()),
+            resume_at: Some(in_two_minutes()),
+            ..staff_res(StaffOutcome::Waiting)
+        },
+    ] {
+        let id = staffed.async_job_id;
+        refused_in_a_usable_transaction(c, "ASYNC_JOB_PAYLOAD_INVALID", |c| {
+            resolve_reconciliation_command_on(c, &REGISTRY, &staff("resolve"), id, resolution)
+        });
+        assert_eq!(footprint(c, staffed.async_job_id), before);
+    }
+    assert_no_unspecified(c);
+}
+
+#[test]
+fn bounds_an_oversized_checkpoint_and_a_malformed_error_code_write_nothing_and_leave_the_claim_live(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // `{"blob": "<n characters>"}` renders as n + 12 bytes of `jsonb` text.
+    let checkpoint = |n: usize| format!(r#"{{"blob":"{}"}}"#, "x".repeat(n));
+    assert_eq!(
+        scalar(
+            c,
+            &format!(
+                "SELECT octet_length('{}'::jsonb::text)::bigint AS value",
+                checkpoint(65_524)
+            )
+        ),
+        65_536
+    );
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "big-wait", &[&key(NS_CS)]));
+    let before = footprint(c, a.async_job_id);
+    assert_code(
+        tx(c, |c| {
+            wait_on(c, &REGISTRY, &claim, wait_req(&checkpoint(65_525)))
+        }),
+        "ASYNC_JOB_PAYLOAD_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    // The boundary itself is taken, with the same claim.
+    let waited = tx(c, |c| {
+        wait_on(c, &REGISTRY, &claim, wait_req(&checkpoint(65_524)))
+    })
+    .unwrap();
+    assert!(matches!(waited, WaitOutcome::Waiting(_)));
+
+    let (b, claim) = running(c, new_job(TEST_EFFECT, "bad-code", &[&key(NS_CS)]));
+    for error_code in [
+        "",
+        "lower_case",
+        "BAD CODE",
+        "1LEADING_DIGIT",
+        "TRAILING-DASH",
+        &"A".repeat(65),
+    ] {
+        let before = footprint(c, b.async_job_id);
+        let request = FailRequest {
+            error_code: error_code.to_string(),
+            ..fail_req(FailureClass::Permanent)
+        };
+        assert_code(do_fail(c, &claim, request), "ASYNC_JOB_PAYLOAD_INVALID");
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+    // Sixty-four characters are taken.
+    let request = FailRequest {
+        error_code: "A".repeat(64),
+        ..fail_req(FailureClass::Permanent)
+    };
+    let failed = do_fail(c, &claim, request).unwrap();
+    assert_eq!(failed.status, AsyncJobStatus::Failed);
+    assert_eq!(
+        last_attempt(c, b.async_job_id).error_code,
+        Some("A".repeat(64))
+    );
+}
+
+#[test]
+fn bounds_every_cell_of_the_evidence_fault_table() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let other = key(NS_CS);
+
+    // `complete` at PRE_WRITE: both faults are ASYNC_JOB_EVIDENCE_INVALID,
+    // nothing written, the claim live.
+    let x = key(NS_CS);
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "cell-pre", &[&x]));
+    let shape = EvidenceEntry {
+        source_ref: Some("ref".to_string()),
+        ..cs_entry(&x, "fp")
+    };
+    for entry in [shape, cs_entry(&other, "fp")] {
+        let before = footprint(c, a.async_job_id);
+        assert_code(
+            do_complete(c, &claim, completion(CompletionOutcome::NoOp, vec![entry])),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+
+    // `complete` after effect start: a shape fault keeps the claim live; a
+    // semantic fault is T6x.
+    let y = key(NS_CS);
+    let (b, claim) = started(c, new_job(TEST_EFFECT, "cell-post", &[&y]));
+    let before = footprint(c, b.async_job_id);
+    assert_code(
+        do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::EffectApplied,
+                vec![cs_entry(&y, "fp"), cs_entry(&y, "fp")],
+            ),
+        ),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    let outcome = do_complete(
+        c,
+        &claim,
+        completion(
+            CompletionOutcome::EffectApplied,
+            vec![cs_entry(&other, "fp")],
+        ),
+    )
+    .unwrap();
+    assert!(matches!(
+        outcome,
+        CompleteOutcome::ReconciliationRequired(_)
+    ));
+    let after = job(c, b.async_job_id);
+    assert_eq!(after.status, AsyncJobStatus::ReconciliationRequired);
+    assert_eq!(after.last_outcome_code.as_deref(), Some("EVIDENCE_INVALID"));
+    let closed = last_attempt(c, b.async_job_id);
+    assert_eq!(closed.result, Some(AsyncAttemptResult::Indeterminate));
+    assert_eq!(closed.outcome_code.as_deref(), Some("EVIDENCE_INVALID"));
+    assert_eq!(holds(c, b.async_job_id), vec![y.clone()]);
+    assert_eq!(state(c, &y), None);
+    assert_eq!(state(c, &other), None);
+
+    // `fail(PERMANENT, no_effect_proven)`: both faults are
+    // ASYNC_JOB_EVIDENCE_INVALID, nothing written, the claim live.
+    let (d, claim) = started(c, new_job(TEST_EFFECT, "cell-fail", &[&key(NS_CS)]));
+    for evidence in [r#"[1, 2]"#, r#"{"valid": false, "providerRef": "p"}"#] {
+        let before = footprint(c, d.async_job_id);
+        assert_code(
+            do_fail(
+                c,
+                &claim,
+                no_effect_req(FailureClass::Permanent, Some(evidence)),
+            ),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+
+    // T16: both faults are ASYNC_JOB_EVIDENCE_INVALID, the job stays RR and
+    // the claim live.
+    let z = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_PEER, "cell-t16", &[&z]));
+    let recon = claim_recon(c, &rr);
+    for entry in [cs_entry(&z, "has space"), cs_entry(&other, "fp")] {
+        let before = footprint(c, rr.async_job_id);
+        assert_code(
+            do_resolve(c, &recon, resolution_entries(vec![entry])),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_eq!(
+            status(c, rr.async_job_id),
+            AsyncJobStatus::ReconciliationRequired
+        );
+        assert_nothing_written_and_live(c, &before, &recon);
+    }
+
+    // T18 (the T6x job above, unclaimed): both faults are a committed
+    // REFUSED with EVIDENCE_INVALID, and nothing else changes.
+    for resolution in [
+        StaffResolution {
+            entries: Some(vec![cs_entry(&y, "fp")]),
+            evidence: Some(r#"{"valid": true, "token": "t"}"#.to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        StaffResolution {
+            entries: Some(vec![cs_entry(&other, "fp")]),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+    ] {
+        let before = footprint(c, b.async_job_id);
+        let result = do_staff(c, b.async_job_id, resolution);
+        assert_command_refused(&result, "EVIDENCE_INVALID");
+        assert_eq!(
+            footprint(c, b.async_job_id),
+            Footprint {
+                commands: before.commands + 1,
+                ..before
+            }
+        );
+    }
+    assert_eq!(
+        commands_for(c, b.async_job_id, "REFUSED", "EVIDENCE_INVALID"),
+        2
+    );
+    assert_no_unspecified(c);
+}
+
+#[test]
+fn bounds_fail_with_no_effect_proven_is_refused_with_its_reason_and_the_claim_live() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let check = |c: &mut PgConnection, claim: &WorkerClaim, id: Uuid, class, reason: &str| {
+        let before = footprint(c, id);
+        assert_refused(
+            do_fail(c, claim, no_effect_req(class, Some(NO_EFFECT_EVIDENCE))),
+            reason,
+        );
+        assert_nothing_written_and_live(c, &before, claim);
+    };
+    // At EFFECT_CONFIRMED: refused, and the worker can then fail without
+    // the flag (T9).
+    let (a, claim) = confirmed(c, new_job(TEST_EFFECT, "ne-confirmed", &[&key(NS_CS)]));
+    check(
+        c,
+        &claim,
+        a.async_job_id,
+        FailureClass::Permanent,
+        "EFFECT_CONFIRMED",
+    );
+    let failed = do_fail(c, &claim, fail_req(FailureClass::Permanent)).unwrap();
+    assert_eq!(failed.status, AsyncJobStatus::ReconciliationRequired);
+    // At PRE_WRITE.
+    let (b, claim) = running(c, new_job(TEST_EFFECT, "ne-pre", &[&key(NS_CS)]));
+    check(c, &claim, b.async_job_id, FailureClass::Permanent, "PHASE");
+    // With a class other than PERMANENT.
+    let (d, claim) = started(c, new_job(TEST_EFFECT, "ne-class", &[&key(NS_CS)]));
+    for class in [FailureClass::RetryablePreWrite, FailureClass::Indeterminate] {
+        check(c, &claim, d.async_job_id, class, "CLASS");
+    }
+    // For a kind without `no_effect_after_start_allowed`.
+    let (e, claim) = started(c, new_job(TEST_STRICT, "ne-kind", &[&key(NS_CS)]));
+    check(
+        c,
+        &claim,
+        e.async_job_id,
+        FailureClass::Permanent,
+        "KIND_POLICY",
+    );
+}
+
+#[test]
+fn bounds_complete_with_an_outcome_its_phase_or_kind_does_not_allow_is_refused_with_the_claim_live()
+{
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let check = |c: &mut PgConnection, claim: &WorkerClaim, id: Uuid, request, reason: &str| {
+        let before = footprint(c, id);
+        assert_refused(do_complete(c, claim, request), reason);
+        assert_nothing_written_and_live(c, &before, claim);
+    };
+    let r = key(NS_RB);
+    seed_rb_state(c, &r, 9, "h9");
+    // PHASE: NO_OP and SUPERSEDED after effect start, EFFECT_APPLIED at
+    // PRE_WRITE.
+    let x = key(NS_CS);
+    let (a, claim) = started(c, new_job(TEST_EFFECT, "phase-noop", &[&x]));
+    check(
+        c,
+        &claim,
+        a.async_job_id,
+        completion(CompletionOutcome::NoOp, vec![cs_entry(&x, "fp")]),
+        "PHASE",
+    );
+    let (b, claim) = started(c, revision_job("phase-sup", &r, 3, "h3"));
+    check(
+        c,
+        &claim,
+        b.async_job_id,
+        completion(
+            CompletionOutcome::Superseded,
+            vec![EvidenceEntry::key_only(&r)],
+        ),
+        "PHASE",
+    );
+    let y = key(NS_CS);
+    let (d, claim) = running(c, new_job(TEST_EFFECT, "phase-applied", &[&y]));
+    check(
+        c,
+        &claim,
+        d.async_job_id,
+        completion(CompletionOutcome::EffectApplied, vec![cs_entry(&y, "fp")]),
+        "PHASE",
+    );
+    // KIND_POLICY: COMPLETED on an EFFECTFUL kind, SUPERSEDED on a
+    // CURRENT_STATE kind.
+    for outcome in [CompletionOutcome::Completed, CompletionOutcome::Superseded] {
+        check(
+            c,
+            &claim,
+            d.async_job_id,
+            completion(outcome, vec![EvidenceEntry::key_only(&y)]),
+            "KIND_POLICY",
+        );
+    }
+}
+
+#[test]
+fn bounds_a_call_with_several_refusal_reasons_reports_the_first_in_the_stated_order() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // TEST_STRICT has no `no_effect_after_start_allowed`, so KIND_POLICY
+    // applies to every flagged `fail` below, and INDETERMINATE adds CLASS.
+    let flagged = |c: &mut PgConnection, claim: &WorkerClaim, reason: &str| {
+        assert_refused(
+            do_fail(
+                c,
+                claim,
+                no_effect_req(FailureClass::Indeterminate, Some(NO_EFFECT_EVIDENCE)),
+            ),
+            reason,
+        );
+        assert_live(c, claim);
+    };
+    // PHASE, KIND_POLICY and CLASS: PHASE.
+    let (_a, claim) = running(c, new_job(TEST_STRICT, "multi-pre", &[&key(NS_CS)]));
+    flagged(c, &claim, "PHASE");
+    // EFFECT_CONFIRMED, KIND_POLICY and CLASS: EFFECT_CONFIRMED.
+    let (_b, claim) = confirmed(c, new_job(TEST_STRICT, "multi-confirmed", &[&key(NS_CS)]));
+    flagged(c, &claim, "EFFECT_CONFIRMED");
+    // KIND_POLICY and CLASS: KIND_POLICY.
+    let (_d, claim) = started(c, new_job(TEST_STRICT, "multi-started", &[&key(NS_CS)]));
+    flagged(c, &claim, "KIND_POLICY");
+    // `complete`: SUPERSEDED after effect start on a CURRENT_STATE kind is
+    // PHASE before KIND_POLICY.
+    let x = key(NS_CS);
+    let (_e, claim) = started(c, new_job(TEST_EFFECT, "multi-complete", &[&x]));
+    assert_refused(
+        do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::Superseded,
+                vec![EvidenceEntry::key_only(&x)],
+            ),
+        ),
+        "PHASE",
+    );
+    assert_live(c, &claim);
+    // A refusal comes before a shape fault in the same call.
+    assert_refused(
+        do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::Completed,
+                vec![cs_entry(&x, "has space")],
+            ),
+        ),
+        "KIND_POLICY",
+    );
+    assert_live(c, &claim);
+}
+
+#[test]
+fn bounds_an_entry_missing_or_carrying_a_field_is_a_shape_fault_with_the_claim_live() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let check = |c: &mut PgConnection, claim: &WorkerClaim, id: Uuid, request| {
+        let before = footprint(c, id);
+        assert_code(do_complete(c, claim, request), "ASYNC_JOB_EVIDENCE_INVALID");
+        assert_nothing_written_and_live(c, &before, claim);
+    };
+    let r = key(NS_RB);
+    seed_rb_state(c, &r, 2, "h2");
+    // After effect start (a semantic fault would be T6x).
+    let (a, claim) = started(c, revision_job("fields-rb", &r, 3, "h3"));
+    let rb = rb_entry(&r, 3, "h3");
+    for entry in [
+        EvidenceEntry {
+            order: None,
+            ..rb.clone()
+        },
+        EvidenceEntry {
+            fingerprint: None,
+            ..rb.clone()
+        },
+    ] {
+        check(
+            c,
+            &claim,
+            a.async_job_id,
+            completion(CompletionOutcome::EffectApplied, vec![entry]),
+        );
+    }
+    let x = key(NS_CS);
+    let (b, claim) = started(c, new_job(TEST_EFFECT, "fields-cs", &[&x]));
+    for entry in [
+        EvidenceEntry {
+            fingerprint: None,
+            ..cs_entry(&x, "fp")
+        },
+        EvidenceEntry {
+            order: Some(1),
+            ..cs_entry(&x, "fp")
+        },
+    ] {
+        check(
+            c,
+            &claim,
+            b.async_job_id,
+            completion(CompletionOutcome::EffectApplied, vec![entry]),
+        );
+    }
+    // At PRE_WRITE: a NO_OP entry with a sourceRef, in both modes.
+    let y = key(NS_CS);
+    let (d, claim) = running(c, new_job(TEST_EFFECT, "fields-noop", &[&y]));
+    check(
+        c,
+        &claim,
+        d.async_job_id,
+        completion(
+            CompletionOutcome::NoOp,
+            vec![EvidenceEntry {
+                source_ref: Some("ref".to_string()),
+                ..cs_entry(&y, "fp")
+            }],
+        ),
+    );
+    let q = key(NS_RB);
+    let (e, claim) = running(c, revision_job("fields-rb-noop", &q, 4, "h4"));
+    for (outcome, entry) in [
+        (
+            CompletionOutcome::NoOp,
+            EvidenceEntry {
+                source_ref: Some("ref".to_string()),
+                ..rb_entry(&q, 4, "h4")
+            },
+        ),
+        // A key-only entry with a fingerprint.
+        (
+            CompletionOutcome::Superseded,
+            EvidenceEntry {
+                fingerprint: Some("h4".to_string()),
+                ..EvidenceEntry::key_only(&q)
+            },
+        ),
+    ] {
+        check(c, &claim, e.async_job_id, completion(outcome, vec![entry]));
+    }
+    // COMPLETED with a fingerprint on a READ_ONLY kind.
+    let z = key(NS_READ);
+    let (g, claim) = running(c, new_job(TEST_READ, "fields-read", &[&z]));
+    check(
+        c,
+        &claim,
+        g.async_job_id,
+        completion(CompletionOutcome::Completed, vec![cs_entry(&z, "fp")]),
+    );
+}
+
+#[test]
+fn bounds_an_input_in_a_none_cell_of_the_evidence_argument_table_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let r = key(NS_RB);
+    seed_rb_state(c, &r, 9, "h9");
+    let q = key(NS_RB);
+    seed_rb_state(c, &q, 7, "h7");
+
+    // `complete`: an evidence object with SUPERSEDED or COMPLETED.
+    let (a, claim) = running(c, revision_job("none-sup", &r, 3, "h3"));
+    let before = footprint(c, a.async_job_id);
+    let request = CompleteRequest {
+        evidence: Some(applied_evidence(3)),
+        ..completion(
+            CompletionOutcome::Superseded,
+            vec![EvidenceEntry::key_only(&r)],
+        )
+    };
+    assert_code(
+        do_complete(c, &claim, request),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    let z = key(NS_READ);
+    let (b, claim) = running(c, new_job(TEST_READ, "none-read", &[&z]));
+    let before = footprint(c, b.async_job_id);
+    let request = CompleteRequest {
+        evidence: Some(r#"{"valid": true}"#.to_string()),
+        ..completion(
+            CompletionOutcome::Completed,
+            vec![EvidenceEntry::key_only(&z)],
+        )
+    };
+    assert_code(
+        do_complete(c, &claim, request),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    // `fail` without the flag takes no evidence object.
+    let (d, claim) = started(c, new_job(TEST_EFFECT, "none-fail", &[&key(NS_CS)]));
+    let before = footprint(c, d.async_job_id);
+    let request = FailRequest {
+        evidence: Some(NO_EFFECT_EVIDENCE.to_string()),
+        ..fail_req(FailureClass::Permanent)
+    };
+    assert_code(do_fail(c, &claim, request), "ASYNC_JOB_EVIDENCE_INVALID");
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // T16 FAILED or CANCELLED at EFFECT_STARTED: entries are refused, the
+    // job stays RR and the claim live; so are entries or evidence with
+    // STILL_REQUIRED, which the table does not list.
+    let x = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_PEER, "none-t16", &[&x]));
+    let recon = claim_recon(c, &rr);
+    for outcome in [ReconcilerOutcome::Failed, ReconcilerOutcome::Cancelled] {
+        let before = footprint(c, rr.async_job_id);
+        let request = ResolveReconciliation {
+            entries: Some(vec![cs_entry(&x, "fp")]),
+            ..resolution_evidence(outcome, NO_EFFECT_EVIDENCE)
+        };
+        assert_code(do_resolve(c, &recon, request), "ASYNC_JOB_EVIDENCE_INVALID");
+        assert_nothing_written_and_live(c, &before, &recon);
+    }
+    for request in [
+        ResolveReconciliation {
+            entries: Some(vec![cs_entry(&x, "fp")]),
+            ..resolution(ReconcilerOutcome::StillRequired)
+        },
+        resolution_evidence(ReconcilerOutcome::StillRequired, NO_EFFECT_EVIDENCE),
+    ] {
+        let before = footprint(c, rr.async_job_id);
+        assert_code(do_resolve(c, &recon, request), "ASYNC_JOB_EVIDENCE_INVALID");
+        assert_nothing_written_and_live(c, &before, &recon);
+    }
+
+    // T18: entries with FAILED at EFFECT_STARTED, with ACCEPT_REGRESSION
+    // and with FAILED at EFFECT_CONFIRMED are committed REFUSED with
+    // EVIDENCE_INVALID.
+    let y = key(NS_CS);
+    let started_rr = rr_started(c, new_job(TEST_EFFECT, "none-t18", &[&y]));
+    let confirmed_rr = rr_confirmed(c, new_job(TEST_EFFECT, "none-t18c", &[&key(NS_CS)]));
+    let (regressed, claim) = started(c, revision_job("none-accept", &q, 5, "h5"));
+    let outcome = do_complete(
+        c,
+        &claim,
+        completion(
+            CompletionOutcome::EffectApplied,
+            vec![rb_entry(&q, 5, "h5")],
+        ),
+    )
+    .unwrap();
+    assert!(matches!(
+        outcome,
+        CompleteOutcome::ReconciliationRequired(_)
+    ));
+    for (id, resolution) in [
+        (
+            started_rr.async_job_id,
+            StaffResolution {
+                entries: Some(vec![cs_entry(&y, "fp")]),
+                evidence: Some(NO_EFFECT_EVIDENCE.to_string()),
+                ..staff_res(StaffOutcome::Failed)
+            },
+        ),
+        (
+            regressed.async_job_id,
+            StaffResolution {
+                entries: Some(vec![rb_entry(&q, 5, "h5")]),
+                evidence: Some(applied_evidence(5)),
+                ..staff_res(StaffOutcome::AcceptRegression)
+            },
+        ),
+        (
+            confirmed_rr.async_job_id,
+            StaffResolution {
+                entries: Some(vec![EvidenceEntry::key_only(&y)]),
+                evidence: Some(NOT_APPLIED_EVIDENCE.to_string()),
+                ..staff_res(StaffOutcome::Failed)
+            },
+        ),
+    ] {
+        let before = footprint(c, id);
+        let result = do_staff(c, id, resolution);
+        assert_command_refused(&result, "EVIDENCE_INVALID");
+        assert_eq!(
+            footprint(c, id),
+            Footprint {
+                commands: before.commands + 1,
+                ..before
+            }
+        );
+    }
+    assert_no_unspecified(c);
+}
+
+#[test]
+fn bounds_complete_after_effect_start_with_a_shape_and_a_semantic_fault_keeps_the_claim_live() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let other = key(NS_CS);
+    let (a, claim) = started(c, new_job(TEST_EFFECT, "both-cs", &[&x]));
+    let before = footprint(c, a.async_job_id);
+    // A duplicate key (shape) on a key the job does not have (semantic).
+    assert_code(
+        do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::EffectApplied,
+                vec![cs_entry(&other, "fp"), cs_entry(&other, "fp")],
+            ),
+        ),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    // A regression (semantic) carrying a fingerprint outside the identifier
+    // format (shape).
+    let r = key(NS_RB);
+    seed_rb_state(c, &r, 9, "h9");
+    let (b, claim) = started(c, revision_job("both-rb", &r, 3, "h3"));
+    let before = footprint(c, b.async_job_id);
+    assert_code(
+        do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::EffectApplied,
+                vec![rb_entry(&r, 3, "has space")],
+            ),
+        ),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    assert_eq!(status(c, b.async_job_id), AsyncJobStatus::Running);
+}
+
+#[test]
+fn bounds_an_omitted_required_evidence_object_after_effect_start_keeps_the_claim_live() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    // TEST_STRICT's validator refuses JSON null for applied evidence.
+    let (a, claim) = started(c, new_job(TEST_STRICT, "omitted", &[&x]));
+    let before = footprint(c, a.async_job_id);
+    assert_code(
+        do_complete(
+            c,
+            &claim,
+            completion(CompletionOutcome::EffectApplied, vec![cs_entry(&x, "fp")]),
+        ),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    // Corrected, it completes.
+    let request = CompleteRequest {
+        evidence: Some(r#"{"valid": true}"#.to_string()),
+        ..completion(CompletionOutcome::EffectApplied, vec![cs_entry(&x, "fp")])
+    };
+    assert!(matches!(
+        do_complete(c, &claim, request).unwrap(),
+        CompleteOutcome::Succeeded(_)
+    ));
+    // The same for an executor reconciler's SUCCEEDED (T16).
+    let y = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_STRICT, "omitted-t16", &[&y]));
+    let recon = claim_recon(c, &rr);
+    let before = footprint(c, rr.async_job_id);
+    assert_code(
+        do_resolve(c, &recon, resolution_entries(vec![cs_entry(&y, "fp")])),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &recon);
+}
+
+#[test]
+fn bounds_an_unparseable_or_jsonb_refused_value_in_a_staff_command_is_payload_invalid_with_no_command_row(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let rr = rr_started(c, new_job(TEST_EFFECT, "staff-json", &[&x]));
+    let id = rr.async_job_id;
+    let before = footprint(c, id);
+    let entries = || Some(vec![cs_entry(&x, "fp")]);
+    for resolution in [
+        StaffResolution {
+            entries: entries(),
+            evidence: Some("not json".to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        StaffResolution {
+            entries: entries(),
+            evidence: Some(r#"{"valid": true, "n": 1e-20000}"#.to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        StaffResolution {
+            evidence: Some(r#"{"valid": true, "providerRef": "a\u0000"}"#.to_string()),
+            ..staff_res(StaffOutcome::Failed)
+        },
+        StaffResolution {
+            checkpoint: Some("{".to_string()),
+            resume_at: Some(in_two_minutes()),
+            ..staff_res(StaffOutcome::Waiting)
+        },
+        StaffResolution {
+            checkpoint: Some(r#"{"n": 1e-20000}"#.to_string()),
+            resume_at: Some(in_two_minutes()),
+            ..staff_res(StaffOutcome::Waiting)
+        },
+        StaffResolution {
+            entries: Some(vec![cs_entry(&x, "f\0p")]),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+    ] {
+        assert_code(
+            staff_resolve(c, &staff("resolve"), id, resolution),
+            "ASYNC_JOB_PAYLOAD_INVALID",
+        );
+        assert_eq!(footprint(c, id), before);
+    }
+    // A value that parses and that `jsonb` takes has a canonical form, so its
+    // shape fault is a committed REFUSED instead.
+    let result = do_staff(
+        c,
+        id,
+        StaffResolution {
+            entries: entries(),
+            evidence: Some("[1, 2]".to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+    );
+    assert_command_refused(&result, "EVIDENCE_INVALID");
+    assert_eq!(command_rows(c), before.commands + 1);
+}
+
+#[test]
+fn bounds_an_out_of_range_order_is_a_shape_fault() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let beyond = [i128::from(i64::MAX) + 1, i128::from(i64::MIN) - 1];
+    let entry = |target: &str, order: i128| EvidenceEntry {
+        order: Some(order),
+        ..rb_entry(target, 0, "h3")
+    };
+    // `complete` after effect start: the claim live, never T6x.
+    let r = key(NS_RB);
+    seed_rb_state(c, &r, 9, "h9");
+    let (a, claim) = started(c, revision_job("order-worker", &r, 3, "h3"));
+    for order in beyond {
+        let before = footprint(c, a.async_job_id);
+        assert_code(
+            do_complete(
+                c,
+                &claim,
+                completion(CompletionOutcome::EffectApplied, vec![entry(&r, order)]),
+            ),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+    do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+    // T16: the job stays RR and the claim live.
+    let recon = claim_recon(c, &a);
+    for order in beyond {
+        let before = footprint(c, a.async_job_id);
+        assert_code(
+            do_resolve(c, &recon, resolution_entries(vec![entry(&r, order)])),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_nothing_written_and_live(c, &before, &recon);
+    }
+    do_resolve(c, &recon, resolution(ReconcilerOutcome::StillRequired)).unwrap();
+    // T18 (the job is unclaimed again): a committed REFUSED with
+    // EVIDENCE_INVALID.
+    for order in beyond {
+        let result = do_staff(
+            c,
+            a.async_job_id,
+            StaffResolution {
+                entries: Some(vec![entry(&r, order)]),
+                evidence: Some(applied_evidence(3)),
+                ..staff_res(StaffOutcome::Succeeded)
+            },
+        );
+        assert_command_refused(&result, "EVIDENCE_INVALID");
+    }
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+}
+
+#[test]
+fn bounds_a_credential_named_key_in_a_commands_checkpoint_is_a_committed_wait_invalid() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let rr = rr_started(c, new_job(TEST_EFFECT, "staff-wait", &[&key(NS_CS)]));
+    let id = rr.async_job_id;
+    for checkpoint in [r#"{"apiKey": "k"}"#, r#"{"step": {"Password": "p"}}"#] {
+        let before = footprint(c, id);
+        let result = do_staff(
+            c,
+            id,
+            StaffResolution {
+                checkpoint: Some(checkpoint.to_string()),
+                resume_at: Some(in_two_minutes()),
+                ..staff_res(StaffOutcome::Waiting)
+            },
+        );
+        assert_command_refused(&result, "WAIT_INVALID");
+        assert_eq!(
+            footprint(c, id),
+            Footprint {
+                commands: before.commands + 1,
+                ..before
+            }
+        );
+    }
+    assert_eq!(commands_for(c, id, "REFUSED", "WAIT_INVALID"), 2);
+    // Without the key, the same command applies.
+    let result = do_staff(
+        c,
+        id,
+        StaffResolution {
+            checkpoint: Some(r#"{"step": 1}"#.to_string()),
+            resume_at: Some(in_two_minutes()),
+            ..staff_res(StaffOutcome::Waiting)
+        },
+    );
+    assert_applied(&result, "WAITING");
+}
+
+#[test]
+fn bounds_a_blank_reason_is_payload_invalid_before_any_write() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let rr = rr_started(c, new_job(TEST_EFFECT, "blank-reason", &[&key(NS_CS)]));
+    let id = rr.async_job_id;
+    let before = footprint(c, id);
+    for reason in ["", " ", "\t\n", "\u{3000}"] {
+        let actor = staff(reason);
+        let results = [
+            tx(c, |c| cancel_job_command_on(c, &REGISTRY, &actor, id)),
+            tx(c, |c| retry_job_command_on(c, &REGISTRY, &actor, id)),
+            tx(c, |c| {
+                resolve_reconciliation_command_on(
+                    c,
+                    &REGISTRY,
+                    &actor,
+                    id,
+                    staff_res(StaffOutcome::Waiting),
+                )
+            }),
+            tx(c, |c| redact_job_diagnostics_command_on(c, &actor, id)),
+        ];
+        for result in results {
+            assert_code(result, "ASYNC_JOB_PAYLOAD_INVALID");
+        }
+        assert_eq!(footprint(c, id), before);
+    }
+}
+
+#[test]
+fn bounds_no_engine_path_surfaces_a_column_check_as_an_integrity_violation() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let long = |n: usize| "a".repeat(n);
+    // Claims: the executor's name and principal.
+    for executor in [
+        Executor {
+            name: long(129),
+            ..dissemination()
+        },
+        Executor {
+            name: " ".to_string(),
+            ..dissemination()
+        },
+        Executor {
+            principal: long(257),
+            ..dissemination()
+        },
+    ] {
+        assert_code(
+            tx(c, |c| {
+                claim_on(c, &REGISTRY, &executor, request(&[TEST_EFFECT], 1))
+            }),
+            "ASYNC_JOB_PAYLOAD_INVALID",
+        );
+    }
+    // Free text is truncated, never refused: a provider reference and an
+    // error detail far over their columns' lengths are stored truncated.
+    let x = key(NS_CS);
+    let (a, claim) = started(c, new_job(TEST_EFFECT, "long-text", &[&x]));
+    let confirmed_job = tx(c, |c| {
+        mark_effect_confirmed_on(c, &REGISTRY, &claim, Some(&long(10_000)))
+    })
+    .unwrap();
+    let stored_ref = confirmed_job.provider_ref.expect("a provider reference");
+    assert!(stored_ref.chars().count() < 10_000);
+    let request = FailRequest {
+        error_detail: Some(long(100_000)),
+        ..fail_req(FailureClass::Indeterminate)
+    };
+    let failed = do_fail(c, &claim, request).unwrap();
+    assert_eq!(failed.status, AsyncJobStatus::ReconciliationRequired);
+    let detail = last_attempt(c, a.async_job_id)
+        .error_detail
+        .expect("an error detail");
+    assert!(detail.chars().count() < 100_000);
+    // Entries: an identifier one past its bound (257 characters) is
+    // ASYNC_JOB_EVIDENCE_INVALID, at PRE_WRITE and after effect start.
+    let y = key(NS_CS);
+    let (b, claim) = started(c, new_job(TEST_EFFECT, "long-entry", &[&y]));
+    for entry in [
+        cs_entry(&y, &long(257)),
+        EvidenceEntry {
+            source_ref: Some(long(257)),
+            ..cs_entry(&y, "fp")
+        },
+    ] {
+        let before = footprint(c, b.async_job_id);
+        assert_code(
+            do_complete(
+                c,
+                &claim,
+                completion(CompletionOutcome::EffectApplied, vec![entry]),
+            ),
+            "ASYNC_JOB_EVIDENCE_INVALID",
+        );
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+    // An evidence object one byte over 16384 as `jsonb`.
+    // `{"pad": "<n>", "valid": true}` renders as n + 26 bytes.
+    let evidence = format!(r#"{{"valid":true,"pad":"{}"}}"#, long(16_359));
+    assert_eq!(
+        scalar(
+            c,
+            &format!("SELECT octet_length('{evidence}'::jsonb::text)::bigint AS value")
+        ),
+        16_385
+    );
+    let before = footprint(c, b.async_job_id);
+    let request = CompleteRequest {
+        evidence: Some(evidence.clone()),
+        ..completion(CompletionOutcome::EffectApplied, vec![cs_entry(&y, "fp")])
+    };
+    assert_code(
+        do_complete(c, &claim, request),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    // Commands: the actor's principal and reason one past their bounds, and
+    // a missing request id, are ASYNC_JOB_PAYLOAD_INVALID with no row.
+    let rr = rr_started(c, new_job(TEST_EFFECT, "long-command", &[&key(NS_CS)]));
+    let id = rr.async_job_id;
+    let rows = command_rows(c);
+    for actor in [
+        StaffActor {
+            reason: long(1001),
+            ..staff("x")
+        },
+        StaffActor {
+            principal: long(257),
+            ..staff("x")
+        },
+        StaffActor {
+            request_id: None,
+            ..staff("x")
+        },
+    ] {
+        assert_code(
+            tx(c, |c| cancel_job_command_on(c, &REGISTRY, &actor, id)),
+            "ASYNC_JOB_PAYLOAD_INVALID",
+        );
+    }
+    assert_eq!(command_rows(c), rows);
+    // A command's evidence or checkpoint over its byte limit is a committed
+    // REFUSED, never an integrity violation.
+    let result = do_staff(
+        c,
+        id,
+        StaffResolution {
+            entries: Some(vec![cs_entry(&rr.target_keys[0], "fp")]),
+            evidence: Some(evidence),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+    );
+    assert_command_refused(&result, "EVIDENCE_INVALID");
+    let checkpoint = format!(r#"{{"blob":"{}"}}"#, long(65_525));
+    let result = do_staff(
+        c,
+        id,
+        StaffResolution {
+            checkpoint: Some(checkpoint),
+            resume_at: Some(in_two_minutes()),
+            ..staff_res(StaffOutcome::Waiting)
+        },
+    );
+    assert_command_refused(&result, "WAIT_INVALID");
+    // The reason at its bound is taken.
+    let actor = StaffActor {
+        reason: long(1000),
+        ..staff("x")
+    };
+    let result = tx(c, |c| cancel_job_command_on(c, &REGISTRY, &actor, id)).unwrap();
+    assert_command_refused(&result, "NOT_CANCELLABLE");
+}
