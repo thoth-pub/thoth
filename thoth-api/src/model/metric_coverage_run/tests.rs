@@ -613,6 +613,32 @@ pub(crate) fn revert_through_b1_migration(connection: &mut PgConnection) {
     }
 }
 
+/// Revert every migration newer than the B1 migration, so that B1 is the
+/// newest applied migration. Where it already is, this reverts nothing.
+fn revert_migrations_newer_than_b1(connection: &mut PgConnection) {
+    let applied = connection
+        .applied_migrations()
+        .expect("Failed to read applied migrations")
+        .iter()
+        .any(|version| version.to_string() == MET_WP4_03C_B1_MIGRATION_VERSION);
+    assert!(
+        applied,
+        "the B1 migration must be applied before reverting the migrations after it"
+    );
+    // `applied_migrations` lists the newest version first, and
+    // `revert_last_migration` reverts exactly that version.
+    while connection
+        .applied_migrations()
+        .expect("Failed to read applied migrations")
+        .first()
+        .is_some_and(|version| version.to_string() != MET_WP4_03C_B1_MIGRATION_VERSION)
+    {
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("Failed to revert migration");
+    }
+}
+
 const EXPECTED_TRIGGER_DEFINITION: &str = "CREATE TRIGGER metric_import_maintain_coverage_runs AFTER UPDATE OF status, completed_at, publisher_id ON public.metric_import FOR EACH ROW WHEN ((((old.status IS DISTINCT FROM new.status) OR (old.completed_at IS DISTINCT FROM new.completed_at) OR (old.publisher_id IS DISTINCT FROM new.publisher_id)) AND (((old.status = ANY (ARRAY['COMPLETED'::metric_import_status, 'COMPLETED_WITH_ERRORS'::metric_import_status])) AND (old.completed_at IS NOT NULL) AND (old.publisher_id IS NOT NULL)) OR ((new.status = ANY (ARRAY['COMPLETED'::metric_import_status, 'COMPLETED_WITH_ERRORS'::metric_import_status])) AND (new.completed_at IS NOT NULL) AND (new.publisher_id IS NOT NULL))))) EXECUTE FUNCTION maintain_metric_coverage_runs_from_import()";
 
 const EXPECTED_B1_INDEXES: [(&str, &str); 4] = [
@@ -938,14 +964,23 @@ fn reverting_through_the_b1_migration_removes_exactly_its_objects_and_reapplicat
     assert_eq!(f.runs().len(), 1);
 
     let mut c = establish();
-    let functions_before = public_function_names(&mut c);
-    let triggers_before = trigger_names(&mut c);
+    // The fully migrated catalogue, read before any revert: reapplying every
+    // migration must restore it.
+    let functions_migrated = public_function_names(&mut c);
+    let triggers_migrated = trigger_names(&mut c);
     let function_before = function_definition(&mut c);
     let trigger_before = trigger_definition(&mut c);
     let indexes_before: Vec<Vec<String>> = ["metric_coverage", "metric_import", "metric_record"]
         .iter()
         .map(|table| index_definitions(&mut c, table))
         .collect();
+
+    // Revert every migration newer than B1 first, so that B1's revert is
+    // compared with the catalogue at B1. Where B1 is the newest migration,
+    // this reverts nothing and both catalogues are the same.
+    revert_migrations_newer_than_b1(&mut c);
+    let functions_before = public_function_names(&mut c);
+    let triggers_before = trigger_names(&mut c);
     let raw_before = text(&mut c, "(SELECT md5(string_agg(c::text, ';' ORDER BY coverage_id)) || '|' || (SELECT md5(string_agg(i::text, ';' ORDER BY import_id)) FROM metric_import i) FROM metric_coverage c)");
 
     revert_through_b1_migration(&mut c);
@@ -988,8 +1023,8 @@ fn reverting_through_the_b1_migration_removes_exactly_its_objects_and_reapplicat
         trigger_before,
         "the trigger is recreated identically"
     );
-    assert_eq!(public_function_names(&mut c), functions_before);
-    assert_eq!(trigger_names(&mut c), triggers_before);
+    assert_eq!(public_function_names(&mut c), functions_migrated);
+    assert_eq!(trigger_names(&mut c), triggers_migrated);
     for (table, before) in ["metric_coverage", "metric_import", "metric_record"]
         .iter()
         .zip(indexes_before)

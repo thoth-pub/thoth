@@ -2120,6 +2120,10 @@ fn the_migrated_database_matches_the_schema_contract() {
              ORDER BY table_name"
         ),
         vec![
+            "async_job",
+            "async_job_attempt",
+            "async_job_target",
+            "async_job_transition",
             "distribution_job",
             "distribution_job_attempt",
             "distribution_job_target",
