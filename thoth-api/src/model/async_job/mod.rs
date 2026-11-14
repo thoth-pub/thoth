@@ -50,6 +50,11 @@ pub mod registry;
 pub mod signals;
 pub mod targets;
 
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod tests;
+
 pub use commands::{
     cancel_job_command_on, redact_job_diagnostics_command_on, resolve_reconciliation_command_on,
     retry_job_command_on, CommandResult, StaffActor, StaffResolution,
