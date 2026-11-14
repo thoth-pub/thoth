@@ -289,6 +289,63 @@ pub enum ThothError {
     /// recovery is a fresh dry run, Gate-D review and Gate-E authorization.
     #[error("MIG-01 production apply blocked by changed omission evidence: {0}")]
     MigrationBackfillOmissionMismatch(String),
+    /// The shared job engine (THOTH-ASYNC-01) found no job with the given id.
+    #[error("No async job was found for the given ID.")]
+    AsyncJobNotFound,
+    /// The job's kind is not in the serving binary's kind registry.
+    #[error("The async job kind is not known to this server.")]
+    AsyncJobKindUnknown,
+    /// The kind is retired: creation is refused while existing jobs drain.
+    #[error("The async job kind is closed to new jobs.")]
+    AsyncJobKindAdmissionClosed,
+    /// The executor is not authorized for the kind (domain, risk class,
+    /// capabilities or revision mode).
+    #[error("The executor is not authorized for this async job kind.")]
+    AsyncJobKindNotAuthorized,
+    /// A non-evidence input fails its rule. The payload is a fixed engine
+    /// description of the input; it never echoes the submitted value.
+    #[error("An async job input is invalid: {0}.")]
+    AsyncJobPayloadInvalid(String),
+    /// The payload version is not accepted for this kind.
+    #[error("The async job payload version is not supported.")]
+    AsyncJobPayloadVersionUnsupported,
+    /// A job with the same idempotency key exists with different content.
+    #[error("A different async job already exists with the same effect identity.")]
+    AsyncJobIdempotencyConflict,
+    /// The claim token is not the job's current token.
+    #[error("The async job claim is no longer valid.")]
+    AsyncJobStaleClaim,
+    /// The claim's lease has expired.
+    #[error("The async job lease has expired.")]
+    AsyncJobLeaseExpired,
+    /// The job's state or the kind's policy refuses the requested transition.
+    /// The payload is the reason code (for example `KIND_POLICY`).
+    #[error("The async job transition was refused: {0}.")]
+    AsyncJobTransitionRefused(String),
+    /// Too little lease or runtime remains to start an effect.
+    #[error("Too little lease or runtime remains to start the async job effect.")]
+    AsyncJobEffectWindowInsufficient,
+    /// Completion evidence fails its rule. The payload is a fixed engine
+    /// description; it never echoes the submitted value.
+    #[error("The async job evidence is invalid: {0}.")]
+    AsyncJobEvidenceInvalid(String),
+    /// The engine was called outside a READ COMMITTED transaction.
+    #[error("The async job operation must run inside a READ COMMITTED transaction.")]
+    AsyncJobIsolationInvalid,
+    /// An unexpected database error. The message is fixed; the constraint name
+    /// or server message goes to the server log only.
+    #[error("The async job operation failed an integrity check.")]
+    AsyncJobIntegrityViolation,
+    /// A lock or statement timeout, a deadlock, a cancel or a lost connection.
+    /// Nothing was written unless the outcome of a commit is unknown.
+    #[error("The async job engine is busy. Retry later.")]
+    AsyncJobBusy,
+    /// A second claim with different arguments in one request.
+    #[error("Only one async job claim may run per request.")]
+    AsyncJobDuplicateClaim,
+    /// A repeated command request id with a different job or request.
+    #[error("The command request id was already used for a different request.")]
+    AsyncCommandRequestConflict,
 }
 
 impl ThothError {
@@ -347,6 +404,112 @@ impl juniper::IntoFieldError for ThothError {
                 self.to_string(),
                 graphql_value!({
                     "type": "INVALID_DISTRIBUTION_JOB_ERROR_CODE"
+                }),
+            ),
+            ThothError::AsyncJobNotFound => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_NOT_FOUND"
+                }),
+            ),
+            ThothError::AsyncJobKindUnknown => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_KIND_UNKNOWN"
+                }),
+            ),
+            ThothError::AsyncJobKindAdmissionClosed => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_KIND_ADMISSION_CLOSED"
+                }),
+            ),
+            ThothError::AsyncJobKindNotAuthorized => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_KIND_NOT_AUTHORIZED"
+                }),
+            ),
+            ThothError::AsyncJobPayloadInvalid(_) => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_PAYLOAD_INVALID"
+                }),
+            ),
+            ThothError::AsyncJobPayloadVersionUnsupported => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_PAYLOAD_VERSION_UNSUPPORTED"
+                }),
+            ),
+            ThothError::AsyncJobIdempotencyConflict => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_IDEMPOTENCY_CONFLICT"
+                }),
+            ),
+            ThothError::AsyncJobStaleClaim => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_STALE_CLAIM"
+                }),
+            ),
+            ThothError::AsyncJobLeaseExpired => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_LEASE_EXPIRED"
+                }),
+            ),
+            ThothError::AsyncJobTransitionRefused(ref reason) => {
+                let reason = reason.clone();
+                juniper::FieldError::new(
+                    self.to_string(),
+                    graphql_value!({
+                        "type": "ASYNC_JOB_TRANSITION_REFUSED",
+                        "reason": reason
+                    }),
+                )
+            }
+            ThothError::AsyncJobEffectWindowInsufficient => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_EFFECT_WINDOW_INSUFFICIENT"
+                }),
+            ),
+            ThothError::AsyncJobEvidenceInvalid(_) => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_EVIDENCE_INVALID"
+                }),
+            ),
+            ThothError::AsyncJobIsolationInvalid => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_ISOLATION_INVALID"
+                }),
+            ),
+            ThothError::AsyncJobIntegrityViolation => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_INTEGRITY_VIOLATION"
+                }),
+            ),
+            ThothError::AsyncJobBusy => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_BUSY"
+                }),
+            ),
+            ThothError::AsyncJobDuplicateClaim => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_JOB_DUPLICATE_CLAIM"
+                }),
+            ),
+            ThothError::AsyncCommandRequestConflict => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "ASYNC_COMMAND_REQUEST_CONFLICT"
                 }),
             ),
             _ => juniper::FieldError::new(

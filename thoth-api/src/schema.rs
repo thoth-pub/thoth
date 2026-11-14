@@ -178,6 +178,42 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_source_registry_history_action"))]
     pub struct MetricSourceRegistryHistoryAction;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_job_status"))]
+    pub struct AsyncJobStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_effect_phase"))]
+    pub struct AsyncEffectPhase;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_job_effect_class"))]
+    pub struct AsyncJobEffectClass;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_job_revision_mode"))]
+    pub struct AsyncJobRevisionMode;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_job_lineage"))]
+    pub struct AsyncJobLineage;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_attempt_purpose"))]
+    pub struct AsyncAttemptPurpose;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_attempt_result"))]
+    pub struct AsyncAttemptResult;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_control_command_kind"))]
+    pub struct AsyncControlCommandKind;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "async_control_command_outcome"))]
+    pub struct AsyncControlCommandOutcome;
 }
 
 use diesel::{allow_tables_to_appear_in_same_query, joinable, table};
@@ -299,6 +335,193 @@ table! {
         user_id -> Text,
         data -> Jsonb,
         timestamp -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{
+        AsyncEffectPhase, AsyncJobEffectClass, AsyncJobLineage, AsyncJobRevisionMode,
+        AsyncJobStatus,
+    };
+
+    async_job (async_job_id) {
+        async_job_id -> Uuid,
+        kind -> Text,
+        payload_version -> Int2,
+        payload -> Jsonb,
+        idempotency_key -> Text,
+        effect_class -> AsyncJobEffectClass,
+        revision_mode -> AsyncJobRevisionMode,
+        retry_budget -> Int2,
+        max_execution_claims -> Int2,
+        max_reconciliation_attempts -> Int2,
+        backoff_base_seconds -> Int4,
+        backoff_max_seconds -> Int4,
+        source_order -> Nullable<Int8>,
+        source_fingerprint -> Nullable<Text>,
+        source_ref -> Nullable<Text>,
+        status -> AsyncJobStatus,
+        priority -> Int2,
+        available_at -> Timestamptz,
+        effect_phase -> AsyncEffectPhase,
+        attempt_count -> Int4,
+        execution_claim_count -> Int2,
+        prewrite_failure_count -> Int2,
+        reconciliation_attempt_count -> Int2,
+        claim_token -> Nullable<Uuid>,
+        claimed_by -> Nullable<Text>,
+        executor_principal -> Nullable<Text>,
+        claimed_at -> Nullable<Timestamptz>,
+        lease_expires_at -> Nullable<Timestamptz>,
+        attempt_runtime_deadline -> Nullable<Timestamptz>,
+        first_claimed_at -> Nullable<Timestamptz>,
+        waiting_deadline -> Nullable<Timestamptz>,
+        checkpoint -> Nullable<Jsonb>,
+        checkpoint_version -> Int4,
+        provider_ref -> Nullable<Text>,
+        terminal_at -> Nullable<Timestamptz>,
+        last_outcome_code -> Nullable<Text>,
+        redacted_at -> Nullable<Timestamptz>,
+        lineage -> AsyncJobLineage,
+        parent_job_id -> Nullable<Uuid>,
+        correlation_id -> Nullable<Uuid>,
+        causation_ref -> Nullable<Text>,
+        created_by -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    async_job_target (async_job_id, target_key) {
+        async_job_id -> Uuid,
+        target_key -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    async_target_hold (target_key) {
+        target_key -> Text,
+        async_job_id -> Uuid,
+        acquired_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    async_effect_target_state (target_key) {
+        target_key -> Text,
+        applied_order -> Nullable<Int8>,
+        applied_fingerprint -> Text,
+        applied_source_ref -> Nullable<Text>,
+        last_job_id -> Uuid,
+        last_attempt_id -> Uuid,
+        regressed_at -> Nullable<Timestamptz>,
+        regressed_from_order -> Nullable<Int8>,
+        regressed_from_fingerprint -> Nullable<Text>,
+        updated_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{
+        AsyncAttemptPurpose, AsyncAttemptResult, AsyncEffectPhase, AsyncJobStatus,
+    };
+
+    async_job_attempt (async_job_attempt_id) {
+        async_job_attempt_id -> Uuid,
+        async_job_id -> Uuid,
+        attempt_number -> Int4,
+        purpose -> AsyncAttemptPurpose,
+        claim_token -> Uuid,
+        claimed_by -> Text,
+        executor_principal -> Text,
+        control_command_id -> Nullable<Uuid>,
+        started_at -> Timestamptz,
+        last_heartbeat_at -> Timestamptz,
+        phase_at_start -> AsyncEffectPhase,
+        effect_started_at -> Nullable<Timestamptz>,
+        effect_confirmed_at -> Nullable<Timestamptz>,
+        finished_at -> Nullable<Timestamptz>,
+        result -> Nullable<AsyncAttemptResult>,
+        job_status_after -> Nullable<AsyncJobStatus>,
+        outcome_code -> Nullable<Text>,
+        error_code -> Nullable<Text>,
+        error_detail -> Nullable<Text>,
+        provider_ref -> Nullable<Text>,
+        evidence -> Nullable<Jsonb>,
+        redacted_at -> Nullable<Timestamptz>,
+        redaction_command_id -> Nullable<Uuid>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::{AsyncControlCommandKind, AsyncControlCommandOutcome};
+
+    async_control_command (async_control_command_id) {
+        async_control_command_id -> Uuid,
+        command_kind -> AsyncControlCommandKind,
+        request_id -> Uuid,
+        actor_principal -> Text,
+        reason -> Text,
+        async_job_id -> Uuid,
+        request -> Jsonb,
+        outcome -> Nullable<AsyncControlCommandOutcome>,
+        outcome_code -> Nullable<Text>,
+        result_job_id -> Nullable<Uuid>,
+        created_at -> Timestamptz,
+        decided_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::AsyncJobStatus;
+
+    async_job_transition (async_job_transition_id) {
+        async_job_transition_id -> Int8,
+        async_job_id -> Uuid,
+        from_status -> Nullable<AsyncJobStatus>,
+        to_status -> AsyncJobStatus,
+        cause -> Text,
+        async_job_attempt_id -> Nullable<Uuid>,
+        async_control_command_id -> Nullable<Uuid>,
+        occurred_at -> Timestamptz,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::AsyncAttemptPurpose;
+
+    async_executor_poll (executor_name, executor_principal, kind, purpose) {
+        executor_name -> Text,
+        executor_principal -> Text,
+        kind -> Text,
+        purpose -> AsyncAttemptPurpose,
+        payload_versions -> Array<Int2>,
+        last_poll_at -> Timestamptz,
+        last_claim_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    async_recovery_failure (async_job_id) {
+        async_job_id -> Uuid,
+        first_failed_at -> Timestamptz,
+        last_failed_at -> Timestamptz,
+        failure_count -> Int4,
+        error_code -> Text,
     }
 }
 
@@ -1690,6 +1913,17 @@ joinable!(additional_resource_history -> additional_resource (additional_resourc
 joinable!(affiliation -> contribution (contribution_id));
 joinable!(affiliation -> institution (institution_id));
 joinable!(affiliation_history -> affiliation (affiliation_id));
+joinable!(async_control_command -> async_job (async_job_id));
+joinable!(async_effect_target_state -> async_job (last_job_id));
+joinable!(async_effect_target_state -> async_job_attempt (last_attempt_id));
+joinable!(async_job_attempt -> async_control_command (control_command_id));
+joinable!(async_job_attempt -> async_job (async_job_id));
+joinable!(async_job_target -> async_job (async_job_id));
+joinable!(async_job_transition -> async_control_command (async_control_command_id));
+joinable!(async_job_transition -> async_job (async_job_id));
+joinable!(async_job_transition -> async_job_attempt (async_job_attempt_id));
+joinable!(async_recovery_failure -> async_job (async_job_id));
+joinable!(async_target_hold -> async_job (async_job_id));
 joinable!(award -> work (work_id));
 joinable!(award_history -> award (award_id));
 joinable!(biography_history -> biography (biography_id));
@@ -1832,6 +2066,15 @@ allow_tables_to_appear_in_same_query!(
     additional_resource_history,
     affiliation,
     affiliation_history,
+    async_control_command,
+    async_effect_target_state,
+    async_executor_poll,
+    async_job,
+    async_job_attempt,
+    async_job_target,
+    async_job_transition,
+    async_recovery_failure,
+    async_target_hold,
     award,
     award_history,
     biography,
