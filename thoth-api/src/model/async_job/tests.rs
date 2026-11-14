@@ -20,7 +20,6 @@ use std::time::{Duration as StdDuration, Instant};
 use chrono::Duration;
 use diesel::connection::SimpleConnection;
 use diesel::pg::PgConnection;
-use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use serde_json::json;
 use thoth_errors::{ThothError, ThothResult};
