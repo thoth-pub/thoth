@@ -9170,3 +9170,673 @@ fn bounds_no_engine_path_surfaces_a_column_check_as_an_integrity_violation() {
     let result = tx(c, |c| cancel_job_command_on(c, &REGISTRY, &actor, id)).unwrap();
     assert_command_refused(&result, "NOT_CANCELLABLE");
 }
+
+// ---------------------------------------------------------------------------
+// Database backstops (19.2)
+// ---------------------------------------------------------------------------
+
+/// The open attempt of a job.
+fn open_attempt_of(conn: &mut PgConnection, id: Uuid) -> Uuid {
+    attempts(conn, id)
+        .into_iter()
+        .find(|attempt| attempt.finished_at.is_none())
+        .expect("an open attempt")
+        .async_job_attempt_id
+}
+
+/// `regressed_at|regressed_from_order|regressed_from_fingerprint` of a key,
+/// each empty when null.
+fn regressed_text(conn: &mut PgConnection, key: &str) -> String {
+    text(
+        conn,
+        &format!(
+            "SELECT format('%s|%s|%s', regressed_at, regressed_from_order, \
+                    regressed_from_fingerprint) AS value \
+               FROM public.async_effect_target_state WHERE target_key = '{key}'"
+        ),
+    )
+    .expect("a state row")
+}
+
+/// A direct-SQL write of a key's state as `job`'s attempt `attempt`, with
+/// `extra` further assignments.
+fn state_write_sql(
+    key: &str,
+    order: Option<i64>,
+    fingerprint: &str,
+    job: Uuid,
+    attempt: Uuid,
+    extra: &str,
+) -> String {
+    let order = order.map_or("NULL".to_string(), |o| o.to_string());
+    format!(
+        "UPDATE public.async_effect_target_state \
+            SET applied_order = {order}, applied_fingerprint = '{fingerprint}', \
+                last_job_id = '{job}', last_attempt_id = '{attempt}'{extra} \
+          WHERE target_key = '{key}'"
+    )
+}
+
+/// Close a job's open attempt and move the job to the terminal `status`,
+/// releasing its holds, in direct SQL.
+fn terminate_sql(id: Uuid, status: &str, result: &str, outcome: &str) -> String {
+    format!(
+        "UPDATE public.async_job_attempt SET finished_at = now(), result = '{result}', \
+             job_status_after = '{status}', outcome_code = '{outcome}' \
+          WHERE async_job_id = '{id}' AND finished_at IS NULL; \
+         DELETE FROM public.async_target_hold WHERE async_job_id = '{id}'; \
+         UPDATE public.async_job SET status = '{status}', terminal_at = now(), \
+             claim_token = NULL, claimed_by = NULL, executor_principal = NULL, \
+             claimed_at = NULL, lease_expires_at = NULL, attempt_runtime_deadline = NULL \
+          WHERE async_job_id = '{id}'"
+    )
+}
+
+/// A TEST_REVISION job for `order` of `key`, taken to RR by T9 and resolved
+/// by a staff SUCCEEDED with its own revision (T18).
+fn staff_succeeded(conn: &mut PgConnection, key: &str, order: i64) -> CommandResult {
+    let id = format!("t18-{}", Uuid::new_v4());
+    let fingerprint = format!("h{order}");
+    let rr = rr_started(conn, revision_job(&id, key, order, &fingerprint));
+    let result = do_staff(
+        conn,
+        rr.async_job_id,
+        StaffResolution {
+            entries: Some(vec![rb_entry(key, order, &fingerprint)]),
+            evidence: Some(applied_evidence(order)),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+    );
+    assert_applied(&result, "EFFECT_APPLIED");
+    result
+}
+
+#[test]
+fn backstop_a_direct_sql_insert_of_a_non_pending_or_claimed_row_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let refused = Err("async_job_insert_guard".to_string());
+    for status in ALL_STATUSES.iter().filter(|status| **status != "PENDING") {
+        let value = format!("'{status}'");
+        let sql = insert_sql("async_job", JOB_BASE, &[("status", value.as_str())]);
+        assert_eq!(probe(c, &sql, true), refused, "{status}");
+    }
+    // A PENDING row that carries a claim.
+    let mut claimed = RUNNING_COLUMNS.to_vec();
+    claimed.retain(|(column, _)| *column != "status");
+    let sql = insert_sql("async_job", JOB_BASE, &claimed);
+    assert_eq!(probe(c, &sql, true), refused);
+    assert_eq!(
+        probe(c, &insert_sql("async_job", JOB_BASE, &[]), true),
+        Ok(())
+    );
+}
+
+#[test]
+fn backstop_each_phase_rule_of_rule_4_refuses_its_direct_sql_status_change() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let refused = || Err("async_job_update_guard".to_string());
+    for (from, phase, to, expected) in [
+        // CANCELLED is refused at EFFECT_CONFIRMED.
+        ("RUNNING", "EFFECT_CONFIRMED", "CANCELLED", refused()),
+        ("WAITING", "EFFECT_CONFIRMED", "CANCELLED", refused()),
+        (
+            "RECONCILIATION_REQUIRED",
+            "EFFECT_CONFIRMED",
+            "CANCELLED",
+            refused(),
+        ),
+        // FAILED at EFFECT_CONFIRMED only from RR (the staff close).
+        ("RUNNING", "EFFECT_CONFIRMED", "FAILED", refused()),
+        ("WAITING", "EFFECT_CONFIRMED", "FAILED", refused()),
+        (
+            "RECONCILIATION_REQUIRED",
+            "EFFECT_CONFIRMED",
+            "FAILED",
+            Ok(()),
+        ),
+        // RUNNING and WAITING are cancelled only at PRE_WRITE.
+        ("RUNNING", "EFFECT_STARTED", "CANCELLED", refused()),
+        ("WAITING", "EFFECT_STARTED", "CANCELLED", refused()),
+        ("RUNNING", "PRE_WRITE", "CANCELLED", Ok(())),
+        ("WAITING", "PRE_WRITE", "CANCELLED", Ok(())),
+        // WAITING fails directly only at PRE_WRITE.
+        ("WAITING", "EFFECT_STARTED", "FAILED", refused()),
+        ("WAITING", "PRE_WRITE", "FAILED", Ok(())),
+        // Not phase-restricted at EFFECT_STARTED: T16 and T18 from RR, T9n.
+        (
+            "RECONCILIATION_REQUIRED",
+            "EFFECT_STARTED",
+            "CANCELLED",
+            Ok(()),
+        ),
+        (
+            "RECONCILIATION_REQUIRED",
+            "EFFECT_STARTED",
+            "FAILED",
+            Ok(()),
+        ),
+        ("RUNNING", "EFFECT_STARTED", "FAILED", Ok(())),
+    ] {
+        assert_eq!(
+            transition_probe(c, from, phase, to),
+            expected,
+            "{from} at {phase} -> {to}"
+        );
+    }
+}
+
+#[test]
+fn backstop_an_update_of_a_hold_or_target_row_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let (a, _claim) = running(c, new_job(TEST_EFFECT, "held", &[&x]));
+    let other = create(c, new_job(TEST_EFFECT, "other", &[&key(NS_CS)])).async_job_id;
+    let id = a.async_job_id;
+    for (sql, guard) in [
+        (
+            format!(
+                "UPDATE public.async_target_hold SET acquired_at = now() WHERE target_key = '{x}'"
+            ),
+            "async_target_hold_guard",
+        ),
+        (
+            format!(
+                "UPDATE public.async_target_hold SET async_job_id = '{other}' \
+                  WHERE target_key = '{x}'"
+            ),
+            "async_target_hold_guard",
+        ),
+        (
+            format!(
+                "UPDATE public.async_job_target SET target_key = target_key \
+                  WHERE async_job_id = '{id}'"
+            ),
+            "async_job_target_guard",
+        ),
+    ] {
+        assert_eq!(refused_by(c, &sql), guard, "{sql}");
+    }
+    assert_eq!(holds(c, id), vec![x]);
+}
+
+#[test]
+fn backstop_a_commit_leaving_a_failed_or_cancelled_job_without_its_closing_attempt_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let attempt_check = "async_job_attempt_consistency";
+
+    // FAILED at EFFECT_STARTED needs a NO_EFFECT_PROVEN close.
+    let (a, _claim) = started(c, new_job(TEST_EFFECT, "bs-failed", &[&key(NS_CS)]));
+    let id = a.async_job_id;
+    assert_eq!(
+        refused_by(
+            c,
+            &terminate_sql(id, "FAILED", "PERMANENT_FAILURE", "PERMANENT")
+        ),
+        attempt_check
+    );
+    exec(
+        c,
+        &format!(
+            "BEGIN; {}; COMMIT",
+            terminate_sql(id, "FAILED", "PERMANENT_FAILURE", "NO_EFFECT_PROVEN")
+        ),
+    );
+    assert_eq!(status(c, id), AsyncJobStatus::Failed);
+
+    // CANCELLED at EFFECT_STARTED (from RR, under a reconciliation claim)
+    // needs one too.
+    let rr = rr_started(c, new_job(TEST_EFFECT, "bs-cancelled", &[&key(NS_CS)]));
+    let id = rr.async_job_id;
+    claim_recon(c, &rr);
+    assert_eq!(
+        refused_by(
+            c,
+            &terminate_sql(id, "CANCELLED", "CANCELLED", "OPERATOR_STOP")
+        ),
+        attempt_check
+    );
+    exec(
+        c,
+        &format!(
+            "BEGIN; {}; COMMIT",
+            terminate_sql(id, "CANCELLED", "CANCELLED", "NO_EFFECT_PROVEN")
+        ),
+    );
+    assert_eq!(status(c, id), AsyncJobStatus::Cancelled);
+
+    // At EFFECT_CONFIRMED: CANCELLED is refused at once (rule 4), and FAILED
+    // needs a staff close with CONFIRMED_EFFECT_NOT_APPLIED; an executor
+    // reconciliation attempt with that outcome, or no new attempt, is not
+    // enough.
+    let rr = rr_confirmed(c, new_job(TEST_EFFECT, "bs-confirmed", &[&key(NS_CS)]));
+    let id = rr.async_job_id;
+    assert_eq!(
+        refused_by(
+            c,
+            &format!(
+                "DELETE FROM public.async_target_hold WHERE async_job_id = '{id}'; \
+                 UPDATE public.async_job SET status = 'CANCELLED', terminal_at = now() \
+                  WHERE async_job_id = '{id}'"
+            )
+        ),
+        "async_job_update_guard"
+    );
+    assert_eq!(
+        refused_by(
+            c,
+            &format!(
+                "DELETE FROM public.async_target_hold WHERE async_job_id = '{id}'; \
+                 UPDATE public.async_job SET status = 'FAILED', terminal_at = now() \
+                  WHERE async_job_id = '{id}'"
+            )
+        ),
+        attempt_check
+    );
+    claim_recon(c, &rr);
+    assert_eq!(
+        refused_by(
+            c,
+            &terminate_sql(
+                id,
+                "FAILED",
+                "PERMANENT_FAILURE",
+                "CONFIRMED_EFFECT_NOT_APPLIED"
+            )
+        ),
+        attempt_check
+    );
+    assert_eq!(status(c, id), AsyncJobStatus::ReconciliationRequired);
+}
+
+#[test]
+fn backstop_the_deferred_s5_and_attempt_checks_refuse_a_commit_that_breaks_them() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "bs-open", &[&key(NS_CS)]));
+    let id = a.async_job_id;
+    for sql in [
+        // A RUNNING job without its open attempt.
+        format!(
+            "UPDATE public.async_job_attempt SET finished_at = now(), result = 'RELEASED', \
+                 job_status_after = 'PENDING', outcome_code = 'RELEASED' \
+              WHERE async_job_id = '{id}' AND finished_at IS NULL"
+        ),
+        // A RUNNING job whose token is not its open attempt's.
+        format!(
+            "UPDATE public.async_job SET claim_token = uuid_generate_v4() \
+              WHERE async_job_id = '{id}'"
+        ),
+    ] {
+        assert_eq!(
+            refused_by(c, &sql),
+            "async_job_attempt_consistency",
+            "{sql}"
+        );
+    }
+    // A PENDING job holding its target (S5).
+    let pending = create(c, new_job(TEST_EFFECT, "bs-s5", &[&key(NS_CS)]));
+    let target = &pending.target_keys[0];
+    assert_eq!(
+        refused_by(
+            c,
+            &format!(
+                "INSERT INTO public.async_target_hold (target_key, async_job_id) \
+                 VALUES ('{target}', '{}')",
+                pending.async_job_id
+            )
+        ),
+        "async_job_hold_consistency"
+    );
+    // A caller's `SET CONSTRAINTS ALL IMMEDIATE` makes the same check fire
+    // at the statement instead of the commit.
+    assert_eq!(
+        refused_by(
+            c,
+            &format!(
+                "SET CONSTRAINTS ALL IMMEDIATE; \
+                 UPDATE public.async_job SET claim_token = uuid_generate_v4() \
+                  WHERE async_job_id = '{id}'"
+            )
+        ),
+        "async_job_attempt_consistency"
+    );
+    assert_live(c, &claim);
+}
+
+#[test]
+fn backstop_the_state_trigger_refuses_a_non_holder_a_null_order_and_a_backwards_order() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let guard = "async_effect_target_state_guard";
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 5, "h5");
+    let (holder, _claim) = running(c, revision_job("bs-holder", &k, 7, "h7"));
+    let h = holder.async_job_id;
+    let ha = open_attempt_of(c, h);
+    let (intruder, _other) = running(c, new_job(TEST_PEER, "bs-intruder", &[&key(NS_CS)]));
+    let i = intruder.async_job_id;
+    let ia = open_attempt_of(c, i);
+    let seed_job = state_writer_job(c, &k);
+    let seed_attempt = attempts(c, seed_job)[0].async_job_attempt_id;
+    for sql in [
+        // A job that does not hold the key.
+        state_write_sql(&k, Some(7), "h7", i, ia, ""),
+        // The holder with a finished attempt of another job.
+        state_write_sql(&k, Some(7), "h7", h, seed_attempt, ""),
+        // A null order over a stored order.
+        state_write_sql(&k, None, "h7", h, ha, ""),
+        // A backwards order, and the same order with another fingerprint,
+        // from an execution attempt.
+        state_write_sql(&k, Some(4), "h4", h, ha, ""),
+        state_write_sql(&k, Some(5), "hx", h, ha, ""),
+    ] {
+        assert_eq!(refused_by(c, &sql), guard, "{sql}");
+    }
+    assert_eq!(applied(c, &k), Some(rb_state(5, "h5")));
+    // A delete is refused too.
+    assert_eq!(
+        refused_by(
+            c,
+            &format!("DELETE FROM public.async_effect_target_state WHERE target_key = '{k}'")
+        ),
+        guard
+    );
+
+    // From an open STAFF_RECONCILIATION attempt of a REVISION_BOUND job, a
+    // backwards write is admitted only to that job's own source values.
+    let (r, a) = regressed_job(c, 9, 4);
+    let id = a.async_job_id;
+    let staff_attempt = Uuid::new_v4();
+    let command = Uuid::new_v4();
+    let open_staff = format!(
+        "INSERT INTO public.async_control_command (async_control_command_id, command_kind, \
+             request_id, actor_principal, reason, async_job_id, request) \
+         VALUES ('{command}', 'RESOLVE_RECONCILIATION', uuid_generate_v4(), 'staff:x', 'test', \
+             '{id}', '{{}}'); \
+         INSERT INTO public.async_job_attempt (async_job_attempt_id, async_job_id, \
+             attempt_number, purpose, claim_token, claimed_by, executor_principal, \
+             control_command_id, started_at, last_heartbeat_at, phase_at_start) \
+         SELECT '{staff_attempt}', j.async_job_id, j.attempt_count + 1, 'STAFF_RECONCILIATION', \
+             uuid_generate_v4(), 'staff', 'staff:x', '{command}', now(), now(), j.effect_phase \
+           FROM public.async_job j WHERE j.async_job_id = '{id}'"
+    );
+    let staff_write = |order: i64, fingerprint: &str| {
+        format!(
+            "{open_staff}; {}",
+            state_write_sql(&r, Some(order), fingerprint, id, staff_attempt, "")
+        )
+    };
+    assert_eq!(probe(c, &staff_write(4, "h4"), true), Ok(()));
+    for (order, fingerprint) in [(3, "h3"), (4, "hx"), (9, "hx")] {
+        assert_eq!(
+            probe(c, &staff_write(order, fingerprint), true),
+            Err(guard.to_string()),
+            "{order}/{fingerprint}"
+        );
+    }
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+    // The same kind of write, to the job's own source values, from an open
+    // execution attempt is refused.
+    let q = key(NS_RB);
+    seed_rb_state(c, &q, 9, "h9");
+    let (older, _claim) = running(c, revision_job("bs-older", &q, 4, "h4"));
+    let oa = open_attempt_of(c, older.async_job_id);
+    assert_eq!(
+        refused_by(
+            c,
+            &state_write_sql(&q, Some(4), "h4", older.async_job_id, oa, "")
+        ),
+        guard
+    );
+    assert_eq!(applied(c, &q), Some(rb_state(9, "h9")));
+}
+
+/// The job that last wrote a key's state.
+fn state_writer_job(conn: &mut PgConnection, key: &str) -> Uuid {
+    state_writer(conn, key)
+        .0
+        .expect("a writer")
+        .parse()
+        .expect("a uuid")
+}
+
+#[test]
+fn backstop_the_state_trigger_ignores_writer_supplied_regressed_values() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let supplied = ", regressed_at = now(), regressed_from_order = 1, \
+                    regressed_from_fingerprint = 'f', updated_at = '2000-01-01'";
+    // An ordinary forward write that supplies regressed values: ignored.
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 5, "h5");
+    let (holder, _claim) = running(c, revision_job("bs-supplied", &k, 7, "h7"));
+    let h = holder.async_job_id;
+    let ha = open_attempt_of(c, h);
+    exec(
+        c,
+        &format!(
+            "BEGIN; {}; COMMIT",
+            state_write_sql(&k, Some(7), "h7", h, ha, supplied)
+        ),
+    );
+    assert_eq!(applied(c, &k), Some(rb_state(7, "h7")));
+    assert_eq!(regressed_text(c, &k), "||");
+    assert_eq!(
+        scalar(
+            c,
+            &format!(
+                "SELECT (updated_at > now() - interval '1 hour')::int::bigint AS value \
+                   FROM public.async_effect_target_state WHERE target_key = '{k}'"
+            )
+        ),
+        1
+    );
+    // An insert that supplies them: ignored.
+    let x = key(NS_CS);
+    let (j, _claim) = running(c, new_job(TEST_EFFECT, "bs-insert", &[&x]));
+    let ja = open_attempt_of(c, j.async_job_id);
+    exec(
+        c,
+        &format!(
+            "INSERT INTO public.async_effect_target_state (target_key, applied_order, \
+                 applied_fingerprint, last_job_id, last_attempt_id, regressed_at, \
+                 regressed_from_order, regressed_from_fingerprint, updated_at) \
+             VALUES ('{x}', NULL, 'fp', '{}', '{ja}', now(), 1, 'f', '2000-01-01')",
+            j.async_job_id
+        ),
+    );
+    assert_eq!(regressed_text(c, &x), "||");
+    // A write that stays below the pre-acceptance order and supplies nulls
+    // keeps the recorded regression.
+    let (r, a) = regressed_job(c, 9, 4);
+    let accepted = do_staff(
+        c,
+        a.async_job_id,
+        staff_evidence(StaffOutcome::AcceptRegression, &applied_evidence(4)),
+    );
+    assert_applied(&accepted, "REGRESSION_ACCEPTED");
+    let regressed = regressed_text(c, &r);
+    assert!(regressed.ends_with("|9|h9"), "{regressed}");
+    let (next, _claim) = running(c, revision_job("bs-below", &r, 6, "h6"));
+    let na = open_attempt_of(c, next.async_job_id);
+    exec(
+        c,
+        &format!(
+            "BEGIN; {}; COMMIT",
+            state_write_sql(
+                &r,
+                Some(6),
+                "h6",
+                next.async_job_id,
+                na,
+                ", regressed_at = NULL, regressed_from_order = NULL, \
+                 regressed_from_fingerprint = NULL"
+            )
+        ),
+    );
+    assert_eq!(applied(c, &r), Some(rb_state(6, "h6")));
+    assert_eq!(regressed_text(c, &r), regressed);
+}
+
+#[test]
+fn backstop_t18_succeeded_clears_the_regressed_columns_only_above_the_pre_acceptance_order() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // With `regressed_*` null, a forward T18 SUCCEEDED and one that rewrites
+    // equal values leave them null.
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 5, "h5");
+    staff_succeeded(c, &k, 7);
+    assert_eq!(applied(c, &k), Some(rb_state(7, "h7")));
+    assert_eq!(regressed_text(c, &k), "||");
+    staff_succeeded(c, &k, 7);
+    assert_eq!(regressed_text(c, &k), "||");
+
+    // From a regressed state (9 accepted back to 4), a forward T18 SUCCEEDED
+    // that stays below 9, and an equal rewrite, leave all three unchanged.
+    let (r, a) = regressed_job(c, 9, 4);
+    let accepted = do_staff(
+        c,
+        a.async_job_id,
+        staff_evidence(StaffOutcome::AcceptRegression, &applied_evidence(4)),
+    );
+    assert_applied(&accepted, "REGRESSION_ACCEPTED");
+    let regressed = regressed_text(c, &r);
+    assert!(regressed.ends_with("|9|h9"), "{regressed}");
+    staff_succeeded(c, &r, 6);
+    assert_eq!(applied(c, &r), Some(rb_state(6, "h6")));
+    assert_eq!(regressed_text(c, &r), regressed);
+    staff_succeeded(c, &r, 6);
+    assert_eq!(regressed_text(c, &r), regressed);
+    // One above 9 clears all three.
+    staff_succeeded(c, &r, 12);
+    assert_eq!(applied(c, &r), Some(rb_state(12, "h12")));
+    assert_eq!(regressed_text(c, &r), "||");
+}
+
+// ---------------------------------------------------------------------------
+// Accepted regression (19.2)
+// ---------------------------------------------------------------------------
+
+/// Accept the regression of `job` with its own applied evidence.
+fn accept(conn: &mut PgConnection, job: &AsyncJob) -> CommandResult {
+    let order = job.source_order.expect("a REVISION_BOUND job");
+    do_staff(
+        conn,
+        job.async_job_id,
+        staff_evidence(StaffOutcome::AcceptRegression, &applied_evidence(order)),
+    )
+}
+
+/// A worker's forward EFFECT_APPLIED write of `order` to `key`.
+fn forward_write(conn: &mut PgConnection, key: &str, order: i64, fingerprint: &str) {
+    let id = format!("forward-{}", Uuid::new_v4());
+    let (_job, claim) = started(conn, revision_job(&id, key, order, fingerprint));
+    let outcome = do_complete(
+        conn,
+        &claim,
+        completion(
+            CompletionOutcome::EffectApplied,
+            vec![rb_entry(key, order, fingerprint)],
+        ),
+    )
+    .unwrap();
+    assert!(matches!(outcome, CompleteOutcome::Succeeded(_)));
+}
+
+#[test]
+fn regression_a_t6x_job_accepted_with_valid_evidence_succeeds_and_records_the_regression() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (r, a) = regressed_job(c, 9, 4);
+    let id = a.async_job_id;
+    assert_eq!(holds(c, id), vec![r.clone()]);
+    let current = job(c, id);
+    let result = accept(c, &current);
+    assert_applied(&result, "REGRESSION_ACCEPTED");
+    let after = job(c, id);
+    assert_eq!(after.status, AsyncJobStatus::Succeeded);
+    assert_eq!(
+        after.last_outcome_code.as_deref(),
+        Some("REGRESSION_ACCEPTED")
+    );
+    let row = state(c, &r).unwrap();
+    assert_eq!(
+        (
+            row.applied_order,
+            row.applied_fingerprint.as_str(),
+            row.regressed,
+            row.regressed_from_order,
+            row.regressed_from_fingerprint.as_deref()
+        ),
+        (Some(4), "h4", true, Some(9), Some("h9"))
+    );
+    assert_eq!(state_writer_job(c, &r), id);
+    let staff_attempt = last_attempt(c, id);
+    assert_eq!(
+        staff_attempt.purpose,
+        AsyncAttemptPurpose::StaffReconciliation
+    );
+    assert_eq!(staff_attempt.result, Some(AsyncAttemptResult::Succeeded));
+    assert_eq!(
+        staff_attempt.outcome_code.as_deref(),
+        Some("REGRESSION_ACCEPTED")
+    );
+    assert_eq!(
+        staff_attempt.control_command_id,
+        Some(result.async_control_command_id)
+    );
+    assert!(holds(c, id).is_empty());
+}
+
+#[test]
+fn regression_a_forward_write_below_the_pre_acceptance_order_keeps_it_and_one_above_or_equal_clears_it(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // Below 9: kept, with the same `regressed_at`; equal order with another
+    // fingerprint: kept; equal with the pre-acceptance fingerprint: cleared.
+    let (r, a) = regressed_job(c, 9, 4);
+    assert_applied(&accept(c, &a), "REGRESSION_ACCEPTED");
+    let regressed = regressed_text(c, &r);
+    forward_write(c, &r, 6, "h6");
+    assert_eq!(applied(c, &r), Some(rb_state(6, "h6")));
+    assert_eq!(regressed_text(c, &r), regressed);
+    forward_write(c, &r, 9, "hx");
+    assert_eq!(regressed_text(c, &r), regressed);
+    // (A forward write of 9/h9 is now a same-order conflict, so the equal
+    // case is shown on a second target.)
+    let (q, b) = regressed_job(c, 8, 3);
+    assert_applied(&accept(c, &b), "REGRESSION_ACCEPTED");
+    forward_write(c, &q, 8, "h8");
+    assert_eq!(applied(c, &q), Some(rb_state(8, "h8")));
+    assert_eq!(regressed_text(c, &q), "||");
+    // Above it: cleared.
+    forward_write(c, &r, 10, "h10");
+    assert_eq!(applied(c, &r), Some(rb_state(10, "h10")));
+    assert_eq!(regressed_text(c, &r), "||");
+}
+
+#[test]
+fn regression_an_executor_reconcilers_regressing_succeeded_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (r, a) = regressed_job(c, 9, 4);
+    let recon = claim_recon(c, &a);
+    let before = footprint(c, a.async_job_id);
+    let request = ResolveReconciliation {
+        entries: Some(vec![rb_entry(&r, 4, "h4")]),
+        ..resolution_evidence(ReconcilerOutcome::Succeeded, &applied_evidence(4))
+    };
+    assert_code(do_resolve(c, &recon, request), "ASYNC_JOB_EVIDENCE_INVALID");
+    assert_nothing_written_and_live(c, &before, &recon);
+    assert_eq!(
+        status(c, a.async_job_id),
+        AsyncJobStatus::ReconciliationRequired
+    );
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+}
