@@ -11159,3 +11159,66 @@ fn s9_a_pre_write_job_facing_an_equal_order_with_another_fingerprint_can_only_fa
     assert_eq!(applied(c, &k), Some(rb_state(6, "h6")));
     assert!(holds(c, id).is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// Migration evidence harness (19.0 items 2 and 3)
+// ---------------------------------------------------------------------------
+
+/// Spec 19.0 items 2 and 3, run by hand against a disposable database named
+/// by `ASYNC_EVIDENCE_DATABASE_URL`, never the test database.
+/// `ASYNC_EVIDENCE_STEP=apply-through:<version>` applies pending migrations
+/// one at a time with `run_next_migration` until `<version>` is applied;
+/// `ASYNC_EVIDENCE_STEP=revert-through:<version>` reverts with
+/// `revert_last_migration` until `<version>` has been reverted, the
+/// revert-through-target pattern of `metric_platform/tests.rs`. Each applied
+/// or reverted version is printed.
+#[test]
+#[ignore = "migration evidence harness, run by hand against a disposable database"]
+fn evidence_migration_harness() {
+    use diesel_migrations::MigrationHarness;
+
+    let url = std::env::var("ASYNC_EVIDENCE_DATABASE_URL").expect("ASYNC_EVIDENCE_DATABASE_URL");
+    assert_ne!(
+        url,
+        crate::model::tests::db::test_db_url(),
+        "the harness never runs against the test database"
+    );
+    let step = std::env::var("ASYNC_EVIDENCE_STEP").expect("ASYNC_EVIDENCE_STEP");
+    let (action, target) = step
+        .split_once(':')
+        .expect("ASYNC_EVIDENCE_STEP is <action>:<version>");
+    let mut conn = PgConnection::establish(&url).expect("connect to the evidence database");
+    let applied = |conn: &mut PgConnection| -> bool {
+        conn.applied_migrations()
+            .expect("read the applied migrations")
+            .iter()
+            .any(|version| version.to_string() == target)
+    };
+    match action {
+        "apply-through" => {
+            assert!(!applied(&mut conn), "{target} is already applied");
+            loop {
+                let version = conn
+                    .run_next_migration(crate::db::MIGRATIONS)
+                    .expect("apply the next migration");
+                println!("applied {version}");
+                if version.to_string() == target {
+                    break;
+                }
+            }
+        }
+        "revert-through" => {
+            assert!(applied(&mut conn), "{target} is not applied");
+            loop {
+                let version = conn
+                    .revert_last_migration(crate::db::MIGRATIONS)
+                    .expect("revert the last migration");
+                println!("reverted {version}");
+                if version.to_string() == target {
+                    break;
+                }
+            }
+        }
+        other => panic!("unknown step {other}"),
+    }
+}
