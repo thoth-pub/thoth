@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `rorStatus` and `rorSuccessor` to institutions, writable only by `SUPERUSER` and the new `ROR_SYNC_SERVICE` role
   - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a `rorStatuses` filter to `institutions` and `institutionCount`, and a `ROR_STATUS` sort field
   - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `isRorSyncService` to `me`, and the `ROR_SYNC_SERVICE` role to `thoth zitadel setup`
+  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable, caller-driven rebuild and paged verification of the derived Metrics rollup projections for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
   - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Record an institution's history when it is created, not only when it is updated
