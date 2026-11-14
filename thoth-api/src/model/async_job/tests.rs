@@ -14,14 +14,15 @@
 
 use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration as StdDuration, Instant};
 
 use chrono::Duration;
 use diesel::connection::SimpleConnection;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use diesel::result::Error as DieselError;
+use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use serde_json::json;
-use thoth_errors::ThothResult;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::test_support::*;
@@ -1870,7 +1871,7 @@ struct Session {
     pid: i32,
     steps: mpsc::Sender<Option<BoxedStep>>,
     results: mpsc::Receiver<Box<dyn std::any::Any + Send>>,
-    handle: thread::JoinHandle<()>,
+    handle: thread::JoinHandle<Result<(), DieselError>>,
 }
 
 impl Session {
@@ -1899,7 +1900,6 @@ impl Session {
                     }
                     Ok(())
                 })
-                .expect("commit the session");
         });
         Session {
             pid,
@@ -1934,10 +1934,17 @@ impl Session {
             .expect("the step result has the expected type")
     }
 
-    /// Commit the session's transaction.
+    /// Commit the session's transaction (PostgreSQL turns the commit of an
+    /// aborted transaction into a rollback).
     fn commit(self) {
+        self.end().expect("commit the session");
+    }
+
+    /// End the session and return its commit result, for a session whose
+    /// connection the test terminated on purpose.
+    fn end(self) -> Result<(), DieselError> {
         self.steps.send(None).expect("signal the commit");
-        self.handle.join().expect("the session thread panicked");
+        self.handle.join().expect("the session thread panicked")
     }
 }
 
@@ -7295,4 +7302,561 @@ fn signals_executor_activity_set_and_clear() {
     // Without poll rows or open attempts the identity is gone.
     exec(c, "DELETE FROM public.async_executor_poll");
     assert!(executor_activity(c).unwrap().is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Mapping (E1) and carry-forward part A: real lock and statement timeouts, a
+// real deadlock, a cancel and a terminated backend are ASYNC_JOB_BUSY; any
+// other database error is ASYNC_JOB_INTEGRITY_VIOLATION with its fixed
+// message; no PostgreSQL text reaches the caller
+// ---------------------------------------------------------------------------
+
+/// A RUNNING job on one fresh target and a session holding its row lock.
+fn row_locked_job(c: &mut PgConnection, id: &str) -> (AsyncJob, WorkerClaim, Session) {
+    let (created, claim) = running(c, new_job(TEST_EFFECT, id, &[&key(NS_CS)]));
+    let job_id = created.async_job_id;
+    let current = job(c, job_id);
+    let holder = Session::open();
+    holder.run(move |c| exec(c, &lock_row_sql(job_id)));
+    (current, claim, holder)
+}
+
+fn lock_row_sql(id: Uuid) -> String {
+    format!("SELECT 1 FROM public.async_job WHERE async_job_id = '{id}' FOR UPDATE")
+}
+
+/// A renewal of `claim` inside the session's transaction, as its outcome.
+fn renew_step(claim: WorkerClaim) -> impl FnOnce(&mut PgConnection) -> ThothResult<()> {
+    move |c: &mut PgConnection| renew_on(c, &REGISTRY, &claim, None).map(|_| ())
+}
+
+/// The error is `ASYNC_JOB_BUSY` and its client text carries no server text.
+#[track_caller]
+fn assert_busy(result: ThothResult<()>) {
+    match result {
+        Err(error) => {
+            assert_eq!(code(&error), "ASYNC_JOB_BUSY", "{error:?}");
+            assert_eq!(
+                error.to_string(),
+                "The async job engine is busy. Retry later."
+            );
+        }
+        Ok(()) => panic!("expected ASYNC_JOB_BUSY"),
+    }
+}
+
+/// Wait, by bounded polling, until the deadlock counter reaches `expected`
+/// (a backend reports its statistics when it goes idle or exits).
+fn wait_for_deadlocks(conn: &mut PgConnection, expected: i64) {
+    let deadline = Instant::now() + StdDuration::from_secs(60);
+    loop {
+        let now = deadlocks(conn);
+        if now == expected {
+            return;
+        }
+        assert!(now < expected, "more deadlocks than the one forced: {now}");
+        assert!(
+            Instant::now() < deadline,
+            "the forced deadlock was never counted"
+        );
+        thread::yield_now();
+    }
+}
+
+/// The lease is unchanged and nothing was written for the job.
+#[track_caller]
+fn assert_untouched(conn: &mut PgConnection, before: &AsyncJob) {
+    let after = job(conn, before.async_job_id);
+    assert_eq!(after.status, before.status);
+    assert_eq!(after.lease_expires_at, before.lease_expires_at);
+    assert_eq!(after.updated_at, before.updated_at);
+}
+
+#[test]
+fn mapping_a_real_lock_timeout_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let (job_row, claim, holder) = row_locked_job(c, "lock-timeout");
+    let caller = Session::open_with("SET LOCAL lock_timeout = '100ms'");
+    assert_busy(caller.run(renew_step(claim)));
+    caller.commit();
+    holder.commit();
+    assert_untouched(c, &job_row);
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn mapping_a_real_statement_timeout_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let (job_row, claim, holder) = row_locked_job(c, "statement-timeout");
+    let caller = Session::open_with("SET LOCAL statement_timeout = '100ms'");
+    assert_busy(caller.run(renew_step(claim)));
+    caller.commit();
+    holder.commit();
+    assert_untouched(c, &job_row);
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn mapping_a_query_cancel_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let (job_row, claim, holder) = row_locked_job(c, "cancel");
+    let caller = Session::open();
+    caller.send(renew_step(claim));
+    wait_until_blocked(c, caller.pid);
+    exec(c, &format!("SELECT pg_cancel_backend({})", caller.pid));
+    assert_busy(caller.result());
+    caller.commit();
+    holder.commit();
+    assert_untouched(c, &job_row);
+    assert_no_deadlock(c, before);
+}
+
+/// Carry-forward A3: the FATAL "terminating connection due to administrator
+/// command" of a terminated backend is a closed connection, so BUSY.
+#[test]
+fn mapping_a_terminated_backend_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let (job_row, claim, holder) = row_locked_job(c, "terminate");
+    let caller = Session::open();
+    caller.send(renew_step(claim));
+    wait_until_blocked(c, caller.pid);
+    exec(
+        c,
+        &format!("SELECT pg_terminate_backend({}, 10000)", caller.pid),
+    );
+    assert_busy(caller.result());
+    assert!(
+        caller.end().is_err(),
+        "the terminated session cannot commit"
+    );
+    holder.commit();
+    assert_untouched(c, &job_row);
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn mapping_a_real_deadlock_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let (created, claim) = running(c, new_job(TEST_EFFECT, "deadlock", &[&x]));
+    let id = created.async_job_id;
+    let job_row = job(c, id);
+    let before = deadlocks(c);
+    // The engine's caller has the short deadlock timeout, so it is the one
+    // that detects the cycle; the other side would wait a minute.
+    let engine = Session::open_with("SET LOCAL deadlock_timeout = '100ms'");
+    let other = Session::open_with("SET LOCAL deadlock_timeout = '60s'");
+    // The engine's transaction already holds the job row; the other holds
+    // the hold lock of x and waits for the row.
+    engine.run(move |c| exec(c, &lock_row_sql(id)));
+    let lock_x = format!("SELECT pg_advisory_xact_lock({NS_HOLD}, hashtext('{x}'))");
+    other.run(move |c| exec(c, &lock_x));
+    other.send(move |c| c.batch_execute(&lock_row_sql(id)).is_ok());
+    wait_until_blocked(c, other.pid);
+    // The release waits for x's hold lock (rule H): a cycle, detected by the
+    // engine's side.
+    assert_busy(engine.run(move |c| release_on(c, &REGISTRY, &claim).map(|_| ())));
+    engine.commit();
+    assert!(other.result::<bool>(), "the other side gets the row");
+    other.commit();
+    wait_for_deadlocks(c, before + 1);
+    assert_untouched(c, &job_row);
+    assert_eq!(holds(c, id), vec![x]);
+}
+
+#[test]
+fn mapping_another_database_error_is_an_integrity_violation_with_its_fixed_message() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (created, claim) = running(c, new_job(TEST_EFFECT, "read-only", &[&key(NS_CS)]));
+    let job_row = job(c, created.async_job_id);
+    // A read-only caller transaction: the row lock fails with an error no
+    // async constraint or trigger raises.
+    let caller = Session::open_with("SET LOCAL transaction_read_only = on");
+    let error = caller
+        .run(renew_step(claim))
+        .expect_err("a read-only transaction cannot lock the row");
+    caller.commit();
+    assert_eq!(error, ThothError::AsyncJobIntegrityViolation);
+    assert_eq!(
+        error.to_string(),
+        "The async job operation failed an integrity check."
+    );
+    assert_untouched(c, &job_row);
+}
+
+/// Carry-forward A1 and A3 at the wrapper's commit: a failed send, a closed
+/// connection and an administrator termination are BUSY whatever kind Diesel
+/// reports; every other commit failure is an integrity violation.
+#[test]
+fn carry_a_failed_send_or_closed_connection_at_commit_is_busy() {
+    let error = |kind: DatabaseErrorKind, message: &str| {
+        DieselError::DatabaseError(kind, Box::new(message.to_string()))
+    };
+    for (kind, message) in [
+        (
+            DatabaseErrorKind::UnableToSendCommand,
+            "could not send data to server",
+        ),
+        (
+            DatabaseErrorKind::ClosedConnection,
+            "server closed the connection unexpectedly",
+        ),
+        (
+            DatabaseErrorKind::Unknown,
+            "terminating connection due to administrator command",
+        ),
+        (
+            DatabaseErrorKind::Unknown,
+            "canceling statement due to lock timeout",
+        ),
+        (
+            DatabaseErrorKind::Unknown,
+            "canceling statement due to statement timeout",
+        ),
+        (DatabaseErrorKind::Unknown, "deadlock detected"),
+        (
+            DatabaseErrorKind::Unknown,
+            "canceling statement due to user request",
+        ),
+    ] {
+        assert_eq!(
+            map_commit_error(error(kind, message)),
+            ThothError::AsyncJobBusy,
+            "{message}"
+        );
+    }
+    let rollback_after_send = DieselError::RollbackErrorOnCommit {
+        rollback_error: Box::new(error(
+            DatabaseErrorKind::ClosedConnection,
+            "server closed the connection unexpectedly",
+        )),
+        commit_error: Box::new(error(
+            DatabaseErrorKind::UnableToSendCommand,
+            "could not send data to server",
+        )),
+    };
+    assert_eq!(
+        map_commit_error(rollback_after_send),
+        ThothError::AsyncJobBusy
+    );
+    assert_eq!(
+        map_commit_error(error(
+            DatabaseErrorKind::CheckViolation,
+            "new row violates check constraint"
+        )),
+        ThothError::AsyncJobIntegrityViolation
+    );
+}
+
+/// Carry-forward A4: the backend is terminated between the engine call and
+/// the wrapper's commit. The commit fails, the wrapper answers BUSY, and the
+/// re-read shows what committed (here nothing).
+#[test]
+fn carry_a_backend_terminated_before_the_wrappers_commit_is_busy() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let (created, claim) = running(c, new_job(TEST_EFFECT, "commit-lost", &[&key(NS_CS)]));
+    let job_row = job(c, created.async_job_id);
+    let (called, called_rx) = mpsc::channel();
+    let (go, go_rx) = mpsc::channel::<()>();
+    let (pid, handle) = spawn_with_connection(move |conn| {
+        with_engine_transaction_on(conn, |c| {
+            let renewed = renew_on(c, &REGISTRY, &claim, Some(120)).map(|_| ());
+            called
+                .send(renewed.is_ok())
+                .expect("announce the engine call");
+            go_rx.recv().expect("wait for the termination");
+            renewed
+        })
+    });
+    assert!(
+        called_rx.recv().expect("the engine call ran"),
+        "the engine call itself succeeded"
+    );
+    exec(c, &format!("SELECT pg_terminate_backend({pid}, 10000)"));
+    go.send(()).expect("let the wrapper commit");
+    assert_busy(handle.join().expect("the wrapper thread panicked"));
+    // The outcome was unknown to the caller; the re-read shows that the
+    // renewal never committed.
+    assert_untouched(c, &job_row);
+    assert_no_deadlock(c, before);
+}
+
+/// Carry-forward A2: after a BUSY with an unknown outcome, a retried
+/// token-fenced worker call answers STALE_CLAIM if the first commit
+/// succeeded; a staff command replays by request id; a lost claim is
+/// recovered at lease expiry.
+#[test]
+fn carry_after_an_unknown_outcome_each_caller_retries_safely() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // A completion whose commit succeeded, retried with the same token.
+    let x = key(NS_CS);
+    let (_a, claim) = running(c, new_job(TEST_EFFECT, "retried-worker", &[&x]));
+    let request = completion(CompletionOutcome::NoOp, vec![cs_entry(&x, "fp")]);
+    do_complete(c, &claim, request.clone()).unwrap();
+    assert_code(do_complete(c, &claim, request), "ASYNC_JOB_STALE_CLAIM");
+    assert_code(do_renew(c, &claim), "ASYNC_JOB_STALE_CLAIM");
+    assert_code(
+        do_fail(c, &claim, fail_req(FailureClass::Permanent)),
+        "ASYNC_JOB_STALE_CLAIM",
+    );
+    // A staff command repeated with its request id replays its outcome.
+    let b = create(c, new_job(TEST_EFFECT, "retried-command", &[&key(NS_CS)]));
+    let actor = staff("cancel, retried after BUSY");
+    let first = tx(c, |c| {
+        cancel_job_command_on(c, &REGISTRY, &actor, b.async_job_id)
+    })
+    .unwrap();
+    let rows = command_rows(c);
+    let again = tx(c, |c| {
+        cancel_job_command_on(c, &REGISTRY, &actor, b.async_job_id)
+    })
+    .unwrap();
+    assert!(!first.replayed && again.replayed);
+    assert_eq!(
+        (
+            again.async_control_command_id,
+            again.outcome,
+            again.outcome_code.clone()
+        ),
+        (
+            first.async_control_command_id,
+            first.outcome,
+            first.outcome_code.clone()
+        )
+    );
+    assert_eq!(command_rows(c), rows);
+    // A claim whose result was lost is recovered at lease expiry.
+    let d = create(c, new_job(TEST_EFFECT, "lost-claim", &[&key(NS_CS)]));
+    let _lost = claim_job(c, &d);
+    expire_lease(c, d.async_job_id);
+    assert_eq!(do_recover(c).recovered, vec![d.async_job_id]);
+    let recovered = job(c, d.async_job_id);
+    assert_eq!(
+        (recovered.status, recovered.prewrite_failure_count),
+        (AsyncJobStatus::RetryScheduled, 1)
+    );
+    assert!(holds(c, d.async_job_id).is_empty());
+    assert_no_unspecified(c);
+}
+
+/// Carry-forward A5: T16 and T18 SUCCEEDED entries follow the EFFECT_APPLIED
+/// row, so they may carry a `sourceRef`.
+#[test]
+fn carry_t16_and_t18_succeeded_entries_may_carry_a_source_ref() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let with_ref = |target: &str, fingerprint: &str, source_ref: &str| EvidenceEntry {
+        source_ref: Some(source_ref.to_string()),
+        ..cs_entry(target, fingerprint)
+    };
+    let x = key(NS_CS);
+    let a = rr_started(c, new_job(TEST_EFFECT, "t16-ref", &[&x]));
+    let claim = claim_recon(c, &a);
+    let done = do_resolve(
+        c,
+        &claim,
+        resolution_entries(vec![with_ref(&x, "f16", "ref-16")]),
+    )
+    .unwrap();
+    assert_eq!(done.status, AsyncJobStatus::Succeeded);
+    assert_eq!(
+        state(c, &x).unwrap().applied_source_ref.as_deref(),
+        Some("ref-16")
+    );
+    let y = key(NS_CS);
+    let b = rr_started(c, new_job(TEST_EFFECT, "t18-ref", &[&y]));
+    let result = do_staff(
+        c,
+        b.async_job_id,
+        staff_entries(StaffOutcome::Succeeded, vec![with_ref(&y, "f18", "ref-18")]),
+    );
+    assert_applied(&result, "EFFECT_APPLIED");
+    assert_eq!(
+        state(c, &y).unwrap().applied_source_ref.as_deref(),
+        Some("ref-18")
+    );
+    // A REVISION_BOUND reconciler entry with a sourceRef too.
+    let z = key(NS_RB);
+    let (r, claim) = started(c, revision_job("t16-rb-ref", &z, 3, "h3"));
+    do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+    let claim = claim_recon(c, &r);
+    let entry = EvidenceEntry {
+        source_ref: Some("ref-3".to_string()),
+        ..rb_entry(&z, 3, "h3")
+    };
+    let done = do_resolve(c, &claim, resolution_entries(vec![entry])).unwrap();
+    assert_eq!(done.status, AsyncJobStatus::Succeeded);
+    assert_eq!(state(c, &z).unwrap().applied_order, Some(3));
+    assert_no_unspecified(c);
+}
+
+// ---------------------------------------------------------------------------
+// Time (E1): `now` is clock_timestamp() read after the row lock
+// ---------------------------------------------------------------------------
+
+/// Move the job's lease, from a session that holds its row lock, to
+/// `extra` plus the midpoint between the waiting backend's transaction start
+/// (its `now()`) and the clock: live by `now()`, but past by the time the
+/// waiter gets the lock.
+fn lease_between_start_and_lock_sql(id: Uuid, waiter: i32, extra_seconds: i64) -> String {
+    format!(
+        "UPDATE public.async_job j \
+            SET lease_expires_at = s.xact_start + interval '{extra_seconds} seconds' \
+                                 + (clock_timestamp() - s.xact_start) / 2 \
+           FROM pg_stat_activity s \
+          WHERE s.pid = {waiter} AND j.async_job_id = '{id}'"
+    )
+}
+
+#[test]
+fn time_a_lease_that_expires_while_a_call_waits_for_the_row_lock_is_expired() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    // Renewal: the lease is live at the caller's transaction start.
+    let (job_row, claim, holder) = row_locked_job(c, "time-renew");
+    let id = job_row.async_job_id;
+    let caller = Session::open();
+    caller.send(renew_step(claim));
+    wait_until_blocked(c, caller.pid);
+    let update = lease_between_start_and_lock_sql(id, caller.pid, 0);
+    holder.run(move |c| exec(c, &update));
+    holder.commit();
+    assert_code(
+        caller.result::<ThothResult<()>>(),
+        "ASYNC_JOB_LEASE_EXPIRED",
+    );
+    caller.commit();
+    // The effect-window check uses the same instant: 30 s of window plus
+    // half the wait were left at the transaction start, less than 30 s at
+    // the lock.
+    let (job_row, claim, holder) = row_locked_job(c, "time-window");
+    let id = job_row.async_job_id;
+    let caller = Session::open();
+    caller.send(move |c| mark_effect_started_on(c, &REGISTRY, &claim).map(|_| ()));
+    wait_until_blocked(c, caller.pid);
+    let update = lease_between_start_and_lock_sql(id, caller.pid, 30);
+    holder.run(move |c| exec(c, &update));
+    holder.commit();
+    assert_code(
+        caller.result::<ThothResult<()>>(),
+        "ASYNC_JOB_EFFECT_WINDOW_INSUFFICIENT",
+    );
+    caller.commit();
+    assert_eq!(job(c, id).effect_phase, AsyncEffectPhase::PreWrite);
+    assert_no_deadlock(c, before);
+}
+
+// ---------------------------------------------------------------------------
+// Phase rules (E1)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn phase_fail_indeterminate_at_pre_write_is_a_retryable_pre_write_failure() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "indeterminate-pre", &[&key(NS_CS)]));
+    let failed = do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+    assert_eq!(
+        (failed.status, failed.prewrite_failure_count),
+        (AsyncJobStatus::RetryScheduled, 1)
+    );
+    let last = last_attempt(c, a.async_job_id);
+    assert_eq!(last.result, Some(AsyncAttemptResult::RetryableFailure));
+    assert!(holds(c, a.async_job_id).is_empty());
+    // Without room it ends FAILED with the budget exhausted (T8).
+    for _ in 1..3 {
+        make_available(c, a.async_job_id);
+        let claim = claim_job(c, &a);
+        do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+    }
+    let done = job(c, a.async_job_id);
+    assert_eq!(
+        (done.status, done.prewrite_failure_count),
+        (AsyncJobStatus::Failed, 3)
+    );
+    assert_eq!(
+        last_attempt(c, a.async_job_id).outcome_code.as_deref(),
+        Some("RETRY_BUDGET_EXHAUSTED")
+    );
+    assert_eq!(
+        causes(c, a.async_job_id),
+        vec![
+            "T1_CREATE",
+            "T2_CLAIM",
+            "T7_FAIL_RETRYABLE",
+            "T2_CLAIM",
+            "T7_FAIL_RETRYABLE",
+            "T2_CLAIM",
+            "T8_FAIL"
+        ]
+    );
+}
+
+#[test]
+fn phase_t9n_is_refused_at_effect_confirmed() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (a, claim) = confirmed(c, new_job(TEST_EFFECT, "t9n-confirmed", &[&key(NS_CS)]));
+    assert_refused(
+        do_fail(
+            c,
+            &claim,
+            no_effect_req(FailureClass::Permanent, Some(NO_EFFECT_EVIDENCE)),
+        ),
+        "EFFECT_CONFIRMED",
+    );
+    assert_live(c, &claim);
+    // Without the flag it is T9.
+    let rr = do_fail(c, &claim, fail_req(FailureClass::Permanent)).unwrap();
+    assert_eq!(
+        (rr.status, rr.effect_phase),
+        (
+            AsyncJobStatus::ReconciliationRequired,
+            AsyncEffectPhase::EffectConfirmed
+        )
+    );
+    assert_eq!(holds(c, a.async_job_id), a.target_keys);
+}
+
+#[test]
+fn phase_wait_with_resume_at_after_the_waiting_deadline_is_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let (a, claim) = started(c, new_job(TEST_EFFECT, "wait-late", &[&key(NS_CS)]));
+    // No stored deadline: the bound is now + horizon (3600 s).
+    let too_late = resume_in(c, 3700);
+    assert_code(
+        do_wait(c, &claim, "{}", too_late),
+        "ASYNC_JOB_PAYLOAD_INVALID",
+    );
+    assert_live(c, &claim);
+    let resume_at = resume_in(c, 10);
+    let WaitOutcome::Waiting(waiting) = do_wait(c, &claim, "{}", resume_at).unwrap() else {
+        panic!("expected WAITING");
+    };
+    let deadline = waiting.waiting_deadline.unwrap();
+    // A resumed attempt is bound by the stored deadline.
+    make_available(c, a.async_job_id);
+    let claim = claim_job(c, &a);
+    let past_deadline = deadline + Duration::seconds(1);
+    assert_code(
+        do_wait(c, &claim, "{}", past_deadline),
+        "ASYNC_JOB_PAYLOAD_INVALID",
+    );
+    assert_live(c, &claim);
+    assert_eq!(job(c, a.async_job_id).status, AsyncJobStatus::Running);
 }
