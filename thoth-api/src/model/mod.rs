@@ -880,6 +880,8 @@ pub(crate) mod tests;
 pub mod r#abstract;
 pub mod additional_resource;
 pub mod affiliation;
+#[cfg(feature = "backend")]
+pub mod async_job;
 pub mod award;
 pub mod biography;
 pub mod book_review;
