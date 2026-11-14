@@ -2027,15 +2027,26 @@ Contract properties consumers may rely on:
   overlaps it; otherwise `null`. `BigInt` is a canonical base-10 string:
   no `Int`, no float, signed and exact, with checked arithmetic that fails
   rather than wraps.
-- **Coverage.** Per platform, the eligible source is the one enabled `DRIVER`
-  account on an enabled source whose `expected_publisher_id` is the selected
-  publisher. Two or more is `MOM1_SOURCE_SCOPE_AMBIGUOUS`. None leaves
-  projected values served and coverage `UNKNOWN`. For each day, the current
+- **Coverage.** Per platform, a represented publisher's eligible accounts
+  are its enabled accounts of an enabled source whose acquisition type is
+  `DRIVER` and whose `expected_publisher_id` is that publisher. There may be
+  any number of them (`MET-WP4-MULTI-ACCOUNT-01`; MOM-1 refused two or more
+  as `MOM1_SOURCE_SCOPE_AMBIGUOUS`). A publisher with none leaves projected
+  values served and coverage `UNKNOWN`. For each account and day, the current
   assertion comes from `COMPLETED` or `COMPLETED_WITH_ERRORS` imports with a
   recorded `completed_at`: latest completion first, then greatest import UUID.
   Only if both tie within one self-contradictory import is its most
   conservative assertion preferred. `COMPLETED_WITH_ERRORS` downgrades
-  `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. An item is
+  `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. Across
+  accounts and publishers, a day of a served platform and measure is
+  asserted only if every represented publisher has an eligible account on
+  that platform and every such account asserts the day. It is then the worst
+  of those assertions, and includes a dimension only if every one of them
+  does. Otherwise it is `UNKNOWN`. Enabling another account therefore makes
+  its publisher's coverage on that platform `UNKNOWN` for every day the new
+  account has not asserted, until its history is collected; values do not
+  change. A measure that one of a publisher's accounts on a platform never
+  asserts stays `UNKNOWN` there. An item is
   `COMPLETE` only if every day is, `UNKNOWN` if any day is, otherwise
   `PARTIAL`. When any value served for a platform and measure was taken from
   country rows, every day of that combination asserted `COMPLETE` without
@@ -2046,6 +2057,23 @@ Contract properties consumers may rely on:
   day has a current assertion including that dimension. Top-level status is
   `COMPLETE` only if every item is, and `UNKNOWN` if any item is, or if
   nothing is served.
+- **Several accounts on one platform.** The canonical identity of section 3
+  has no source account, so the first account to report a cell holds it.
+  Another account's observation of the same work, publication, platform,
+  measure, period, country and institution is never added. It is `DUPLICATE`
+  when its content is identical, which is silent, and, when the content
+  differs, `CONFLICT`, which ends its import `COMPLETED_WITH_ERRORS` and so
+  shows its days as `PARTIAL`. Through quarantine reconciliation the same
+  collision is `RESOLVED_DUPLICATE`, which is silent, or
+  `BLOCKED_SOURCE_CONFLICT`, which leaves an unresolved-identifier warning
+  that does not clear. Accounts that report one work, platform, measure and
+  day in different dimensional shapes do not collide, but the
+  dimensional-representation rule above then drops one account's values or
+  refuses the request. Several eligible accounts of one publisher and
+  platform are therefore known to give correct values when no two of them
+  report the same work, platform, measure and day; in practice, each work's
+  files are on one site. Operators check this before enabling another
+  account. The read cannot tell a lost value from no traffic.
 - **One snapshot.** Everything is read on one connection in one
   `READ ONLY, REPEATABLE READ` transaction: entitlement, the `MET-WP4-01`
   frontier, represented scope, projection, coverage, outstanding rollup work
@@ -2085,13 +2113,14 @@ Contract properties consumers may rely on:
   configuration.
 - **Errors.** Every failure carries a fixed message and one `extensions.type`
   among `NO_ACCESS`, `METRIC_QUERY_INVALID`, `METRIC_QUERY_LIMIT_EXCEEDED`,
-  `METRIC_REGISTRY_LIMIT_EXCEEDED`, `MOM1_SOURCE_SCOPE_AMBIGUOUS` and
-  `MOM1_DIMENSION_SCOPE_AMBIGUOUS`, plus
+  `METRIC_REGISTRY_LIMIT_EXCEEDED` and `MOM1_DIMENSION_SCOPE_AMBIGUOUS`, plus
   `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` (section 4.2) and the retryable
   `METRIC_READ_BUSY` (section 4.3). An
   aggregate outside the representable range is `METRIC_QUERY_LIMIT_EXCEEDED`.
   An unexpected database failure is `INTERNAL_ERROR` without detail. No SQL,
   database diagnostic, token or source configuration is returned.
+  `MOM1_SOURCE_SCOPE_AMBIGUOUS` is retired by `MET-WP4-MULTI-ACCOUNT-01` and
+  is never returned. A client may keep handling it.
 
 Scope boundaries a consumer must not infer:
 
@@ -2115,7 +2144,10 @@ Scope boundaries a consumer must not infer:
   existing database enum, exposed to GraphQL without any value change.
   Generated/exhaustive clients must tolerate the new warning enum before
   CloudFront production activation, and consumers must not coerce `null`
-  Metrics values to zero.
+  Metrics values to zero. `MET-WP4-MULTI-ACCOUNT-01` no longer refuses a
+  request because a publisher has several eligible accounts on a platform;
+  such a request is served or meets another refusal. Every request served
+  before gets the same response.
 
 ### 4.2 Complete dashboard contract (`MET-WP4-03B`)
 
@@ -2271,9 +2303,11 @@ Contract properties consumers may rely on:
   returned. Complete months use the monthly ambiguity state; edge days use
   the equivalent day-level resolution.
 - **Section-specific coverage (Amendment 1).** Per platform, measure and
-  day, coverage is first combined across the represented publishers: a
-  publisher without an assertion makes the day `UNKNOWN`, otherwise the worst
-  status wins (`UNKNOWN`, then `PARTIAL`, then `COMPLETE`, with
+  day, coverage is first combined across every eligible account of every
+  represented publisher (section 4.1): a represented publisher without an
+  eligible account on the platform, or an eligible account without an
+  assertion, makes the day `UNKNOWN`; otherwise the worst status wins
+  (`UNKNOWN`, then `PARTIAL`, then `COMPLETE`, with
   `COMPLETED_WITH_ERRORS` downgrading `COMPLETE` to `PARTIAL` first), and the
   country and institution flags combine by AND. The totals and timeline then
   use only the dimensions their own served representation depends on,
@@ -2484,9 +2518,11 @@ Contract properties consumers may rely on:
   `metric_coverage_run` runs, clipped to the served range, with the
   semantics of sections 4.1 and 4.2 unchanged. Eligibility is checked at
   request time against the current source account, as before. Two eligible
-  runs of one stream that cover the same served day are invalid derived
-  state and fail the request as `INTERNAL_ERROR`; overlap outside the served
-  range is never read. Evaluation is interval-based: apart from the
+  runs of one stream (one account, platform, publisher and measure) that
+  cover the same served day are invalid derived state and fail the request
+  as `INTERNAL_ERROR`; overlap outside the served range is never read. Runs
+  of different eligible accounts may cover the same day; section 4.1
+  combines them. Evaluation is interval-based: apart from the
   timeline buckets themselves, nothing the read builds, in SQL or in memory,
   grows with the number of days in the range.
 - **Represented pairs.** Omitted platforms or measures resolve from the
@@ -2781,10 +2817,10 @@ is additive: `startDate` became nullable, and `timelineGrain` and
   coverage equal a single-pair `metricDashboard` read over the same works,
   served range and grain; the section's `dataThrough` and `isPartial` are
   section 4.1's aggregation over exactly the served pairs. A total or country
-  dimension ambiguity, more than one eligible source account on a served
-  platform, or an active native `MONTH` or `REPORTING_PERIOD` record on any
-  served platform x served measure (a deliberate over-refusal that reaches
-  unserved cross pairs) refuses the read as `METRIC_WIDGET_UNAVAILABLE`. Over
+  dimension ambiguity, or an active native `MONTH` or `REPORTING_PERIOD`
+  record on any served platform x served measure (a deliberate over-refusal
+  that reaches unserved cross pairs) refuses the read as
+  `METRIC_WIDGET_UNAVAILABLE`. Over
   all history that reaches every such record and month since the served start:
   a native-grain record on a served platform x served measure that ends on or
   before the served start is not read, and one that ends after it refuses the
@@ -2828,7 +2864,7 @@ is additive: `startDate` became nullable, and `timelineGrain` and
 
 | Condition | `extensions.type` |
 | --- | --- |
-| Switch off; unknown DOI; publisher without `METRICS_WIDGET`; engine capability, source-scope, dimension-scope or native-grain refusal | `METRIC_WIDGET_UNAVAILABLE` |
+| Switch off; unknown DOI; publisher without `METRICS_WIDGET`; engine capability, dimension-scope or native-grain refusal | `METRIC_WIDGET_UNAVAILABLE` |
 | No free slot; checkout timeout or failure; deadline passed before a statement; the prelude lock failing | `METRIC_WIDGET_BUSY` |
 | A second `metricWidget` selection in the request; dates outside the technical domain; a `MONTH` read over 12 months ("A MONTH timeline may cover at most 12 months."); an omitted `startDate` with `endDate` not after 2000-01-01 or more than 366 days after today ("When startDate is omitted, endDate must be after 2000-01-01 and at most 366 days after today (UTC)."); a served start before 2000-01-01 ("Metrics for this work or its child works start before 2000-01-01. Give a startDate on or after 2000-01-01."); over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
 | A DOI that does not parse; a `MONTH` read without `startDate` ("startDate is required for a MONTH timeline."); dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
