@@ -1604,14 +1604,13 @@ fn completion_rule(outcome: CompletionOutcome, job: &JobRow) -> ThothResult<Entr
     let effectful = job.effect_class == EffectClass::Effectful;
     let revision_bound = job.revision_mode == RevisionMode::RevisionBound;
     let pre_write = job.effect_phase == AsyncEffectPhase::PreWrite;
+    // The "Allowed when" column of section 13.3: `NO_OP` names only the
+    // phase and `SUPERSEDED` only the phase and the revision mode, so
+    // neither depends on the effect class.
     let (phase_allows, kind_allows, rule) = match outcome {
         CompletionOutcome::EffectApplied => (!pre_write, effectful, EntryRule::EffectApplied),
-        CompletionOutcome::NoOp => (pre_write, effectful, EntryRule::NoOp),
-        CompletionOutcome::Superseded => (
-            pre_write,
-            effectful && revision_bound,
-            EntryRule::Superseded,
-        ),
+        CompletionOutcome::NoOp => (pre_write, true, EntryRule::NoOp),
+        CompletionOutcome::Superseded => (pre_write, revision_bound, EntryRule::Superseded),
         CompletionOutcome::Completed => (true, !effectful, EntryRule::Completed),
     };
     if !phase_allows {

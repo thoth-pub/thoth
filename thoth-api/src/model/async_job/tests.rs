@@ -5158,21 +5158,123 @@ fn targets_key_only_rows_and_read_only_completion() {
     assert!(matches!(outcome, CompleteOutcome::Succeeded(_)));
     assert!(state(c, &r).is_none());
     assert!(holds(c, a.async_job_id).is_empty());
-    // EFFECT_APPLIED, NO_OP and SUPERSEDED on a READ_ONLY kind: refused.
-    let (_b, claim) = running(c, new_job(TEST_READ, "read-2", &[&key(NS_READ)]));
-    for (outcome, reason) in [
-        (CompletionOutcome::NoOp, "KIND_POLICY"),
-        (CompletionOutcome::Superseded, "KIND_POLICY"),
-        (CompletionOutcome::EffectApplied, "PHASE"),
+    // EFFECT_APPLIED needs a started effect, which a READ_ONLY job never
+    // has (PHASE comes first); SUPERSEDED needs a REVISION_BOUND kind.
+    let r2 = key(NS_READ);
+    let (b, claim) = running(c, new_job(TEST_READ, "read-2", &[&r2]));
+    for (outcome, entry, reason) in [
+        (
+            CompletionOutcome::EffectApplied,
+            cs_entry(&r2, "fp"),
+            "PHASE",
+        ),
+        (
+            CompletionOutcome::Superseded,
+            EvidenceEntry::key_only(&r2),
+            "KIND_POLICY",
+        ),
     ] {
-        let entries = vec![cs_entry(&r, "fp")];
         assert_refused(
             tx(c, |c| {
-                complete_on(c, &REGISTRY, &claim, completion(outcome, entries))
+                complete_on(c, &REGISTRY, &claim, completion(outcome, vec![entry]))
             }),
             reason,
         );
+        assert_live(c, &claim);
     }
+    // NO_OP names only the phase in section 13.3, so a READ_ONLY job may
+    // record the fingerprint it observed.
+    let outcome = tx(c, |c| {
+        complete_on(
+            c,
+            &REGISTRY,
+            &claim,
+            completion(CompletionOutcome::NoOp, vec![cs_entry(&r2, "seen")]),
+        )
+    })
+    .unwrap();
+    assert!(matches!(outcome, CompleteOutcome::Succeeded(_)));
+    assert_eq!(applied(c, &r2), Some((None, "seen".to_string())));
+    assert_eq!(
+        last_attempt(c, b.async_job_id).outcome_code.as_deref(),
+        Some("NO_OP")
+    );
+    assert!(holds(c, b.async_job_id).is_empty());
+}
+
+/// A READ_ONLY kind with a REVISION_BOUND target (section 13.3 names only
+/// the phase and the revision mode for `SUPERSEDED`).
+static READ_REVISION_REGISTRY: AsyncJobRegistry = AsyncJobRegistry::new(&[AsyncJobKindPolicy {
+    kind: "TEST_READ_REVISION",
+    effect_class: EffectClass::ReadOnly,
+    effect_window_seconds: None,
+    staff_reconciliation_outcomes: &[],
+    ..REVISION_POLICY
+}]);
+
+#[test]
+fn targets_a_read_only_revision_bound_job_completes_superseded_or_completed_with_key_only_entries()
+{
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let registry = &READ_REVISION_REGISTRY;
+    assert_eq!(registry.validate(), Ok(()));
+    let run = |c: &mut PgConnection, id: &str, target: &str, order: i64| {
+        let input = NewAsyncJob {
+            kind: "TEST_READ_REVISION".to_string(),
+            ..revision_job(id, target, order, &format!("h{order}"))
+        };
+        let created = match tx(c, |c| create_job_on(c, registry, input)).expect("create") {
+            CreateOutcome::Created(job) => job,
+            other => panic!("expected a new job, got {other:?}"),
+        };
+        let executor = dissemination();
+        let claimed = tx(c, |c| {
+            claim_on(c, registry, &executor, request(&["TEST_READ_REVISION"], 1))
+        })
+        .expect("claim")
+        .jobs;
+        assert_eq!(claimed.len(), 1);
+        (created, claimed[0].worker_claim(executor.domain))
+    };
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 9, "h9");
+    // An older revision is SUPERSEDED with its key-only entry.
+    let (old, claim) = run(c, "read-old", &k, 3);
+    let complete = |c: &mut PgConnection, claim: &WorkerClaim, outcome| {
+        tx(c, |c| {
+            complete_on(
+                c,
+                registry,
+                claim,
+                completion(outcome, vec![EvidenceEntry::key_only(&k)]),
+            )
+        })
+    };
+    assert!(matches!(
+        complete(c, &claim, CompletionOutcome::Superseded).unwrap(),
+        CompleteOutcome::Succeeded(_)
+    ));
+    assert_eq!(status(c, old.async_job_id), AsyncJobStatus::Succeeded);
+    assert_eq!(
+        last_attempt(c, old.async_job_id).outcome_code.as_deref(),
+        Some("SUPERSEDED")
+    );
+    // A newer revision cannot claim SUPERSEDED, and COMPLETED changes
+    // nothing.
+    let (new, claim) = run(c, "read-new", &k, 12);
+    assert_code(
+        complete(c, &claim, CompletionOutcome::Superseded),
+        "ASYNC_JOB_EVIDENCE_INVALID",
+    );
+    tx(c, |c| renew_on(c, registry, &claim, None)).expect("the claim must still be live");
+    assert!(matches!(
+        complete(c, &claim, CompletionOutcome::Completed).unwrap(),
+        CompleteOutcome::Succeeded(_)
+    ));
+    assert_eq!(status(c, new.async_job_id), AsyncJobStatus::Succeeded);
+    assert_eq!(applied(c, &k), Some(rb_state(9, "h9")));
+    assert!(holds(c, new.async_job_id).is_empty());
 }
 
 #[test]
