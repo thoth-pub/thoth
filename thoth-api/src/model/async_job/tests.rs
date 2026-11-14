@@ -8,9 +8,10 @@
 //! Test names start with their 19.2 group: `schema_`, `creation_`, `claims_`,
 //! `leases_`, `effect_`, `targets_`, `commands_` (cancellation, retry and
 //! reconciliation), `redaction_`, `recovery_`, `signals_`, `backstop_`,
-//! `deadlock_`, `time_`, `bounds_`, `phase_`, `regression_` (accepted
-//! regression), `locks_` (commands and locks), `s9_` (section 9 additions),
-//! `mapping_`, plus `registry_` and `carry_` (carry-forward part A).
+//! `time_`, `bounds_`, `phase_`, `regression_` (accepted regression), `locks_`
+//! (commands and locks), `s9_` (section 9 additions), `mapping_` (error
+//! mapping, which with the deadlock assertions covers deadlock freedom), plus
+//! `registry_` and `carry_` (carry-forward part A).
 
 use std::sync::mpsc;
 use std::thread;
@@ -10167,4 +10168,994 @@ fn locks_a_row_made_inconsistent_behind_the_triggers_is_skipped_by_recovery_and_
     assert_eq!(failures(c), 2);
     assert_eq!(status(c, id), AsyncJobStatus::Waiting);
     assert_no_deadlock(c, before);
+}
+
+// ---------------------------------------------------------------------------
+// Section 9 additions (19.2)
+// ---------------------------------------------------------------------------
+
+/// Run a command in its own engine-owned transaction and assert a committed
+/// `REFUSED` with `code`: one command row and nothing else for the job.
+#[track_caller]
+fn assert_command_only(
+    conn: &mut PgConnection,
+    id: Uuid,
+    code: &str,
+    command: impl FnOnce(&mut PgConnection) -> ThothResult<CommandResult>,
+) {
+    let before = footprint(conn, id);
+    let result = tx(conn, command).expect("a command");
+    assert_command_refused(&result, code);
+    assert_eq!(
+        footprint(conn, id),
+        Footprint {
+            commands: before.commands + 1,
+            ..before
+        }
+    );
+}
+
+/// A staff resolution refused with `code`, writing only its command row.
+#[track_caller]
+fn assert_staff_refused(
+    conn: &mut PgConnection,
+    id: Uuid,
+    resolution: StaffResolution,
+    code: &str,
+) {
+    assert_command_only(conn, id, code, |c| {
+        resolve_reconciliation_command_on(c, &REGISTRY, &staff("resolve"), id, resolution)
+    });
+}
+
+#[test]
+fn s9_t3_renews_a_reconciliation_claim() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let a = rr_started(c, new_job(TEST_EFFECT, "s9-t3", &[&key(NS_CS)]));
+    let id = a.async_job_id;
+    let claim = claim_recon(c, &a);
+    let before = job(c, id);
+    let opened = last_attempt(c, id);
+    let causes_before = causes(c, id);
+    let renewal = tx(c, |c| renew_on(c, &REGISTRY, &claim, Some(300))).unwrap();
+    let after = job(c, id);
+    assert_eq!(after.status, AsyncJobStatus::ReconciliationRequired);
+    assert_eq!(
+        after.reconciliation_attempt_count,
+        before.reconciliation_attempt_count
+    );
+    assert_eq!(after.lease_expires_at, Some(renewal.lease_expires_at));
+    assert!(renewal.lease_expires_at > before.lease_expires_at.unwrap());
+    assert!(renewal.lease_expires_at <= renewal.attempt_runtime_deadline);
+    assert_eq!(
+        after.attempt_runtime_deadline,
+        Some(renewal.attempt_runtime_deadline)
+    );
+    assert_eq!(
+        after.attempt_runtime_deadline,
+        before.attempt_runtime_deadline
+    );
+    // The heartbeat lands on the open reconciliation attempt.
+    let renewed = last_attempt(c, id);
+    assert_eq!(renewed.async_job_attempt_id, opened.async_job_attempt_id);
+    assert_eq!(renewed.purpose, AsyncAttemptPurpose::Reconciliation);
+    assert!(renewed.finished_at.is_none());
+    assert!(renewed.last_heartbeat_at > opened.last_heartbeat_at);
+    // Status preserving: no transition row.
+    assert_eq!(causes(c, id), causes_before);
+    // The renewed claim still resolves the job, and then no longer renews.
+    let row = do_resolve(c, &claim, resolution(ReconcilerOutcome::StillRequired)).unwrap();
+    assert_eq!(
+        (row.status, row.claimed_by),
+        (AsyncJobStatus::ReconciliationRequired, None)
+    );
+    assert_code(do_renew(c, &claim), STALE);
+
+    // An expired reconciliation lease is not renewed.
+    let b = rr_started(c, new_job(TEST_PEER, "s9-t3-expired", &[&key(NS_CS)]));
+    let claim = claim_recon(c, &b);
+    expire_lease(c, b.async_job_id);
+    let before = footprint(c, b.async_job_id);
+    assert_code(do_renew(c, &claim), "ASYNC_JOB_LEASE_EXPIRED");
+    assert_eq!(footprint(c, b.async_job_id), before);
+}
+
+#[test]
+fn s9_t16_refuses_failed_and_cancelled_at_effect_confirmed_with_the_job_rr_and_the_claim_live() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let a = rr_confirmed(c, new_job(TEST_EFFECT, "s9-t16-confirmed", &[&key(NS_CS)]));
+    let id = a.async_job_id;
+    let claim = claim_recon(c, &a);
+    for request in [
+        resolution_evidence(ReconcilerOutcome::Failed, NO_EFFECT_EVIDENCE),
+        resolution_evidence(ReconcilerOutcome::Cancelled, NO_EFFECT_EVIDENCE),
+        resolution_evidence(ReconcilerOutcome::Failed, NOT_APPLIED_EVIDENCE),
+        // Without evidence the phase refusal still comes first.
+        resolution(ReconcilerOutcome::Cancelled),
+    ] {
+        let before = footprint(c, id);
+        assert_eq!(before.job.status, AsyncJobStatus::ReconciliationRequired);
+        assert_refused(do_resolve(c, &claim, request), "EFFECT_CONFIRMED");
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+    // The live claim then records another outcome.
+    let row = do_resolve(c, &claim, resolution(ReconcilerOutcome::StillRequired)).unwrap();
+    assert_eq!(
+        (row.status, row.effect_phase),
+        (
+            AsyncJobStatus::ReconciliationRequired,
+            AsyncEffectPhase::EffectConfirmed
+        )
+    );
+}
+
+#[test]
+fn s9_t18_at_effect_confirmed_refuses_cancelled_and_closes_failed_only_with_valid_not_applied_evidence(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let a = rr_confirmed(c, new_job(TEST_EFFECT, "s9-t18-confirmed", &[&x]));
+    let id = a.async_job_id;
+    // CANCELLED there: a committed REFUSED, whatever its evidence.
+    for evidence in [NO_EFFECT_EVIDENCE, NOT_APPLIED_EVIDENCE] {
+        assert_staff_refused(
+            c,
+            id,
+            staff_evidence(StaffOutcome::Cancelled, evidence),
+            "EFFECT_CONFIRMED",
+        );
+    }
+    // FAILED there without valid not-applied evidence: a committed REFUSED
+    // with EVIDENCE_INVALID (missing, refused by the kind, no-effect
+    // evidence instead, and entries in a "none" cell).
+    for resolution in [
+        staff_res(StaffOutcome::Failed),
+        staff_evidence(StaffOutcome::Failed, r#"{"notApplied": false}"#),
+        staff_evidence(StaffOutcome::Failed, NO_EFFECT_EVIDENCE),
+        StaffResolution {
+            entries: Some(vec![cs_entry(&x, "fp")]),
+            ..staff_evidence(StaffOutcome::Failed, NOT_APPLIED_EVIDENCE)
+        },
+    ] {
+        assert_staff_refused(c, id, resolution, "EVIDENCE_INVALID");
+    }
+    assert_eq!(commands_for(c, id, "REFUSED", "EFFECT_CONFIRMED"), 2);
+    assert_eq!(commands_for(c, id, "REFUSED", "EVIDENCE_INVALID"), 4);
+
+    // With valid not-applied evidence: FAILED, no state write, the hold
+    // released.
+    let result = do_staff(
+        c,
+        id,
+        staff_evidence(StaffOutcome::Failed, NOT_APPLIED_EVIDENCE),
+    );
+    assert_applied(&result, "CONFIRMED_EFFECT_NOT_APPLIED");
+    let row = job(c, id);
+    assert_eq!(
+        (row.status, row.effect_phase),
+        (AsyncJobStatus::Failed, AsyncEffectPhase::EffectConfirmed)
+    );
+    assert_eq!(
+        row.last_outcome_code.as_deref(),
+        Some("CONFIRMED_EFFECT_NOT_APPLIED")
+    );
+    let closed = last_attempt(c, id);
+    assert_eq!(closed.purpose, AsyncAttemptPurpose::StaffReconciliation);
+    assert_eq!(closed.result, Some(AsyncAttemptResult::PermanentFailure));
+    assert_eq!(
+        closed.outcome_code.as_deref(),
+        Some("CONFIRMED_EFFECT_NOT_APPLIED")
+    );
+    assert_eq!(
+        closed.control_command_id,
+        Some(result.async_control_command_id)
+    );
+    assert!(state(c, &x).is_none());
+    assert!(holds(c, id).is_empty());
+    // RETRY_JOB is then refused: the engine never replays a confirmed effect.
+    assert_command_only(c, id, "RETRY_NOT_ALLOWED", |c| {
+        retry_job_command_on(c, &REGISTRY, &staff("retry"), id)
+    });
+}
+
+#[test]
+fn s9_a_polling_kinds_confirmed_submission_rejected_later_is_closed_by_a_staff_failed() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let p = key(NS_POLL);
+    // Submitted and acknowledged (EFFECT_CONFIRMED), then polled from
+    // WAITING by a resumed attempt.
+    let a = create(c, new_job(TEST_POLL, "s9-poll-rejected", &[&p]));
+    let id = a.async_job_id;
+    let claim = claim_job(c, &a);
+    do_start(c, &claim).unwrap();
+    do_confirm(c, &claim).unwrap();
+    let claim = resumed(c, &a, &claim);
+    // The provider then rejects the submission: T9 at EFFECT_CONFIRMED.
+    let rejected = FailRequest {
+        error_code: "SUBMISSION_REJECTED".to_string(),
+        ..fail_req(FailureClass::Permanent)
+    };
+    let rr = do_fail(c, &claim, rejected).unwrap();
+    assert_eq!(
+        (rr.status, rr.effect_phase),
+        (
+            AsyncJobStatus::ReconciliationRequired,
+            AsyncEffectPhase::EffectConfirmed
+        )
+    );
+    assert_eq!(holds(c, id), vec![p.clone()]);
+    let failed_attempt = last_attempt(c, id);
+    assert_eq!(
+        failed_attempt.error_code.as_deref(),
+        Some("SUBMISSION_REJECTED")
+    );
+    // Neither SUCCEEDED nor a CANCELLED is truthful; the staff FAILED with
+    // not-applied evidence closes it.
+    assert_staff_refused(
+        c,
+        id,
+        staff_evidence(StaffOutcome::Failed, NO_EFFECT_EVIDENCE),
+        "EVIDENCE_INVALID",
+    );
+    let result = do_staff(
+        c,
+        id,
+        staff_evidence(StaffOutcome::Failed, NOT_APPLIED_EVIDENCE),
+    );
+    assert_applied(&result, "CONFIRMED_EFFECT_NOT_APPLIED");
+    assert_eq!(result.job.status, AsyncJobStatus::Failed);
+    assert!(holds(c, id).is_empty());
+    assert!(state(c, &p).is_none());
+    assert_command_only(c, id, "RETRY_NOT_ALLOWED", |c| {
+        retry_job_command_on(c, &REGISTRY, &staff("retry"), id)
+    });
+    // The target is free for the next job its owning domain creates.
+    let (next, claim) = running(c, new_job(TEST_POLL, "s9-poll-next", &[&p]));
+    assert_eq!(holds(c, next.async_job_id), vec![p.clone()]);
+    do_complete(
+        c,
+        &claim,
+        completion(CompletionOutcome::NoOp, vec![cs_entry(&p, "fp")]),
+    )
+    .unwrap();
+    assert_eq!(status(c, next.async_job_id), AsyncJobStatus::Succeeded);
+}
+
+/// An unclaimed RR job at EFFECT_STARTED with its waiting deadline stored:
+/// T10, a resumed attempt, then T9.
+fn rr_with_deadline(conn: &mut PgConnection, kind: &str, id: &str) -> AsyncJob {
+    let (a, claim) = started(conn, new_job(kind, id, &[&key(NS_CS)]));
+    let claim = resumed(conn, &a, &claim);
+    do_fail(conn, &claim, fail_req(FailureClass::Indeterminate)).expect("T9");
+    let row = job(conn, a.async_job_id);
+    assert_eq!(row.status, AsyncJobStatus::ReconciliationRequired);
+    assert!(row.waiting_deadline.is_some());
+    row
+}
+
+#[test]
+fn s9_t16_and_t18_waiting_with_resume_at_after_the_waiting_deadline_are_refused() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let checkpoint = r#"{"step": 2}"#;
+    let t16 = |resume_at| ResolveReconciliation {
+        checkpoint: Some(checkpoint.to_string()),
+        resume_at: Some(resume_at),
+        ..resolution(ReconcilerOutcome::Waiting)
+    };
+    let t18 = |resume_at| StaffResolution {
+        checkpoint: Some(checkpoint.to_string()),
+        resume_at: Some(resume_at),
+        ..staff_res(StaffOutcome::Waiting)
+    };
+
+    // T16 with no stored deadline: the bound is now + horizon (3600 s).
+    let a = rr_started(c, new_job(TEST_EFFECT, "s9-t16-wait", &[&key(NS_CS)]));
+    assert!(job(c, a.async_job_id).waiting_deadline.is_none());
+    let claim = claim_recon(c, &a);
+    let before = footprint(c, a.async_job_id);
+    let too_late = resume_in(c, 3_700);
+    assert_code(
+        do_resolve(c, &claim, t16(too_late)),
+        "ASYNC_JOB_PAYLOAD_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    let in_bounds = resume_in(c, 60);
+    let row = do_resolve(c, &claim, t16(in_bounds)).unwrap();
+    assert_eq!(row.status, AsyncJobStatus::Waiting);
+
+    // T16 with a stored deadline: one second after it is refused, the
+    // deadline itself is accepted.
+    let d = rr_with_deadline(c, TEST_EFFECT, "s9-t16-deadline");
+    let deadline = d.waiting_deadline.unwrap();
+    let claim = claim_recon(c, &d);
+    let before = footprint(c, d.async_job_id);
+    assert_code(
+        do_resolve(c, &claim, t16(deadline + Duration::seconds(1))),
+        "ASYNC_JOB_PAYLOAD_INVALID",
+    );
+    assert_nothing_written_and_live(c, &before, &claim);
+    let row = do_resolve(c, &claim, t16(deadline)).unwrap();
+    assert_eq!(
+        (row.status, row.available_at, row.waiting_deadline),
+        (AsyncJobStatus::Waiting, deadline, Some(deadline))
+    );
+
+    // T18, with no stored deadline and with one: a committed REFUSED with
+    // WAIT_INVALID, then the deadline itself is accepted.
+    let b = rr_started(c, new_job(TEST_PEER, "s9-t18-wait", &[&key(NS_CS)]));
+    let e = rr_with_deadline(c, TEST_PEER, "s9-t18-deadline");
+    let deadline = e.waiting_deadline.unwrap();
+    let too_late = resume_in(c, 3_700);
+    assert_staff_refused(c, b.async_job_id, t18(too_late), "WAIT_INVALID");
+    assert_staff_refused(
+        c,
+        e.async_job_id,
+        t18(deadline + Duration::seconds(1)),
+        "WAIT_INVALID",
+    );
+    let result = do_staff(c, e.async_job_id, t18(deadline));
+    assert_applied(&result, "WAITING");
+    assert_eq!(
+        (result.job.status, result.job.available_at),
+        (AsyncJobStatus::Waiting, deadline)
+    );
+}
+
+#[test]
+fn s9_t18_succeeded_with_invalid_evidence_is_a_committed_refused_evidence_invalid() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // CURRENT_STATE: evidence the kind refuses, no entries, an entry for
+    // another target, and an empty entry list.
+    let x = key(NS_CS);
+    let a = rr_started(c, new_job(TEST_EFFECT, "s9-t18-invalid", &[&x]));
+    let id = a.async_job_id;
+    for resolution in [
+        StaffResolution {
+            entries: Some(vec![cs_entry(&x, "fp")]),
+            evidence: Some(r#"{"valid": false}"#.to_string()),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        staff_res(StaffOutcome::Succeeded),
+        staff_entries(StaffOutcome::Succeeded, vec![cs_entry(&key(NS_CS), "fp")]),
+        staff_entries(StaffOutcome::Succeeded, vec![]),
+    ] {
+        assert_staff_refused(c, id, resolution, "EVIDENCE_INVALID");
+    }
+    assert!(state(c, &x).is_none());
+    // REVISION_BOUND (stored 9, the job's own revision 4): the regressing
+    // write, which only ACCEPT_REGRESSION records, and an entry other than
+    // the job's revision.
+    let (r, b) = regressed_job(c, 9, 4);
+    for resolution in [
+        StaffResolution {
+            entries: Some(vec![rb_entry(&r, 4, "h4")]),
+            evidence: Some(applied_evidence(4)),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        staff_entries(StaffOutcome::Succeeded, vec![rb_entry(&r, 9, "h9")]),
+    ] {
+        assert_staff_refused(c, b.async_job_id, resolution, "EVIDENCE_INVALID");
+    }
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+    assert_eq!(regressed_text(c, &r), "||");
+    // A forward revision whose evidence names another revision.
+    let q = key(NS_RB);
+    let f = rr_started(c, revision_job("s9-t18-forward", &q, 7, "h7"));
+    assert_staff_refused(
+        c,
+        f.async_job_id,
+        StaffResolution {
+            entries: Some(vec![rb_entry(&q, 7, "h7")]),
+            evidence: Some(applied_evidence(8)),
+            ..staff_res(StaffOutcome::Succeeded)
+        },
+        "EVIDENCE_INVALID",
+    );
+    assert!(state(c, &q).is_none());
+    // A valid SUCCEEDED still applies afterwards.
+    let result = do_staff(
+        c,
+        id,
+        staff_entries(StaffOutcome::Succeeded, vec![cs_entry(&x, "fp")]),
+    );
+    assert_applied(&result, "EFFECT_APPLIED");
+    assert_eq!(applied(c, &x), Some((None, "fp".to_string())));
+}
+
+#[test]
+fn s9_worker_writes_and_commands_on_a_kind_unknown_to_the_registry_are_refused_and_redaction_still_applies(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let narrow = &NARROW_REGISTRY;
+    let unknown = "ASYNC_JOB_KIND_UNKNOWN";
+    assert!(narrow.get(TEST_EFFECT).is_none() && narrow.get(TEST_PEER).is_none());
+
+    // Every worker write on an execution claim: refused, nothing written.
+    let x = key(NS_CS);
+    let (a, claim) = running(c, new_job(TEST_EFFECT, "s9-unknown-run", &[&x]));
+    let before = footprint(c, a.async_job_id);
+    assert_code(tx(c, |c| renew_on(c, narrow, &claim, None)), unknown);
+    assert_code(
+        tx(c, |c| mark_effect_started_on(c, narrow, &claim)),
+        unknown,
+    );
+    assert_code(
+        tx(c, |c| {
+            mark_effect_confirmed_on(c, narrow, &claim, Some("provider-1"))
+        }),
+        unknown,
+    );
+    assert_code(
+        tx(c, |c| {
+            complete_on(
+                c,
+                narrow,
+                &claim,
+                completion(CompletionOutcome::NoOp, vec![cs_entry(&x, "fp")]),
+            )
+        }),
+        unknown,
+    );
+    assert_code(
+        tx(c, |c| {
+            fail_on(c, narrow, &claim, fail_req(FailureClass::Permanent))
+        }),
+        unknown,
+    );
+    assert_code(
+        tx(c, |c| wait_on(c, narrow, &claim, wait_req("{}"))),
+        unknown,
+    );
+    assert_code(tx(c, |c| release_on(c, narrow, &claim)), unknown);
+    assert_code(tx(c, |c| read_target_state_on(c, narrow, &claim)), unknown);
+    assert_nothing_written_and_live(c, &before, &claim);
+
+    // And on a reconciliation claim.
+    let r = rr_started(c, new_job(TEST_PEER, "s9-unknown-recon", &[&key(NS_CS)]));
+    let recon = claim_recon(c, &r);
+    let before = footprint(c, r.async_job_id);
+    assert_code(tx(c, |c| renew_on(c, narrow, &recon, None)), unknown);
+    assert_code(
+        tx(c, |c| {
+            resolve_reconciliation_on(
+                c,
+                narrow,
+                &recon,
+                resolution(ReconcilerOutcome::StillRequired),
+            )
+        }),
+        unknown,
+    );
+    assert_nothing_written_and_live(c, &before, &recon);
+
+    // Commands that the full registry would apply: a committed REFUSED with
+    // KIND_UNKNOWN, and nothing else.
+    let id = a.async_job_id;
+    assert_command_only(c, id, "KIND_UNKNOWN", |c| {
+        cancel_job_command_on(c, narrow, &staff("cancel"), id)
+    });
+    let failed = failed_job(c, "s9-unknown-failed");
+    assert_command_only(c, failed, "KIND_UNKNOWN", |c| {
+        retry_job_command_on(c, narrow, &staff("retry"), failed)
+    });
+    let u = rr_started(c, new_job(TEST_PEER, "s9-unknown-rr", &[&key(NS_CS)]));
+    let rr = u.async_job_id;
+    assert_command_only(c, rr, "KIND_UNKNOWN", |c| {
+        resolve_reconciliation_command_on(
+            c,
+            narrow,
+            &staff("resolve"),
+            rr,
+            staff_evidence(StaffOutcome::Failed, NO_EFFECT_EVIDENCE),
+        )
+    });
+    assert_eq!(status(c, rr), AsyncJobStatus::ReconciliationRequired);
+
+    // Redaction needs no kind policy: it still applies to the failed job.
+    let result = do_redact(c, failed);
+    assert_applied(&result, "REDACTED");
+    assert!(job(c, failed).redacted_at.is_some());
+}
+
+/// `TEST_EFFECT` with each cap at its section 8 maximum, and a backoff whose
+/// doubling passes `backoff_max` at n = 3.
+static CAPPED_REGISTRY: AsyncJobRegistry = AsyncJobRegistry::new(&[AsyncJobKindPolicy {
+    retry_budget: 20,
+    max_execution_claims: 100,
+    max_reconciliation_attempts: 50,
+    backoff_base_seconds: 40_000,
+    backoff_max_seconds: 86_400,
+    ..EFFECT_POLICY
+}]);
+
+#[test]
+fn s9_backoff_saturates_at_each_caps_maximum_counter_and_the_jitter_is_in_range_for_the_minimum_bigint_hash(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    assert_eq!(CAPPED_REGISTRY.validate(), Ok(()));
+    let capped = |c: &mut PgConnection, id: &str| -> AsyncJob {
+        let input = new_job(TEST_EFFECT, id, &[&key(NS_CS)]);
+        tx(c, |c| create_job_on(c, &CAPPED_REGISTRY, input))
+            .expect("create")
+            .into_job()
+    };
+
+    // The pre-write failure count: T7 up to n = retry_budget - 1 = 19, each
+    // available_at matching the independent formula (saturated from n = 3);
+    // the 20th failure ends the job.
+    let a = capped(c, "s9-backoff-pre");
+    let id = a.async_job_id;
+    assert_eq!(
+        (
+            a.retry_budget,
+            a.max_execution_claims,
+            a.max_reconciliation_attempts
+        ),
+        (20, 100, 50)
+    );
+    for n in 1..=19_i16 {
+        make_available(c, id);
+        let claim = claim_job(c, &a);
+        let row = do_fail(c, &claim, fail_req(FailureClass::RetryablePreWrite)).unwrap();
+        assert_eq!(
+            (row.status, row.prewrite_failure_count),
+            (AsyncJobStatus::RetryScheduled, n)
+        );
+        let finished = last_attempt(c, id).finished_at.unwrap();
+        let delay = expected_backoff(c, &row, i32::from(n));
+        assert_eq!(row.available_at, finished + Duration::seconds(delay));
+        let base = backoff_delay_seconds(40_000, 86_400, i32::from(n));
+        assert_eq!(base, if n < 3 { 40_000 << (n - 1) } else { 86_400 });
+    }
+    make_available(c, id);
+    let claim = claim_job(c, &a);
+    let row = do_fail(c, &claim, fail_req(FailureClass::RetryablePreWrite)).unwrap();
+    assert_eq!(
+        (row.status, row.prewrite_failure_count),
+        (AsyncJobStatus::Failed, 20)
+    );
+    assert_eq!(
+        row.last_outcome_code.as_deref(),
+        Some("RETRY_BUDGET_EXHAUSTED")
+    );
+
+    // The reconciliation attempt count: T16 STILL_REQUIRED up to n = 49,
+    // then T17 at n = max_reconciliation_attempts = 50.
+    let b = capped(c, "s9-backoff-recon");
+    let rid = b.async_job_id;
+    let claim = claim_job(c, &b);
+    do_start(c, &claim).unwrap();
+    do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+    for n in 1..=50_i16 {
+        let claim = claim_recon(c, &b);
+        if n < 50 {
+            do_resolve(c, &claim, resolution(ReconcilerOutcome::StillRequired)).unwrap();
+        } else {
+            expire_lease(c, rid);
+            assert_eq!(do_recover(c).recovered, vec![rid]);
+        }
+        let row = job(c, rid);
+        assert_eq!(
+            (row.status, row.reconciliation_attempt_count),
+            (AsyncJobStatus::ReconciliationRequired, n)
+        );
+        let finished = last_attempt(c, rid).finished_at.unwrap();
+        let delay = expected_backoff(c, &row, i32::from(n));
+        assert_eq!(row.available_at, finished + Duration::seconds(delay));
+        make_available(c, rid);
+    }
+    // At the cap no executor claims it again.
+    let none = tx(c, |c| {
+        claim_reconciliation_on(c, &REGISTRY, &dissemination(), request(&[TEST_EFFECT], 50))
+    })
+    .unwrap();
+    assert!(none.jobs.is_empty());
+
+    // The formula itself at the largest counters the caps admit and beyond,
+    // for every base and maximum: saturated, never overflowing.
+    for (base, max) in [
+        (1, 86_400),
+        (40_000, 86_400),
+        (86_400, 86_400),
+        (i32::MAX, i32::MAX),
+    ] {
+        for n in [20, 31, 32, 50, 100, i32::MAX] {
+            assert_eq!(
+                backoff_delay_seconds(base, max, n),
+                i64::from(max),
+                "{base}/{max}/{n}"
+            );
+        }
+    }
+    assert_eq!(backoff_delay_seconds(1, 86_400, 17), 65_536);
+    assert_eq!(backoff_delay_seconds(1, 86_400, 18), 86_400);
+    assert_eq!(backoff_delay_seconds(1, i32::MAX, 31), 1 << 30);
+    assert_eq!(backoff_delay_seconds(10, 300, 0), 10);
+    assert_eq!(jittered_delay_seconds(86_400, 20), 103_680);
+    assert_eq!(
+        jittered_delay_seconds(i64::from(i32::MAX), 20),
+        i64::from(i32::MAX) + i64::from(i32::MAX) / 5
+    );
+
+    // The jitter over the minimum `bigint`, where `abs` overflows, and other
+    // edges: always in 0..=20.
+    assert!(c
+        .batch_execute("SELECT abs((-9223372036854775808)::bigint)")
+        .is_err());
+    for (hash, expected) in [
+        ("(-9223372036854775808)::bigint", 13),
+        ("9223372036854775807::bigint", 7),
+        ("(-1)::bigint", 20),
+        ("0::bigint", 0),
+        ("(-21)::bigint", 0),
+        ("41::bigint", 20),
+    ] {
+        let j = scalar(c, &format!("SELECT {} AS value", jitter_expression(hash)));
+        assert_eq!(j, expected, "{hash}");
+    }
+}
+
+#[test]
+fn s9_retry_job_after_a_proven_no_effect_failed_job_takes_its_policy_snapshot_from_the_current_registry(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let x = key(NS_CS);
+    let (a, claim) = started(c, new_job(TEST_EFFECT, "s9-retry-t9n", &[&x]));
+    let failed = do_fail(
+        c,
+        &claim,
+        no_effect_req(FailureClass::Permanent, Some(NO_EFFECT_EVIDENCE)),
+    )
+    .unwrap();
+    assert_eq!(
+        (failed.status, failed.effect_phase),
+        (AsyncJobStatus::Failed, AsyncEffectPhase::EffectStarted)
+    );
+    assert_eq!(
+        failed.last_outcome_code.as_deref(),
+        Some("NO_EFFECT_PROVEN")
+    );
+    assert_eq!(
+        (
+            failed.retry_budget,
+            failed.max_execution_claims,
+            failed.backoff_base_seconds,
+            failed.backoff_max_seconds
+        ),
+        (3, 4, 10, 300)
+    );
+    // A later binary retunes the kind: the retry takes its snapshot from it.
+    let result = tx(c, |c| {
+        retry_job_command_on(c, &RETUNED_REGISTRY, &staff("retry"), a.async_job_id)
+    })
+    .unwrap();
+    assert_applied(&result, "RETRY_CREATED");
+    let child_id = result.result_job_id.expect("the new job");
+    let child = job(c, child_id);
+    assert_eq!(child.parent_job_id, Some(a.async_job_id));
+    assert_eq!(child.lineage, AsyncJobLineage::ManualRetry);
+    assert_eq!(
+        (child.status, child.effect_phase, child.attempt_count),
+        (AsyncJobStatus::Pending, AsyncEffectPhase::PreWrite, 0)
+    );
+    assert_eq!(
+        (
+            child.retry_budget,
+            child.max_execution_claims,
+            child.max_reconciliation_attempts,
+            child.backoff_base_seconds,
+            child.backoff_max_seconds
+        ),
+        (5, 6, 2, 20, 600)
+    );
+    assert_eq!(child.target_keys, vec![x.clone()]);
+    // The new job runs normally under that snapshot: a pre-write failure
+    // takes the retuned backoff, then the job succeeds.
+    let claim = claim_job(c, &child);
+    let row = do_fail(c, &claim, fail_req(FailureClass::RetryablePreWrite)).unwrap();
+    let finished = last_attempt(c, child_id).finished_at.unwrap();
+    let delay = expected_backoff(c, &row, 1);
+    assert!((20..=24).contains(&delay), "{delay}");
+    assert_eq!(row.available_at, finished + Duration::seconds(delay));
+    make_available(c, child_id);
+    let claim = claim_job(c, &child);
+    do_start(c, &claim).unwrap();
+    let outcome = do_complete(
+        c,
+        &claim,
+        completion(CompletionOutcome::EffectApplied, vec![cs_entry(&x, "fp")]),
+    )
+    .unwrap();
+    assert!(matches!(outcome, CompleteOutcome::Succeeded(_)));
+    assert_eq!(applied(c, &x), Some((None, "fp".to_string())));
+}
+
+/// Accept the regression or conflict of the RR job `rr` over the stored
+/// revision `stored` of its one target, and check what it records.
+#[track_caller]
+fn assert_regression_accepted(conn: &mut PgConnection, rr: &AsyncJob, stored: (i64, &str)) {
+    let id = rr.async_job_id;
+    let k = rr.target_keys[0].clone();
+    assert_eq!(status(conn, id), AsyncJobStatus::ReconciliationRequired);
+    assert_eq!(holds(conn, id), vec![k.clone()]);
+    assert_applied(&accept(conn, rr), "REGRESSION_ACCEPTED");
+    let after = job(conn, id);
+    assert_eq!(
+        (after.status, after.last_outcome_code.as_deref()),
+        (AsyncJobStatus::Succeeded, Some("REGRESSION_ACCEPTED"))
+    );
+    let row = state(conn, &k).expect("a state row");
+    assert_eq!(
+        (
+            row.applied_order,
+            row.applied_fingerprint.as_str(),
+            row.applied_source_ref.as_deref(),
+            row.regressed,
+            row.regressed_from_order,
+            row.regressed_from_fingerprint.as_deref()
+        ),
+        (
+            rr.source_order,
+            rr.source_fingerprint.as_deref().unwrap(),
+            rr.source_ref.as_deref(),
+            true,
+            Some(stored.0),
+            Some(stored.1)
+        )
+    );
+    assert_eq!(state_writer_job(conn, &k), id);
+    assert!(holds(conn, id).is_empty());
+}
+
+#[test]
+fn s9_accept_regression_is_accepted_after_every_route_into_reconciliation() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let confirmed_phase = |c: &mut PgConnection, id: Uuid| job(c, id).effect_phase;
+
+    // After T6x.
+    let (_r, a) = regressed_job(c, 9, 4);
+    assert_regression_accepted(c, &a, (9, "h9"));
+
+    // After T12, T9 and T14e at EFFECT_CONFIRMED, with a newer stored order.
+    for route in ["t12", "t9", "t14e"] {
+        let k = key(NS_RB);
+        seed_rb_state(c, &k, 9, "h9");
+        let (a, claim) = confirmed(c, revision_job(&format!("s9-{route}"), &k, 4, "h4"));
+        let id = a.async_job_id;
+        match route {
+            "t12" => {
+                expire_lease(c, id);
+                assert_eq!(do_recover(c).recovered, vec![id]);
+            }
+            "t9" => {
+                do_fail(c, &claim, fail_req(FailureClass::Indeterminate)).unwrap();
+            }
+            _ => assert_applied(&do_cancel(c, id), "OPERATOR_STOP"),
+        }
+        assert_eq!(confirmed_phase(c, id), AsyncEffectPhase::EffectConfirmed);
+        assert_regression_accepted(c, &a, (9, "h9"));
+    }
+
+    // After T10 then T11 at EFFECT_CONFIRMED.
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 9, "h9");
+    let (a, claim) = confirmed(c, revision_job("s9-t10-t11", &k, 4, "h4"));
+    let resume_at = resume_in(c, 10);
+    do_wait(c, &claim, "{}", resume_at).unwrap();
+    expire_waiting_deadline(c, a.async_job_id, 1);
+    assert_eq!(do_recover(c).recovered, vec![a.async_job_id]);
+    assert_eq!(
+        confirmed_phase(c, a.async_job_id),
+        AsyncEffectPhase::EffectConfirmed
+    );
+    assert_regression_accepted(c, &a, (9, "h9"));
+
+    // After T6x, then WAITING (T16), then T12 of the resumed attempt (its
+    // own revision 3, since an effect identity is used once).
+    let (_r, a) = regressed_job(c, 9, 3);
+    let id = a.async_job_id;
+    let recon = claim_recon(c, &a);
+    let resume_at = resume_in(c, 10);
+    let waiting = do_resolve(
+        c,
+        &recon,
+        ResolveReconciliation {
+            checkpoint: Some(r#"{"step": 1}"#.to_string()),
+            resume_at: Some(resume_at),
+            ..resolution(ReconcilerOutcome::Waiting)
+        },
+    )
+    .unwrap();
+    assert_eq!(waiting.status, AsyncJobStatus::Waiting);
+    make_available(c, id);
+    claim_job(c, &a);
+    expire_lease(c, id);
+    assert_eq!(do_recover(c).recovered, vec![id]);
+    assert_regression_accepted(c, &a, (9, "h9"));
+
+    // An equal order with another fingerprint (a conflict, by T6x).
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 6, "h6");
+    let (a, claim) = started(c, revision_job("s9-conflict", &k, 6, "h6b"));
+    let outcome = do_complete(
+        c,
+        &claim,
+        completion(
+            CompletionOutcome::EffectApplied,
+            vec![rb_entry(&k, 6, "h6b")],
+        ),
+    )
+    .unwrap();
+    assert!(matches!(
+        outcome,
+        CompleteOutcome::ReconciliationRequired(_)
+    ));
+    assert_regression_accepted(c, &a, (6, "h6"));
+    assert_no_unspecified(c);
+}
+
+#[test]
+fn s9_accept_regression_is_refused_without_a_regression_or_valid_applied_evidence() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let accept_with =
+        |order: i64| staff_evidence(StaffOutcome::AcceptRegression, &applied_evidence(order));
+
+    // NOT_A_REGRESSION, even with valid evidence: a lower stored order, an
+    // equal order with the same fingerprint, and no stored state.
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 3, "h3");
+    let lower = rr_started(c, revision_job("s9-nar-lower", &k, 5, "h5"));
+    assert_staff_refused(c, lower.async_job_id, accept_with(5), "NOT_A_REGRESSION");
+    assert_eq!(applied(c, &k), Some(rb_state(3, "h3")));
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 5, "h5");
+    let equal = rr_started(c, revision_job("s9-nar-equal", &k, 5, "h5"));
+    assert_staff_refused(c, equal.async_job_id, accept_with(5), "NOT_A_REGRESSION");
+    assert_eq!(applied(c, &k), Some(rb_state(5, "h5")));
+    let k = key(NS_RB);
+    let absent = rr_started(c, revision_job("s9-nar-absent", &k, 5, "h5"));
+    assert_staff_refused(c, absent.async_job_id, accept_with(5), "NOT_A_REGRESSION");
+    assert!(state(c, &k).is_none());
+
+    // EVIDENCE_INVALID on a real regression: no evidence, evidence the kind
+    // refuses, evidence naming another revision, and entries in a "none"
+    // cell.
+    let (r, a) = regressed_job(c, 9, 4);
+    let id = a.async_job_id;
+    for resolution in [
+        staff_res(StaffOutcome::AcceptRegression),
+        staff_evidence(
+            StaffOutcome::AcceptRegression,
+            r#"{"valid": false, "order": 4}"#,
+        ),
+        accept_with(9),
+        StaffResolution {
+            entries: Some(vec![rb_entry(&r, 4, "h4")]),
+            ..accept_with(4)
+        },
+    ] {
+        assert_staff_refused(c, id, resolution, "EVIDENCE_INVALID");
+    }
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+    assert_eq!(regressed_text(c, &r), "||");
+    // With valid evidence the same job is accepted.
+    assert_regression_accepted(c, &a, (9, "h9"));
+}
+
+#[test]
+fn s9_the_state_trigger_refuses_a_backwards_or_same_order_write_by_a_reconciliation_attempt() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let guard = "async_effect_target_state_guard";
+    // A regression job (stored 9, its own revision 4) in RR, with an open
+    // executor reconciliation attempt.
+    let (r, a) = regressed_job(c, 9, 4);
+    let id = a.async_job_id;
+    claim_recon(c, &a);
+    let ra = open_attempt_of(c, id);
+    assert_eq!(
+        last_attempt(c, id).purpose,
+        AsyncAttemptPurpose::Reconciliation
+    );
+    // The job's own source values, another older revision, and the same
+    // order with another fingerprint: each refused.
+    for (order, fingerprint) in [(4, "h4"), (3, "h3"), (9, "hx")] {
+        assert_eq!(
+            refused_by(
+                c,
+                &state_write_sql(&r, Some(order), fingerprint, id, ra, "")
+            ),
+            guard,
+            "{order}/{fingerprint}"
+        );
+    }
+    // A forward write by the same attempt passes the trigger (rolled back),
+    // so the refusals above are the backwards rule's.
+    assert_eq!(
+        probe(c, &state_write_sql(&r, Some(10), "h10", id, ra, ""), true),
+        Ok(())
+    );
+    assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
+    assert_eq!(regressed_text(c, &r), "||");
+}
+
+#[test]
+fn s9_a_pre_write_job_facing_an_equal_order_with_another_fingerprint_can_only_fail_permanent() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let k = key(NS_RB);
+    seed_rb_state(c, &k, 6, "h6");
+    let (a, claim) = running(c, revision_job("s9-pre-conflict", &k, 6, "h6b"));
+    let id = a.async_job_id;
+    // No completion is valid at PRE_WRITE: each is refused, nothing written,
+    // the claim live.
+    for (request, reason) in [
+        (
+            completion(CompletionOutcome::NoOp, vec![rb_entry(&k, 6, "h6b")]),
+            None,
+        ),
+        (
+            completion(CompletionOutcome::NoOp, vec![rb_entry(&k, 6, "h6")]),
+            None,
+        ),
+        (
+            completion(
+                CompletionOutcome::Superseded,
+                vec![EvidenceEntry::key_only(&k)],
+            ),
+            None,
+        ),
+        (
+            completion(
+                CompletionOutcome::EffectApplied,
+                vec![rb_entry(&k, 6, "h6b")],
+            ),
+            Some("PHASE"),
+        ),
+        (
+            completion(
+                CompletionOutcome::Completed,
+                vec![EvidenceEntry::key_only(&k)],
+            ),
+            Some("KIND_POLICY"),
+        ),
+    ] {
+        let before = footprint(c, id);
+        let result = do_complete(c, &claim, request);
+        match reason {
+            None => assert_code(result, "ASYNC_JOB_EVIDENCE_INVALID"),
+            Some(reason) => assert_refused(result, reason),
+        }
+        assert_nothing_written_and_live(c, &before, &claim);
+    }
+    // fail(PERMANENT), its error code naming the conflict: FAILED, nothing
+    // written, the hold released.
+    let conflict = FailRequest {
+        error_code: "SOURCE_REVISION_CONFLICT".to_string(),
+        ..fail_req(FailureClass::Permanent)
+    };
+    let failed = do_fail(c, &claim, conflict).unwrap();
+    assert_eq!(
+        (failed.status, failed.effect_phase),
+        (AsyncJobStatus::Failed, AsyncEffectPhase::PreWrite)
+    );
+    let closed = last_attempt(c, id);
+    assert_eq!(closed.result, Some(AsyncAttemptResult::PermanentFailure));
+    assert_eq!(
+        closed.error_code.as_deref(),
+        Some("SOURCE_REVISION_CONFLICT")
+    );
+    assert_eq!(applied(c, &k), Some(rb_state(6, "h6")));
+    assert!(holds(c, id).is_empty());
 }
