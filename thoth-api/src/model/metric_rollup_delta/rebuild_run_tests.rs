@@ -1108,11 +1108,40 @@ fn at_most_one_run_is_open_and_terminal_runs_accumulate() {
     );
 }
 
+/// Revert every applied migration newer than this stage's, so that this
+/// stage's migration is the newest applied one.
+///
+/// A bare `revert_last_migration` reverts this stage's migration only while
+/// it happens to be the newest; the same reasoning as
+/// `revert_through_rollup_delta_migration`. No later migration name is
+/// assumed.
+fn revert_migrations_newer_than_this_stage(connection: &mut PgConnection) {
+    loop {
+        let newest = connection
+            .applied_migrations()
+            .expect("Failed to read applied migrations")
+            .iter()
+            .map(|version| version.to_string())
+            .max()
+            .expect("at least one migration is applied");
+        if newest.as_str() <= MIGRATION_VERSION {
+            assert_eq!(
+                newest, MIGRATION_VERSION,
+                "this stage's migration must be applied"
+            );
+            return;
+        }
+        connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("Failed to revert a later migration");
+    }
+}
+
 #[test]
 fn the_migration_applies_reverts_and_reapplies_changing_no_other_schema_object() {
     let (_guard, pool) = setup();
-    let applied = schema_snapshot(&pool);
-    assert!(applied
+    let fully_migrated = schema_snapshot(&pool);
+    assert!(fully_migrated
         .iter()
         .any(|line| line == "rel metric_rollup_month_rebuild_run r"));
     // The run table is new and starts empty, whatever the rest of the
@@ -1130,6 +1159,10 @@ fn the_migration_applies_reverts_and_reapplies_changing_no_other_schema_object()
 
     let mut connection =
         PgConnection::establish(&test_db_url()).expect("Failed to connect to the test database");
+    // Later migrations are reverted first, so the comparison below sees this
+    // migration's revert alone. The reapply at the end restores them.
+    revert_migrations_newer_than_this_stage(&mut connection);
+    let applied = schema_snapshot(&pool);
     let reverted = connection
         .revert_last_migration(MIGRATIONS)
         .expect("the migration reverts with rows in the run table");
@@ -1150,7 +1183,7 @@ fn the_migration_applies_reverts_and_reapplies_changing_no_other_schema_object()
     connection
         .run_pending_migrations(MIGRATIONS)
         .expect("the migration reapplies");
-    assert_eq!(schema_snapshot(&pool), applied);
+    assert_eq!(schema_snapshot(&pool), fully_migrated);
     assert_eq!(
         scalar_i64(
             &pool,
