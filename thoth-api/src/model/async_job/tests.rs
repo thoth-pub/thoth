@@ -9840,3 +9840,331 @@ fn regression_an_executor_reconcilers_regressing_succeeded_is_refused() {
     );
     assert_eq!(applied(c, &r), Some(rb_state(9, "h9")));
 }
+
+// ---------------------------------------------------------------------------
+// Commands and locks (19.2)
+// ---------------------------------------------------------------------------
+
+type CommandStep = Box<dyn FnOnce(&mut PgConnection) -> ThothResult<CommandResult> + Send>;
+
+fn cancel_step(id: Uuid) -> CommandStep {
+    Box::new(move |c| cancel_job_command_on(c, &REGISTRY, &staff("cancel"), id))
+}
+
+fn retry_step(id: Uuid) -> CommandStep {
+    Box::new(move |c| retry_job_command_on(c, &REGISTRY, &staff("retry"), id))
+}
+
+fn redact_step(id: Uuid) -> CommandStep {
+    Box::new(move |c| redact_job_diagnostics_command_on(c, &staff("redact"), id))
+}
+
+fn resolve_step(id: Uuid, resolution: StaffResolution) -> CommandStep {
+    Box::new(move |c| {
+        resolve_reconciliation_command_on(c, &REGISTRY, &staff("resolve"), id, resolution)
+    })
+}
+
+/// Run `first` in one session and keep its transaction open; start `second`
+/// in another, which must wait for the job row; then commit the first and
+/// the second. Both results, in call order.
+fn overlapped(
+    observer: &mut PgConnection,
+    first: CommandStep,
+    second: CommandStep,
+) -> (CommandResult, CommandResult) {
+    let a = Session::open();
+    let b = Session::open();
+    let first_result = a.run(first);
+    b.send(second);
+    wait_until_blocked(observer, b.pid);
+    a.commit();
+    let second_result: ThothResult<CommandResult> = b.result();
+    b.commit();
+    (
+        first_result.expect("the first command"),
+        second_result.expect("the second command"),
+    )
+}
+
+/// A job that failed permanently at PRE_WRITE, so it can be retried.
+fn failed_job(conn: &mut PgConnection, id: &str) -> Uuid {
+    let (job_row, claim) = running(conn, new_job(TEST_EFFECT, id, &[&key(NS_CS)]));
+    do_fail(conn, &claim, fail_req(FailureClass::Permanent)).expect("T8");
+    job_row.async_job_id
+}
+
+fn retry_children(conn: &mut PgConnection, id: Uuid) -> i64 {
+    count(
+        conn,
+        &format!("FROM public.async_job WHERE parent_job_id = '{id}'"),
+    )
+}
+
+#[test]
+fn locks_two_different_commands_on_one_job_run_concurrently_in_both_orders() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    // RESOLVE_RECONCILIATION and REDACT_JOB_DIAGNOSTICS on an RR job.
+    for resolve_first in [true, false] {
+        let x = key(NS_CS);
+        let rr = rr_started(
+            c,
+            new_job(TEST_EFFECT, &format!("pair-resolve-{resolve_first}"), &[&x]),
+        );
+        let id = rr.async_job_id;
+        let resolve = resolve_step(
+            id,
+            StaffResolution {
+                entries: Some(vec![cs_entry(&x, "fp")]),
+                ..staff_res(StaffOutcome::Succeeded)
+            },
+        );
+        let (resolved, redacted) = if resolve_first {
+            overlapped(c, resolve, redact_step(id))
+        } else {
+            let (redacted, resolved) = overlapped(c, redact_step(id), resolve);
+            (resolved, redacted)
+        };
+        assert_applied(&resolved, "EFFECT_APPLIED");
+        assert_applied(&redacted, "REDACTED");
+        assert_eq!(status(c, id), AsyncJobStatus::Succeeded);
+        assert_eq!(applied(c, &x), Some((None, "fp".to_string())));
+    }
+    // CANCEL_JOB and RETRY_JOB on a FAILED job.
+    for cancel_first in [true, false] {
+        let id = failed_job(c, &format!("pair-retry-{cancel_first}"));
+        let (cancelled, retried) = if cancel_first {
+            overlapped(c, cancel_step(id), retry_step(id))
+        } else {
+            let (retried, cancelled) = overlapped(c, retry_step(id), cancel_step(id));
+            (cancelled, retried)
+        };
+        assert_command_refused(&cancelled, "NOT_CANCELLABLE");
+        assert_applied(&retried, "RETRY_CREATED");
+        assert_eq!(retry_children(c, id), 1);
+    }
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn locks_two_retries_with_different_request_ids_run_concurrently_in_both_orders() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let retry_with = |id: Uuid, request_id: Uuid| -> CommandStep {
+        Box::new(move |c| retry_job_command_on(c, &REGISTRY, &staff_with(request_id), id))
+    };
+    // Explicit order: the second waits for the first, then sees its child.
+    for n in 0..2 {
+        let id = failed_job(c, &format!("retry-order-{n}"));
+        let (first, second) = (Uuid::new_v4(), Uuid::new_v4());
+        let (applied_retry, refused_retry) =
+            overlapped(c, retry_with(id, first), retry_with(id, second));
+        assert_applied(&applied_retry, "RETRY_CREATED");
+        assert_command_refused(&refused_retry, "RETRY_NOT_ALLOWED");
+        assert_eq!(retry_children(c, id), 1);
+        // Each request id keeps its own decision.
+        let replay = tx(c, |c| {
+            retry_job_command_on(c, &REGISTRY, &staff_with(second), id)
+        })
+        .unwrap();
+        assert!(replay.replayed);
+        assert_command_refused(&replay, "RETRY_NOT_ALLOWED");
+    }
+    // Released together by a barrier: exactly one is applied.
+    let id = failed_job(c, "retry-barrier");
+    let task = |id: Uuid| -> Task<ThothResult<CommandResult>> {
+        Box::new(move |c| {
+            tx(c, |c| {
+                retry_job_command_on(c, &REGISTRY, &staff("together"), id)
+            })
+        })
+    };
+    let results: Vec<CommandResult> = run_together(vec![task(id), task(id)])
+        .into_iter()
+        .map(|result| result.expect("a retry"))
+        .collect();
+    let applied_count = results.iter().filter(|r| r.is_applied()).count();
+    assert_eq!(applied_count, 1, "{results:?}");
+    for result in &results {
+        if !result.is_applied() {
+            assert_command_refused(result, "RETRY_NOT_ALLOWED");
+        }
+    }
+    assert_eq!(retry_children(c, id), 1);
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn locks_a_claim_and_a_reconciliation_claim_by_one_executor_identity_run_concurrently_in_both_orders(
+) {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let kinds = [TEST_EFFECT, TEST_PEER];
+    let executor = dissemination();
+    for execution_first in [true, false] {
+        // RR jobs first: `rr_started` claims every ready job of its kind.
+        let mut rr = Vec::new();
+        let mut pending = Vec::new();
+        let mut expired = Vec::new();
+        for kind in kinds {
+            let tag = format!("{kind}-{execution_first}");
+            rr.push(
+                rr_started(c, new_job(kind, &format!("rr-{tag}"), &[&key(NS_CS)])).async_job_id,
+            );
+            let (lapsed, _claim) =
+                running(c, new_job(kind, &format!("lapsed-{tag}"), &[&key(NS_CS)]));
+            expire_lease(c, lapsed.async_job_id);
+            expired.push(lapsed.async_job_id);
+            pending.push(
+                create(c, new_job(kind, &format!("pending-{tag}"), &[&key(NS_CS)])).async_job_id,
+            );
+        }
+        let execution = {
+            let executor = executor.clone();
+            move |c: &mut PgConnection| claim_on(c, &REGISTRY, &executor, request(&kinds, 10))
+        };
+        let reconciliation = {
+            let executor = executor.clone();
+            move |c: &mut PgConnection| {
+                claim_reconciliation_on(c, &REGISTRY, &executor, request(&kinds, 10))
+            }
+        };
+        // The second claim runs to its end while the first transaction is
+        // still open: it never waits for the first.
+        let a = Session::open();
+        let b = Session::open();
+        let (claimed, reconciling) = if execution_first {
+            let first = a.run(execution);
+            let second = b.run(reconciliation);
+            (first, second)
+        } else {
+            let first = a.run(reconciliation);
+            let second = b.run(execution);
+            (second, first)
+        };
+        b.commit();
+        a.commit();
+        let ids = |result: ThothResult<ClaimResult>| {
+            sorted(
+                result
+                    .expect("a claim")
+                    .jobs
+                    .into_iter()
+                    .map(|job| job.async_job_id)
+                    .collect(),
+            )
+        };
+        assert_eq!(ids(claimed), sorted(pending.clone()));
+        assert_eq!(ids(reconciling), sorted(rr.clone()));
+        for id in expired {
+            assert_eq!(status(c, id), AsyncJobStatus::RetryScheduled);
+        }
+    }
+    assert_no_deadlock(c, before);
+}
+
+/// Expire a RUNNING job's lease `minutes_ago` and delete its hold behind the
+/// triggers: at EFFECT_STARTED, T12 to RR then fails the forced hold check,
+/// so its recovery fails every time.
+fn break_for_recovery(conn: &mut PgConnection, job_id: Uuid, minutes_ago: i64) {
+    expire_lease_ago(conn, job_id, minutes_ago);
+    bypass(
+        conn,
+        &format!("DELETE FROM public.async_target_hold WHERE async_job_id = '{job_id}'"),
+    );
+}
+
+#[test]
+fn locks_recovery_with_limit_plus_one_failing_rows_still_recovers_a_newly_expired_lease() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    let limit = 3;
+    let recover = |c: &mut PgConnection| tx(c, |c| recover_on(c, &REGISTRY, None, limit)).unwrap();
+    // limit + 1 failing rows, due in this order. They are all started
+    // before any is broken, so no claim recovers one early.
+    let failing: Vec<Uuid> = (0..=limit)
+        .map(|n| {
+            let input = new_job(TEST_EFFECT, &format!("failing-{n}"), &[&key(NS_CS)]);
+            started(c, input).0.async_job_id
+        })
+        .collect();
+    for (minutes_ago, id) in (7..=10).rev().zip(&failing) {
+        break_for_recovery(c, *id, minutes_ago);
+    }
+    let first = recover(c);
+    assert_eq!(first.failed, failing[..3].to_vec());
+    assert!(first.recovered.is_empty());
+    // A lease that expires now is recovered at the next pass, ahead of the
+    // rows that just failed, which move behind it.
+    let (fresh, _claim) = running(c, new_job(TEST_PEER, "fresh", &[&key(NS_CS)]));
+    expire_lease(c, fresh.async_job_id);
+    let second = recover(c);
+    assert_eq!(second.recovered, vec![fresh.async_job_id]);
+    assert_eq!(second.failed, vec![failing[3], failing[0]]);
+    assert_eq!(
+        status(c, fresh.async_job_id),
+        AsyncJobStatus::RetryScheduled
+    );
+    // The rows that failed longest ago come next.
+    let third = recover(c);
+    assert_eq!(third.failed, vec![failing[1], failing[2], failing[0]]);
+    assert_eq!(
+        count(c, "FROM public.async_recovery_failure"),
+        i64::try_from(failing.len()).unwrap()
+    );
+    assert_no_deadlock(c, before);
+}
+
+#[test]
+fn locks_a_row_made_inconsistent_behind_the_triggers_is_skipped_by_recovery_and_claims() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let before = deadlocks(c);
+    // A WAITING row that still has its open attempt, made behind the
+    // triggers, with its waiting deadline passed: T11 at PRE_WRITE fails it
+    // and the forced attempt check then refuses the row.
+    let (broken, _claim) = running(c, new_job(TEST_EFFECT, "ghost", &[&key(NS_CS)]));
+    let id = broken.async_job_id;
+    bypass(
+        c,
+        &format!(
+            "UPDATE public.async_job SET status = 'WAITING', claim_token = NULL, \
+                 claimed_by = NULL, executor_principal = NULL, claimed_at = NULL, \
+                 lease_expires_at = NULL, attempt_runtime_deadline = NULL, checkpoint = '{{}}', \
+                 waiting_deadline = clock_timestamp() - interval '1 second', \
+                 available_at = clock_timestamp() + interval '1 hour' \
+              WHERE async_job_id = '{id}'"
+        ),
+    );
+    let healthy = create(c, new_job(TEST_EFFECT, "healthy", &[&key(NS_CS)]));
+    // The claim skips the row, records its failure and still claims.
+    let claimed = dissemination_claim(c, &[TEST_EFFECT]);
+    assert_eq!(
+        claimed.iter().map(|j| j.async_job_id).collect::<Vec<_>>(),
+        vec![healthy.async_job_id]
+    );
+    assert_eq!(status(c, id), AsyncJobStatus::Waiting);
+    let failures = |c: &mut PgConnection| {
+        scalar(
+            c,
+            &format!(
+                "SELECT COALESCE(max(failure_count), 0)::bigint AS value \
+                   FROM public.async_recovery_failure \
+                  WHERE async_job_id = '{id}' AND error_code = 'ASYNC_JOB_INTEGRITY_VIOLATION'"
+            ),
+        )
+    };
+    assert_eq!(failures(c), 1);
+    // So does `recover_on`.
+    let report = do_recover(c);
+    assert_eq!(report.failed, vec![id]);
+    assert!(report.recovered.is_empty());
+    assert_eq!(failures(c), 2);
+    assert_eq!(status(c, id), AsyncJobStatus::Waiting);
+    assert_no_deadlock(c, before);
+}
