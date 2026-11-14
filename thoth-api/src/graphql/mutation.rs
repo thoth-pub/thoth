@@ -776,7 +776,7 @@ impl MutationRoot {
         #[graphql(description = "Values for institution to be created")] data: NewInstitution,
     ) -> FieldResult<Institution> {
         InstitutionPolicy::can_create(context, &data, ())?;
-        Institution::create(&context.db, &data).map_err(Into::into)
+        Institution::create_with_history(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new funding with the specified values")]

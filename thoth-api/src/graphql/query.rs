@@ -23,7 +23,7 @@ use crate::model::{
     file::File,
     funding::Funding,
     imprint::{Imprint, ImprintOrderBy},
-    institution::{Institution, InstitutionOrderBy},
+    institution::{Institution, InstitutionOrderBy, RorStatus},
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -1472,6 +1472,11 @@ impl QueryRoot {
             description = "The order in which to sort the results"
         )]
         order: Option<InstitutionOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows institutions with these ROR statuses. Absent or empty means every status"
+        )]
+        ror_statuses: Option<Vec<RorStatus>>,
     ) -> FieldResult<Vec<Institution>> {
         Institution::all(
             &context.db,
@@ -1482,7 +1487,7 @@ impl QueryRoot {
             vec![],
             None,
             None,
-            vec![],
+            ror_statuses.unwrap_or_default(),
             vec![],
             None,
             None,
@@ -1506,9 +1511,22 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
         )]
         filter: Option<String>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts institutions with these ROR statuses. Absent or empty means every status"
+        )]
+        ror_statuses: Option<Vec<RorStatus>>,
     ) -> FieldResult<i32> {
-        Institution::count(&context.db, filter, vec![], vec![], vec![], None, None)
-            .map_err(Into::into)
+        Institution::count(
+            &context.db,
+            filter,
+            vec![],
+            ror_statuses.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of fundings")]

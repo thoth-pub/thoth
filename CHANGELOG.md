@@ -13,9 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
   - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
   - [1019](https://github.com/thoth-pub/thoth/issues/1019) - Let `metricWidget` serve yearly timelines, and all history when `startDate` is omitted
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `rorStatus` and `rorSuccessor` to institutions, writable only by `SUPERUSER` and the new `ROR_SYNC_SERVICE` role
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a `rorStatuses` filter to `institutions` and `institutionCount`, and a `ROR_STATUS` sort field
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `isRorSyncService` to `me`, and the `ROR_SYNC_SERVICE` role to `thoth zitadel setup`
   - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable, caller-driven rebuild and paged verification of the derived Metrics rollup projections for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Record an institution's history when it is created, not only when it is updated
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Reset an institution's ROR status and successor when its ROR ID changes
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Update linked works' `updatedAtWithRelations` only when an institution's name, DOI, ROR ID or country changes
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 resolved works and 100,000 institution rows
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Give each `metricDashboard` read a 20-second deadline to start its statements
