@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
   - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
   - [1019](https://github.com/thoth-pub/thoth/issues/1019) - Let `metricWidget` serve yearly timelines, and all history when `startDate` is omitted
+  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable, caller-driven rebuild and paged verification of the derived Metrics rollup projections for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
