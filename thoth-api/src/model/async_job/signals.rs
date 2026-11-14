@@ -617,8 +617,15 @@ pub fn kind_signals(
         }
     }
 
-    // Terminal counts in the last 24 hours. `updated_at >= terminal_at`, so
-    // the `(status, updated_at)` index bounds the scan.
+    // Terminal counts in the last 24 hours, by `terminal_at`. The extra
+    // `updated_at` bound lets the `(status, updated_at)` index bound the scan,
+    // at a small cost in exactness. `updated_at` is the start of the
+    // transaction that last changed the row (`diesel_manage_updated_at` sets
+    // `current_timestamp`), while `terminal_at` is `clock_timestamp()` read
+    // later in the terminal transaction. A job whose last change came from a
+    // transaction that started before the window's edge, while its
+    // `terminal_at` is after the edge, is left out: an undercount at the edge,
+    // bounded by that transaction's length.
     let rows = db(sql_query(
         "SELECT j.kind, \
                 count(*) FILTER (WHERE j.status = 'SUCCEEDED') AS succeeded, \
