@@ -1116,6 +1116,15 @@ fn at_most_one_run_is_open_and_terminal_runs_accumulate() {
 /// `revert_through_rollup_delta_migration`. No later migration name is
 /// assumed.
 fn revert_migrations_newer_than_this_stage(connection: &mut PgConnection) {
+    let this_stage_applied = connection
+        .applied_migrations()
+        .expect("Failed to read applied migrations")
+        .iter()
+        .any(|version| version.to_string() == MIGRATION_VERSION);
+    assert!(
+        this_stage_applied,
+        "this stage's migration must be applied before reverting the later ones"
+    );
     loop {
         let newest = connection
             .applied_migrations()
@@ -1131,9 +1140,14 @@ fn revert_migrations_newer_than_this_stage(connection: &mut PgConnection) {
             );
             return;
         }
-        connection
+        let reverted = connection
             .revert_last_migration(MIGRATIONS)
-            .expect("Failed to revert a later migration");
+            .unwrap_or_else(|error| panic!("Failed to revert later migration {newest}: {error}"));
+        assert_eq!(
+            reverted.to_string(),
+            newest,
+            "the newest applied migration is the one reverted"
+        );
     }
 }
 
