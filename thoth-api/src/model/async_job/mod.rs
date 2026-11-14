@@ -1039,11 +1039,16 @@ pub(crate) fn target_key_namespace(value: &str) -> Option<&str> {
     Some(namespace)
 }
 
-/// Non-blank in the database's sense (`~ '[^[:space:]]'`). Rust's
-/// `char::is_whitespace` (Unicode `White_Space`) is a superset of every
-/// regex strategy's space class, so this is never laxer than the check.
+/// Non-blank in the database's sense (`~ '[^[:space:]]'`). Unicode
+/// `White_Space` (`char::is_whitespace`) includes every character that
+/// `[:space:]` matches under a libc or builtin default collation. Under an
+/// ICU default collation `[:space:]` (ICU's `u_isspace`) also matches U+001C
+/// to U+001F, which are not `White_Space`, so those four count as blank here
+/// too. This check is therefore never laxer than the database's.
 pub(crate) fn is_non_blank(value: &str) -> bool {
-    value.chars().any(|c| !c.is_whitespace())
+    value
+        .chars()
+        .any(|c| !c.is_whitespace() && !('\u{1c}'..='\u{1f}').contains(&c))
 }
 
 /// A text input bound as `text`: refused when it contains U+0000.

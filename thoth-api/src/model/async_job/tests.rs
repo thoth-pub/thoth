@@ -9002,7 +9002,9 @@ fn bounds_a_blank_reason_is_payload_invalid_before_any_write() {
     let rr = rr_started(c, new_job(TEST_EFFECT, "blank-reason", &[&key(NS_CS)]));
     let id = rr.async_job_id;
     let before = footprint(c, id);
-    for reason in ["", " ", "\t\n", "\u{3000}"] {
+    for reason in [
+        "", " ", "\t\n", "\u{3000}", "\u{1c}", "\u{1d}", "\u{1e}", "\u{1f}",
+    ] {
         let actor = staff(reason);
         let results = [
             tx(c, |c| cancel_job_command_on(c, &REGISTRY, &actor, id)),
