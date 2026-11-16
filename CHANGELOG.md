@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Record ADR-0015, which splits the shared job engine of ADR-0012 into a jobs-first release and a later routing release, and adds a safety rule for withdrawing a route contract revision (decision only; no code change)
 
 ## [[1.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.10.0) - 2026-11-16
 ### Added
