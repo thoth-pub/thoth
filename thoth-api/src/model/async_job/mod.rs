@@ -46,6 +46,7 @@ use crate::db::PgPool;
 
 pub mod commands;
 pub mod engine;
+pub mod executor;
 pub mod registry;
 pub mod signals;
 pub mod targets;
