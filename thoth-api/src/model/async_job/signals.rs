@@ -29,6 +29,9 @@ use super::{
 /// How many blocked jobs one kind's signal lists (the count is exact).
 pub(crate) const BLOCKED_LIST_LIMIT: i64 = 100;
 
+/// How many regressed targets one kind's signal lists (the count is exact).
+pub(crate) const REGRESSED_LIST_LIMIT: i64 = 100;
+
 // ---------------------------------------------------------------------------
 // Single-job reads
 // ---------------------------------------------------------------------------
@@ -209,6 +212,8 @@ pub struct KindSignals {
     /// Non-terminal jobs of a known kind whose version is not executable.
     pub non_terminal_version_not_executable_count: i64,
     /// Targets last written by this kind with `regressed_at` set.
+    pub regressed_target_count: i64,
+    /// At most 100 of them, ascending by target key.
     pub regressed_targets: Vec<RegressedTarget>,
     pub succeeded_last_24h: i64,
     pub failed_last_24h: i64,
@@ -244,6 +249,7 @@ impl KindSignals {
             unpolled_versions: Vec::new(),
             non_terminal_unknown_kind_count: 0,
             non_terminal_version_not_executable_count: 0,
+            regressed_target_count: 0,
             regressed_targets: Vec::new(),
             succeeded_last_24h: 0,
             failed_last_24h: 0,
@@ -411,7 +417,22 @@ pub fn kind_signals(
         .iter()
         .map(|policy| (policy.kind.to_string(), KindSignals::new(policy.kind, true)))
         .collect();
-    for row in db(sql_query("SELECT DISTINCT kind FROM public.async_job").load::<KindRow>(conn))? {
+    // Every kind present in the table, terminal jobs included, by a loose
+    // index scan over `async_job_kind_status_idx`: one index probe per
+    // distinct kind, so the cost follows the number of kinds, never the
+    // number of jobs (the table is never pruned).
+    for row in db(sql_query(
+        "WITH RECURSIVE kinds(kind) AS ( \
+             (SELECT j.kind FROM public.async_job j ORDER BY j.kind LIMIT 1) \
+             UNION ALL \
+             SELECT (SELECT j.kind FROM public.async_job j \
+                      WHERE j.kind > k.kind ORDER BY j.kind LIMIT 1) \
+               FROM kinds k \
+              WHERE k.kind IS NOT NULL) \
+         SELECT kind FROM kinds WHERE kind IS NOT NULL",
+    )
+    .load::<KindRow>(conn))?
+    {
         let known = registry.get(&row.kind).is_some();
         signals
             .entry(row.kind.clone())
@@ -594,15 +615,33 @@ pub fn kind_signals(
         }
     }
 
-    // Accepted regressions awaiting an ordinary write.
-    let rows = db(sql_query(
-        "SELECT j.kind, s.target_key, s.applied_order, s.applied_fingerprint, s.regressed_at, \
-                s.regressed_from_order, s.regressed_from_fingerprint \
-           FROM public.async_effect_target_state s \
+    // Accepted regressions awaiting an ordinary write, by the kind of the
+    // target's last writer: an exact count and at most
+    // `REGRESSED_LIST_LIMIT` targets per kind, both read through
+    // `async_effect_target_state_regressed_idx`.
+    let regressed_from = "FROM public.async_effect_target_state s \
            JOIN public.async_job j ON j.async_job_id = s.last_job_id \
-          WHERE s.regressed_at IS NOT NULL \
-          ORDER BY j.kind, s.target_key",
-    )
+          WHERE s.regressed_at IS NOT NULL";
+    let rows = db(sql_query(format!(
+        "SELECT j.kind, count(*) AS count {regressed_from} GROUP BY j.kind"
+    ))
+    .load::<CountByKind>(conn))?;
+    for row in rows {
+        if let Some(s) = signals.get_mut(&row.kind) {
+            s.regressed_target_count = row.count;
+        }
+    }
+    let rows = db(sql_query(format!(
+        "SELECT kind, target_key, applied_order, applied_fingerprint, regressed_at, \
+                regressed_from_order, regressed_from_fingerprint FROM ( \
+            SELECT j.kind, s.target_key, s.applied_order, s.applied_fingerprint, \
+                   s.regressed_at, s.regressed_from_order, s.regressed_from_fingerprint, \
+                   row_number() OVER (PARTITION BY j.kind ORDER BY s.target_key) AS rank \
+              {regressed_from}) r \
+          WHERE rank <= $1 \
+          ORDER BY kind, rank"
+    ))
+    .bind::<BigInt, _>(REGRESSED_LIST_LIMIT)
     .load::<RegressedRow>(conn))?;
     for row in rows {
         if let Some(s) = signals.get_mut(&row.kind) {
