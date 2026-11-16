@@ -1010,8 +1010,9 @@ fn the_resolvers_authorize_before_reaching_a_coordinator() {
     );
     assert_eq!(
         query_source.matches("require_superuser()").count(),
-        7,
+        11,
         "the three registry lookups and the two MET-WP1-13 source lookups join the two \
-         pre-existing superuser queries"
+         pre-existing superuser queries, and THOTH-ASYNC-01-ENGINE-01B adds the four async \
+         job reads (asyncJob, asyncJobs, asyncJobKindSignals, asyncJobExecutorActivity)"
     );
 }

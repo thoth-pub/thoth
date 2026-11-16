@@ -5,6 +5,10 @@ use super::types::inputs::{
     ContributionOrderBy, FundingOrderBy, IssueOrderBy, LanguageOrderBy, PriceOrderBy,
     SubjectOrderBy, TimeExpression,
 };
+use crate::graphql::types::async_job::{
+    AsyncJob, AsyncJobClaimInput, AsyncJobCursorInput, AsyncJobDetail, AsyncJobExecutorActivity,
+    AsyncJobFilterInput, AsyncJobKindSignals, AsyncJobTargetState,
+};
 use crate::graphql::types::me::{Me, ToMe};
 use crate::graphql::Context;
 use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
@@ -12,6 +16,10 @@ use crate::model::contributor::crud::MAX_CONTRIBUTOR_ORCID_BATCH;
 use crate::model::{
     additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
+    async_job::{
+        executor::{authorize_executor, executor_activity_since, instant, kind_signals_of},
+        list_jobs, read_target_state_on, with_engine_transaction, AsyncJobFilter, JobCursor,
+    },
     award::{Award, AwardOrderBy},
     biography::{Biography, BiographyOrderBy},
     book_review::{BookReview, BookReviewOrderBy},
@@ -56,7 +64,7 @@ use crate::model::{
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::{WorkFeaturedVideo, WorkFeaturedVideoOrderBy},
     work_filter_options::{work_filter_options as read_work_filter_options, WorkFilterOptions},
-    Crud, Doi, Orcid,
+    Crud, Doi, Orcid, Timestamp,
 };
 use crate::policy::PolicyContext;
 use juniper::IntoFieldError;
@@ -2342,5 +2350,123 @@ impl QueryRoot {
             &input,
         )
         .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Async job engine (`THOTH-ASYNC-01-ENGINE-01B`)
+    //
+    // One executor read, authorized through the executor map like the
+    // executor mutations, and four operator reads, each superuser only. No
+    // read returns a claim token, and attempts and status changes are read
+    // only one job at a time.
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "The applied evidence of a claimed job's targets, ascending by key, for the executor to check before any write. Requires the DISSEMINATION_WORKER role and the job's current claim token"
+    )]
+    fn async_job_target_state(
+        context: &Context,
+        #[graphql(description = "The claimed job and its claim token")] input: AsyncJobClaimInput,
+    ) -> FieldResult<Vec<AsyncJobTargetState>> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    read_target_state_on(conn, context.async_registry, &claim)
+                })
+            })
+            .map(|states| states.into_iter().map(AsyncJobTargetState::from).collect())
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "One async job with its attempts and status changes. Superuser only. No claim token is returned"
+    )]
+    fn async_job(
+        context: &Context,
+        #[graphql(description = "Thoth ID of the async job")] async_job_id: Uuid,
+    ) -> FieldResult<AsyncJobDetail> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                with_engine_transaction(&context.db, |conn| {
+                    AsyncJobDetail::read(conn, async_job_id)
+                })
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Async jobs, newest first, a page at a time. Superuser only. No claim token is returned, and attempts and status changes are read one job at a time through asyncJob"
+    )]
+    fn async_jobs(
+        context: &Context,
+        #[graphql(description = "Which jobs to list; every job when absent")] filter: Option<
+            AsyncJobFilterInput,
+        >,
+        #[graphql(description = "How many jobs to return, from 1 to 100")] limit: i32,
+        #[graphql(description = "List the jobs after this position; the first page when absent")]
+        after: Option<AsyncJobCursorInput>,
+    ) -> FieldResult<Vec<AsyncJob>> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                let filter = filter
+                    .as_ref()
+                    .map(AsyncJobFilter::from)
+                    .unwrap_or_default();
+                let after = after.as_ref().map(JobCursor::from);
+                with_engine_transaction(&context.db, |conn| {
+                    list_jobs(conn, &filter, after, i64::from(limit))
+                })
+            })
+            .map(|jobs| jobs.into_iter().map(AsyncJob::from).collect())
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "The operational signals of each requested kind, or of every kind present in this server's registry or in the job table. Superuser only"
+    )]
+    fn async_job_kind_signals(
+        context: &Context,
+        #[graphql(
+            description = "Only these kinds; every kind when absent or empty. A kind present in neither the registry nor the job table is not listed"
+        )]
+        kinds: Option<Vec<String>>,
+    ) -> FieldResult<Vec<AsyncJobKindSignals>> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                with_engine_transaction(&context.db, |conn| {
+                    kind_signals_of(conn, context.async_registry, &kinds.unwrap_or_default())
+                })
+            })
+            .map(|signals| signals.into_iter().map(AsyncJobKindSignals::from).collect())
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "When each executor last polled, claimed and renewed a lease, per executor name, identity and kind. Superuser only"
+    )]
+    fn async_job_executor_activity(
+        context: &Context,
+        #[graphql(
+            description = "Only rows with at least one of those instants at or after this one; every row when absent"
+        )]
+        since: Option<Timestamp>,
+    ) -> FieldResult<Vec<AsyncJobExecutorActivity>> {
+        context
+            .require_superuser()
+            .and_then(|_| {
+                with_engine_transaction(&context.db, |conn| {
+                    executor_activity_since(conn, since.map(instant))
+                })
+            })
+            .map(|rows| {
+                rows.into_iter()
+                    .map(AsyncJobExecutorActivity::from)
+                    .collect()
+            })
+            .map_err(IntoFieldError::into_field_error)
     }
 }
