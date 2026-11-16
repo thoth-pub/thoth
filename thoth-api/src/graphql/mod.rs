@@ -20,6 +20,8 @@ mod metric_registry_tests;
 mod metric_rollup_tests;
 #[cfg(test)]
 mod metric_source_registry_tests;
+#[cfg(test)]
+mod metric_widget_tests;
 mod mutation;
 mod mutation_guard;
 #[cfg(test)]
@@ -30,6 +32,8 @@ pub mod scalars;
 pub(crate) mod sdl_support;
 #[cfg(test)]
 mod service_configuration_tests;
+#[cfg(test)]
+mod work_filter_options_tests;
 
 pub use juniper::http::GraphQLRequest;
 

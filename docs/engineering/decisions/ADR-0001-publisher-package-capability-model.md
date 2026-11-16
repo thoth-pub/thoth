@@ -9,7 +9,8 @@ Approval PR: [#772](https://github.com/thoth-pub/thoth/pull/772)
 Programmes affected: Publisher Services, Thoth Metrics, OAI-PMH
 Repositories affected: `thoth`, `thoth-app`, `thoth-sphinx`, `metrics-dashboard`, `metrics-widget`
 Supersedes: None
-Superseded by: None
+Superseded by: None in full
+Superseded in part by: [ADR-0014](ADR-0014-public-widget-metrics.md) under ADR-0014's authority condition: section 4.4 and section 4.5 as they apply to widget metrics, and the `METRICS_WIDGET` row of `package-capability-matrix.md`
 
 ## 1. Context
 

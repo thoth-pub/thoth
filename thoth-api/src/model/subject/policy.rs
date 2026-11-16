@@ -68,4 +68,38 @@ fn test_check_subject() {
     assert!(check_subject(&SubjectType::Bic, "ABCD0").is_ok());
     assert!(check_subject(&SubjectType::Bisac, "BLA123456").is_ok());
     assert!(check_subject(&SubjectType::Thema, "AHBW").is_err());
+    assert!(check_subject(&SubjectType::Thema, "INVALID").is_err());
+
+    // Thema v1.6 codes remain valid
+    for code in ["ATXZ1", "JWA", "1DDB-BE-B", "6XZ"] {
+        assert!(check_subject(&SubjectType::Thema, code).is_ok(), "{code}");
+    }
+
+    // Thema v1.7 additions, including hyphen-ordering cases
+    for code in [
+        "FKK",
+        "UYQK",
+        "NHZ",
+        "1KBZA-CA-D",
+        "1KBZAAB",
+        "1KBC-CA-Y",
+        "4Z-CA-X",
+        "4Z-DE-SN",
+        "5YB",
+        "6RT",
+    ] {
+        assert!(check_subject(&SubjectType::Thema, code).is_ok(), "{code}");
+    }
+}
+
+#[test]
+fn test_thema_codes_strictly_ascending() {
+    // check_subject relies on binary_search, so the list must be sorted with no duplicates
+    assert!(THEMA_CODES.windows(2).all(|w| w[0] < w[1]));
+}
+
+#[test]
+fn test_thema_codes_length() {
+    // Thema v1.7
+    assert_eq!(THEMA_CODES.len(), 9448);
 }

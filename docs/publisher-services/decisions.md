@@ -1,7 +1,7 @@
 # Publisher Services Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-08-14 (BE-02 and BE-03 closed as inactive merged foundations; the BE-03/BE-04/APP-01 phase boundary's authority condition is satisfied and the decision is approved under its own self-resolving construction, including the APP-01 reconciliation)
+Last updated: 2026-11-10 (one `ADR-0014` note under Packages); 2026-08-14 (BE-02 and BE-03 closed as inactive merged foundations; the BE-03/BE-04/APP-01 phase boundary's authority condition is satisfied and the decision is approved under its own self-resolving construction, including the APP-01 reconciliation)
 Owner: CTO
 
 This file summarizes decisions. The approved technical design and approved ADRs remain authoritative.
@@ -23,7 +23,7 @@ Every publisher has exactly one package.
 
 OASIS is the non-null default.
 
-Publisher users may read their own package and its effective capability codes. Only superusers may change the package. Package and capability values are not anonymous public data.
+Publisher users may read their own package and its effective capability codes. Only superusers may change the package. Package and capability values are not anonymous public data. One capability is inferable by design: a served public widget response shows that the publisher holds `METRICS_WIDGET` and so, under the current package mapping, that its package is `SPHINX` or `PYRAMID` ([`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md)).
 
 Package choice does not itself enable or disable distribution platforms.
 

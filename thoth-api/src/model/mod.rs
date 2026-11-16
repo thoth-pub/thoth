@@ -929,6 +929,8 @@ pub mod metric_source;
 pub mod metric_source_account;
 pub mod metric_source_checkpoint;
 pub mod metric_source_registry_history;
+#[cfg(feature = "backend")]
+pub mod metric_widget;
 pub mod price;
 pub mod publication;
 pub mod publisher;
@@ -940,4 +942,6 @@ pub mod subject;
 pub mod title;
 pub mod work;
 pub mod work_featured_video;
+#[cfg(feature = "backend")]
+pub mod work_filter_options;
 pub mod work_relation;

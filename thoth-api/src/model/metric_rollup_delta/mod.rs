@@ -66,6 +66,20 @@
 //! verification is exact at a recorded work-day frontier; any serving from
 //! the yearly tables additionally requires the separately authorized Unit B
 //! activation.
+//!
+//! `MET-WP4-03A-OPS-03` (#1012) adds a resumable, caller-driven rebuild and
+//! a paged verification of the same six families for corpora of any size
+//! (see [`rebuild_run`]). A run is one row of
+//! `metric_rollup_month_rebuild_run`: a durable cursor over units
+//! `(work_id, year_start)` and the counters of its build steps and verify
+//! pages. Each step or page is one short transaction under fixed
+//! server-side budgets; a build step replaces only a range that its own
+//! independent verification finds inexact, by re-executing the completion's
+//! keyed statements, and never truncates. The caller drives every step:
+//! Thoth runs nothing on its own, and a mismatch never starts a rebuild.
+//! The OPS-02 pair is unchanged.
+
+use std::time::Duration;
 
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -520,8 +534,350 @@ pub struct RebuildMetricRollupMonthsInput {
     pub expected_applied_through_sequence: String,
 }
 
+// ---------------------------------------------------------------------------
+// MET-WP4-03A-OPS-03: resumable rebuild and paged verification
+// ---------------------------------------------------------------------------
+//
+// The server-fixed bounds of the run operations (specification section 10).
+// The caller supplies no size, range, key, value or SQL, and changing any of
+// these needs an amendment with evidence. Register section 3.8 quotes the
+// step budgets beside the run-grant aggregate, and a test pins the quotation
+// to these values.
+
+/// Pre-sizing a build step, before any row lock is taken.
+pub const METRIC_ROLLUP_RUN_STEP_PRESIZE_BUDGET: Duration = Duration::from_secs(5);
+
+/// A build step's lock phase: from the statement that locks the step's
+/// `work` rows until the state row is held.
+pub const METRIC_ROLLUP_RUN_STEP_LOCK_BUDGET: Duration = Duration::from_secs(2);
+
+/// A build step's hold of the state row: from acquiring it to the end of the
+/// transaction, enforced before and during every statement.
+pub const METRIC_ROLLUP_RUN_STEP_HOLD_BUDGET: Duration = Duration::from_secs(5);
+
+/// The month keys one build step takes, unless one unit alone exceeds it.
+pub const METRIC_ROLLUP_RUN_STEP_MAX_MONTH_KEYS: i64 = 1_000;
+
+/// The work-day rows one build step takes, unless one unit alone exceeds it.
+/// It bounds the cost a replacing step pays per work-day row (each row is
+/// written into every monthly and yearly section row it reaches, and every
+/// section row runs its foreign-key checks), which the replacing-read figure
+/// does not count. Set from the section 17 evidence by budget amendment
+/// R11 (was 50,000).
+pub const METRIC_ROLLUP_RUN_STEP_MAX_WORK_DAY_ROWS: i64 = 8_000;
+
+/// The replacing-read figure one build step takes, unless one unit alone
+/// exceeds it: over the step's work-months, the month keys of the
+/// work-month times the work's work-day rows in that month, plus, over the
+/// step's year keys, the work's work-day rows across its whole history.
+/// Set by budget amendment R11 (was 4,000,000); provisional, the section 17
+/// F4 evidence confirms it.
+pub const METRIC_ROLLUP_RUN_STEP_MAX_REPLACING_READ: i64 = 600_000;
+
+/// The month keys, and separately the year keys, one recompute chunk of a
+/// replacing build step takes: the same bound as a rebuild chunk and a claim
+/// batch.
+pub const METRIC_ROLLUP_RUN_STEP_CHUNK_KEYS: usize = METRIC_ROLLUP_REBUILD_CHUNK_KEYS;
+
+/// The works one sizing statement walks at most.
+pub const METRIC_ROLLUP_RUN_SIZING_BATCH_WORKS: i64 = 256;
+
+/// One verify page: from its `LOCK TABLE` to the end of its transaction,
+/// enforced before and during every statement.
+pub const METRIC_ROLLUP_RUN_PAGE_BUDGET: Duration = Duration::from_secs(15);
+
+/// The month keys one verify page takes, unless one unit alone exceeds it.
+pub const METRIC_ROLLUP_RUN_PAGE_MAX_MONTH_KEYS: i64 = 10_000;
+
+/// The work-day rows one verify page takes, unless one unit alone exceeds it.
+/// Set from the section 17 evidence by budget amendment R11 (was 500,000).
+pub const METRIC_ROLLUP_RUN_PAGE_MAX_WORK_DAY_ROWS: i64 = 150_000;
+
+/// The `lock_timeout` of every run transaction except the dispatch and
+/// status reads: the run row, `LOCK TABLE`, start and abandon. A step's
+/// lock waits are also cut by its budgets.
+pub const METRIC_ROLLUP_RUN_LOCK_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// The largest `statement_timeout` any run statement is given.
+pub const METRIC_ROLLUP_RUN_STATEMENT_TIMEOUT_CEILING: Duration = Duration::from_secs(30);
+
+/// The `lock_timeout` and `statement_timeout` of the dispatch read of an
+/// advance and of the status read.
+pub const METRIC_ROLLUP_RUN_READ_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// The longest wait for the one pooled connection every run operation takes.
+pub const METRIC_ROLLUP_RUN_CHECKOUT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// What a run does.
+///
+/// A `REBUILD` run first builds (replacing only ranges its own verification
+/// finds inexact) and then verifies; a `VERIFY` run only verifies and never
+/// writes a projection row.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "What a resumable monthly rebuild run does")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MetricRollupMonthRebuildMode {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Build, replacing only the ranges an independent verification finds inexact, then verify every range"
+        )
+    )]
+    Rebuild,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Verify every range only. Never writes a projection row")
+    )]
+    Verify,
+}
+
+impl MetricRollupMonthRebuildMode {
+    /// The stored value of the closed `mode` vocabulary.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Rebuild => "REBUILD",
+            Self::Verify => "VERIFY",
+        }
+    }
+
+    /// The mode a stored value names, if any.
+    pub fn from_stored(value: &str) -> Option<Self> {
+        match value {
+            "REBUILD" => Some(Self::Rebuild),
+            "VERIFY" => Some(Self::Verify),
+            _ => None,
+        }
+    }
+}
+
+/// Where a run is in its state machine.
+///
+/// `BUILDING` and `VERIFYING` are open; at most one run is open at a time.
+/// `RECONCILED` means every verify page was exact at one and the same
+/// frontier. `VERIFIED` means every page was exact but the frontier moved
+/// between pages: health evidence, never activation evidence. `MISMATCHED`
+/// means some page found a missing, extra or mismatched row. `ABANDONED`
+/// means the caller stopped the run.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLEnum),
+    graphql(description = "Where a resumable monthly rebuild run is in its state machine")
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MetricRollupMonthRebuildStatus {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Open: a REBUILD run is taking build steps")
+    )]
+    Building,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Open: the run is taking verify pages")
+    )]
+    Verifying,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Terminal: every verify page was exact, all at one and the same recorded frontier"
+        )
+    )]
+    Reconciled,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Terminal: every verify page was exact, but the frontier moved between pages. Health evidence only, never activation evidence"
+        )
+    )]
+    Verified,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Terminal: some verify page found a missing, extra or mismatched row"
+        )
+    )]
+    Mismatched,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(description = "Terminal: the caller abandoned the run")
+    )]
+    Abandoned,
+}
+
+impl MetricRollupMonthRebuildStatus {
+    /// The stored value of the closed `status` vocabulary.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Building => "BUILDING",
+            Self::Verifying => "VERIFYING",
+            Self::Reconciled => "RECONCILED",
+            Self::Verified => "VERIFIED",
+            Self::Mismatched => "MISMATCHED",
+            Self::Abandoned => "ABANDONED",
+        }
+    }
+
+    /// The status a stored value names, if any.
+    pub fn from_stored(value: &str) -> Option<Self> {
+        match value {
+            "BUILDING" => Some(Self::Building),
+            "VERIFYING" => Some(Self::Verifying),
+            "RECONCILED" => Some(Self::Reconciled),
+            "VERIFIED" => Some(Self::Verified),
+            "MISMATCHED" => Some(Self::Mismatched),
+            "ABANDONED" => Some(Self::Abandoned),
+            _ => None,
+        }
+    }
+
+    /// Whether the run is still open.
+    pub fn is_open(self) -> bool {
+        matches!(self, Self::Building | Self::Verifying)
+    }
+}
+
+/// The per-family counts a run accumulates over its verify pages: the five
+/// bounded counts of [`MetricRollupMonthProjectionVerification`] for each of
+/// the six derived families, each summed over pages.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildFamilies {
+    pub total: MetricRollupMonthProjectionVerification,
+    pub country: MetricRollupMonthProjectionVerification,
+    pub institution: MetricRollupMonthProjectionVerification,
+    pub ambiguity: MetricRollupMonthProjectionVerification,
+    pub country_year: MetricRollupMonthProjectionVerification,
+    pub institution_year: MetricRollupMonthProjectionVerification,
+}
+
+/// The progress of a `REBUILD` run's build phase. Counts only: the
+/// frontiers are the first and the last `applied_through_sequence` a
+/// committed build step saw.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildBuildProgress {
+    pub steps: i64,
+    pub replaced_steps: i64,
+    pub units: i64,
+    pub month_keys: i64,
+    pub work_day_rows: i64,
+    pub found_missing_rows: i64,
+    pub found_extra_rows: i64,
+    pub found_mismatched_rows: i64,
+    pub first_applied_through_sequence: Option<i64>,
+    pub last_applied_through_sequence: Option<i64>,
+}
+
+/// The progress of a run's verify phase. Counts only: the frontiers are the
+/// first and the last `applied_through_sequence` a committed verify page
+/// saw, and the per-family counts are sums over pages.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildVerifyProgress {
+    pub pages: i64,
+    pub units: i64,
+    pub month_keys: i64,
+    pub work_day_rows: i64,
+    pub first_applied_through_sequence: Option<i64>,
+    pub last_applied_through_sequence: Option<i64>,
+    pub counts: MetricRollupMonthRebuildFamilies,
+}
+
+impl MetricRollupMonthRebuildVerifyProgress {
+    /// True when the verify frontiers are set and equal.
+    pub fn has_single_frontier(&self) -> bool {
+        self.first_applied_through_sequence.is_some()
+            && self.first_applied_through_sequence == self.last_applied_through_sequence
+    }
+}
+
+/// One resumable monthly rebuild or verification run, as the run operations
+/// return it.
+///
+/// Only the run's own id, counts, frontiers and timestamps leave Thoth: the
+/// cursor, every work, platform and measure identity and the principal that
+/// started the run are never part of this type. `position_permille`
+/// approximates the current phase's cursor position from the cursor's
+/// leading 32 bits; it is an estimate, never a count.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildRun {
+    pub run_id: Uuid,
+    pub mode: MetricRollupMonthRebuildMode,
+    pub status: MetricRollupMonthRebuildStatus,
+    pub step_count: i64,
+    pub position_permille: i32,
+    pub started_at: Timestamp,
+    pub updated_at: Timestamp,
+    pub build_completed_at: Option<Timestamp>,
+    pub completed_at: Option<Timestamp>,
+    pub start_applied_through_sequence: i64,
+    /// `None` for a `VERIFY` run.
+    pub build: Option<MetricRollupMonthRebuildBuildProgress>,
+    pub verify: MetricRollupMonthRebuildVerifyProgress,
+}
+
+/// The answer to one advance request: whether this request committed a step
+/// or a page, and the run as it now stands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricRollupMonthRebuildAdvance {
+    pub advanced: bool,
+    pub run: MetricRollupMonthRebuildRun,
+}
+
+/// Which kind of run to start. It is the only accepted input: every bound is
+/// server-fixed and every range is derived from durable state.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which kind of resumable monthly rebuild run to start")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartMetricRollupMonthRebuildInput {
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "REBUILD to build and then verify, or VERIFY to verify only. No size, range, key, value or SQL is accepted"
+        )
+    )]
+    pub mode: MetricRollupMonthRebuildMode,
+}
+
+/// Which run to advance, and the step count the caller last saw.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which resumable monthly rebuild run to advance by one step or page")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvanceMetricRollupMonthRebuildInput {
+    #[cfg_attr(feature = "backend", graphql(description = "The run to advance"))]
+    pub run_id: Uuid,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "The run's stepCount the caller last saw, as a decimal string holding a non-negative 64-bit integer. The advance commits a step or page only while the run still has exactly this count, so a retry after a lost response is safe"
+        )
+    )]
+    pub expected_step_count: String,
+}
+
+/// Which run to abandon.
+#[cfg_attr(
+    feature = "backend",
+    derive(juniper::GraphQLInputObject),
+    graphql(description = "Which resumable monthly rebuild run to abandon")
+)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbandonMetricRollupMonthRebuildInput {
+    #[cfg_attr(feature = "backend", graphql(description = "The run to abandon"))]
+    pub run_id: Uuid,
+}
+
 #[cfg(feature = "backend")]
 pub mod crud;
+#[cfg(feature = "backend")]
+pub mod rebuild_run;
+#[cfg(all(test, feature = "backend"))]
+pub(crate) mod rebuild_run_tests;
 #[cfg(all(test, feature = "backend"))]
 pub(crate) mod tests;
 #[cfg(feature = "backend")]

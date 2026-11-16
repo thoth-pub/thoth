@@ -2,7 +2,10 @@ use crate::arguments;
 use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
 use thoth::{
-    api::{graphql::MutationGuardMode, model::distribution_job::DistributionJobCreation},
+    api::{
+        graphql::MutationGuardMode,
+        model::{distribution_job::DistributionJobCreation, metric_widget::MetricWidgetSwitch},
+    },
     api_server,
     errors::{ThothError, ThothResult},
     export_server,
@@ -26,6 +29,7 @@ lazy_static! {
                 .arg(arguments::zitadel_url())
                 .arg(arguments::mutation_guard_mode())
                 .arg(arguments::distribution_job_creation())
+                .arg(arguments::metric_widget())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -82,6 +86,24 @@ pub(crate) fn distribution_job_creation(
         .map_err(ThothError::InternalError)
 }
 
+/// Resolve the effective public widget read switch from parsed arguments.
+///
+/// This is the single accessor every command path uses, so a command that
+/// dispatches here must register [`arguments::metric_widget`]. Both
+/// `start graphql-api` and `init` do.
+///
+/// Defaults to `OFF`; `clap`'s `value_parser` has already restricted the string
+/// to the two accepted values, so an invalid value fails during parsing rather
+/// than reaching this function.
+pub(crate) fn metric_widget(arguments: &ArgMatches) -> ThothResult<MetricWidgetSwitch> {
+    arguments
+        .get_one::<String>("metric-widget")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<MetricWidgetSwitch>()
+        .map_err(ThothError::InternalError)
+}
+
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();
@@ -96,6 +118,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         .to_owned();
     let mutation_guard_mode = mutation_guard_mode(arguments)?;
     let distribution_job_creation = distribution_job_creation(arguments)?;
+    let metric_widget = metric_widget(arguments)?;
 
     api_server(
         database_url,
@@ -108,6 +131,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         zitadel_url,
         mutation_guard_mode,
         distribution_job_creation,
+        metric_widget,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

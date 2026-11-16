@@ -36,6 +36,9 @@ lazy_static! {
         // `distribution-job-creation`. Registering it on only one production
         // command path is the exact defect `THOTH-GQL-OPS-02` had to fix.
         .arg(arguments::distribution_job_creation())
+        // Same reason again: the `graphql_api` handler reads `metric-widget`
+        // (`MET-WP4-WIDGET-01`), and the image starts with `init`.
+        .arg(arguments::metric_widget())
         .arg(arguments::aws_access_key_id())
         .arg(arguments::aws_secret_access_key())
         .arg(arguments::aws_region());

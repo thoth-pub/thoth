@@ -777,3 +777,246 @@ mod distribution_job_creation_control {
         assert_eq!(arg.get_default_values(), ["OFF"]);
     }
 }
+
+/// `MET-WP4-WIDGET-01` — the public widget read's switch control path.
+///
+/// The same matrix as the two controls above, applied to `THOTH_METRIC_WIDGET`,
+/// for the same reason: the `graphql-api` handler reads it and both production
+/// command paths (`start graphql-api` and `init`, the image's default command)
+/// dispatch into that handler. The module runs in both profiles.
+///
+/// `OFF` is the merged default and is asserted as a declared property of the
+/// argument, not only as a resolved value.
+#[cfg(test)]
+mod metric_widget_control {
+    use super::*;
+    use clap::{ArgMatches, Command};
+    use std::env::{remove_var, set_var, var_os};
+    use std::ffi::OsString;
+    use std::sync::MutexGuard;
+    use thoth::api::model::metric_widget::MetricWidgetSwitch;
+
+    const WIDGET_ENV: &str = "THOTH_METRIC_WIDGET";
+
+    /// Shared with the other control modules: all parse the same command tree.
+    use super::test_env_lock::ENV_LOCK;
+
+    struct WidgetEnv {
+        _lock: MutexGuard<'static, ()>,
+        previous: Option<OsString>,
+    }
+
+    impl WidgetEnv {
+        fn set(value: Option<&str>) -> Self {
+            let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            super::test_env_lock::initialise_command_tree();
+            let previous = var_os(WIDGET_ENV);
+            match value {
+                Some(value) => set_var(WIDGET_ENV, value),
+                None => remove_var(WIDGET_ENV),
+            }
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+    }
+
+    impl Drop for WidgetEnv {
+        fn drop(&mut self) {
+            match self.previous.take() {
+                Some(previous) => set_var(WIDGET_ENV, previous),
+                None => remove_var(WIDGET_ENV),
+            }
+        }
+    }
+
+    fn parse_init(extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let mut argv = vec!["thoth", "init"];
+        argv.extend_from_slice(extra);
+        let matches = THOTH.clone().try_get_matches_from(argv)?;
+        Ok(matches
+            .subcommand_matches("init")
+            .expect("`init` sub-matches")
+            .clone())
+    }
+
+    fn switch_on_init(extra: &[&str]) -> MetricWidgetSwitch {
+        commands::start::metric_widget(&parse_init(extra).expect("`init` should parse"))
+            .expect("setting should resolve")
+    }
+
+    fn parse_start(extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let mut argv = vec!["thoth", "start", "graphql-api"];
+        argv.extend_from_slice(extra);
+        let matches = THOTH.clone().try_get_matches_from(argv)?;
+        Ok(matches
+            .subcommand_matches("start")
+            .and_then(|start| start.subcommand_matches("graphql-api"))
+            .expect("graphql-api sub-matches")
+            .clone())
+    }
+
+    fn switch_on_start(extra: &[&str]) -> MetricWidgetSwitch {
+        commands::start::metric_widget(
+            &parse_start(extra).expect("`start graphql-api` should parse"),
+        )
+        .expect("setting should resolve")
+    }
+
+    fn parse_fresh() -> Result<ArgMatches, clap::Error> {
+        Command::new("init")
+            .no_binary_name(true)
+            .arg(arguments::metric_widget())
+            .try_get_matches_from::<_, &str>([])
+    }
+
+    fn switch_from_env() -> MetricWidgetSwitch {
+        commands::start::metric_widget(&parse_fresh().expect("should parse"))
+            .expect("setting should resolve")
+    }
+
+    fn registered(command: &Command) -> Option<&clap::Arg> {
+        command
+            .get_arguments()
+            .find(|arg| arg.get_id() == "metric-widget")
+    }
+
+    fn graphql_api() -> &'static Command {
+        commands::start::COMMAND
+            .get_subcommands()
+            .find(|command| command.get_name() == "graphql-api")
+            .expect("start must declare graphql-api")
+    }
+
+    #[test]
+    fn unset_yields_off() {
+        let _env = WidgetEnv::set(None);
+        assert_eq!(switch_from_env(), MetricWidgetSwitch::Off);
+        assert_eq!(switch_on_init(&[]), MetricWidgetSwitch::Off);
+        assert_eq!(switch_on_start(&[]), MetricWidgetSwitch::Off);
+    }
+
+    #[test]
+    fn off_yields_off_on_both_production_paths() {
+        let _env = WidgetEnv::set(Some("OFF"));
+        assert_eq!(switch_from_env(), MetricWidgetSwitch::Off);
+        assert_eq!(
+            switch_on_init(&["--metric-widget", "OFF"]),
+            MetricWidgetSwitch::Off
+        );
+        assert_eq!(
+            switch_on_start(&["--metric-widget", "OFF"]),
+            MetricWidgetSwitch::Off
+        );
+    }
+
+    #[test]
+    fn on_yields_on_on_both_production_paths() {
+        let _env = WidgetEnv::set(Some("ON"));
+        for resolved in [
+            switch_from_env(),
+            switch_on_init(&["--metric-widget", "ON"]),
+            switch_on_start(&["--metric-widget", "ON"]),
+        ] {
+            assert_eq!(resolved, MetricWidgetSwitch::On);
+        }
+    }
+
+    #[test]
+    fn an_invalid_value_fails_startup_and_is_never_coerced() {
+        let _env = WidgetEnv::set(Some("MAYBE"));
+        let from_env = parse_fresh().expect_err("an invalid environment value must fail parsing");
+        assert_eq!(from_env.kind(), clap::error::ErrorKind::InvalidValue);
+        for command_line in [
+            parse_init(&["--metric-widget", "MAYBE"]),
+            parse_start(&["--metric-widget", "MAYBE"]),
+        ] {
+            let error = command_line.expect_err("an invalid command-line value must fail parsing");
+            assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+        }
+    }
+
+    #[test]
+    fn the_typed_parser_accepts_exactly_off_and_on() {
+        assert_eq!(
+            "OFF".parse::<MetricWidgetSwitch>(),
+            Ok(MetricWidgetSwitch::Off)
+        );
+        assert_eq!(
+            "ON".parse::<MetricWidgetSwitch>(),
+            Ok(MetricWidgetSwitch::On)
+        );
+        for invalid in ["", "off", "on", "true", "1", "ENABLED", "OFF "] {
+            assert!(
+                invalid.parse::<MetricWidgetSwitch>().is_err(),
+                "`{invalid}` must not parse"
+            );
+        }
+        assert_eq!(MetricWidgetSwitch::default(), MetricWidgetSwitch::Off);
+        assert_eq!(MetricWidgetSwitch::Off.to_string(), "OFF");
+        assert_eq!(MetricWidgetSwitch::On.to_string(), "ON");
+    }
+
+    #[test]
+    fn both_production_command_paths_register_the_argument() {
+        assert!(
+            registered(&commands::INIT).is_some(),
+            "init must register metric-widget: it dispatches into the graphql-api \
+             handler, which reads it"
+        );
+        assert!(
+            registered(graphql_api()).is_some(),
+            "start graphql-api must register metric-widget"
+        );
+    }
+
+    #[test]
+    fn both_paths_bind_the_documented_variable_and_the_off_default() {
+        for argument in [
+            registered(&commands::INIT).expect("metric-widget on init"),
+            registered(graphql_api()).expect("metric-widget on start graphql-api"),
+        ] {
+            assert_eq!(
+                argument.get_env().and_then(|env| env.to_str()),
+                Some(WIDGET_ENV)
+            );
+            assert_eq!(
+                argument.get_default_values(),
+                ["OFF"],
+                "the declared default must remain OFF, so the merged state is inactive"
+            );
+        }
+    }
+
+    #[test]
+    fn resolving_the_setting_does_not_panic_in_this_profile() {
+        let _lock = super::test_env_lock::hold();
+        assert_eq!(
+            switch_on_init(&["--metric-widget", "ON"]),
+            MetricWidgetSwitch::On
+        );
+        assert_eq!(
+            switch_on_start(&["--metric-widget", "ON"]),
+            MetricWidgetSwitch::On
+        );
+    }
+
+    #[test]
+    fn the_other_controls_are_untouched() {
+        for (id, env) in [
+            ("mutation-guard-mode", "THOTH_GRAPHQL_MUTATION_GUARD_MODE"),
+            (
+                "distribution-job-creation",
+                "THOTH_DISTRIBUTION_JOB_CREATION",
+            ),
+        ] {
+            let arg = commands::INIT
+                .get_arguments()
+                .find(|arg| arg.get_id() == id)
+                .expect("control on init");
+            assert_eq!(arg.get_env().and_then(|value| value.to_str()), Some(env));
+            assert_eq!(arg.get_default_values(), ["OFF"]);
+        }
+    }
+}

@@ -23,7 +23,7 @@ use crate::model::{
     file::File,
     funding::Funding,
     imprint::{Imprint, ImprintOrderBy},
-    institution::{Institution, InstitutionOrderBy},
+    institution::{Institution, InstitutionOrderBy, RorStatus},
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -40,6 +40,7 @@ use crate::model::{
     metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
     metric_source::{crud::metric_source_by_code, MetricSource},
     metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
+    metric_widget::{metric_widget as read_metric_widget, MetricWidget, MetricWidgetInput},
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -54,6 +55,7 @@ use crate::model::{
     title::{Title, TitleOrderBy},
     work::{Work, WorkOrderBy, WorkStatus, WorkType},
     work_featured_video::{WorkFeaturedVideo, WorkFeaturedVideoOrderBy},
+    work_filter_options::{work_filter_options as read_work_filter_options, WorkFilterOptions},
     Crud, Doi, Orcid,
 };
 use crate::policy::PolicyContext;
@@ -1470,6 +1472,11 @@ impl QueryRoot {
             description = "The order in which to sort the results"
         )]
         order: Option<InstitutionOrderBy>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only shows institutions with these ROR statuses. Absent or empty means every status"
+        )]
+        ror_statuses: Option<Vec<RorStatus>>,
     ) -> FieldResult<Vec<Institution>> {
         Institution::all(
             &context.db,
@@ -1480,7 +1487,7 @@ impl QueryRoot {
             vec![],
             None,
             None,
-            vec![],
+            ror_statuses.unwrap_or_default(),
             vec![],
             None,
             None,
@@ -1504,9 +1511,22 @@ impl QueryRoot {
             description = "A query string to search. This argument is a test, do not rely on it. At present it simply searches for case insensitive literals on institution_name, ror and institution_doi"
         )]
         filter: Option<String>,
+        #[graphql(
+            default = vec![],
+            description = "If set, only counts institutions with these ROR statuses. Absent or empty means every status"
+        )]
+        ror_statuses: Option<Vec<RorStatus>>,
     ) -> FieldResult<i32> {
-        Institution::count(&context.db, filter, vec![], vec![], vec![], None, None)
-            .map_err(Into::into)
+        Institution::count(
+            &context.db,
+            filter,
+            vec![],
+            ror_statuses.unwrap_or_default(),
+            vec![],
+            None,
+            None,
+        )
+        .map_err(Into::into)
     }
 
     #[graphql(description = "Query the full list of fundings")]
@@ -1600,6 +1620,24 @@ impl QueryRoot {
     fn affiliation_count(context: &Context) -> FieldResult<i32> {
         Affiliation::count(&context.db, None, vec![], vec![], vec![], None, None)
             .map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Public, read-only filter values for the works of a set of publishers: the publishers, and the series, language codes, work types, funding institutions and contributor-affiliation institutions of their works. No login is needed. Every list is complete, deduplicated and sorted, or the request fails; no list is ever truncated. At most 100 publishers are accepted, and only one workFilterOptions field may be requested per HTTP request"
+    )]
+    fn work_filter_options(
+        context: &Context,
+        #[graphql(
+            description = "The publishers whose works' filter values to list: 1 to 100 distinct IDs"
+        )]
+        publisher_ids: Vec<Uuid>,
+    ) -> FieldResult<WorkFilterOptions> {
+        read_work_filter_options(
+            &context.db,
+            &context.work_filter_options_claims,
+            &publisher_ids,
+        )
+        .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Query the full list of references")]
@@ -2294,5 +2332,33 @@ impl QueryRoot {
             .map_err(MetricReadError::from)
             .and_then(|_| list_metric_platforms(&context.db))
             .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Public widget read (`MET-WP4-WIDGET-01`, ADR-0014)
+    //
+    // Public and capability-gated: no role is required and the caller's
+    // identity is never read. The read is served only while the server switch
+    // is on and only for a work whose publisher holds `METRICS_WIDGET`; every
+    // check, bound and statement lives in `model::metric_widget`.
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "Public, read-only Metrics for one work and, optionally, its child works, for the embeddable Metrics widget. No login is needed. Served only while the server enables it and only for works whose publisher is entitled to the Metrics widget. Serves monthly timelines of at most 12 months, or yearly timelines over all history, and only one metricWidget field may be requested at a time"
+    )]
+    fn metric_widget(
+        context: &Context,
+        #[graphql(
+            description = "The work, optional child works, the date range and the timeline grain"
+        )]
+        input: MetricWidgetInput,
+    ) -> FieldResult<MetricWidget> {
+        read_metric_widget(
+            &context.db,
+            context.metric_widget,
+            &context.metric_widget_claims,
+            &input,
+        )
+        .map_err(IntoFieldError::into_field_error)
     }
 }

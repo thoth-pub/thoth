@@ -749,8 +749,9 @@ Contract properties a later consumer may rely on:
   `metric_record`, `metric_record_revision`, the durable rollup deltas and
   the `MET-WP4-01` work-day frontier. The four monthly tables are written only
   by `completeMetricRollupDeltas`, inside its transaction and beneath its
-  `metric_rollup_work_day_state` lock, and their only source is
-  `metric_rollup_work_day`. Nothing reads canonical records, revisions or
+  `metric_rollup_work_day_state` lock, by the section 3.7 rebuild and by the
+  section 3.8 build steps, each beneath the same state-row lock, and their
+  only source is `metric_rollup_work_day`. Nothing reads canonical records, revisions or
   deltas to derive a monthly row, and nothing rewrites a canonical value to
   repair a derived one.
 - **Day is resolved before month.** For every daily base cell
@@ -836,15 +837,43 @@ Contract properties a later consumer may rely on:
   `thoth init` before starting the API; this automatic migration side effect
   is expected and must be named in the deployment authorization rather than
   replaced by an artificial pre-deployment migration run. No consumer may
-  serve from the monthly tables until the migration has succeeded, Sphinx has
-  orchestrated a separately authorized full historical rebuild through the
-  protected Thoth operation, and the rebuilt state has been independently
-  reconciled — exact values, dependency flags, ambiguity state and row
-  watermarks — at a recorded `applied_through_sequence`. `MET-WP4-03B`
-  serving activation and downstream dashboard cutover remain prohibited while
-  the tables are empty, partially rebuilt or unreconciled. After a downgrade
-  and reapplication the same gate applies again, because normal completion
-  maintains only the months it subsequently touches.
+  serve from the monthly tables until the migration has succeeded and, under
+  separate authorization, the derived state has been shown exact — values,
+  dependency flags, ambiguity state and row watermarks — at a recorded
+  `applied_through_sequence` by either marker:
+  - `verifyMetricRollupMonths` (section 3.7) exact at a recorded frontier,
+    whether or not a section 3.7 rebuild preceded it; or
+  - a section 3.8 run of either mode that has reached `RECONCILED`, with its
+    run id and frontier.
+
+  In either case the evidence is taken in the activation window (section
+  3.8), under the activation grant, which names the evidence run and is its
+  run grant, and is used at once. The latest-run check is made with
+  `metricRollupMonthRebuildRun` (no `runId`) immediately before the restart
+  that switches serving on: for a `RECONCILED` marker it must still show that
+  run as the latest, and the run counts only if its `completedAt` falls after
+  the activation grant; for a `verifyMetricRollupMonths` marker, the latest
+  run is read before the verify is sent and again before the switch, and both
+  reads must show the same terminal run, or none. No clocks are compared.
+  Between the evidence and the switch no other section 3.8 run is started,
+  advanced or abandoned, and no `verifyMetricRollupMonths` or
+  `rebuildMetricRollupMonths` call is made. Evidence is never carried
+  forward: if anything happened in between, or there is any doubt, fresh
+  evidence is taken. Run facts stay in PostgreSQL, so no record outside Thoth
+  is needed, and Sphinx keeps one invocation's evidence in memory only. A
+  `verifyMetricRollupMonths` outcome is returned to its caller and is not
+  stored; it survives only as the citation on the stage issue, so activation
+  should prefer a `VERIFY` run that reaches `RECONCILED`, whose run row stays
+  in PostgreSQL. The run id, frontier and time are cited on the stage issue as
+  the record of what was used, not as standing evidence. `VERIFIED` is never
+  sufficient; a `VERIFY` run reaching `RECONCILED` is enough on its own,
+  however the state was built. `MET-WP4-03B` serving activation and
+  downstream dashboard cutover remain prohibited while the tables are empty,
+  partially rebuilt or unreconciled; after activation, section 3.8 records
+  one exception, for post-activation repair. After a downgrade and
+  reapplication the same gate applies again, because normal completion
+  maintains only the months it subsequently touches, and reapplying takes
+  fresh evidence the same way.
 - **No native MONTH or REPORTING_PERIOD serving.** These projections are
   aggregations of resolved `DAY`-grain work-day rows. Canonical records of
   any other grain remain outside the work-day stream and are not projected
@@ -858,16 +887,18 @@ Scope boundaries a consumer must not infer:
   ambiguity state reached no API in `MET-WP4-03A`; their one reader is the
   `MET-WP4-03B` dashboard contract of section 4.2, which reads them and
   never writes them.
-- The only monthly maintenance surface is the pair of protected operations
-  of section 3.7: a read-only consistency verification and an exceptional,
-  self-verifying full rebuild. There is no repair, row-level patching or
-  generic full-projection reconciliation-ledger operation. No
-  `metric_rollup_work_month_state`, `metric_work_dimension` or secondary
-  index is implied.
-- Sphinx owns orchestration, including the initial/exceptional rebuild and
-  any periodic verification workflow, but never writes the Thoth database or
-  computes monthly projection values. Normal incremental maintenance and
-  every full rebuild remain Thoth-owned database operations. A verification
+- The monthly maintenance surfaces are the pair of protected operations of
+  section 3.7 (a read-only consistency verification and an exceptional,
+  self-verifying full rebuild) and the resumable run of section 3.8, whose
+  build steps replace only inexact ranges, each atomically, and whose pages
+  only verify. There is no row-level patching or generic full-projection
+  reconciliation-ledger operation. No `metric_rollup_work_month_state`,
+  `metric_work_dimension` or secondary index is implied.
+- Sphinx owns orchestration, including the initial/exceptional rebuild, the
+  section 3.8 runs and any periodic verification workflow, but never writes
+  the Thoth database or computes monthly projection values. Normal
+  incremental maintenance, every full rebuild and every section 3.8 step
+  remain Thoth-owned database operations. A verification
   mismatch must alert/HOLD rather than silently auto-rebuild; Thoth never
   invokes a rebuild on its own.
 
@@ -1029,13 +1060,17 @@ Contract properties consumers may rely on:
   allocation takes. Normal completion and allocation wait behind it, the
   rebuild commits at `W`, the waiting work resumes, and later completions
   maintain the affected months incrementally on top of the rebuilt state.
-  No maintenance mode, coordination table, queue, pause flag, scheduler or
-  process-wide mutex exists.
+  No maintenance mode, queue, pause flag, scheduler or process-wide mutex
+  exists. `MET-WP4-03A-OPS-03` adds exactly one coordination table,
+  `metric_rollup_month_rebuild_run`, for the caller-driven runs of section
+  3.8.
 - **Bounds are safety envelopes, not SLOs.** `MAX_REBUILD_MONTH_KEYS =
   100000`, chunk size 50, verification `statement_timeout = 30s`, rebuild
   `lock_timeout = 5s`, rebuild `statement_timeout = 30s`, total rebuild
   elapsed ceiling 120s. They are not raised silently; a larger corpus or a
-  different envelope needs a separately approved amendment.
+  different envelope needs a separately approved amendment. Above 100000
+  represented month keys, or once whole-table verification nears its 30 s
+  statement, the supported path is the resumable run of section 3.8.
 - **Positions and counts are strings.** Every 64-bit sequence, count and
   watermark position crosses GraphQL as a decimal `String`, never as the
   32-bit `Int`.
@@ -1084,6 +1119,764 @@ message carries a frontier value, row, SQL, principal or connection detail.
 A consumer that needs to classify these programmatically requires a
 separately specified stable error code.
 
+### 3.8 Resumable rebuild and paged verification (`MET-WP4-03A-OPS-03`)
+
+`MET-WP4-03A-OPS-03` (issue #1012) adds a resumable, caller-driven rebuild and
+a paged verification of the six derived rollup families (the four monthly
+tables of section 3.6 and the two yearly tables of section 4.2). Both work at
+any corpus size, in bounded steps that each commit on their own, while rollup
+completions and canonical ingestion keep running. A run records durable
+progress and ends in a durable terminal status. `RECONCILED` means a complete
+exact traversal at one recorded frontier, and it is the marker a
+serving-activation gate may cite (section 3.6). The section 3.7 pair is
+unchanged: its SDL, SQL text, bounds and behaviour. Thoth runs nothing on its
+own: there is no worker, queue, lease, scheduler or timer, and the caller
+drives every step.
+
+Object, created empty by migration `20261112_v1.10.0`, with no lock on any
+existing table:
+
+```text
+metric_rollup_month_rebuild_run
+  run_id uuid PK, mode (REBUILD | VERIFY), status (BUILDING | VERIFYING |
+  RECONCILED | VERIFIED | MISMATCHED | ABANDONED), step_count,
+  cursor_work_id, cursor_year_start, started_by (stored, never returned),
+  started_at, updated_at, build_completed_at, completed_at,
+  start_applied_through_sequence, build_* and verify_* counters and
+  first/last frontiers, verify_<family>_{expected,actual,missing,extra,mismatched}_rows
+  for the six families
+
+metric_rollup_month_rebuild_run_one_open_idx
+  UNIQUE ON ((true)) WHERE status IN ('BUILDING', 'VERIFYING')
+```
+
+Closed vocabularies are `CHECK`s. Nineteen `CHECK` constraints pin the row's
+shape: the cursor pair is both `NULL` or both set at a 1 January, and is `NULL`
+at `RECONCILED`, `VERIFIED` and `MISMATCHED`; `completed_at` is `NULL` exactly
+while the run is open; `BUILDING` only for `REBUILD`, with no verify counter or
+frontier yet; a `VERIFY` run has no build counter, frontier or
+`build_completed_at`; a `REBUILD` run past its build phase has
+`build_completed_at`, and that implies at least one step and both build
+frontiers; an abandoned `REBUILD` run that never finished building has no
+verify counter or frontier, while an abandoned `VERIFY` run keeps its pages;
+frontier pairs are both `NULL` or both set and never decrease
+(`start <= build_first <= build_last <= verify_first <= verify_last`, bridged
+when the build pair is `NULL`); every terminal verify status implies at least
+one page and both verify frontiers; `RECONCILED` implies equal verify
+frontiers and the 18 missing, extra and mismatched counts at zero, `VERIFIED`
+a moved frontier and the same zeros, `MISMATCHED` at least one non-zero count;
+`started_by` is not blank; every counter is non-negative and `step_count =
+build_steps + verify_pages`. There is no foreign key on the cursor: it is a
+position in unit order. `down.sql` drops the index and the table; no other
+table, column, index, trigger, function or enum changes.
+
+Operations, all on `MutationRoot`, all requiring exactly
+`METRICS_INGEST_SERVICE`, each authorized before any rollup-specific read,
+lock or write:
+
+```graphql
+startMetricRollupMonthRebuild(input: StartMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildRun!
+advanceMetricRollupMonthRebuild(input: AdvanceMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildAdvance!
+abandonMetricRollupMonthRebuild(input: AbandonMetricRollupMonthRebuildInput!): MetricRollupMonthRebuildRun!
+metricRollupMonthRebuildRun(runId: Uuid): MetricRollupMonthRebuildRun
+```
+
+```graphql
+enum MetricRollupMonthRebuildMode { REBUILD VERIFY }
+enum MetricRollupMonthRebuildStatus { BUILDING VERIFYING RECONCILED VERIFIED MISMATCHED ABANDONED }
+
+input StartMetricRollupMonthRebuildInput   { mode: MetricRollupMonthRebuildMode! }
+input AdvanceMetricRollupMonthRebuildInput { runId: Uuid! expectedStepCount: String! }
+input AbandonMetricRollupMonthRebuildInput { runId: Uuid! }
+
+type MetricRollupMonthRebuildFamilies {
+  total: MetricRollupMonthProjectionVerification!
+  country: MetricRollupMonthProjectionVerification!
+  institution: MetricRollupMonthProjectionVerification!
+  ambiguity: MetricRollupMonthProjectionVerification!
+  countryYear: MetricRollupMonthProjectionVerification!
+  institutionYear: MetricRollupMonthProjectionVerification!
+}
+
+type MetricRollupMonthRebuildBuildProgress {
+  steps: String!
+  replacedSteps: String!
+  units: String!
+  monthKeys: String!
+  workDayRows: String!
+  foundMissingRows: String!
+  foundExtraRows: String!
+  foundMismatchedRows: String!
+  firstAppliedThroughSequence: String
+  lastAppliedThroughSequence: String
+}
+
+type MetricRollupMonthRebuildVerifyProgress {
+  pages: String!
+  units: String!
+  monthKeys: String!
+  workDayRows: String!
+  firstAppliedThroughSequence: String
+  lastAppliedThroughSequence: String
+  singleFrontier: Boolean!
+  counts: MetricRollupMonthRebuildFamilies!
+}
+
+type MetricRollupMonthRebuildRun {
+  runId: Uuid!
+  mode: MetricRollupMonthRebuildMode!
+  status: MetricRollupMonthRebuildStatus!
+  stepCount: String!
+  positionPermille: Int!
+  startedAt: Timestamp!
+  updatedAt: Timestamp!
+  buildCompletedAt: Timestamp
+  completedAt: Timestamp
+  startAppliedThroughSequence: String!
+  build: MetricRollupMonthRebuildBuildProgress
+  verify: MetricRollupMonthRebuildVerifyProgress!
+}
+
+type MetricRollupMonthRebuildAdvance {
+  advanced: Boolean!
+  run: MetricRollupMonthRebuildRun!
+}
+```
+
+The authorization matrix is section 3.7's for all four operations: anonymous
+callers, `SUPERUSER`, `METRICS_READ_SERVICE`, publisher-scoped human roles,
+`DISSEMINATION_WORKER` and every other machine role are denied, and a denied
+call opens no transaction and issues no rollup-specific statement. No field on
+`QueryRoot` or on any public type reaches these types. `build` is `null` for a
+`VERIFY` run; `MetricRollupMonthProjectionVerification` is section 3.7's type,
+reused unchanged; the `counts` totals are sums over pages, which are not a
+snapshot total when pages saw different frontiers; `singleFrontier` is true
+when both verify frontiers are set and equal. `positionPermille` estimates the
+current phase's cursor position as `floor(first 32 bits of the cursor work id
+x 1000 / 2^32)`: 0 with no cursor mid-phase, 1000 at `RECONCILED`, `VERIFIED`
+and `MISMATCHED`, the retained cursor at `ABANDONED`; it is never a count. No
+cursor, work, platform, measure or principal identity is ever returned: only
+counts, frontiers, timestamps and the run's own id leave Thoth. The caller
+supplies no size, range, key, value or SQL; every budget is server-fixed.
+
+Definitions:
+
+- **Unit.** `(work_id, year_start)`, `year_start` the 1 January of a calendar
+  year. A row's unit is its `work_id` and the year of its `day`, `month_start`
+  or `year_start`. Units are ordered by `work_id` (PostgreSQL `uuid` order),
+  then `year_start`, and every comparison is made in SQL. Every row of the six
+  families and every work-day row belongs to exactly one unit, and every year
+  group `(work, platform, measure, year)` lies inside one unit.
+- **Range.** `(lo, hi]` in unit order: `lo` is the phase cursor or minus
+  infinity, `hi` a unit or plus infinity. A range covers every row of the six
+  families and of the work-day projection whose unit lies in it, orphans (rows
+  whose unit has no work-day row) included. The work-day range is the `(work_id,
+  day)` index range `> (lo work, 31 December of lo year)` and `<= (hi work, 31
+  December of hi year)`; a projection range uses `work_id` bounds, which every
+  identity index leads with, and a filter on the row's year.
+- **Frontier.** `applied_through_sequence` (`W`). `next_sequence - 1 > W` is
+  ordinary lag, never corruption.
+- **Exact range at `W`.** The six families restricted to the range equal what
+  the independent range verifier derives from the range's work-day rows
+  (identities, values, publication, country and institution identity,
+  dependency flags, ambiguity flags and row watermarks), and no derived row in
+  the range is watermarked above `W`.
+- **Step, page, hold.** A step is one committed build transaction and a page
+  one committed verify transaction; `stepCount` counts both. The hold is the
+  time from acquiring the state row to the end of the step's transaction.
+
+Run state machine:
+
+```text
+start(REBUILD) -> BUILDING (cursor NULL)
+BUILDING  --build step--> BUILDING (cursor advanced)
+BUILDING  --build step whose range reached plus infinity--> VERIFYING (cursor NULL, build_completed_at set)
+start(VERIFY) -> VERIFYING (cursor NULL)
+VERIFYING --page--> VERIFYING (cursor advanced)
+VERIFYING --page whose range reached plus infinity-->
+      RECONCILED  every missing/extra/mismatched count 0 and verify_first_frontier = verify_last_frontier
+      VERIFIED    every such count 0 and the frontier moved
+      MISMATCHED  any such count non-zero
+BUILDING or VERIFYING --abandon--> ABANDONED
+RECONCILED, VERIFIED, MISMATCHED and ABANDONED are terminal.
+```
+
+Contract properties consumers may rely on:
+
+- **Start.** One `READ COMMITTED` transaction under a 5 s `lock_timeout` and a
+  30 s `statement_timeout` reads the frontier without a lock and inserts the
+  run, recording the authenticated principal. A second open run violates the
+  one-open-run index and is refused `METRIC_REBUILD_RUN_OPEN`, so concurrent
+  first arrivals yield exactly one run. After a lost response the caller reads
+  `metricRollupMonthRebuildRun` and adopts the open run if its mode matches
+  and its `stepCount` is 0.
+- **Advance.** `expectedStepCount` must be a decimal string holding a
+  non-negative 64-bit integer, decided before any database access; otherwise
+  `METRIC_QUERY_INVALID`. An unlocked read of the run, in its own short
+  transaction under a 1 s lock and statement timeout, chooses the build step or
+  the verify page; an unknown run is `METRIC_QUERY_INVALID`, and a terminal run
+  or a different `step_count` returns `advanced: false` with the run
+  unchanged. The chosen transaction re-checks status and `step_count` under
+  its locks and writes nothing if either changed. A retry after a lost
+  response is therefore safe.
+- **Abandon.** `READ COMMITTED`: it locks the run row under the 5 s
+  `lock_timeout`, sets `ABANDONED` and `completed_at` if the run is open, and
+  otherwise returns it unchanged; an unknown run is `METRIC_QUERY_INVALID`.
+  Against an in-flight step or page it waits for it, or returns
+  `METRIC_REBUILD_RETRYABLE`. The cursor, counters and frontiers are kept, and
+  the projections stay exactly as the committed steps left them.
+- **Status read.** `metricRollupMonthRebuildRun(runId)` returns that run or
+  `null`. Without `runId` it returns the open run when one exists, otherwise
+  the run with the greatest `started_at` (set by the run's insert; ties broken
+  by `run_id`), or `null`, so a `RECONCILED` run stops being the latest once any
+  later run starts. It is read-only, under the dispatch read's 1 s lock and
+  statement timeouts.
+- **One connection, bounded checkout.** Each operation checks out exactly one
+  pooled connection with a 2 s bounded wait; an advance runs its dispatch read
+  and its step or page on that connection. An expired wait is
+  `METRIC_REBUILD_RETRYABLE`. Counted from the start of the resolver, an
+  advance ends on the server within about 15 s for a step and about 18 s for a
+  page.
+- **Per-statement deadline.** Every transaction asserts its isolation level
+  and fails closed on a mismatch. Before each statement inside a budget it runs
+  `SET LOCAL statement_timeout = <ms>`, an integer the code computes: the
+  smaller of 30,000 and the milliseconds left in the current budget, with a
+  floor of 1. A check between statements refuses the next one once the budget
+  is spent, and the timeout also cuts lock waits. Steps and pages also set
+  `idle_in_transaction_session_timeout = '2s'`, so a stalled API process holds
+  nothing longer than its budget plus 2 s.
+- **Build step (`BUILDING`, `READ COMMITTED`).** Three consecutive budgets:
+  `STEP_PRESIZE_BUDGET` before any row lock, `STEP_LOCK_BUDGET` from the first
+  work-row lock until the state row is held, `STEP_HOLD_BUDGET` from the
+  state-row lock to the end of the transaction. In order: session settings
+  (`lock_timeout = '5s'`, `statement_timeout = 30000`, the idle timeout,
+  `plan_cache_mode = force_custom_plan`); pre-size from the cursor without the
+  state lock; lock the candidate range's works with one `SELECT ... FOR KEY
+  SHARE` in ascending `work_id` order (canonical ingestion's own order); lock
+  `metric_rollup_work_day_state` `FOR UPDATE` and read `W` (the hold starts);
+  lock the run row `FOR UPDATE` and re-check it; re-size under the locks,
+  admitting only units whose work is locked, ending the range before the first
+  unit that needs an unlocked work (an empty re-size is
+  `METRIC_REBUILD_RETRYABLE`); pre-verify the range at `W` with the range
+  verifier. If the range is exact, no projection row is written. Otherwise the
+  step deletes every row of the six families in the range (each family's
+  deleted count must equal the pre-verify's actual count), lists the range's
+  month keys from the `(work_id, day)` range, and recomputes them with the
+  completion's own statements, issued one at a time in the completion's order
+  and with its binds: per chunk of at most 50 month keys the source-watermark
+  bound and the four monthly inserts, then per chunk of at most 50 year keys
+  the country-year and institution-year inserts. It skips the completion's six
+  keyed deletes, which the range delete has made provably empty, and calls no
+  completion function. It then post-verifies the range and commits only an
+  exact result. The run row advances its cursor to the range's last unit, or at
+  plus infinity clears it, sets `VERIFYING` and `build_completed_at`; it adds
+  the step's counters and the pre-verify's found counts, and records the build
+  frontiers. A step never writes `metric_rollup_work_day`, a delta, the state
+  row, a canonical record or revision, or a reconciliation-ledger row, never
+  moves the frontier and never truncates or takes `ACCESS EXCLUSIVE`.
+- **Verify page (`VERIFYING`, `REPEATABLE READ`).** Only `SET LOCAL`
+  statements precede its table locks (`statement_timeout` = the page budget in
+  milliseconds, `lock_timeout = '5s'`, the idle timeout, `plan_cache_mode`);
+  then `LOCK TABLE` of the six projection tables in section 3.7's fixed order,
+  `metric_rollup_work_day` and `metric_rollup_work_day_state`, each `IN ACCESS
+  SHARE MODE`, all before the first query, so a concurrent section 3.7
+  `TRUNCATE` or a table-rewriting migration cannot cross the snapshot. The
+  isolation assertion is the first query and freezes the snapshot. The run row
+  is locked `FOR UPDATE`; a run row updated after the snapshot is a
+  serialization failure, `METRIC_REBUILD_RETRYABLE`. The page reads `W`
+  without a lock in the same snapshot, sizes itself with the page budgets,
+  verifies its range and updates only the run row: cursor, counters, per-family
+  counts and frontiers, and at plus infinity the terminal status. A page takes
+  no state-row or work-row lock and writes nothing but the run row. The page
+  budget runs from the first `LOCK TABLE` to the end of the transaction.
+- **Independent range verifier.** One statement in `verification.rs` applies
+  section 3.7's generic rules (mask-set resolution by anti-join minimality,
+  the Amendment 6 totals, the yearly state derived straight from work-day
+  rows) to one range's work-day rows and actual rows. It returns section 3.7's
+  five counts per family, the greatest actual watermark per family and the
+  range's work-day row and month-key counts. It shares no SQL text, constant or
+  macro with the writer. Its bounds are bind parameters, and every predicate is
+  index-bounded by `work_id`. The rendered text of section 3.7's whole-table
+  verification statement is byte-identical, pinned by a hash test.
+- **Exactness invariants.** Assuming no out-of-band write reaches the
+  projection or work-day tables: after a step commits with cursor `c`, every
+  later committed state is exact on `(minus infinity, c]` at its own frontier
+  (I1; this and `VERIFIED` also assume the completion's keyed recomputation is
+  correct). Beyond the cursor nothing is claimed until its step (I2). A
+  committed step either replaces a range with an exact one in one transaction
+  or leaves it untouched; readers never wait for a step and see each range
+  before or after it, never half-replaced; a range changes only if it was
+  inexact (I3). Runs never write work-day rows, deltas, the state row,
+  canonical rows or reconciliation ledgers and never move the frontier; pages
+  write only the run row; a `VERIFY` run never writes a projection row (I4). A
+  phase that reaches plus infinity tiles the whole unit space without gap or
+  overlap, and every orphan lies in exactly one range (I5). `RECONCILED` proves
+  the six families exact at one `W` as of the last page's snapshot, without the
+  completion assumption: every page saw the same `W`, so no completion
+  committed during the traversal and no step ran. `VERIFIED` proves each range
+  exact at its own frontier and is health evidence only (I6).
+- **Concurrency.** Canonical ingestion takes works `FOR UPDATE` and then the
+  state row, the order a step uses; a direct wait behind a step is at most 7 s
+  on a work row (`STEP_LOCK_BUDGET + STEP_HOLD_BUDGET`) and at most 5 s on the
+  state row, each plus commit time, and under the pacing rule below a step adds
+  at most about 12 s to any ingestion statement, leaving at least 18 s of its
+  30 s statement timeout. Completions, claims and allocation serialize with
+  steps on the state row and are not blocked by pages; a completion's
+  foreign-key `FOR KEY SHARE` on works is compatible with a step's. Section
+  3.7's rebuild serializes with steps on the state row, and its `TRUNCATE`
+  waits for a page's `ACCESS SHARE`. Section 3.7's verification and the
+  dashboard and widget reads are never blocked by a step or a page. A second
+  caller on the same step gets `advanced: false` (or `RETRYABLE` if its lock
+  budget runs out first); on the same page it gets `RETRYABLE`.
+- **Lock order.** Step: works `FOR KEY SHARE` (ascending), the state row, the
+  run row, then `ROW EXCLUSIVE` on the projection tables with their
+  foreign-key `FOR KEY SHARE` on publication, platform, measure and
+  institution. Page: the eight tables in `ACCESS SHARE`, then its run row. A
+  step adds no lock-order edge and never waits for a work while holding the
+  state row. The completion's pre-existing order (state row before its
+  foreign-key lock on works) is unchanged; a step never deadlocks with
+  ingestion unless that completion inversion is live.
+
+Bounds, server-fixed in `metric_rollup_delta/mod.rs`; changing any needs an
+amendment with evidence:
+
+```text
+STEP_PRESIZE_BUDGET         5 s    (pre-sizing, before any row lock)
+STEP_LOCK_BUDGET            2 s    (first work-row lock until the state row is held)
+STEP_HOLD_BUDGET            5 s    (state-row hold, enforced per statement)
+STEP_MAX_MONTH_KEYS         1,000
+STEP_MAX_WORK_DAY_ROWS      8,000      (budget amendment R11; was 50,000)
+STEP_MAX_REPLACING_READ     600,000    (budget amendment R11; was 4,000,000; replacing-read figure of a
+                                       step; provisional, F4 confirms)
+STEP_CHUNK_KEYS             50     (= the section 3.7 chunk; months and years)
+SIZING_BATCH_WORKS          256    (works per sizing statement)
+PAGE_BUDGET                 15 s   (from LOCK TABLE to commit, enforced per statement)
+PAGE_MAX_MONTH_KEYS         10,000
+PAGE_MAX_WORK_DAY_ROWS      150,000    (budget amendment R11; was 500,000)
+lock_timeout                5 s    (run row, LOCK TABLE, start and abandon)
+statement_timeout ceiling   30 s
+dispatch and status reads   1 s    (lock_timeout and statement_timeout)
+pool checkout               2 s    (every operation, one connection)
+```
+
+- **Sizing.** One recursive sizing statement walks forward from the cursor
+  work by work (the next `work_id` by `ORDER BY work_id LIMIT 1` over the
+  `(work_id, day)` index, then that work's counts through an index range on
+  that work alone), carrying running totals, and stops after the first work
+  that fills a budget or after `SIZING_BATCH_WORKS` works. Whole works are
+  taken while they fit; if the first work alone exceeds a budget, one more
+  statement returns its per-year counts and the range takes its years while
+  they fit; at least one unit is always taken. Another sizing statement is
+  issued only when the batch limit stopped the walk with budgets unfilled.
+- **Replacing-read figure.** The sum of a month term (over the step's
+  work-months, the month keys of that work-month times the work's work-day rows
+  in that month) and a year term (over the step's year keys, the work's total
+  work-day rows across its whole history, years before the cursor included).
+  Sizing computes it from the same per-work counts, and
+  `STEP_MAX_REPLACING_READ` is a third step budget beside keys and rows. Every
+  build step is sized by it, so units that each fit cannot add up past it.
+- **What a replacing step costs.** Besides the figure, a replacing step pays
+  per work-day row: each row is written into every monthly and yearly section
+  row it reaches, and every section row runs its foreign-key checks, which
+  `STEP_MAX_WORK_DAY_ROWS` bounds. The five keyed month statements reach the
+  work-day rows through the identity index bounded by `work_id` alone, so each
+  month key walks its work's whole history: the walk, month keys x whole-work
+  rows, at most 12 times the year term. The pre-verify, range delete,
+  post-verify and re-size read the work's whole history once per step.
+- **The F4 line.** "Max of hold / fill <= 4 s in each mix", where fill is the
+  smaller of the step's row fill (its work-day rows over
+  `STEP_MAX_WORK_DAY_ROWS`) and its figure fill (its figure over
+  `STEP_MAX_REPLACING_READ`), shows that every admitted step of at least the
+  mix (a) corner's series count commits inside `STEP_HOLD_BUDGET` (fewer
+  series: Limits below). It rests on these assumptions: the hold is close to
+  linear in the step's work-day rows, its walk and its whole-work rows, at
+  per-row costs that F4's density (a distinct country and institution on
+  nearly every row) makes the dearest; the reads outside the figure stay near
+  F4's, bounded by the whole-work threshold below; the dearest step is a
+  repair step over fully built tables (measured); in exact state each section
+  table holds at most one row per work-day row; and the evidence host stands
+  in for production's, whose behaviour each run grant judges again. The
+  admitted steps peak near two corners, each with the rows at
+  `STEP_MAX_WORK_DAY_ROWS` and the figure full: mix (a), few series over a
+  long history, with the whole-work rows at the threshold T (about
+  600,000 / (8,000 + T) series); and mix (b), one year of history, whole-work
+  rows 8,000, the terms equal at about 38 month keys per work-month. Each
+  corner's hold in repair is predicted statement group by statement group
+  from the per-statement profiles of the replacing steps: the walk (the month
+  watermark, ambiguity and total inserts, charged at 5/3 for all five keyed
+  month statements), the inserts (the two month section inserts less the walk
+  charged to them, and the two year inserts), the verify (pre-verify, range
+  deletes, post-verify and the re-size with its per-year sizing) and the rest
+  of the hold. Each group is fitted by non-negative least squares against its
+  own drivers (walk and inserts and verify on the first repair pass of each
+  F4 class, the rest on the from-empty replacing steps of F2, F3, F4 and F7),
+  at the larger of the largest measured statement count and that of a step at
+  `STEP_MAX_MONTH_KEYS`; both predictions must be at most 4.5 s. A six-term
+  pooled fit is reported for information only. Dead entries left until vacuum
+  are reported, not accepted against.
+- **Floor.** One work-year carrying every (platform, measure) pair of the
+  production registry (every pair, enabled or not), each at F2's density over
+  twelve months, with eight years of history, must have a figure within
+  `STEP_MAX_REPLACING_READ`. Its figure is computed at F2's measured rows per
+  key, as the evidence prints it: about 3,402 R^2 for R pairs at
+  F2's 31.5 rows per key (Evidence below), so 600,000 admits
+  R <= 13. The production pair count comes from the census's counts-only read
+  or a separately authorized read, never from the `MET-WP4-03A-OPS-03`
+  implementation grant, and is stated on the stage issue before the evidence
+  is commissioned; above 13 the stage HOLDs for an amendment. While
+  production's registry is not yet populated, the floor is also judged on the
+  pair count of the legacy history to be imported, or on a planned registry
+  the CTO states. Every `REBUILD` run grant reports the registry pair count
+  against the floor (Operator procedure below).
+- **Whole-work threshold T.** The largest whole-work row total among the F4
+  replacing steps that committed within 4 s and F5's units within 4 s (every
+  build and repair step of the level; Evidence below), every one at F4's
+  density. If mix (a)'s second history length alone misses the F4 line or the
+  page line, T is taken only from the F4 classes whose steps met the F4 line
+  and whose pages met the page line, not from F5. T must be at least F3's
+  whole-work total (the census maximum) and at least production's largest
+  whole-work total; otherwise the stage HOLDs for an amendment. Production's
+  total, like the pair count, comes from the census's counts-only read or a
+  separately authorized read, never from the implementation grant; if
+  production does not yet hold the legacy history, F3's total is the floor.
+  The run-grant aggregate stays the binding check.
+- **Limits.** No corpus-size ceiling: run time scales with the corpus and is
+  reported, not bounded. A single unit above a size budget is still attempted
+  alone; it is a HOLD only if it cannot finish inside `STEP_HOLD_BUDGET`, and
+  then it fails the same step on every retry. F5's growths measure the
+  largest units whose every step, build and repair alike, commits within
+  4 s, which may be above the budgets. A step of several light years of one
+  work with fewer series than
+  the mix (a) corner's can have the corner's figure and walk while its walk
+  costs more per entry; it is inside every budget, so the run-grant aggregate
+  cannot see it. It needs a work with several light years before a heavy
+  history, and it fails safe: a step that cannot finish inside
+  `STEP_HOLD_BUDGET` is refused on every retry, the HOLD above. F4's mix (c)
+  measures it, report only; it is not gated. A range whose orphan deletion
+  cannot finish is the same HOLD. None of these is resolved by a silent
+  constant change or a new index.
+
+Section 17 evidence that sets or confirms these values: see "Evidence" below.
+
+Errors: a local error boundary with fixed messages and a stable
+`extensions.type`. No message carries a frontier, row, SQL, principal, cursor
+or connection detail, and `thoth-errors` is unchanged.
+
+| Code | When | Caller action |
+| --- | --- | --- |
+| `METRIC_QUERY_INVALID` | A malformed `expectedStepCount`, or an unknown `runId`. | Fix the request. |
+| `METRIC_REBUILD_RUN_OPEN` | `start` while a run is open. | Adopt the run, or let it finish or abandon it. |
+| `METRIC_REBUILD_RETRYABLE` | A lock timeout, a statement timeout, the step or page budget, a serialization failure, a deadlock, a session ended by the idle timeout or a closed connection, an expired 2 s pool checkout, or an empty re-sized range. Nothing was committed. | Back off at least 1 s in either phase, and while `BUILDING` at least the pacing pause; retry with the same `expectedStepCount` a bounded number of times, then HOLD. |
+| `METRIC_REBUILD_BLOCKED` | A work-day row in the range watermarked above `W`, a source watermark above `W`, a `bigint` overflow, a delete-count mismatch, or a post-step verification that is not exact. Nothing was committed, and it will repeat. | HOLD for a separately authorized repair. |
+| `INTERNAL_ERROR` | Anything else. | HOLD. |
+
+The classifier works on the database error before any conversion: SQLSTATE
+40001 (serialization failure) and a closed connection are retryable; the
+server messages `canceling statement due to lock timeout`, `canceling
+statement due to statement timeout`, `deadlock detected` and `terminating
+connection due to idle-in-transaction timeout` are matched exactly and are
+retryable; a unique violation on the one-open-run index is
+`METRIC_REBUILD_RUN_OPEN`; `bigint out of range` is `METRIC_REBUILD_BLOCKED`;
+anything unclassified is `INTERNAL_ERROR`, so a misclassification fails safe
+as a HOLD and never causes a write. Exact matching assumes English server
+messages (`lc_messages`), which the tests assert and every run grant checks.
+After a crash, a deploy or a lost response the caller reads the run and
+continues with its `stepCount`: committed steps and pages are durable and an
+interrupted one rolled back.
+
+Logging: one `info` line per committed step or page, one `warn` line per
+refusal, with fixed text (`metric_rollup_rebuild run=<uuid> mode=... phase=...
+step=<n> outcome=<replaced|exact|verified> units=... month_keys=...
+work_day_rows=... missing=... extra=... mismatched=... frontier=<W>
+position_permille=... hold_ms=...`; a range line `range_first=<work_id>/<year>
+range_last=<work_id>/<year>` only when a count is non-zero; a refusal line
+`refused=<RETRYABLE|BLOCKED|INTERNAL> reason=<fixed reason id>
+range_first=... hold_ms=...`; and one line per terminal status with the step
+count and both verify frontiers). Range identities go to server logs only,
+never to GraphQL.
+
+Operator procedure:
+
+- **Run grants and the run-grant aggregate.** Every non-disposable run needs
+  its own grant per environment, and every run grant checks `lc_messages`.
+  Each `REBUILD` run grant first runs the read-only aggregate below over
+  `metric_rollup_work_day` (counts only, a full scan, once per grant), in a
+  `READ ONLY` transaction with a `statement_timeout` stated in the grant,
+  through a read-only database session, never through a test command. It runs
+  the constant `METRIC_ROLLUP_RUN_GRANT_AGGREGATE_SQL` from the merged source
+  at the deployed tag. Taking each unit alone, it returns the units that exceed
+  a step budget (rows, keys or figure), each with its work-day rows, month keys
+  and replacing-read figure, and two maxima on every row: the largest
+  month-key count per work-month and the largest whole-work row total (one row
+  with `NULL` unit columns when no unit exceeds a budget). A unit over a step
+  budget passes only if one of F5's growths (Evidence below) dominates it in
+  all four of rows, keys, figure and whole-work rows; otherwise it is a HOLD
+  before the run starts, as a precaution. For whole-work rows the growth's
+  whole-work total must be at least the smaller of the environment's largest
+  whole-work total and 12 x the unit's figure divided by its month keys, both
+  from the aggregate's output (a unit's whole-work rows are at most its figure
+  divided by its year keys, and it has at least one year key per 12 month
+  keys). A unit within every step budget is not compared with F5; F4 covers
+  it. A month-key count per work-month above the k that F4's mix (b) reached,
+  or a whole-work total above the whole-work threshold, is a HOLD too. A
+  `VERIFY` run never replaces, so the check does not apply to it. Every run
+  grant also reports the database's collation and its collation provider
+  beside the aggregate, and every `REBUILD` run grant reports the registry
+  pair count (every pair, enabled or not) against the floor; above 13 it is a
+  HOLD for an amendment. Both are read-only reads. The step budgets are bind
+  parameters, bound by the grant to the bounds above:
+  `$1` = 8000 (`STEP_MAX_WORK_DAY_ROWS`),
+  `$2` = 1000 (`STEP_MAX_MONTH_KEYS`) and
+  `$3` = 600000 (`STEP_MAX_REPLACING_READ`).
+  A test compares this quotation and these values with the constants, and
+  another asserts that the aggregate returns exactly the units sizing finds
+  over a step budget on every fixture.
+
+```sql
+WITH series_month AS (
+    SELECT r.work_id, r.platform_id, r.measure_id,
+           date_trunc('month', r.day)::date AS month_start,
+           count(*) AS rows
+    FROM public.metric_rollup_work_day r
+    GROUP BY r.work_id, r.platform_id, r.measure_id, date_trunc('month', r.day)
+),
+work_month AS (
+    SELECT work_id, month_start,
+           count(*) AS month_keys,
+           SUM(rows) AS rows
+    FROM series_month
+    GROUP BY work_id, month_start
+),
+work_year AS (
+    SELECT work_id, date_trunc('year', month_start)::date AS year_start,
+           SUM(rows) AS rows,
+           SUM(month_keys) AS month_keys,
+           SUM(month_keys * rows) AS month_term
+    FROM work_month
+    GROUP BY work_id, date_trunc('year', month_start)
+),
+year_keys AS (
+    SELECT work_id, date_trunc('year', month_start)::date AS year_start,
+           count(DISTINCT (platform_id, measure_id)) AS year_keys
+    FROM series_month
+    GROUP BY work_id, date_trunc('year', month_start)
+),
+whole_work AS (
+    SELECT work_id, SUM(rows) AS rows
+    FROM work_year
+    GROUP BY work_id
+),
+sized AS (
+    SELECT y.work_id, y.year_start,
+           y.rows::bigint AS work_day_rows,
+           y.month_keys::bigint AS month_keys,
+           (y.month_term + k.year_keys * w.rows)::bigint AS replacing_read_figure
+    FROM work_year y
+    JOIN year_keys k ON k.work_id = y.work_id AND k.year_start = y.year_start
+    JOIN whole_work w ON w.work_id = y.work_id
+),
+maxima AS (
+    SELECT (SELECT COALESCE(MAX(month_keys), 0) FROM work_month)::bigint
+               AS max_month_keys_per_work_month,
+           (SELECT COALESCE(MAX(rows), 0) FROM whole_work)::bigint
+               AS max_whole_work_rows
+)
+SELECT s.work_id, s.year_start, s.work_day_rows, s.month_keys, s.replacing_read_figure,
+       m.max_month_keys_per_work_month, m.max_whole_work_rows
+FROM maxima m
+LEFT JOIN sized s
+  ON s.work_day_rows > $1 OR s.month_keys > $2 OR s.replacing_read_figure > $3
+ORDER BY s.work_id, s.year_start
+```
+
+- **Activation window.** Activation (section 3.6) runs under its own grant,
+  which names the evidence run and is its run grant. From taking the evidence
+  to switching serving on, no other run of this section is started, advanced
+  or abandoned, and no `verifyMetricRollupMonths` or
+  `rebuildMetricRollupMonths` call is made; ad hoc section 3.7 tasks are not
+  run. The invocations that advance the evidence run (a `VERIFY` run may span
+  several) and read-only status reads are allowed, among them the latest-run
+  check of section 3.6, made immediately before the restart that switches
+  serving on.
+- **Rules while a run is open.** One orchestrator per environment. No section
+  3.7 rebuild. No deployment whose migrations need `ACCESS EXCLUSIVE` on the
+  six tables, `metric_rollup_work_day` or `metric_rollup_work_day_state`: it
+  would queue behind a page's `ACCESS SHARE` and then block readers and
+  completions.
+- **Pacing.** After every advance call made while the run is `BUILDING`,
+  whatever its outcome (advanced, `advanced: false`, any refusal or a
+  transport error), the orchestrator pauses at least `max(1 s, 2 x the elapsed
+  time of that call)`, and a `RETRYABLE` back-off is never shorter. After a
+  transport error or client timeout, in either phase, it pauses at least 25 s,
+  because the server transaction can outlive the call; it also pauses 25 s
+  before the first advance of every invocation, and its client timeout is at
+  least 30 s. This keeps the state row and the step's works free at least two
+  thirds of the time. Pages need no pause.
+
+```text
+REBUILD (initial population or repair):
+ 1. metricRollupMonthRebuildRun -> no open run (or abandon a stale one, with a reason recorded).
+ 2. startMetricRollupMonthRebuild(REBUILD) -> runId, stepCount 0.
+ 3. loop: advanceMetricRollupMonthRebuild(runId, stepCount), with pacing
+      advanced=true  -> continue with run.stepCount
+      advanced=false -> re-read; continue if open, stop if terminal
+      RETRYABLE      -> back off (at least 1 s, and the pacing pause while BUILDING), retry the
+                        same stepCount; HOLD after the bounded attempts
+      BLOCKED / INTERNAL_ERROR -> stop, HOLD, alert. The run stays open at its cursor. Record the
+                                  refusal, abandon the run, and escalate. A new run blocks at the
+                                  same range until a separately authorized repair.
+ 3a. Schedule build invocations clear of the daily collection run where possible. Steps that
+     meet a long ingestion batch or completion refuse RETRYABLE and are retried under pacing.
+ 4. Run the verify phase in a window with no rollup application, for example after the
+    daily rollup run has finished and well before the next one. Then the frontier does not
+    move and the run can end RECONCILED.
+ 5. RECONCILED -> exact at one frontier. For activation, the evidence is taken in the
+                  activation window and used at once (section 3.6); a RECONCILED run is never
+                  carried forward as standing evidence.
+    VERIFIED   -> healthy, but not activation evidence. Repeat as a VERIFY run in a quiet window.
+    MISMATCHED -> HOLD. Incident: maintenance disagreed with the verifier. Never auto-rebuild.
+
+VERIFY (health check or activation evidence): the same loop with mode VERIFY. It writes no
+projection row. Once verifyMetricRollupMonths nears its 30 s envelope, periodic health checks
+move to VERIFY runs.
+
+Stop: abandonMetricRollupMonthRebuild(runId). This is safe at any time (I3).
+```
+
+- **Repair after activation.** After activation, a section 3.8 `REBUILD` may
+  repair inexact ranges while readers stay on. Each range changes atomically
+  from inexact to exact, no exact range is rewritten, and readers never wait
+  for a step. Readers may see repaired and unrepaired ranges side by side until
+  the run ends. This records an exception, for post-activation repair only, to
+  the rule that serving never sees a partially rebuilt state (issue #1012 and
+  section 3.6); its "at least as correct" rests on I1, and so on the
+  completion assumption.
+
+Evidence (section 17 of the specification; raw numbers in the implementation
+report, section 10.7):
+
+- **Host.** One local evidence host, 4 CPUs and 15 GiB RAM, with CI's
+  PostgreSQL major version (17): 17.10 built from the official release
+  source with distribution compiler and linker flags (-O2, link-time
+  optimisation, hardening, ICU, LLVM, no assertions), a cluster in UTF8 with
+  the C.UTF-8 locale and the libc provider, `jit` off and every other setting
+  at its default (`shared_buffers` 128 MB). Round trip 0.1 ms. Every value
+  below holds for this host; production's behaviour is judged again at each
+  run grant.
+- **Outcome.** Every gated section 17 line was met under the budgets above,
+  with no budget refusal in any gated pass: the hold and page lines of F1,
+  F2, F3 and F7, F4's page line and the F4 line in each of its classes, the
+  statement-group prediction at both corners, the `EXPLAIN` line, F2's
+  corruption cycle, F1's exactness and every F6 line. Mix (c) and F5 are
+  report only.
+- **F1, F2, F3 and F7.** No pass had a budget refusal. Replacing-step hold
+  p95: F2 862 ms from empty and 950 ms in its repair run (F2's and F3's
+  ranges), F3 1,399 ms, F7 325 ms, F1 509 ms, against 3 s. Non-replacing-step
+  hold p95: F2 102 ms, F3 163 ms, F7 49 ms, F1 87 ms, against 2 s. Verify page
+  time p95: F2 1,602 ms, F3 1,661 ms, F7 457 ms, F1 1,553 ms, against 5 s.
+  F2's from-empty `REBUILD` of 509,696 month keys took 2,045 s (249 keys per
+  second).
+- **F4 (`STEP_MAX_REPLACING_READ`).** Every F4 row carries a country and an
+  institution distinct within its key-month, so each work has as many
+  country and institution month rows as work-day rows. Mix (a): two works of
+  8 series x 80 rows per key-month over eight years (61,440 rows each); row
+  fill 0.960, figure fill 0.922; max hold / fill 2.94 s from empty and 3.27 s
+  in the first repair pass. Its second history length: two works of 5 series
+  x 128 rows per key-month over fourteen years (107,520 rows each); fill
+  0.960; 3.47 s and 3.81 s. Mix (b): eight works of k = 39 series x 16 rows
+  per key-month over one year (7,488 rows each); row fill 0.936, figure fill
+  0.973; 2.55 s and 2.61 s. Every class met the F4 line (at most 4 s) with no
+  refusal, and its verify pages met the page line (p95 at most 2.75 s). Every
+  F4 step was a full step: hold up to 3.66 s against `STEP_HOLD_BUDGET`.
+- **Statement groups and corners.** Non-negative least squares per group:
+  the walk, 1.70e-4 ms per (month key x whole-work row) and 3.21e-4 ms per
+  (work-month x whole-work row); the inserts, 0.169 ms per work-day row; the
+  verify, 0.0353 ms per work-day row and 1.33e-3 ms per whole-work row (these
+  three on the first repair pass of the F4 classes, 52 steps); the rest,
+  11.5 ms plus 0.100 ms per statement and 1.05e-4 ms per whole-work row (on
+  2,613 from-empty replacing steps of F2, F3, F4 and F7). At 332 statements
+  (the largest measured; a step at `STEP_MAX_MONTH_KEYS` has 320), 8,000
+  work-day rows and the figure full, the predicted hold in repair is 3.38 s
+  at the mix (a) corner (T = 107,520 whole-work rows, 5.19 series) and 2.33 s
+  at the mix (b) corner (37.5 month keys, 8,000 whole-work rows), against
+  4.5 s. The six-term pooled fit (2,756 steps, information only): 2.34 ms per
+  statement, 3.42e-3 ms per month-term row, 2.94e-3 ms per year-term row and
+  0.0117 ms per whole-work row, nothing as intercept or per work-day row;
+  absolute residuals median 43 ms, max 629 ms.
+- **Floor.** F2's density is 31.5 work-day rows per key, so the floor's
+  figure is 3,402 R^2 and 600,000 admits R <= 13 (574,879 at R = 13). It is
+  judged against the production pair count, from the read named under
+  "Floor" above.
+- **Month keys per work-month.** F4's mix (b) reached k = 39, the k every run
+  grant compares with.
+- **Whole-work threshold.** 107,520 rows, from mix (a)'s second history
+  length, which met the F4 line and the page line; F5's largest unit within
+  4 s, build and repair steps alike, had a whole-work total of 84,480 rows
+  (growth 3). It is above F3's
+  whole-work totals (56,907 to 56,912 rows), the census maximum. It must
+  also cover production's largest whole-work total, from the read named under
+  "Whole-work threshold T" above.
+- **F5's growths** (at F4's density, embedded in F2, each level's growth
+  work first in run order; every level built, then repaired over fully built
+  tables). The largest unit at which every step of the level, build and
+  repair alike, committed within 4 s, per growth: (1) 39 series, one year of
+  history, 27 rows per key-month: 12,636 rows, 468 month keys, figure
+  985,608, whole-work 12,636 rows, holds up to 3.86 s, sizing 21 ms; (2) 39
+  series, eight years, 7 rows per key-month: 3,276 rows, 468 keys, figure
+  1,149,876, whole-work 26,208 rows, holds up to 3.76 s, sizing up to 66 ms;
+  (3) F3's four series, eight years, 220 rows per key-month: 10,560 rows, 48
+  keys, figure 380,160, whole-work 84,480 rows, holds up to 3.47 s, sizing
+  up to 169 ms. The next level measured above each (28, 8 and 260 rows per
+  key-month) had a step above 4 s (4.12 s in repair, 4.73 s in repair and
+  4.24 s in build). This reading is stricter than section 17's, which judges
+  repair steps only: at growth 3's top levels the build step was the dearer.
+  On repair steps alone growth 3 reached 261 rows per key-month (12,528
+  rows, figure 451,008, whole-work 100,224 rows, repair holds up to 3.89 s,
+  its build steps up to 4.45 s).
+- **Mix (c)** (report only). A work of one series (ten light years at 67
+  rows per key-month before twelve heavy years at 625; 98,040 rows) and one
+  of two series (33 before 312; 97,776 rows), measured after every gated
+  pass, with no refusal. The one-series work's step of six light years
+  (4,824 rows, figure 593,064) held 4.52 s from empty and 4.44 s in repair,
+  with a walk of 461 to 494 ns per (month key x whole-work row), about twice
+  F4's; the two-series work held at most 3.59 s. Both are inside
+  `STEP_HOLD_BUDGET`.
+- **F6 (concurrency).** Run on the whole of F2 with its F3 and F4 works. A
+  `REBUILD` from empty under the production budgets, paced by the pacing
+  rule above, with two overlapping `DAY` ingestion streams, claims and
+  completions running throughout its build phase: no ingestion or completion
+  failure and no deadlock; the longest wait attributable to a step was 3.5 s
+  on the state row (p95 1.0 s), 1.0 s on a work row and 3.5 s with a step
+  anywhere in the blocking chain, against bounds of 6, 8 and 13 s; without a
+  run the same workload waited at most 0.2 s. The build phase (2,513 steps,
+  5,916 s) had no refusal, so its longest run of consecutive refusals is 0,
+  and the verify phase ended `RECONCILED`.
+- **`EXPLAIN`.** On a median replacing range of F2, F3 and each F4 class, after
+  ANALYZE, no statement read `metric_rollup_work_day` or a projection table
+  by a sequential scan (every table held rows), and sizing,
+  `RANGE_MONTH_KEYS_SQL`, the range deletes and the range verifier were led
+  by `work_id`. No plan used JIT. About 2% of F2's month keys carried an
+  ambiguity row (10,022), and all 200 scattered corruptions applied; `VERIFY`
+  found each and the repair `REBUILD` reached `RECONCILED`.
+
+Scope boundaries a consumer must not infer:
+
+- The run row is a maintenance cursor, not a job, attempt or event: Thoth runs
+  nothing asynchronously, and every step is a synchronous request from the
+  orchestrator. There is no generic job framework, lease or cross-programme
+  claim protocol.
+- Section 3.7's pair stays the fast path for small corpora. It is not run
+  while a run of this section is open. Above 100000 represented month keys, or
+  once whole-table verification nears its 30 s statement, the supported path
+  is this section.
+- A mismatch never starts a rebuild, and Thoth never advances a run on its
+  own. `VERIFIED` is never activation evidence.
+- Every run fact lives in PostgreSQL. The orchestrator keeps one invocation's
+  evidence in memory only, and needs no durable state of its own.
+- Merging this contract activates nothing. The consumer and infrastructure
+  stages, every non-disposable run, deployment and activation remain
+  separately authorized gates.
+
 ## 4. Dashboard/widget
 
 Thoth owns entity metrics, dashboard/widget operations and registry queries.
@@ -1097,8 +1890,10 @@ Semantics: OR within lists, AND between dimensions, exclusive end date, bounded 
 `MET-WP4-02` (issue #910) delivers the MOM-1 read surface: one coverage-aware
 dashboard query and the two registry lists a service needs to form its UUID
 filters. `MET-WP4-03B` (section 4.2) completes the dashboard contract
-additively: every property below still holds except where section 4.2
-states how it is extended.
+additively, and `MET-WP4-03C-B2` (section 4.3) extends it to a publisher's
+whole history: every property below still holds except where section 4.2 or
+section 4.3 states how it is extended. The SDL below already shows the
+section 4.3 changes to the types it declares.
 
 Operations, each requiring exactly `METRICS_READ_SERVICE` through
 `PolicyContext::require_metrics_read_service()` before any Metrics-specific
@@ -1115,7 +1910,7 @@ scalar BigInt
 
 input MetricDashboardInput {
   selector: MetricSelectorInput!
-  startDate: Date!
+  startDate: Date
   endDate: Date!
   measures: [Uuid!]
   platforms: [Uuid!]
@@ -1126,7 +1921,7 @@ input MetricSelectorInput {
   publisherIds: [Uuid!]
 }
 
-enum MetricTimelineGrain { AUTO DAY MONTH }
+enum MetricTimelineGrain { AUTO DAY MONTH YEAR }
 
 type MetricDashboard {
   totals: [MetricTotal!]!
@@ -1137,6 +1932,9 @@ type MetricDashboard {
   rollupWatermark: Timestamp!
   warnings: [MetricWarning!]!
   isPartial: Boolean!
+  startDate: Date!
+  endDate: Date!
+  timelineGrain: MetricTimelineGrain!
 }
 
 type MetricTotal { platformId: Uuid! measureId: Uuid! value: BigInt }
@@ -1181,18 +1979,19 @@ Contract properties consumers may rely on:
   publisher per request: none, several or an unknown ID was
   `METRIC_QUERY_INVALID`, never a first-item choice, a truncation or a
   combination. `MET-WP4-03B` replaces that milestone restriction with the
-  reviewed one-to-three publisher entitlement and aggregation contract of
-  section 4.2.
+  reviewed publisher entitlement and aggregation contract of section 4.2.
 - **Attribution.** Works are attributed to publishers through current
   `work -> imprint -> publisher` metadata at read time. A moved work's
   projected history follows it; nothing is rewritten.
 - **Request bounds.** Half-open `[startDate, endDate)` with
-  `startDate < endDate`; at most 366 days; at most 10 unique measures and 10
-  unique platforms, whether explicit or resolved; at most 25 platform/measure
-  combinations (the cross product of the served platforms and measures); at
-  most 5,000 timeline cells (combinations x buckets). A bound is never met by
-  truncation. Duplicate IDs are refused, and so is an explicit unknown
-  measure or platform. Disabled registry identities stay addressable.
+  `startDate < endDate`; at most 366 days for a `DAY` timeline, and no
+  maximum range for a `MONTH` or `YEAR` timeline inside the date domain of
+  section 4.3; at most 10 unique measures and 10 unique platforms, whether
+  explicit or resolved; at most 25 platform/measure combinations (the cross
+  product of the served platforms and measures); at most 5,000 timeline cells
+  (combinations x buckets). A bound is never met by truncation. Duplicate IDs
+  are refused, and so is an explicit unknown measure or platform. Disabled
+  registry identities stay addressable.
 - **Omitted filters.** An omitted or empty `measures` or `platforms` resolves
   to every identity represented for the selected publishers and range in the
   work-day projection, terminal coverage from an eligible managed account, or
@@ -1207,8 +2006,9 @@ Contract properties consumers may rely on:
   `METRIC_QUERY_INVALID`; the measure is never summed or dropped.
   `metricMeasures` still lists such measures.
 - **Grains.** `DAY` gives one bucket per requested day. `MONTH` gives calendar
-  months clipped to the range, each the exact sum of its daily rows. `AUTO` is
-  `DAY`.
+  months clipped to the range, each the exact sum of its daily rows. `YEAR`
+  gives calendar years clipped to the range (section 4.3). `AUTO` chooses
+  `DAY`, then `MONTH`, then `YEAR` as section 4.3 states.
 - **Dimensional representation (Specification Amendment 6).** The projection
   keeps optional publication, country and institution dimensions. For each
   base cell `(work, platform, measure, day)`, an undimensioned row is the
@@ -1227,15 +2027,26 @@ Contract properties consumers may rely on:
   overlaps it; otherwise `null`. `BigInt` is a canonical base-10 string:
   no `Int`, no float, signed and exact, with checked arithmetic that fails
   rather than wraps.
-- **Coverage.** Per platform, the eligible source is the one enabled `DRIVER`
-  account on an enabled source whose `expected_publisher_id` is the selected
-  publisher. Two or more is `MOM1_SOURCE_SCOPE_AMBIGUOUS`. None leaves
-  projected values served and coverage `UNKNOWN`. For each day, the current
+- **Coverage.** Per platform, a represented publisher's eligible accounts
+  are its enabled accounts of an enabled source whose acquisition type is
+  `DRIVER` and whose `expected_publisher_id` is that publisher. There may be
+  any number of them (`MET-WP4-MULTI-ACCOUNT-01`; MOM-1 refused two or more
+  as `MOM1_SOURCE_SCOPE_AMBIGUOUS`). A publisher with none leaves projected
+  values served and coverage `UNKNOWN`. For each account and day, the current
   assertion comes from `COMPLETED` or `COMPLETED_WITH_ERRORS` imports with a
   recorded `completed_at`: latest completion first, then greatest import UUID.
   Only if both tie within one self-contradictory import is its most
   conservative assertion preferred. `COMPLETED_WITH_ERRORS` downgrades
-  `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. An item is
+  `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. Across
+  accounts and publishers, a day of a served platform and measure is
+  asserted only if every represented publisher has an eligible account on
+  that platform and every such account asserts the day. It is then the worst
+  of those assertions, and includes a dimension only if every one of them
+  does. Otherwise it is `UNKNOWN`. Enabling another account therefore makes
+  its publisher's coverage on that platform `UNKNOWN` for every day the new
+  account has not asserted, until its history is collected; values do not
+  change. A measure that one of a publisher's accounts on a platform never
+  asserts stays `UNKNOWN` there. An item is
   `COMPLETE` only if every day is, `UNKNOWN` if any day is, otherwise
   `PARTIAL`. When any value served for a platform and measure was taken from
   country rows, every day of that combination asserted `COMPLETE` without
@@ -1246,6 +2057,23 @@ Contract properties consumers may rely on:
   day has a current assertion including that dimension. Top-level status is
   `COMPLETE` only if every item is, and `UNKNOWN` if any item is, or if
   nothing is served.
+- **Several accounts on one platform.** The canonical identity of section 3
+  has no source account, so the first account to report a cell holds it.
+  Another account's observation of the same work, publication, platform,
+  measure, period, country and institution is never added. It is `DUPLICATE`
+  when its content is identical, which is silent, and, when the content
+  differs, `CONFLICT`, which ends its import `COMPLETED_WITH_ERRORS` and so
+  shows its days as `PARTIAL`. Through quarantine reconciliation the same
+  collision is `RESOLVED_DUPLICATE`, which is silent, or
+  `BLOCKED_SOURCE_CONFLICT`, which leaves an unresolved-identifier warning
+  that does not clear. Accounts that report one work, platform, measure and
+  day in different dimensional shapes do not collide, but the
+  dimensional-representation rule above then drops one account's values or
+  refuses the request. Several eligible accounts of one publisher and
+  platform are therefore known to give correct values when no two of them
+  report the same work, platform, measure and day; in practice, each work's
+  files are on one site. Operators check this before enabling another
+  account. The read cannot tell a lost value from no traffic.
 - **One snapshot.** Everything is read on one connection in one
   `READ ONLY, REPEATABLE READ` transaction: entitlement, the `MET-WP4-01`
   frontier, represented scope, projection, coverage, outstanding rollup work
@@ -1285,11 +2113,14 @@ Contract properties consumers may rely on:
   configuration.
 - **Errors.** Every failure carries a fixed message and one `extensions.type`
   among `NO_ACCESS`, `METRIC_QUERY_INVALID`, `METRIC_QUERY_LIMIT_EXCEEDED`,
-  `METRIC_REGISTRY_LIMIT_EXCEEDED`, `MOM1_SOURCE_SCOPE_AMBIGUOUS` and
-  `MOM1_DIMENSION_SCOPE_AMBIGUOUS`. An
+  `METRIC_REGISTRY_LIMIT_EXCEEDED` and `MOM1_DIMENSION_SCOPE_AMBIGUOUS`, plus
+  `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` (section 4.2) and the retryable
+  `METRIC_READ_BUSY` (section 4.3). An
   aggregate outside the representable range is `METRIC_QUERY_LIMIT_EXCEEDED`.
   An unexpected database failure is `INTERNAL_ERROR` without detail. No SQL,
   database diagnostic, token or source configuration is returned.
+  `MOM1_SOURCE_SCOPE_AMBIGUOUS` is retired by `MET-WP4-MULTI-ACCOUNT-01` and
+  is never returned. A client may keep handling it.
 
 Scope boundaries a consumer must not infer:
 
@@ -1299,11 +2130,13 @@ Scope boundaries a consumer must not infer:
   `metricWidget` and entity-level Metrics fields were not part of the
   `MET-WP4-02` contract. `MET-WP4-03B` adds the country and institution
   sections and every one of those selector dimensions except `dois` and
-  `includeDescendants` (section 4.2); the rest still needs its own
-  specification.
+  `includeDescendants` (section 4.2), and `MET-WP4-WIDGET-01` adds the
+  public `metricWidget` read as a separate contract (section 4.4); the rest
+  still needs its own specification.
 - The read calls no external service. Browser clients must not hold the
-  `METRICS_READ_SERVICE` credential; they reach this contract through a
-  Thoth-owned server route.
+  `METRICS_READ_SERVICE` credential; they reach this protected read through a
+  Thoth-owned server route. The public `metricWidget` read, which browsers
+  call directly with no credential, is a separate contract (section 4.4).
 - The read contract remains additive. No existing field, argument, nullability
   or authorization changed; `MET-WP7-PREREQ-04` adds only the
   `UNRESOLVED_IDENTIFIERS` value to `MetricWarningCode` and reconciles the
@@ -1311,7 +2144,10 @@ Scope boundaries a consumer must not infer:
   existing database enum, exposed to GraphQL without any value change.
   Generated/exhaustive clients must tolerate the new warning enum before
   CloudFront production activation, and consumers must not coerce `null`
-  Metrics values to zero.
+  Metrics values to zero. `MET-WP4-MULTI-ACCOUNT-01` no longer refuses a
+  request because a publisher has several eligible accounts on a platform;
+  such a request is served or meets another refusal. Every request served
+  before gets the same response.
 
 ### 4.2 Complete dashboard contract (`MET-WP4-03B`)
 
@@ -1369,13 +2205,13 @@ The one new error classification is `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`.
 
 Contract properties consumers may rely on:
 
-- **Publishers.** `publisherIds` holds one to three unique IDs. None, more
-  than three or a duplicate is `METRIC_QUERY_INVALID`, and so is an unknown
-  publisher. Every selected publisher must independently hold
-  `METRICS_DASHBOARD`; one that does not makes the whole request `NO_ACCESS`,
-  even when the selector would exclude its works. There is no entitled-subset
-  response, no `SUPERUSER` shortcut and no new role: the resolver still
-  requires exactly `METRICS_READ_SERVICE` first.
+- **Publishers.** `publisherIds` holds one to 100 unique IDs. None, a
+  duplicate or an unknown publisher is `METRIC_QUERY_INVALID`; more than 100
+  is `METRIC_QUERY_LIMIT_EXCEEDED`. Every selected publisher must
+  independently hold `METRICS_DASHBOARD`; one that does not makes the whole
+  request `NO_ACCESS`, even when the selector would exclude its works. There
+  is no entitled-subset response, no `SUPERUSER` shortcut and no new role:
+  the resolver still requires exactly `METRICS_READ_SERVICE` first.
 - **Selector.** Values within one list are alternatives (OR); different
   lists must all match (AND); an omitted or empty optional list does not
   restrict. Works are resolved from current metadata, before any Metrics
@@ -1395,7 +2231,7 @@ Contract properties consumers may rely on:
   or matches none of the other selected works, is valid and may resolve to
   no works. Unknown `WorkType` or `LanguageCode` values are refused by
   GraphQL input coercion before the resolver. A selection resolving to more
-  than 2,000 works is `METRIC_QUERY_LIMIT_EXCEEDED`. No bound is met by
+  than 25,000 works is `METRIC_QUERY_LIMIT_EXCEEDED`. No bound is met by
   truncation.
 - **Represented publishers.** After resolution only the publishers owning at
   least one resolved work take part in source accounts, coverage, lag,
@@ -1434,11 +2270,13 @@ Contract properties consumers may rely on:
   without re-resolving or re-ranking them; the clipped leading and trailing
   days are read from `metric_rollup_work_day` and resolved per base cell as
   section 4.1 and section 3.6 resolve them. Totals, countries and
-  institutions add both parts. `AUTO` remains `DAY`. A `DAY` timeline reads
-  every day from the work-day projection; a `MONTH` timeline takes a complete
-  month's bucket from the monthly projection and a clipped bucket from its
-  days. The values equal the section 4.1 day-by-day values for the same
-  resolved request, which the tests prove against an independent oracle.
+  institutions add both parts. A `DAY` timeline reads every day from the
+  work-day projection; a `MONTH` timeline takes a complete month's bucket
+  from the monthly projection and a clipped bucket from its days, and a
+  `YEAR` timeline regroups the same reads by calendar year. `AUTO` and the
+  yearly section reads are as section 4.3 states. The values equal the
+  section 4.1 day-by-day values for the same resolved request, which the
+  tests prove against an independent oracle.
 - **Countries and institutions.** Only known values are listed: no synthetic
   unknown country or institution, and no zero for an absent one. Country
   values use the target-dimension rule of section 3.6 (the unique least
@@ -1448,9 +2286,12 @@ Contract properties consumers may rely on:
   Thoth institution read set-wise in the same snapshot. Countries are ordered
   by `(platformId, measureId, countryCode)` and institutions by
   `(platformId, measureId, institutionId)`, never by display text. At most
-  2,000 institution rows are returned; more is
-  `METRIC_QUERY_LIMIT_EXCEEDED`, never a truncated list. Country rows are
-  bounded by the combinations and the alpha-2 code space.
+  100,000 institution rows are returned; more is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never a truncated list. Each of the at most
+  two statements that read institution rows stops after 100,001 grouped rows,
+  and the request fails when the distinct institution rows across both exceed
+  100,000. Country rows are bounded by the combinations and the alpha-2 code
+  space.
 - **Section inclusion.** `includeCountries` and `includeInstitutions`
   default to true. A section that is false returns no rows, cannot fail the
   request through its own ambiguity and cannot downgrade the shared coverage
@@ -1462,9 +2303,11 @@ Contract properties consumers may rely on:
   returned. Complete months use the monthly ambiguity state; edge days use
   the equivalent day-level resolution.
 - **Section-specific coverage (Amendment 1).** Per platform, measure and
-  day, coverage is first combined across the represented publishers: a
-  publisher without an assertion makes the day `UNKNOWN`, otherwise the worst
-  status wins (`UNKNOWN`, then `PARTIAL`, then `COMPLETE`, with
+  day, coverage is first combined across every eligible account of every
+  represented publisher (section 4.1): a represented publisher without an
+  eligible account on the platform, or an eligible account without an
+  assertion, makes the day `UNKNOWN`; otherwise the worst status wins
+  (`UNKNOWN`, then `PARTIAL`, then `COMPLETE`, with
   `COMPLETED_WITH_ERRORS` downgrading `COMPLETE` to `PARTIAL` first), and the
   country and institution flags combine by AND. The totals and timeline then
   use only the dimensions their own served representation depends on,
@@ -1482,13 +2325,15 @@ Contract properties consumers may rely on:
 - **Native grains.** The projections serve `DAY` canonical records only. If
   a canonical record of `MONTH` or `REPORTING_PERIOD` grain for a resolved
   work, served platform and served measure overlaps `[startDate, endDate)`
-  and its `current_revision_id` names a `CURRENT` revision, the whole request
-  fails with `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` and a fixed message;
+  (with `startDate` omitted, starts before `endDate`) and its
+  `current_revision_id` names a `CURRENT` revision, the whole request fails
+  with `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN` and a fixed message;
   nothing is silently omitted. A record whose pointer names a `RETRACTED`
   revision, with no `CURRENT` revision, is withdrawn and does not fail it.
   Contradictory committed state — no pointer, a pointer to a `SUPERSEDED`
   revision, or a `RETRACTED` pointer beside a `CURRENT` revision — fails
-  closed as `INTERNAL_ERROR`.
+  closed as `INTERNAL_ERROR`. The check's predicate matches the partial
+  index `metric_record_native_grain_idx`, which changes only its cost.
 - **Lag scope.** `ROLLUP_LAG` and the lag part of `dataThrough` count only
   unapplied work-day deltas above the frontier for the resolved works,
   range, served platforms and served measures. Identifier quality does not
@@ -1499,9 +2344,10 @@ Contract properties consumers may rely on:
   non-query statements in this order: `SET LOCAL plan_cache_mode =
   force_custom_plan`, so each statement is planned for its actual arrays and
   bounds; `SET LOCAL statement_timeout = '30s'`, a limit on each later
-  statement individually, not a whole-request deadline; and one `LOCK TABLE`
-  on exactly the six derived projection tables the exceptional rebuild
-  truncates — `metric_rollup_work_month`, `metric_rollup_work_country_month`,
+  statement individually (the whole-read deadline of section 4.3 is
+  separate); and one `LOCK TABLE` on exactly the six derived projection
+  tables the exceptional rebuild truncates — `metric_rollup_work_month`,
+  `metric_rollup_work_country_month`,
   `metric_rollup_work_institution_month`, `metric_rollup_work_month_ambiguity`,
   `metric_rollup_work_country_year` and `metric_rollup_work_institution_year`,
   in the order the verifier of section 3.7 locks them — `IN ACCESS SHARE
@@ -1513,10 +2359,11 @@ Contract properties consumers may rely on:
   checkout, whatever the number of publishers, works, days, months, countries,
   institutions or quarantine rows: the frontier is read with the publishers,
   explicit selector IDs are checked while the works are resolved, native
-  grains and lag share one statement, each monthly and edge-day section
-  statement runs at most once, and no work or institution is looked up
-  individually. The per-publisher coverage day series is a `MATERIALIZED`
-  CTE.
+  grains, lag and the all-time start share one statement, each monthly and
+  edge-day section statement runs at most once, and no work or institution is
+  looked up individually. Section 4.3 gives the ceiling of each request form.
+  Coverage is read as eligible coverage runs clipped to the served range: no
+  statement expands the days of the range.
 - **Snapshot protection and contention.** PostgreSQL's `TRUNCATE` is not
   MVCC-safe: a `REPEATABLE READ` snapshot frozen before a concurrent
   `rebuildMetricRollupMonths` truncate would see the projection tables it had
@@ -1537,30 +2384,560 @@ Contract properties consumers may rely on:
   while a `TRUNCATE` is queued waits behind it under PostgreSQL's lock
   ordering, bounded the same way. No wait is indefinite, and no fairness or
   whole-request latency is promised.
-- **Bounded failure.** A statement timeout, a lock wait that reaches it, or
-  any other SQL failure aborts the whole read, rolls its transaction back,
-  returns the connection to the pool and fails as `INTERNAL_ERROR` with the
-  fixed message `The Metrics read could not be completed.`; no partial
-  response and no fabricated zero is ever returned.
-- **Deferred B2 reconciliation.** The deferred `MET-WP4-03C-B2` reader
-  cutover (issue #980) prescribes one combined settings statement and its own
-  statement ceilings. This current-reader contract neither amends nor
-  satisfies them: before B2 resumes, its approved settings sequence and count
-  acceptance must be explicitly reconciled under #980 with this lock and the
-  actual reader instrumentation.
+- **Bounded failure.** A statement timeout, a lock wait that reaches it, a
+  read past its whole-read deadline (section 4.3), or any other SQL failure
+  aborts the whole read, rolls its transaction back, returns the connection
+  to the pool and fails as `INTERNAL_ERROR` with the fixed message `The
+  Metrics read could not be completed.`; no partial response and no
+  fabricated zero is ever returned.
+- **Step 0 under `MET-WP4-03C-B2`.** Specification Amendment 3 section 4A
+  (issue #980) reconciles the `MET-WP4-03C-B2` reader with this sequence: the
+  planner setting, the statement timeout and the lock stay three separately
+  named statements, in this order, before the first query, with nothing
+  before them in the transaction. No combined settings statement exists, and
+  B2 adds no statement name; its form ceilings are in section 4.3.
 - **Activation gate.** The monthly projections are served only once, under
-  separate authorization, the `MET-WP4-03A` migration has run and a full
-  historical rebuild has been reconciled at a recorded work-day frontier
-  (section 3.6). Merging this contract activates nothing.
+  separate authorization, the `MET-WP4-03A` migration has run and the derived
+  state has been shown exact at a recorded work-day frontier, either by an
+  exact `verifyMetricRollupMonths` or by a section 3.8 run of either mode that
+  reached `RECONCILED`, with the evidence taken in the activation window and
+  used at once, as section 3.6 states (the latest-run check, and no other run
+  or section 3.7 call between the evidence and the switch). `VERIFIED` is
+  never sufficient. After activation, a section 3.8 `REBUILD` may repair
+  inexact ranges while readers stay on (section 3.8). Merging this contract
+  activates nothing.
 
 Scope boundaries a consumer must not infer:
 
-- `dois`, `includeDescendants`, works sections and pagination,
-  `metricWidget` and entity-level Metrics fields remain deferred.
+- `dois`, `includeDescendants`, works sections and pagination and
+  entity-level Metrics fields remain deferred. `metricWidget` is not part of
+  this protected contract; it is the public widget read of section 4.4.
 - No native `MONTH` or `REPORTING_PERIOD` serving is implemented; such
   records only fail an intersecting request.
 - The read writes nothing: no projection, monthly row, delta, frontier or
   coverage is repaired or recorded, and no external service is called.
+
+### 4.3 All-time history (`MET-WP4-03C-B2`)
+
+`MET-WP4-03C-B2` (issue #980, through Specification Amendments 1, 2 and 3)
+lets a dashboard show a publisher's whole Metrics history. `MONTH` and
+`YEAR` timelines have no calendar cap, `startDate` may be omitted, and
+coverage is evaluated over coverage runs instead of individual days. Every
+property of sections 4.1 and 4.2 still holds except where this section says
+how it changes. Each range-relative rule there applies to the served range
+`[startDate, endDate)`, whose `startDate` the response returns. No
+operation, role, capability, migration, table or index is added, and
+`metricMeasures` and `metricPlatforms` are unchanged.
+
+Additive GraphQL contract (already shown in the section 4.1 SDL):
+
+```graphql
+input MetricDashboardInput {
+  startDate: Date   # was Date!; absent or null means all time
+  # ...every other field unchanged...
+}
+
+enum MetricTimelineGrain { AUTO DAY MONTH YEAR }
+
+type MetricDashboard {
+  # ...section 4.1 and 4.2 fields...
+  startDate: Date!
+  endDate: Date!
+  timelineGrain: MetricTimelineGrain!
+}
+```
+
+`MetricTimelineGrain` is now also an output type, so strict clients must
+accept `YEAR`. The one new error classification is `METRIC_READ_BUSY`.
+
+Contract properties consumers may rely on:
+
+- **Envelope.** A `DAY` timeline covers at most 366 days. `MONTH` and `YEAR`
+  timelines have no maximum range. Every timeline must fit the 5,000-cell
+  bound, and an explicit grain never switches. A request selects 1 to 100
+  publishers and resolves to at most 25,000 works, and a response holds at
+  most 100,000 institution rows (section 4.2). The other bounds of sections
+  4.1 and 4.2 are unchanged.
+- **Date domain.** Only when `startDate` is omitted or the range is longer
+  than 366 days: an explicit `startDate` must be on or after 2000-01-01;
+  `endDate` may be at most 366 days after the API process's current UTC date;
+  with `startDate` omitted, `endDate` must be later than 2000-01-01. A request
+  outside the domain fails as `METRIC_QUERY_LIMIT_EXCEEDED` with a fixed
+  message, before any database work. An explicit range of at most 366 days
+  is served whatever its dates, as before.
+- **AUTO.** `AUTO` is decided once the served platforms, measures and start
+  are known: `DAY` when the served range is at most 366 days and its timeline
+  fits, otherwise `MONTH` when its timeline fits, otherwise `YEAR`, which
+  always fits inside the date domain. `timelineGrain` in the response is the
+  grain served, never `AUTO`; `startDate` and `endDate` are the served range.
+- **YEAR.** One bucket per calendar year, clipped to the served range. A
+  `YEAR` timeline is a `MONTH` timeline for every purpose but bucketing: the
+  same statements, month split, day reads and section composition. A bucket
+  follows the section 4.1 value rule over its days: the exact sum when any
+  projected row exists; `"0"` only when every day is effectively `COMPLETE`,
+  with no unapplied delta and no unresolved identifier evidence; otherwise
+  `null`. It is therefore not the sum of `MONTH` values when any of them is
+  `null`. Totals and the timeline never read a yearly projection.
+- **Yearly sections.** For a `MONTH` or `YEAR` timeline, the country and
+  institution sections read the complete calendar years inside the range
+  from `metric_rollup_work_country_year` and
+  `metric_rollup_work_institution_year`, the remaining complete months from
+  the monthly section projections and the clipped edge days from the
+  work-day projection, in the one complete-month statement. The three parts
+  are disjoint, and monthly ambiguity stays authoritative over a year read
+  from the yearly projections.
+- **All time.** An absent and a null `startDate` are the same. With
+  `startDate` omitted, the read finds, in the same snapshot, the earliest
+  evidence before `endDate` for the resolved works, the represented
+  publishers and the served platforms and measures: a work-day projection
+  row, an eligible coverage run, coverage from a terminal import without a
+  completion time, unresolved identifier quarantine and an unapplied work-day
+  delta. The served `startDate` is that exact day, and the first bucket is
+  clipped there. With no evidence, no resolved work or no served pair it is
+  the first day of the month containing the day before `endDate`. Evidence
+  dated before 2000-01-01 fails the request as `METRIC_QUERY_LIMIT_EXCEEDED`;
+  it is never clamped. Omitted platforms and measures resolve over the whole
+  history before `endDate`. Every fail-closed rule applies to all that
+  history: an active or inconsistent native-grain record anywhere before
+  `endDate`, and an ambiguous month or day or same-stream run overlap in the
+  served range. `startDate` cannot be omitted with a `DAY`
+  timeline (`METRIC_QUERY_INVALID`). A successful all-time response equals
+  the explicit request over the served range at the served grain.
+- **Filtered start.** With explicit platforms or measures, the start is the
+  earliest evidence of the selected pairs. It is found from the monthly
+  identity keys and at most one month of work-day rows per work, without
+  reading a monthly value or scanning a monthly projection. Evidence of a
+  platform or measure that is not selected never moves it.
+- **All-time coverage.** An all-time response reports the worst coverage
+  over its whole served history. With several platforms or measures, an
+  item whose evidence starts after the served `startDate` is `UNKNOWN` for
+  its leading days, its `dataThrough` is `null`, and so is the top-level
+  `dataThrough`. Clients must not present `dataThrough` as "data up to" for
+  all-time views.
+- **Coverage runs.** Coverage is read from the eligible
+  `metric_coverage_run` runs, clipped to the served range, with the
+  semantics of sections 4.1 and 4.2 unchanged. Eligibility is checked at
+  request time against the current source account, as before. Two eligible
+  runs of one stream (one account, platform, publisher and measure) that
+  cover the same served day are invalid derived state and fail the request
+  as `INTERNAL_ERROR`; overlap outside the served range is never read. Runs
+  of different eligible accounts may cover the same day; section 4.1
+  combines them. Evaluation is interval-based: apart from the
+  timeline buckets themselves, nothing the read builds, in SQL or in memory,
+  grows with the number of days in the range.
+- **Represented pairs.** Omitted platforms or measures resolve from the
+  section 4.2 evidence, with ordinary coverage represented by eligible
+  coverage runs and terminal imports without a completion time read
+  directly. Its monthly branches read only the identity-key columns of the
+  monthly projections, never a monthly value.
+- **Complete-month strategy.** From 1,200 resolved works the complete-month
+  statement reads its monthly total, monthly ambiguity and yearly section
+  branches in one filtered pass instead of one probe per work, and from
+  1,600 its monthly section branches too. This is a physical read strategy,
+  not a product limit: responses are identical on both sides of each
+  threshold.
+- **Concurrency.** One API process runs at most three `metricDashboard`
+  reads at once. A further read waits at most one second in total for a
+  slot, holding no database connection, and otherwise fails whole as the
+  retryable `METRIC_READ_BUSY` with the fixed message "The Metrics service
+  is busy. Try again shortly." It is a resolver error (HTTP 200 with an
+  `errors` entry), and clients retry on the code. A request refused by
+  validation takes no slot, and a slot is given back on success, error,
+  rollback and panic alike. The limit is per process: database-wide
+  concurrency is three times the number of running API processes. A read
+  that would have waited or run on before can now fail with
+  `METRIC_READ_BUSY`, or as `INTERNAL_ERROR` past the deadline below.
+- **Whole-read deadline.** A read must start every statement from `BEGIN`
+  to the identifier-quality query within 20 seconds of being granted its
+  slot. Otherwise it rolls back and fails as `INTERNAL_ERROR` with the fixed
+  message of section 4.2; `COMMIT` is not checked. The pool checkout waits at
+  most the lesser of the pool's connection timeout and the time left, and a
+  checkout the deadline cuts short is a deadline expiry. A statement already
+  started still runs under the 30-second statement timeout, so a read holds
+  its slot for at most about 50 seconds. A busy refusal and a deadline expiry
+  are logged with fixed text and no request detail.
+- **Rebuild under read load.** A `rebuildMetricRollupMonths` that has to
+  truncate waits at most its own 5-second `lock_timeout` for its
+  `ACCESS EXCLUSIVE` lock. A dashboard read holds `ACCESS SHARE` on the six
+  projection tables from step 0 until its transaction ends: it starts no
+  statement after its 20-second deadline, and each statement runs under the
+  30-second statement timeout, so one read holds the locks for at most about
+  50 seconds. Reads that arrive while the rebuild waits queue behind it. If
+  the rebuild fails on its lock timeout, it has rolled back and changed
+  nothing. Retry it when dashboard read traffic is low, so that no running
+  read outlasts that 5-second wait.
+- **Statement ceilings.** Step 0 is the section 4.2 sequence, unchanged.
+  Every statement on the read connection counts, the pool's checkout
+  `SELECT 1` included, and a failed read is not a ceiling example. With
+  exactly one of the known-pair and represented-pair queries, the same for an
+  explicit and an omitted start, and with the forms as Specification
+  Amendment 3 section 4A (issue #980) defines them:
+
+  ```text
+  aligned MONTH or YEAR                      <= 14
+  aligned DAY                                <= 15
+  aligned DAY with a base cell to resolve    <= 16
+  clipped / omitted-section                  <= 16
+  clipped MONTH or YEAR with sections        <= 17
+  clipped DAY with sections                  <= 17
+  ```
+
+  The two DAY rows at 16 and 17 run the same day reads as the other form
+  with the same ceiling.
+  "Aligned" means both dates are the first of a month. A request in which
+  both pair queries run carries exactly one more statement, and no form may
+  exceed its own ceiling. The longest path is exactly the eighteen statements
+  of section 4.2: checkout, `BEGIN`, the three step-0 statements, publishers,
+  works, known pairs, represented pairs, accounts, canonical state, complete
+  months, day sums, dimension cells, edge-day sections, coverage runs,
+  identifier quality and `COMMIT`.
+- **All-time default gate.** A client may make the all-time view its
+  default, or offer a control that omits `startDate`, only after this
+  reader is activated with its representative performance references met;
+  after either a response cache is deployed or evidence shows that the
+  uncached default meets those references at three concurrent reads per
+  process, with the busy rate accepted; and after a read-only production
+  census shows which entitled publishers' default request would be refused,
+  and why, with that result accepted or a fallback specified.
+- **Rollback.** A reader rolled back to a binary before `MET-WP4-03C-B2`
+  fails every request that omits `startDate`, sends `YEAR` or selects the new
+  output fields at GraphQL validation. A client using them must therefore be
+  revertible on its own, and is switched off first: client, then reader,
+  then service health verification, then any producer rollback.
+
+Scope boundaries a consumer must not infer:
+
+- No response cache is added; a cache is separate work.
+- History is only what has been ingested; importing earlier history is
+  separate work.
+- `metricWidget` does not use this concurrency limit or this omitted-start
+  rule; its own all-history read is in section 4.4.
+
+### 4.4 Public widget read contract (`MET-WP4-WIDGET-01`)
+
+`MET-WP4-WIDGET-01` (issue #1007, specification R11, under
+[`ADR-0014`](../engineering/decisions/ADR-0014-public-widget-metrics.md))
+adds one public, read-only query for the embeddable `metrics-widget`
+package: one work (a book or a chapter) and its child works, by DOI, with a
+monthly or yearly timeline, for publishers whose package grants
+`METRICS_WIDGET`, serving only measures the registry marks public, with the
+per-pair value and coverage semantics of sections 4.1-4.3 over its own
+month-aligned range. `MET-WP4-WIDGET-ALLTIME` (issue #1019, specification
+R2.1) adds the widget-owned `YEAR` timeline and lets a `YEAR` read omit
+`startDate` to serve all history, from one served start shared by both
+sections. The widget serves `YEAR` and an omitted start under its own rules
+(below), and none of section 4.3's concurrency limit, 20-second deadline (the
+widget has its own 10-second deadline on the same engine mechanism) or
+`METRIC_READ_BUSY`. No role, migration, table or index is added, and
+`metricDashboard`, `metricMeasures`, `metricPlatforms` and every other
+operation keep their schema, results and authorization. Merging it activates
+nothing: the read is off until activation (below).
+
+Additive GraphQL contract:
+
+```graphql
+# QueryRoot. No role required. Fails closed when the server switch is off.
+metricWidget(input: MetricWidgetInput!): MetricWidget!
+
+input MetricWidgetInput {
+  doi: Doi!                 # the embedded work (book or chapter)
+  chapterDois: [Doi!]       # optional subset of the work's child works; omitted or [] = all
+  startDate: Date           # first day of a month; may be omitted only for YEAR (all served history)
+  endDate: Date!            # first day of a month, exclusive
+  timelineGrain: MetricWidgetGrain = "MONTH"
+}
+
+enum MetricWidgetGrain {    # widget-owned; not MetricTimelineGrain
+  MONTH
+  YEAR
+}
+
+type MetricWidget {
+  work: MetricWidgetSection!
+  chapters: MetricWidgetSection
+  excludedChildCount: Int!
+  platforms: [MetricWidgetPlatform!]!
+  measures: [MetricWidgetMeasure!]!
+  startDate: Date!          # the served start
+  endDate: Date!
+  asOf: Timestamp!
+  rollupWatermark: Timestamp!
+}
+
+type MetricWidgetSection {
+  totals: [MetricTotal!]!
+  timeline: [MetricTimeBucket!]!
+  countries: [MetricCountryTotal!]!
+  coverage: [MetricWidgetPairCoverage!]!
+  dataThrough: Date
+  isPartial: Boolean!
+}
+
+type MetricWidgetPairCoverage {
+  platformId: Uuid!
+  measureId: Uuid!
+  status: MetricCoverageStatus!
+  dataThrough: Date
+  countryCoverage: Boolean!
+}
+
+type MetricWidgetPlatform { platformId: Uuid! code: String! displayName: String! publicDescription: String }
+type MetricWidgetMeasure  { measureId: Uuid! code: String! displayName: String! unit: MetricMeasureUnit! definition: String! }
+```
+
+`MetricTotal`, `MetricTimeBucket`, `MetricCountryTotal`,
+`MetricCoverageStatus` and `BigInt` are the section 4.1 and 4.2 types,
+unchanged. The grain is the widget's own `MetricWidgetGrain`, never the
+dashboard's `MetricTimelineGrain`: `MONTH` (one bucket per calendar month of
+the served range) or `YEAR` (one bucket per calendar year, clipped to the
+served range, each the exact sum of the daily values it contains, under the
+section 4.3 `YEAR` rule). An omitted and a null `timelineGrain` are both
+`MONTH`, and an omitted and a null `startDate` are the same. No warnings and
+no institution fields are served. The change from the first widget contract
+is additive: `startDate` became nullable, and `timelineGrain` and
+`MetricWidgetGrain` are new; no output field changed type.
+
+- **Access.** Public and capability-gated: no credential and no role; the
+  caller's identity is never consulted. The read is served only while the
+  server switch `THOTH_METRIC_WIDGET` (`OFF` | `ON`, default `OFF`, read once
+  at process start, registered on `start graphql-api` and `init`) is `ON`,
+  and only for a work whose current imprint's publisher's package grants
+  `METRICS_WIDGET`. The engine re-checks that capability in its own
+  entitlement statement.
+- **DOIs.** `doi` and every `chapterDois` entry are parsed as DOIs, so
+  `10.x/y`, `doi.org/10.x/y` and `http(s)://(www.)(dx.)doi.org/10.x/y` are
+  accepted, case-insensitively; every comparison and the lookup use the
+  canonical form lower-cased. A string that does not parse is
+  `METRIC_QUERY_INVALID` (with the switch on); it is not a request-level
+  error.
+- **Order of operations.** (1) GraphQL coercion; a request-level error is
+  HTTP 400 before the resolver. (2) Switch `OFF`: `METRIC_WIDGET_UNAVAILABLE`,
+  with no slot, connection or statement. (3) One resolution per HTTP request,
+  counted on the request context, after fragment expansion: a later
+  `metricWidget` selection of the same request is
+  `METRIC_QUERY_LIMIT_EXCEEDED` with no slot or statement. (4) Input-only
+  validation, with no database, in this order, once the grain is resolved:
+  `doi` parses; a `MONTH` read gives `startDate`; then the dates. With
+  `startDate`, for either grain: both dates are first days of months and
+  `startDate < endDate`; `startDate` is on or after 2000-01-01 and `endDate`
+  at most 366 days after the current UTC date; and, for `MONTH` only, the
+  range is at most 12 months. Without it (`YEAR` only): `endDate` is the
+  first day of a month, then later than 2000-01-01 and at most 366 days after
+  the current UTC date. Last, `chapterDois` has at most 500 entries, each
+  parses, none repeats in canonical form. (5) A process-wide widget slot,
+  without waiting; the 10 s request deadline starts here. (6) One pool
+  connection with a 1 s checkout timeout, and one `READ ONLY, REPEATABLE READ`
+  transaction. (7) The prelude, before any query: `CUSTOM_PLANS_SQL`, the
+  widget's `SET LOCAL statement_timeout = '5s'` and `PROJECTION_LOCK_SQL`.
+  (8) One resolution statement: the work, its type, its publisher and
+  package, and its current `has-child` works with their DOIs and publishers
+  (at most 501 rows). (9) No such work, or a publisher without
+  `METRICS_WIDGET`: `METRIC_WIDGET_UNAVAILABLE`, from one code path after the
+  same single statement. (10) Child validation. (11) Served-pair discovery,
+  one statement per non-empty section (over all history before `endDate`
+  when `startDate` was omitted), then the pair bound; then, with no
+  statement, the served start (below), which is refused before labels when
+  it falls before 2000-01-01. (12) One labels
+  statement: the served platforms' and measures' public labels,
+  `transaction_timestamp()` and the rollup frontier, on every path that
+  reaches it. (13) The engine in pair mode for each section with a served
+  pair. (14) Commit; the connection and the slot are released on every exit
+  path, panic unwinding included. The deadline is checked before every
+  statement from step 8 on, the engine's included: one engine deadline value,
+  created at step 5 with the widget's own instant, serves both engine runs,
+  and the widget checks its own statements against the same instant. Past it
+  the read is `METRIC_WIDGET_BUSY` and runs no further statement. A statement
+  that started before the deadline runs to completion or to its own timeout,
+  and a failure is classified as that failure. `COMMIT` is not checked.
+- **Public scope.** A measure is eligible only if it is public, enabled and
+  additive across time and across works, whatever its category (a public
+  `SALES` measure is served, negative values included); a platform only if it
+  is enabled. Eligibility is applied in pair discovery, so nothing else can be
+  served, bounded, checked or read, and no eligible measure means nothing is
+  served, never "unrestricted". Institutions are never served.
+- **Work and child works.** A `book-chapter` work is served alone: `chapters`
+  is null and a non-empty `chapterDois` is `METRIC_QUERY_INVALID`. Otherwise
+  the child works are the work's current `has-child` related works of any
+  type (a child's own children are ignored). More than 500 child works is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, whatever `chapterDois` selects, never
+  truncation. `chapterDois` omitted or `[]` selects every child; otherwise
+  every entry must be a child (`METRIC_QUERY_INVALID`), and children without a
+  DOI are selected only when every child is. Selected children whose current
+  publisher is not the work's publisher are never served and are counted in
+  `excludedChildCount`; unselected children are not counted. `chapters` is
+  null iff the work is a chapter or no selected child is served. Work status
+  is not considered.
+- **Served pairs.** Per section, the distinct eligible platform/measure pairs
+  with a monthly projection row, or a total-ambiguous month, for the section's
+  works in the range, ordered by platform ID and measure ID; when `startDate`
+  is omitted, in any month before `endDate`, with each pair's earliest such
+  month. A pair with no such row is not shown at all, never as a zero;
+  coverage alone does not serve a pair. More than 40 served pairs in a
+  section is `METRIC_QUERY_LIMIT_EXCEEDED`, never truncation.
+- **Served start.** With `startDate`, the served start is `startDate`. With
+  it omitted, it is the first day of the earliest month before `endDate`
+  with a served value (a monthly projection row, or a total-ambiguous month,
+  of an eligible pair of the section's served works, after child selection
+  and exclusion) in either section; with no served pair in either section,
+  the first day of the month before `endDate`. Both sections, and so both
+  timelines, start on that day, and a pair whose own history starts later
+  shows its earlier buckets as `null` or `"0"` under the section 4.3 bucket
+  rule, never as missing buckets. The first `YEAR` bucket runs from the
+  served start to the next 1 January and the last from the last 1 January
+  before `endDate` to `endDate`. Only served values move the start: coverage
+  runs, terminal imports without a completion time, unresolved identifiers,
+  unapplied rollup work and native-grain records never do, unlike section
+  4.3's all-time start. So months before a work's first value are not
+  served, and history that rollup has not yet applied is not served until it
+  is (the start can move earlier as it is, and until then an all-time total
+  can understate the history without a flag, since `isPartial` reflects lag
+  inside the served range only). A served start before 2000-01-01 is
+  `METRIC_QUERY_LIMIT_EXCEEDED`, never clamped. Every eligible row before
+  `endDate` lies in the served range, so an all-history response equals,
+  except for `asOf`, the response to the same request with `startDate` set to
+  its served start, read against the same database state.
+- **Pair mode.** Each section with a served pair is read by the section
+  4.1-4.3 engine on the same connection and snapshot, with the section's works
+  and the work's publisher as its scope, exactly the served pairs as its
+  combinations, the served start (one for both sections) and `endDate` as its
+  explicit range, the request's grain, countries on and institutions off: at
+  most six statements (`PUBLISHERS_SQL`, `ACCOUNTS_SQL`, `CANONICAL_SQL`, the
+  step-7 text, `ASSERTIONS_SQL`, `IDENTIFIER_QUALITY_SQL`). The step-7 text is
+  `MONTHS_YEAR_ONLY_SQL` when the served range is exactly whole calendar
+  years, `MONTHS_YEAR_SQL` when it holds at least one whole calendar year and
+  other whole months, and `MONTHS_SQL` otherwise; whole years read their
+  countries from the yearly country projection. It never runs the dashboard's
+  work, known-scope, represented-pair, scan or day statements, since every
+  widget range is month-aligned and a section holds at most 500 works, and it
+  has no combination bound. With an explicit start, `CANONICAL_SQL`'s lag and
+  native-grain branches are bounded below by the served start. Monthly total,
+  country and coverage-run rows of any other platform/measure pair are dropped
+  as they are read, before any check, so coverage-run state on an unserved
+  cross pair refuses nothing. Each pair's total, buckets, countries and
+  coverage equal a single-pair `metricDashboard` read over the same works,
+  served range and grain; the section's `dataThrough` and `isPartial` are
+  section 4.1's aggregation over exactly the served pairs. A total or country
+  dimension ambiguity, or an active native `MONTH` or `REPORTING_PERIOD`
+  record on any served platform x served measure (a deliberate over-refusal
+  that reaches unserved cross pairs) refuses the read as
+  `METRIC_WIDGET_UNAVAILABLE`. Over
+  all history that reaches every such record and month since the served start:
+  a native-grain record on a served platform x served measure that ends on or
+  before the served start is not read, and one that ends after it refuses the
+  read, including when one served platform's or one section's day-grain
+  history starts before another served platform's or the other section's
+  native history ends; a refusal of either section refuses the whole request.
+  Two overlapping coverage runs of one stream on a served pair refuse the read
+  as `INTERNAL_ERROR`, as they refuse the single-pair `metricDashboard` read
+  of that pair. Native-grain records are never served. Each engine run's
+  frontier must equal the labels statement's (`INTERNAL_ERROR` otherwise).
+- **Empty sections.** A section with no served pair runs no engine statement
+  and returns empty lists, `dataThrough: null` and `isPartial: true`. `asOf`
+  and `rollupWatermark` always come from the labels statement.
+- **Ordering.** `platforms` by `platformId`; `measures` by `measureId`;
+  `totals` and `coverage` by `platformId`, `measureId`; `timeline` then by
+  bucket start; `countries` then by country code.
+- **Bounds and cost.** At most 2 widget reads per process (one process-wide
+  limiter, separate from any dashboard control, section 4.3's concurrency
+  limit included), 1 s checkout, a 5 s statement timeout, a 10 s request
+  deadline from taking the slot (which alone governs a widget read; section
+  4.3's 20-second deadline does not apply), 12 months for a `MONTH` read,
+  500 child works, 500 `chapterDois`, 40 pairs per section and at most 19
+  named statements per read (22 captured with the checkout check, `BEGIN`
+  and `COMMIT`), for an all-history read too. A `YEAR` read's range is
+  bounded by the technical date domain alone (from 2000-01-01 to at most 366
+  days after the current UTC date: at most 28 calendar years in 2026), so
+  moving that floor or ceiling widens the public surface. Cells per section
+  are at most 480 (40 x 12) for `MONTH` and 1,120 (40 x 28) for `YEAR` in
+  2026, below the engine's 5,000. An all-history read's pair discovery and
+  monthly total read walk every month of the section's works since its first
+  value, so its cost grows with the years served; the statement timeout and
+  the request deadline still bound every read, and a work whose all-history
+  read exceeds them fails as `INTERNAL_ERROR` (or `METRIC_WIDGET_BUSY` past
+  the deadline) on every request. No bound is met by truncation.
+- **Errors.** Resolver errors, so HTTP 200 with the error in `errors`; `data`
+  is `null` unless a named fragment spread or typed inline fragment encloses
+  the failing selection. Clients decide on `errors` and `extensions.type`,
+  never on the status or on whether `data` is null, and an error response is
+  never cached. Fixed widget messages only; no engine message, SQL,
+  configuration, package value or token is returned.
+
+| Condition | `extensions.type` |
+| --- | --- |
+| Switch off; unknown DOI; publisher without `METRICS_WIDGET`; engine capability, dimension-scope or native-grain refusal | `METRIC_WIDGET_UNAVAILABLE` |
+| No free slot; checkout timeout or failure; deadline passed before a statement; the prelude lock failing | `METRIC_WIDGET_BUSY` |
+| A second `metricWidget` selection in the request; dates outside the technical domain; a `MONTH` read over 12 months ("A MONTH timeline may cover at most 12 months."); an omitted `startDate` with `endDate` not after 2000-01-01 or more than 366 days after today ("When startDate is omitted, endDate must be after 2000-01-01 and at most 366 days after today (UTC)."); a served start before 2000-01-01 ("Metrics for this work or its child works start before 2000-01-01. Give a startDate on or after 2000-01-01."); over 500 `chapterDois`; over 500 child works; over 40 pairs in a section; an aggregate outside the representable range | `METRIC_QUERY_LIMIT_EXCEEDED` |
+| A DOI that does not parse; a `MONTH` read without `startDate` ("startDate is required for a MONTH timeline."); dates not first of month or not ordered; a repeated `chapterDois` entry; `chapterDois` on a chapter or naming a non-child | `METRIC_QUERY_INVALID` |
+| Any other engine error, `Busy` included (only section 4.3's dashboard limit produces it); an engine failure without a deadline refusal (database failure, statement timeout, inconsistent native-grain state, same-stream coverage-run overlap on a served pair); a missing or mismatched frontier | `INTERNAL_ERROR` |
+
+- **Logging.** With the switch on, each resolution writes one info-level
+  outcome line (outcome, elapsed time, per-section served pairs and
+  cross-product sizes; for a read that passed step 4, `grain=MONTH|YEAR`,
+  `history=true|false` (whether `startDate` was omitted) and `buckets=<n>`,
+  the timeline buckets per pair over the served range, or `-` before the
+  served start is fixed and on the 2000-01-01 refusal; the DOI only after
+  step 9), the first refused second
+  selection of a request is info and later ones debug, reasons for
+  unavailable and busy are debug (the DOI only after step 8), a checkout
+  failure is also warn, and `INTERNAL_ERROR` is error with its reason, section,
+  step, last engine statement and elapsed time. A deadline refusal inside the
+  engine also writes section 4.3's warn line "metricDashboard read stopped:
+  the whole-read deadline passed before a statement could start", at most
+  once per read; it names the dashboard, and the same request's widget lines
+  (`METRIC_WIDGET_BUSY`, reason `DeadlinePassed`) show it came from a widget
+  read. A refusal at a widget-owned step writes no such line. Nothing above
+  debug is written with the switch off. No line can hold a package value.
+- **Activation gate.** The switch is `OFF` in every environment until a
+  separate activation grant per environment, which is CRITICAL unless the CTO
+  decides otherwise at that grant (`ADR-0014` section 4.7). Activation also
+  waits for the WAF rate rule, `MET-READ-CACHE-01` or a named waiver, the
+  public-scope audit, the worker-exposure acceptance, data readiness for
+  native-grain history, and the activation signals. Because the all-history
+  read becomes the default on every embed, activation also carries section
+  4.3's all-time default gate over to the widget: a staging performance
+  reference for the all-history `YEAR` read of the largest real books (most
+  child works, longest history), reporting rows returned per statement and
+  section, the history statement's time and the total latency, which holds
+  activation for a CTO decision if any statement exceeds 2.5 s or any read
+  exceeds 5 s on production-like data, and, unless a response cache is
+  deployed, also measures the read at two concurrent reads per process and
+  reports the `METRIC_WIDGET_BUSY` rate for CTO acceptance; and a read-only
+  census of the all-history read of every work of each entitled publisher (or
+  an agreed sample), reporting the share refused by class (native-grain
+  overlap, over 40 pairs, over 500 children, the 2000-01-01 floor,
+  ambiguity) and latency, accepted by the CTO or answered by a client
+  fallback. A response cache must key an all-history response on the rollup
+  frontier, as every widget response. The switch takes effect only on
+  restart.
+
+Scope boundaries a consumer must not infer:
+
+- A `MONTH` read covers at most 12 whole months. All-time totals, a by-year
+  timeline and all-time countries come from one `YEAR` read with `startDate`
+  omitted; a year by month from a separate `MONTH` read of that calendar
+  year. Clients must not stitch ranges or sum months into years: a year
+  bucket is not the sum of its months when any month is `null`.
+- Each bucket is labelled from its own dates: the first and last `YEAR`
+  buckets may be part-years, and `startDate` is shared by both sections. A
+  pair can have `null` or `"0"` years before its own first value.
+- A read whose range reaches past today carries no coverage signal: every
+  pair is `UNKNOWN` with `countryCoverage: false` and `isPartial: true`. An
+  `endDate` of the first day of the current month avoids that, without the
+  current month's values. In an all-history read a pair whose coverage starts
+  after the served start is `UNKNOWN`, with `countryCoverage: false` and a
+  null `dataThrough`, whatever the `endDate`; `countryCoverage: false` means
+  only that some served day lacks complete country coverage, never that the
+  pair has no country breakdown. As in section 4.3, clients must not present
+  an all-history `dataThrough` as "data up to".
+- Native-grain history (for example OPERAS-imported monthly data) is not
+  served, and a work with an active native-grain record on a served platform
+  x served measure that overlaps the served range is unavailable; for an
+  all-history read, that is any such record ending after the served start.
+  On `METRIC_WIDGET_UNAVAILABLE` or the 2000-01-01 refusal from the
+  all-history read, the client shows no all-time view.
+- No institutions, warnings, entity-level Metrics fields or role-protected
+  data are served, and the protected read service of sections 4.1 and 4.2 is
+  unchanged.
 
 ## 5. Publisher import
 
