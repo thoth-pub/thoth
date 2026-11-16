@@ -33,8 +33,8 @@ use crate::model::{Crud, Ror};
 const B_VERSION: &str = "20261114";
 /// ROR-SYNC-01C's migration, which adds `ror_status` and `ror_successor`.
 const C_VERSION: &str = "20261113";
-const UP_SQL: &str = include_str!("../../../migrations/20261114_v1.10.0/up.sql");
-const DOWN_SQL: &str = include_str!("../../../migrations/20261114_v1.10.0/down.sql");
+const UP_SQL: &str = include_str!("../../../migrations/20261114_v1.11.0/up.sql");
+const DOWN_SQL: &str = include_str!("../../../migrations/20261114_v1.11.0/down.sql");
 const PRECHECK_SQL: &str = include_str!("../../../ops/ror-sync-01b/precheck.sql");
 const REPAIR_SQL: &str = include_str!("../../../ops/ror-sync-01b/repair.sql");
 const ROR_CONFLICT: &str = "An institution with this ROR ID already exists.";
@@ -429,7 +429,7 @@ fn other_role_password() -> &'static str {
 
 /// Drop every object a test of this module creates besides rows: the
 /// stand-in migration's column, the second role (after ending its sessions),
-/// the stand-in C columns, and the tenth foreign key's table (which the tests
+/// and the tenth foreign key's table (which the tests
 /// create only in a transaction they never commit). Never panics: it runs in
 /// [`Restore`], and in [`begin`] to heal a run killed before its `Restore`
 /// ran.
@@ -449,7 +449,6 @@ fn drop_fixture_objects(connection: &mut PgConnection) {
            END IF; \
          END $$;"
     ));
-    drop_stand_in_c_columns(connection);
 }
 
 /// Empty every table, as `reset_db` does, on one connection.
@@ -490,40 +489,6 @@ fn begin() -> (TestDbGuard, Arc<PgPool>, Restore, PgConnection) {
     revert_through_b(&mut connection);
     assert!(!unique_index_exists(&mut connection));
     (guard, pool, restore, connection)
-}
-
-/// ROR-SYNC-01C's `ror_status` and `ror_successor`, for the repair test, on a
-/// branch where C's migration is not applied. Removed by [`Restore`].
-fn add_stand_in_c_columns(connection: &mut PgConnection) {
-    if c_applied(connection) {
-        return;
-    }
-    exec(
-        connection,
-        "CREATE TYPE ror_status AS ENUM ('active', 'inactive', 'withdrawn'); \
-         ALTER TABLE institution \
-             ADD COLUMN ror_status ror_status NOT NULL DEFAULT 'active', \
-             ADD COLUMN ror_successor text NULL, \
-             ADD CONSTRAINT institution_ror_state_check \
-                 CHECK (ror IS NOT NULL OR (ror_status = 'active' AND ror_successor IS NULL));",
-    );
-}
-
-fn drop_stand_in_c_columns(connection: &mut PgConnection) {
-    // Never panics: it runs inside `Restore::drop`. When in doubt, it leaves
-    // the columns alone.
-    let applied = diesel::sql_query(format!(
-        "SELECT count(*) AS n FROM __diesel_schema_migrations WHERE version = '{C_VERSION}'"
-    ))
-    .get_result::<CountRow>(connection)
-    .map_or(true, |row| row.n == 1);
-    if !applied {
-        let _ = connection.batch_execute(
-            "ALTER TABLE institution DROP COLUMN IF EXISTS ror_status, \
-                                     DROP COLUMN IF EXISTS ror_successor; \
-             DROP TYPE IF EXISTS ror_status;",
-        );
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1731,6 +1696,18 @@ fn a_held_ror_id_through_create_with_history_or_update_gets_the_message_and_writ
     let other = Institution::create_with_history(&ctx, &new_institution(Some(&random_ror()), None))
         .expect("another institution is created");
     let mut connection = connect();
+    // Give `other` a state the unprivileged update would reset (`active`, no
+    // successor), so a partial write would show in the row, not only in the
+    // history count.
+    exec(
+        &mut connection,
+        &format!(
+            "UPDATE institution SET ror_status = 'inactive', ror_successor = '{REPAIR_SUCCESSOR}' \
+             WHERE institution_id = '{}'",
+            other.institution_id
+        ),
+    );
+    let other = Institution::from_id(&pool, &other.institution_id).unwrap();
     let totals = |connection: &mut PgConnection| {
         (
             count(connection, "SELECT count(*) AS n FROM institution"),
@@ -1806,10 +1783,13 @@ fn of_two_concurrent_creates_with_one_ror_id_one_succeeds_and_the_other_gets_the
 // §5.3 Concurrency
 // ---------------------------------------------------------------------------
 
-/// A statement run on its own connection, in its own thread.
+/// A statement run on its own connection, in its own thread. A probe that is
+/// dropped without [`Probe::join`] (a test that panicked) ends its backend and
+/// joins its thread, so no probe outlives its test or holds a lock into the
+/// next one.
 struct Probe {
     pid: i32,
-    handle: JoinHandle<Result<(), diesel::result::Error>>,
+    handle: Option<JoinHandle<Result<(), diesel::result::Error>>>,
 }
 
 impl Probe {
@@ -1831,22 +1811,42 @@ impl Probe {
         let pid = receiver
             .recv_timeout(Duration::from_secs(30))
             .expect("the probe connected");
-        Self { pid, handle }
+        Self {
+            pid,
+            handle: Some(handle),
+        }
     }
 
     /// Wait until the probe's backend waits on a lock.
     fn wait_blocked(&self, observer: &mut PgConnection) {
         wait_for_lock_wait(observer, self.pid, || {
             assert!(
-                !self.handle.is_finished(),
+                !self.handle.as_ref().is_some_and(JoinHandle::is_finished),
                 "backend {} finished instead of waiting",
                 self.pid
             );
         });
     }
 
-    fn join(self) -> Result<(), diesel::result::Error> {
-        self.handle.join().expect("the probe thread panicked")
+    fn join(mut self) -> Result<(), diesel::result::Error> {
+        self.handle
+            .take()
+            .expect("a probe is joined once")
+            .join()
+            .expect("the probe thread panicked")
+    }
+}
+
+impl Drop for Probe {
+    fn drop(&mut self) {
+        // Never panics: it runs while a failed test unwinds.
+        if let Some(handle) = self.handle.take() {
+            if let Ok(mut connection) = PgConnection::establish(&test_db_url()) {
+                let _ =
+                    connection.batch_execute(&format!("SELECT pg_terminate_backend({})", self.pid));
+            }
+            let _ = handle.join();
+        }
     }
 }
 
@@ -2017,7 +2017,9 @@ fn while_the_migration_holds_its_locks_reads_go_on_and_references_to_group_rows_
         probe.wait_blocked(&mut observer);
     }
     thread::sleep(Duration::from_millis(200));
-    assert!(waits.iter().all(|probe| !probe.handle.is_finished()));
+    assert!(waits
+        .iter()
+        .all(|probe| !probe.handle.as_ref().is_some_and(JoinHandle::is_finished)));
 
     commit_migration(hold);
 
@@ -2618,7 +2620,10 @@ const REPAIR_SUCCESSOR: &str = "https://ror.org/0zzzzzz11";
 #[test]
 fn the_repair_restores_the_ror_state_columns_to_their_defaults() {
     let (_guard, pool, _restore, mut connection) = begin();
-    add_stand_in_c_columns(&mut connection);
+    assert!(
+        c_applied(&mut connection),
+        "ROR-SYNC-01C's ror_status and ror_successor are needed"
+    );
     let mut seed = Seed::new(&pool);
     let ror = random_ror();
     let survivor = seed.institution(Some(&ror), true, "2020-01-01 00:00:00+00");

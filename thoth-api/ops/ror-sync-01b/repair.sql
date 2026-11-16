@@ -27,8 +27,8 @@
 --      `ROR-SYNC-01B-REPAIR`, whose `data` names the merge row.
 --
 -- Without `--single-transaction` (or an enclosing transaction) the script
--- fails with `relation "ror_sync_01b_repair_report" does not exist` and
--- changes nothing. A second run in the same transaction starts from an empty
+-- fails (normally with `relation "ror_sync_01b_repair_report" does not
+-- exist`) and changes nothing. A second run in the same transaction starts from an empty
 -- report.
 --
 -- The report is the result of the final SELECT: one row per listed ID, with

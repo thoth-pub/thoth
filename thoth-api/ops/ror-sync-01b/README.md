@@ -1,6 +1,6 @@
 # ROR-SYNC-01B: merging institutions that share a ROR ID
 
-Stage ROR-SYNC-01B of thoth-pub/thoth#1002 (stage issue thoth-pub/thoth#1023). This folder holds the operator material for migration `20261114_v1.10.0`. Nothing here is run by `thoth migrate` or `thoth init`.
+Stage ROR-SYNC-01B of thoth-pub/thoth#1002 (stage issue thoth-pub/thoth#1023). This folder holds the operator material for migration `20261114_v1.11.0`. Nothing here is run by `thoth migrate` or `thoth init`.
 
 | File | What it is |
 | --- | --- |
@@ -11,7 +11,7 @@ Stage ROR-SYNC-01B of thoth-pub/thoth#1002 (stage issue thoth-pub/thoth#1023). T
 
 This release merges institutions that share a ROR ID and makes the ROR ID unique.
 
-- **What happens.** Migration `20261114_v1.10.0` finds every ROR ID held by more than one institution. In each group it keeps one institution (the survivor) and merges the others into it: their affiliations, fundings, book reviews, endorsements and history rows move to the survivor, one history row on the survivor records each merge, and the merged institutions are deleted. Then it creates the unique index `institution_ror_uniq_idx`. A create or update with a ROR ID that another institution already holds then fails with `An institution with this ROR ID already exists.`
+- **What happens.** Migration `20261114_v1.11.0` finds every ROR ID held by more than one institution. In each group it keeps one institution (the survivor) and merges the others into it: their affiliations, fundings, book reviews, endorsements and history rows move to the survivor, one history row on the survivor records each merge, and the merged institutions are deleted. Then it creates the unique index `institution_ror_uniq_idx`. A create or update with a ROR ID that another institution already holds then fails with `An institution with this ROR ID already exists.`
 - **Which institution survives.** The first rule that decides, each among the rows the earlier rules left tied: (0) the institution with Metrics references; (1) the one that holds a DOI; (2) the one with the most affiliations, fundings, book reviews and endorsements; (3) the oldest; (4) the lowest ID. The survivor's own name, DOI and country are not changed, so every moved link now exports the survivor's values.
 - **No per-instance review.** On your installation the groups are merged by this rule without anyone reviewing them. Run `thoth-api/ops/ror-sync-01b/precheck.sql` first to see what will merge: query 1 lists the foreign keys on `institution`; query 2 lists every group, each row's references, Metrics references and DOI, the survivor, the deciding rule and whether the group is blocked; query 3 lists the works the merge will bump.
 - **Blockers.** The migration aborts, changes nothing, and names every blocker with its remedy, if: the foreign keys on `institution` are not exactly the nine it expects (contact the maintainers before upgrading); two rows of a group hold a DOI (clear the DOI by hand on the row that should not survive); two rows of a group have Metrics references (contact the maintainers); or the Metrics-referenced row and the DOI holder differ (move the DOI by hand to the Metrics-referenced row, clearing it on the holder first, or contact the maintainers). A blocked group shows in query 2 with no survivor and no rule.
