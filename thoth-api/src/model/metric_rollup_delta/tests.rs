@@ -127,7 +127,7 @@ const YEAR_TABLES: [&str; 2] = [
 
 /// Every derived serving table: the four monthly and the two yearly, in
 /// name order.
-const DERIVED_TABLES: [&str; 6] = [
+pub(crate) const DERIVED_TABLES: [&str; 6] = [
     "metric_rollup_work_country_month",
     "metric_rollup_work_country_year",
     "metric_rollup_work_institution_month",
@@ -907,6 +907,7 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
         "metric_rollup_work_month_ambiguity",
         "metric_rollup_work_country_year",
         "metric_rollup_work_institution_year",
+        "metric_rollup_month_rebuild_run",
     ] {
         assert_eq!(
             trigger_names(&pool, table),
@@ -915,6 +916,41 @@ fn no_deferred_rebuild_retry_or_projection_object_was_introduced() {
              written explicitly by the completion transaction"
         );
     }
+
+    // MET-WP4-03A-OPS-03 adds exactly one coordination table, for
+    // caller-driven runs, and no other rollup table, queue, lease or flag.
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    #[derive(diesel::QueryableByName)]
+    struct RelationName {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        relname: String,
+    }
+    let tables: Vec<String> = sql_query(
+        "SELECT relname::text AS relname FROM pg_class \
+         WHERE relnamespace = 'public'::regnamespace AND relkind IN ('r', 'p', 'v', 'm') \
+           AND relname LIKE 'metric_rollup%' ORDER BY relname",
+    )
+    .load::<RelationName>(&mut connection)
+    .expect("Failed to list the rollup relations")
+    .into_iter()
+    .map(|row| row.relname)
+    .collect();
+    assert_eq!(
+        tables,
+        [
+            "metric_rollup_delta",
+            "metric_rollup_month_rebuild_run",
+            "metric_rollup_work_country_month",
+            "metric_rollup_work_country_year",
+            "metric_rollup_work_day",
+            "metric_rollup_work_day_state",
+            "metric_rollup_work_institution_month",
+            "metric_rollup_work_institution_year",
+            "metric_rollup_work_month",
+            "metric_rollup_work_month_ambiguity",
+        ],
+        "the rollup relations are exactly the approved tables"
+    );
 }
 
 #[test]
@@ -1273,7 +1309,7 @@ pub(crate) fn deltas(pool: &PgPool) -> Vec<MetricRollupDelta> {
 }
 
 /// Run a statement that is expected to succeed.
-fn exec(pool: &PgPool, statement: &str) {
+pub(crate) fn exec(pool: &PgPool, statement: &str) {
     let mut connection = pool.get().expect("Failed to get DB connection");
     sql_query(statement)
         .execute(&mut connection)
@@ -2872,13 +2908,13 @@ fn the_down_migration_refuses_to_erase_claim_or_application_evidence() {
 }
 
 /// A held transaction that keeps its statements' locks until released.
-struct HeldTransaction {
+pub(crate) struct HeldTransaction {
     release: Sender<()>,
     handle: JoinHandle<()>,
 }
 
 impl HeldTransaction {
-    fn start(statement: String) -> Self {
+    pub(crate) fn start(statement: String) -> Self {
         let (release, wait): (Sender<()>, Receiver<()>) = channel();
         let (ready_tx, ready_rx) = channel();
         let handle = thread::spawn(move || {
@@ -2897,7 +2933,7 @@ impl HeldTransaction {
         HeldTransaction { release, handle }
     }
 
-    fn commit(self) {
+    pub(crate) fn commit(self) {
         self.release.send(()).expect("release");
         self.handle.join().expect("join");
     }
@@ -3066,7 +3102,7 @@ fn day_delta(
 
 /// Claim and complete until the frontier is exhausted, in batches of the
 /// maximum size, and return the durable watermark.
-fn apply_everything(pool: &PgPool) -> i64 {
+pub(crate) fn apply_everything(pool: &PgPool) -> i64 {
     loop {
         let claims = claim_metric_rollup_deltas(pool, CLAIMANT, METRIC_ROLLUP_CLAIM_MAX_BATCH)
             .expect("claim");
@@ -3234,7 +3270,7 @@ type AmbiguityValue = (bool, bool, bool, i64);
 /// incrementally maintained state, rebuilt state and the oracle compare
 /// exactly on values, dependency flags, ambiguity flags and watermarks.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct MonthState {
+pub(crate) struct MonthState {
     totals: BTreeMap<TotalIdentity, TotalValue>,
     countries: BTreeMap<CountryIdentity, DimensionValue>,
     institutions: BTreeMap<InstitutionIdentity, DimensionValue>,
@@ -3242,7 +3278,7 @@ struct MonthState {
 }
 
 /// The persisted monthly state.
-fn month_state(pool: &PgPool) -> MonthState {
+pub(crate) fn month_state(pool: &PgPool) -> MonthState {
     MonthState {
         totals: month_rows(pool)
             .into_iter()
@@ -3358,7 +3394,7 @@ fn least_representation(represented: &BTreeSet<u8>, target: u8) -> Result<Option
 
 /// The monthly state the approved semantics imply for the given work-day
 /// rows, derived per base cell in Rust and independently of the SQL.
-fn oracle_month_state(days: &[MetricRollupWorkDay]) -> MonthState {
+pub(crate) fn oracle_month_state(days: &[MetricRollupWorkDay]) -> MonthState {
     let mut cells: BTreeMap<(Uuid, Uuid, Uuid, NaiveDate), Vec<&MetricRollupWorkDay>> =
         BTreeMap::new();
     for row in days {
@@ -3510,7 +3546,7 @@ fn assert_watermarks_within(state: &MonthState, frontier: i64) {
 // ---------------------------------------------------------------------------
 
 /// A second work under the fixture imprint.
-fn insert_extra_work(pool: &PgPool, fixture: &RecordFixture) -> Uuid {
+pub(crate) fn insert_extra_work(pool: &PgPool, fixture: &RecordFixture) -> Uuid {
     let work_id = Uuid::new_v4();
     let mut connection = pool.get().expect("Failed to get DB connection");
     sql_query(
@@ -3525,7 +3561,11 @@ fn insert_extra_work(pool: &PgPool, fixture: &RecordFixture) -> Uuid {
 }
 
 /// A further publication of `work_id`, of a type the work does not have yet.
-fn insert_extra_publication(pool: &PgPool, work_id: Uuid, publication_type: &str) -> Uuid {
+pub(crate) fn insert_extra_publication(
+    pool: &PgPool,
+    work_id: Uuid,
+    publication_type: &str,
+) -> Uuid {
     let publication_id = Uuid::new_v4();
     let mut connection = pool.get().expect("Failed to get DB connection");
     sql_query(format!(
@@ -3539,7 +3579,7 @@ fn insert_extra_publication(pool: &PgPool, work_id: Uuid, publication_type: &str
     publication_id
 }
 
-fn insert_extra_institution(pool: &PgPool) -> Uuid {
+pub(crate) fn insert_extra_institution(pool: &PgPool) -> Uuid {
     let institution_id = Uuid::new_v4();
     let mut connection = pool.get().expect("Failed to get DB connection");
     sql_query("INSERT INTO institution (institution_id, institution_name) VALUES ($1, 'Other')")
@@ -3552,15 +3592,15 @@ fn insert_extra_institution(pool: &PgPool) -> Uuid {
 /// The optional dimensions of one generated record, with explicit entity
 /// ids so several publications and institutions can be represented.
 #[derive(Clone, Copy)]
-struct CellDimensions {
-    publication_id: Option<Uuid>,
-    country_code: Option<&'static str>,
-    institution_id: Option<Uuid>,
+pub(crate) struct CellDimensions {
+    pub(crate) publication_id: Option<Uuid>,
+    pub(crate) country_code: Option<&'static str>,
+    pub(crate) institution_id: Option<Uuid>,
 }
 
 /// Commit one `PENDING` work-day delta of `value` for `work_id` with
 /// explicit dimensions, and return its canonical record id.
-fn commit_cell_delta(
+pub(crate) fn commit_cell_delta(
     pool: &PgPool,
     fixture: &RecordFixture,
     work_id: Uuid,
@@ -5296,7 +5336,7 @@ fn the_month_migration_reverts_only_the_derived_tables_and_reapplies_empty() {
 // ---------------------------------------------------------------------------
 
 /// The recorded duration percentiles of one sample set, in microseconds.
-fn percentiles(samples: &mut [Duration]) -> (u128, u128, u128) {
+pub(crate) fn percentiles(samples: &mut [Duration]) -> (u128, u128, u128) {
     samples.sort();
     let at = |fraction: f64| {
         let index = ((samples.len() - 1) as f64 * fraction).round() as usize;
@@ -5310,7 +5350,11 @@ fn percentiles(samples: &mut [Duration]) -> (u128, u128, u128) {
 /// masks per day. Values, country choices and mask draws come from a seeded
 /// `random()`; institution choices hash generated UUIDs, so the institution
 /// row count varies slightly between runs while the shape does not.
-fn seed_production_shaped_days(pool: &PgPool, fixture: &RecordFixture, works: i64) -> i64 {
+pub(crate) fn seed_production_shaped_days(
+    pool: &PgPool,
+    fixture: &RecordFixture,
+    works: i64,
+) -> i64 {
     exec(pool, "SELECT setseed(0.20260923)");
     exec(
         pool,
@@ -5636,16 +5680,16 @@ const ROLLUP_TABLES: [&str; 8] = [
 const RECONCILIATION_LEDGERS: [&str; 2] =
     ["metric_reconciliation_run", "metric_reconciliation_issue"];
 
-fn verification(pool: &PgPool) -> MetricRollupMonthVerification {
+pub(crate) fn verification(pool: &PgPool) -> MetricRollupMonthVerification {
     verify_metric_rollup_months(pool).expect("verification")
 }
 
-fn rebuild(pool: &PgPool, frontier: i64) -> ThothResult<MetricRollupMonthRebuildResult> {
+pub(crate) fn rebuild(pool: &PgPool, frontier: i64) -> ThothResult<MetricRollupMonthRebuildResult> {
     rebuild_metric_rollup_months(pool, &frontier.to_string())
 }
 
 /// Run a statement and return how many rows it affected.
-fn exec_count(pool: &PgPool, statement: &str) -> usize {
+pub(crate) fn exec_count(pool: &PgPool, statement: &str) -> usize {
     let mut connection = pool.get().expect("Failed to get DB connection");
     sql_query(statement)
         .execute(&mut connection)
@@ -5653,13 +5697,13 @@ fn exec_count(pool: &PgPool, statement: &str) -> usize {
 }
 
 /// Run a statement that must affect exactly one row.
-fn exec_one(pool: &PgPool, statement: &str) {
+pub(crate) fn exec_one(pool: &PgPool, statement: &str) {
     assert_eq!(exec_count(pool, statement), 1, "{statement}");
 }
 
 /// An order-independent digest of every row of one table, or `None` when
 /// the table is empty.
-fn table_digest(pool: &PgPool, table: &str) -> Option<String> {
+pub(crate) fn table_digest(pool: &PgPool, table: &str) -> Option<String> {
     #[derive(diesel::QueryableByName)]
     struct Digest {
         #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
@@ -5776,7 +5820,10 @@ fn exact_family(rows: i64) -> MetricRollupMonthProjectionVerification {
 
 /// Assert a verification is exact and agrees with the oracle's
 /// cardinalities and the current frontier and work-day facts.
-fn assert_exact_verification(pool: &PgPool, verification: &MetricRollupMonthVerification) {
+pub(crate) fn assert_exact_verification(
+    pool: &PgPool,
+    verification: &MetricRollupMonthVerification,
+) {
     let days = projection(pool);
     let oracle = oracle_month_state(&days);
     let state = state(pool);
@@ -5831,7 +5878,7 @@ fn assert_exact_verification(pool: &PgPool, verification: &MetricRollupMonthVeri
 
 /// The differential fixture, applied through the frontier, with every
 /// monthly family populated.
-fn settled_differential_fixture(pool: &PgPool) -> (RecordFixture, i64) {
+pub(crate) fn settled_differential_fixture(pool: &PgPool) -> (RecordFixture, i64) {
     let (fixture, _record_id) = fixture_record(pool, "identity-base");
     seed_differential_fixture(pool, &fixture);
     let frontier = apply_everything(pool);
@@ -5851,14 +5898,14 @@ fn settled_differential_fixture(pool: &PgPool) -> (RecordFixture, i64) {
 /// The failure-injection, pause and corruption triggers of this section are
 /// all instances: a body that raises, a body that sleeps, and a body that
 /// alters the row being written.
-struct InjectedTrigger {
+pub(crate) struct InjectedTrigger {
     pool: Arc<PgPool>,
     name: String,
     table: String,
 }
 
 impl InjectedTrigger {
-    fn install(
+    pub(crate) fn install(
         pool: &Arc<PgPool>,
         timing_and_event: &str,
         table: &str,
@@ -5889,7 +5936,7 @@ impl InjectedTrigger {
         }
     }
 
-    fn failing(pool: &Arc<PgPool>, timing_and_event: &str, table: &str) -> Self {
+    pub(crate) fn failing(pool: &Arc<PgPool>, timing_and_event: &str, table: &str) -> Self {
         Self::install(
             pool,
             timing_and_event,
@@ -5918,7 +5965,7 @@ impl Drop for InjectedTrigger {
 
 /// Every statement captured so far, in execution order, without the bind
 /// suffix Diesel's instrumentation appends to a query's text.
-fn captured(log: &Mutex<Vec<String>>) -> Vec<String> {
+pub(crate) fn captured(log: &Mutex<Vec<String>>) -> Vec<String> {
     log.lock()
         .expect("statement log")
         .iter()
@@ -5941,7 +5988,7 @@ fn database_failure(error: &ThothError) -> String {
 }
 
 /// How many backends of this database are currently waiting on a lock.
-fn backends_waiting_on_a_lock(pool: &PgPool) -> i64 {
+pub(crate) fn backends_waiting_on_a_lock(pool: &PgPool) -> i64 {
     scalar_i64(
         pool,
         "(SELECT COUNT(*) FROM pg_stat_activity \
@@ -5950,7 +5997,7 @@ fn backends_waiting_on_a_lock(pool: &PgPool) -> i64 {
 }
 
 /// A pool wide enough for several concurrent rollup operations at once.
-fn wide_pool() -> Arc<PgPool> {
+pub(crate) fn wide_pool() -> Arc<PgPool> {
     Arc::new(
         Pool::builder()
             .max_size(6)
@@ -7744,14 +7791,14 @@ impl CustomizeConnection<PgConnection, diesel::r2d2::Error> for PauseCustomizer 
 }
 
 /// The test's handle on a [`PausePoint`].
-struct PauseHandle {
+pub(crate) struct PauseHandle {
     reached: Receiver<()>,
     release: Sender<()>,
 }
 
 impl PauseHandle {
     /// Wait until the paused connection has reached its statement.
-    fn wait_reached(&self) {
+    pub(crate) fn wait_reached(&self) {
         match self.reached.recv_timeout(Duration::from_secs(30)) {
             Ok(()) => {}
             Err(RecvTimeoutError::Timeout) => panic!("the pause point was not reached"),
@@ -7759,7 +7806,7 @@ impl PauseHandle {
         }
     }
 
-    fn release(&self) {
+    pub(crate) fn release(&self) {
         self.release
             .send(())
             .expect("the paused connection is waiting");
@@ -7776,7 +7823,9 @@ impl Drop for PauseHandle {
 
 /// A one-connection pool that pauses before the first statement starting
 /// with `prefix`, and captures every statement.
-fn pausing_pool(prefix: &'static str) -> (Arc<PgPool>, PauseHandle, Arc<Mutex<Vec<String>>>) {
+pub(crate) fn pausing_pool(
+    prefix: &'static str,
+) -> (Arc<PgPool>, PauseHandle, Arc<Mutex<Vec<String>>>) {
     let (reached_tx, reached_rx) = channel();
     let (release_tx, release_rx) = channel();
     let log = Arc::new(Mutex::new(Vec::new()));
@@ -7804,7 +7853,7 @@ fn pausing_pool(prefix: &'static str) -> (Arc<PgPool>, PauseHandle, Arc<Mutex<Ve
 
 /// `(pid, granted)` of every relation lock of `mode` on `table`, from the
 /// server's own lock table.
-fn relation_locks(pool: &PgPool, table: &str, mode: &str) -> Vec<(i32, bool)> {
+pub(crate) fn relation_locks(pool: &PgPool, table: &str, mode: &str) -> Vec<(i32, bool)> {
     #[derive(diesel::QueryableByName)]
     struct LockRow {
         #[diesel(sql_type = diesel::sql_types::Integer)]
@@ -7830,7 +7879,7 @@ fn relation_locks(pool: &PgPool, table: &str, mode: &str) -> Vec<(i32, bool)> {
 }
 
 /// `(wait_event_type, current query)` of one backend.
-fn backend(pool: &PgPool, pid: i32) -> (Option<String>, String) {
+pub(crate) fn backend(pool: &PgPool, pid: i32) -> (Option<String>, String) {
     #[derive(diesel::QueryableByName)]
     struct ActivityRow {
         #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
@@ -7850,7 +7899,7 @@ fn backend(pool: &PgPool, pid: i32) -> (Option<String>, String) {
 
 /// Poll the server's lock table until `condition` holds, or fail after
 /// thirty seconds. Waiting on evidence, not on elapsed time.
-fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
+pub(crate) fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(30);
     while !condition() {
         assert!(
@@ -7862,7 +7911,7 @@ fn wait_for_lock_evidence(label: &str, mut condition: impl FnMut() -> bool) {
 }
 
 /// The pids holding a granted lock of `mode` on all six derived tables.
-fn holders_on_all_derived_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
+pub(crate) fn holders_on_all_derived_tables(pool: &PgPool, mode: &str) -> Vec<i32> {
     let mut holders: Option<BTreeSet<i32>> = None;
     for table in DERIVED_TABLES {
         let pids: BTreeSet<i32> = relation_locks(pool, table, mode)
@@ -8265,13 +8314,13 @@ type InstitutionYearIdentity = (Uuid, Option<Uuid>, Uuid, Uuid, NaiveDate, Uuid)
 
 /// The two yearly datasets by logical identity, without surrogate ids.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct YearState {
+pub(crate) struct YearState {
     countries: BTreeMap<CountryYearIdentity, DimensionValue>,
     institutions: BTreeMap<InstitutionYearIdentity, DimensionValue>,
 }
 
 /// The persisted yearly state.
-fn year_state(pool: &PgPool) -> YearState {
+pub(crate) fn year_state(pool: &PgPool) -> YearState {
     YearState {
         countries: country_year_rows(pool)
             .into_iter()
@@ -8316,7 +8365,7 @@ fn year_of(month_start: NaiveDate) -> NaiveDate {
 /// oracle of the monthly section, regrouped by calendar year with checked
 /// sums, OR-ed flags and the greatest watermark. It never reads a monthly or
 /// yearly table and shares nothing with the SQL writers.
-fn oracle_year_state(days: &[MetricRollupWorkDay]) -> YearState {
+pub(crate) fn oracle_year_state(days: &[MetricRollupWorkDay]) -> YearState {
     let months = oracle_month_state(days);
     let mut state = YearState::default();
     for ((work, publication, platform, measure, month_start, code), (value, flag, watermark)) in
@@ -8415,7 +8464,7 @@ fn assert_year_exact(pool: &PgPool, label: &str) -> MetricRollupMonthVerificatio
 /// Digests of everything a failed completion or rebuild must leave intact:
 /// the six derived tables, the work-day projection, the deltas and the state
 /// row.
-fn derived_digests(pool: &PgPool) -> Vec<(String, Option<String>)> {
+pub(crate) fn derived_digests(pool: &PgPool) -> Vec<(String, Option<String>)> {
     let mut digests: Vec<(String, Option<String>)> = DERIVED_TABLES
         .iter()
         .chain(

@@ -21,6 +21,24 @@ mod defaults {
         let fundfield: InstitutionField = Default::default();
         assert_eq!(fundfield, InstitutionField::InstitutionName);
     }
+
+    #[test]
+    fn a_snapshot_from_before_the_ror_state_fields_reads_as_active_with_no_successor() {
+        let snapshot = r#"{
+            "institutionId": "00000000-0000-0000-0000-000000000001",
+            "institutionName": "Snapshot Institution",
+            "institutionDoi": null,
+            "createdAt": "2020-01-01T00:00:00Z",
+            "updatedAt": "2020-01-01T00:00:00Z",
+            "ror": "https://ror.org/051z6e826",
+            "countryCode": null
+        }"#;
+        let institution: Institution =
+            serde_json::from_str(snapshot).expect("a pre-ROR-SYNC-01C snapshot deserializes");
+        assert_eq!(institution.ror_status, RorStatus::Active);
+        assert_eq!(institution.ror_successor, None);
+        assert_eq!(institution.institution_name, "Snapshot Institution");
+    }
 }
 
 mod display_and_parse {
@@ -1036,6 +1054,8 @@ mod policy {
             institution_doi: institution.institution_doi.clone(),
             ror: institution.ror.clone(),
             country_code: institution.country_code,
+            ror_status: None,
+            ror_successor: juniper::Nullable::ImplicitNull,
         };
 
         assert!(InstitutionPolicy::can_create(&ctx, &new_institution, ()).is_err());
@@ -1063,6 +1083,8 @@ mod policy {
             institution_doi: institution.institution_doi.clone(),
             ror: institution.ror.clone(),
             country_code: institution.country_code,
+            ror_status: None,
+            ror_successor: juniper::Nullable::ImplicitNull,
         };
 
         assert!(InstitutionPolicy::can_create(&ctx, &new_institution, ()).is_ok());
@@ -1133,6 +1155,8 @@ mod crud {
             institution_doi: institution.institution_doi.clone(),
             ror: institution.ror.clone(),
             country_code: institution.country_code,
+            ror_status: None,
+            ror_successor: juniper::Nullable::ImplicitNull,
         };
 
         let ctx = test_context(pool.clone(), "test-user");
@@ -1358,6 +1382,7 @@ mod crud {
             || InstitutionField::CountryCode,
             || InstitutionField::CreatedAt,
             || InstitutionField::UpdatedAt,
+            || InstitutionField::RorStatus,
         ];
 
         for field in fields {
@@ -1384,5 +1409,2006 @@ mod crud {
                 assert_eq!(results.len(), 2);
             }
         }
+    }
+}
+
+/// ROR-SYNC-01C (thoth#1024): `ror_status`, `ror_successor`, the
+/// `ROR_SYNC_SERVICE` role, history on create, and the P3 trigger. The section
+/// numbers in the test names' comments refer to the stage specification's
+/// acceptance list (§4).
+#[cfg(feature = "backend")]
+mod ror_state {
+    use super::*;
+
+    use std::collections::{BTreeSet, HashMap};
+    use std::path::Path;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use diesel::connection::SimpleConnection;
+    use diesel::sql_types::{BigInt, Bool, Text};
+    use diesel::{
+        Connection, ExpressionMethods, PgConnection, QueryDsl, QueryableByName, RunQueryDsl,
+    };
+    use diesel_migrations::MigrationHarness;
+    use thoth_errors::{ThothError, ThothResult};
+    use zitadel::actix::introspection::IntrospectedUser;
+
+    use crate::db::{PgPool, MIGRATIONS};
+    use crate::model::affiliation::{Affiliation, NewAffiliation};
+    use crate::model::funding::{Funding, NewFunding};
+    use crate::model::institution::crud::{
+        may_write_ror_state, CREATE_WITHOUT_HISTORY_ERROR, UPDATE_TABLE_LOCK_SQL,
+    };
+    use crate::model::institution::policy::InstitutionPolicy;
+    use crate::model::publisher::Publisher;
+    use crate::model::tests::db::{
+        create_contribution, create_contributor, create_imprint, create_publisher, create_work,
+        setup_test_db, test_db_url, test_superuser,
+    };
+    use crate::model::tests::{assert_db_enum_roundtrip, assert_graphql_enum_roundtrip};
+    use crate::model::work::Work;
+    use crate::policy::{CreatePolicy, DeletePolicy, PolicyContext, Role, UpdatePolicy};
+    use crate::schema::{affiliation, institution, institution_history};
+
+    const ROR_A: &str = "https://ror.org/0aaaaaa00";
+    const ROR_B: &str = "https://ror.org/0bbbbbb00";
+    const ROR_C: &str = "https://ror.org/0cccccc00";
+    const ROR_D: &str = "https://ror.org/0dddddd00";
+
+    const C_MIGRATION_VERSION: &str = "20261113";
+    const C_DOWN_SQL: &str = include_str!("../../../migrations/20261113_v1.10.0/down.sql");
+
+    const STATE_CHECK_MESSAGE: &str =
+        "An institution without a ROR ID must be ACTIVE with no successor.";
+    const ACTIVE_SUCCESSOR_MESSAGE: &str = "An ACTIVE institution cannot have a ROR successor.";
+    const SELF_SUCCESSOR_MESSAGE: &str = "An institution cannot be its own ROR successor.";
+    const INVALID_SUCCESSOR_MESSAGE: &str = "Invalid ROR successor.";
+
+    fn ror(value: &str) -> Ror {
+        Ror(value.to_string())
+    }
+
+    /// A policy context that can move to another thread.
+    struct ThreadCtx {
+        db: Arc<PgPool>,
+        user: Option<IntrospectedUser>,
+    }
+
+    impl PolicyContext for ThreadCtx {
+        fn db(&self) -> &PgPool {
+            &self.db
+        }
+        fn user(&self) -> Option<&IntrospectedUser> {
+            self.user.as_ref()
+        }
+    }
+
+    fn ctx(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> ThreadCtx {
+        ThreadCtx {
+            db: pool.clone(),
+            user,
+        }
+    }
+
+    fn user_with_project_roles(
+        user_id: &str,
+        project_roles: Option<HashMap<String, HashMap<String, String>>>,
+    ) -> IntrospectedUser {
+        let mut user = test_superuser(user_id);
+        user.project_roles = project_roles;
+        user
+    }
+
+    fn unscoped_user(user_id: &str, roles: &[Role]) -> IntrospectedUser {
+        let mut project_roles = HashMap::new();
+        for role in roles {
+            project_roles.insert(role.as_ref().to_string(), HashMap::new());
+        }
+        user_with_project_roles(user_id, Some(project_roles))
+    }
+
+    fn ror_sync_user(user_id: &str) -> IntrospectedUser {
+        unscoped_user(user_id, &[Role::RorSyncService])
+    }
+
+    /// One caller class of the stage's matrix (S5).
+    struct Caller {
+        label: &'static str,
+        make: Box<dyn Fn() -> Option<IntrospectedUser>>,
+        privileged: bool,
+        /// Whether the caller may delete an institution linked to the test
+        /// publisher (unchanged by this stage).
+        deletes_linked: bool,
+    }
+
+    impl Caller {
+        fn user(&self) -> Option<IntrospectedUser> {
+            (self.make)()
+        }
+    }
+
+    fn callers(org_id: &str) -> Vec<Caller> {
+        let org_id = org_id.to_string();
+        let scoped_roles = move || {
+            let mut scoped_roles = HashMap::new();
+            for role in [
+                Role::PublisherAdmin,
+                Role::PublisherUser,
+                Role::WorkLifecycle,
+                Role::CdnWrite,
+            ] {
+                let mut orgs = HashMap::new();
+                orgs.insert(org_id.clone(), "label".to_string());
+                scoped_roles.insert(role.as_ref().to_string(), orgs);
+            }
+            scoped_roles
+        };
+        vec![
+            Caller {
+                label: "anonymous",
+                make: Box::new(|| None),
+                privileged: false,
+                deletes_linked: false,
+            },
+            Caller {
+                label: "authenticated, no role",
+                make: Box::new(|| Some(user_with_project_roles("matrix-no-role", None))),
+                privileged: false,
+                deletes_linked: false,
+            },
+            Caller {
+                label: "publisher-scoped roles",
+                make: Box::new(move || {
+                    Some(user_with_project_roles(
+                        "matrix-publisher",
+                        Some(scoped_roles()),
+                    ))
+                }),
+                privileged: false,
+                deletes_linked: true,
+            },
+            Caller {
+                label: "SUPERUSER",
+                make: Box::new(|| Some(unscoped_user("matrix-superuser", &[Role::Superuser]))),
+                privileged: true,
+                deletes_linked: true,
+            },
+            Caller {
+                label: "ROR_SYNC_SERVICE",
+                make: Box::new(|| Some(ror_sync_user("matrix-ror-sync"))),
+                privileged: true,
+                deletes_linked: false,
+            },
+            Caller {
+                label: "DISSEMINATION_WORKER",
+                make: Box::new(|| {
+                    Some(unscoped_user(
+                        "matrix-dissemination",
+                        &[Role::DisseminationWorker],
+                    ))
+                }),
+                privileged: false,
+                deletes_linked: false,
+            },
+            Caller {
+                label: "METRICS_INGEST_SERVICE",
+                make: Box::new(|| {
+                    Some(unscoped_user(
+                        "matrix-metrics-ingest",
+                        &[Role::MetricsIngestService],
+                    ))
+                }),
+                privileged: false,
+                deletes_linked: false,
+            },
+            Caller {
+                label: "METRICS_READ_SERVICE",
+                make: Box::new(|| {
+                    Some(unscoped_user(
+                        "matrix-metrics-read",
+                        &[Role::MetricsReadService],
+                    ))
+                }),
+                privileged: false,
+                deletes_linked: false,
+            },
+        ]
+    }
+
+    fn new_institution(name: &str, ror_id: Option<&str>) -> NewInstitution {
+        NewInstitution {
+            institution_name: name.to_string(),
+            institution_doi: None,
+            ror: ror_id.map(ror),
+            country_code: Some(CountryCode::Gbr),
+        }
+    }
+
+    /// A fixture row, created through the unit-test-only `Crud::create`.
+    fn seed(pool: &PgPool, name: &str, ror_id: Option<&str>) -> Institution {
+        Institution::create(pool, &new_institution(name, ror_id)).expect("seed institution")
+    }
+
+    /// Write a status and successor directly, as a privileged update would.
+    fn set_ror_state(
+        pool: &PgPool,
+        institution_id: Uuid,
+        status: RorStatus,
+        successor: Option<&str>,
+    ) -> Institution {
+        let mut connection = pool.get().expect("connection");
+        diesel::update(institution::table.find(institution_id))
+            .set(&InstitutionRorStatePatch {
+                ror_status: Some(status),
+                ror_successor: Some(successor.map(ror)),
+            })
+            .get_result(&mut connection)
+            .expect("set ROR state")
+    }
+
+    fn patch_from(current: &Institution) -> PatchInstitution {
+        PatchInstitution {
+            institution_id: current.institution_id,
+            institution_name: current.institution_name.clone(),
+            institution_doi: current.institution_doi.clone(),
+            ror: current.ror.clone(),
+            country_code: current.country_code,
+            ror_status: None,
+            ror_successor: juniper::Nullable::ImplicitNull,
+        }
+    }
+
+    fn renamed(current: &Institution, suffix: &str) -> PatchInstitution {
+        let mut patch = patch_from(current);
+        patch.institution_name = format!("{} {suffix}", current.institution_name);
+        patch
+    }
+
+    fn stored(pool: &PgPool, institution_id: Uuid) -> Institution {
+        Institution::from_id(pool, &institution_id).expect("stored institution")
+    }
+
+    fn history(pool: &PgPool, institution_id: Uuid) -> Vec<InstitutionHistory> {
+        let mut connection = pool.get().expect("connection");
+        institution_history::table
+            .filter(institution_history::institution_id.eq(institution_id))
+            .order(institution_history::timestamp.asc())
+            .load::<InstitutionHistory>(&mut connection)
+            .expect("history rows")
+    }
+
+    fn total_history(pool: &PgPool) -> i64 {
+        let mut connection = pool.get().expect("connection");
+        institution_history::table
+            .count()
+            .get_result(&mut connection)
+            .expect("history count")
+    }
+
+    fn total_institutions(pool: &PgPool) -> i64 {
+        let mut connection = pool.get().expect("connection");
+        institution::table
+            .count()
+            .get_result(&mut connection)
+            .expect("institution count")
+    }
+
+    fn history_data(row: &InstitutionHistory) -> Institution {
+        let serde_json::Value::String(text) = &row.data else {
+            panic!("history data must be a JSON string, got {:?}", row.data);
+        };
+        serde_json::from_str(text).expect("history data holds a serialised institution")
+    }
+
+    fn assert_constraint_error(result: ThothResult<Institution>, message: &str) {
+        match result {
+            Err(ThothError::DatabaseConstraintError(actual)) => assert_eq!(actual, message),
+            other => panic!("expected `{message}`, got {other:?}"),
+        }
+    }
+
+    fn assert_unauthorised(result: ThothResult<()>, label: &str) {
+        assert!(
+            matches!(result, Err(ThothError::Unauthorised)),
+            "{label}: expected Unauthorised, got {result:?}"
+        );
+    }
+
+    #[derive(QueryableByName)]
+    struct Count {
+        #[diesel(sql_type = BigInt)]
+        n: i64,
+    }
+
+    #[derive(QueryableByName)]
+    struct Flag {
+        #[diesel(sql_type = Bool)]
+        flag: bool,
+    }
+
+    #[derive(QueryableByName)]
+    struct TextRow {
+        #[diesel(sql_type = Text)]
+        value: String,
+    }
+
+    fn count(connection: &mut PgConnection, sql: &str) -> i64 {
+        diesel::sql_query(sql)
+            .get_result::<Count>(connection)
+            .unwrap_or_else(|error| panic!("{sql}: {error}"))
+            .n
+    }
+
+    fn flag(connection: &mut PgConnection, sql: &str) -> bool {
+        diesel::sql_query(sql)
+            .get_result::<Flag>(connection)
+            .unwrap_or_else(|error| panic!("{sql}: {error}"))
+            .flag
+    }
+
+    fn text(connection: &mut PgConnection, sql: &str) -> String {
+        diesel::sql_query(sql)
+            .get_result::<TextRow>(connection)
+            .unwrap_or_else(|error| panic!("{sql}: {error}"))
+            .value
+    }
+
+    fn connect() -> PgConnection {
+        PgConnection::establish(&test_db_url()).expect("a dedicated test connection")
+    }
+
+    // ------------------------------------------------------------------
+    // Enum, field and schema basics (§4.3)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn ror_status_display_parse_and_graphql_conversions() {
+        assert_eq!(RorStatus::default(), RorStatus::Active);
+        for (label, status) in [
+            ("Active", RorStatus::Active),
+            ("Inactive", RorStatus::Inactive),
+            ("Withdrawn", RorStatus::Withdrawn),
+        ] {
+            assert_eq!(status.to_string(), label);
+            assert_eq!(RorStatus::from_str(label).unwrap(), status);
+            assert_graphql_enum_roundtrip(status);
+        }
+        assert_eq!(InstitutionField::RorStatus.to_string(), "ROR Status");
+        assert_eq!(
+            InstitutionField::from_str("ROR Status").unwrap(),
+            InstitutionField::RorStatus
+        );
+        assert_eq!(
+            serde_json::to_string(&RorStatus::Withdrawn).unwrap(),
+            "\"WITHDRAWN\""
+        );
+    }
+
+    #[test]
+    fn ror_status_db_enum_roundtrip() {
+        let (_guard, pool) = setup_test_db();
+        for (literal, status) in [
+            ("'active'::ror_status", RorStatus::Active),
+            ("'inactive'::ror_status", RorStatus::Inactive),
+            ("'withdrawn'::ror_status", RorStatus::Withdrawn),
+        ] {
+            assert_db_enum_roundtrip::<RorStatus, crate::schema::sql_types::RorStatus>(
+                pool.as_ref(),
+                literal,
+                status,
+            );
+        }
+    }
+
+    #[test]
+    fn schema_rs_the_model_and_the_database_agree_on_the_column_order() {
+        let (_guard, pool) = setup_test_db();
+        let expected = [
+            "institution_id",
+            "institution_name",
+            "institution_doi",
+            "created_at",
+            "updated_at",
+            "ror",
+            "country_code",
+            "ror_status",
+            "ror_successor",
+        ];
+
+        #[derive(QueryableByName)]
+        struct Column {
+            #[diesel(sql_type = Text)]
+            column_name: String,
+        }
+        let mut connection = pool.get().expect("connection");
+        let database: Vec<String> = diesel::sql_query(
+            "SELECT column_name::text AS column_name FROM information_schema.columns \
+             WHERE table_schema = 'public' AND table_name = 'institution' \
+             ORDER BY ordinal_position",
+        )
+        .load::<Column>(&mut connection)
+        .expect("columns")
+        .into_iter()
+        .map(|column| column.column_name)
+        .collect();
+        assert_eq!(database, expected);
+
+        let select = diesel::debug_query::<diesel::pg::Pg, _>(
+            &institution::table.select(institution::all_columns),
+        )
+        .to_string();
+        let schema_rs: Vec<&str> = select
+            .split("\"institution\".\"")
+            .skip(1)
+            .map(|rest| rest.split('"').next().expect("a column name"))
+            .collect();
+        assert_eq!(schema_rs, expected);
+
+        // The model reads each column into the field of the same name.
+        let created = seed(pool.as_ref(), "Column order", Some(ROR_A));
+        set_ror_state(
+            pool.as_ref(),
+            created.institution_id,
+            RorStatus::Withdrawn,
+            Some(ROR_B),
+        );
+        let loaded = stored(pool.as_ref(), created.institution_id);
+        assert_eq!(loaded.ror, Some(ror(ROR_A)));
+        assert_eq!(loaded.country_code, Some(CountryCode::Gbr));
+        assert_eq!(loaded.ror_status, RorStatus::Withdrawn);
+        assert_eq!(loaded.ror_successor, Some(ror(ROR_B)));
+    }
+
+    // ------------------------------------------------------------------
+    // Building the status and successor changeset (S4 step 3, S5)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn the_ror_state_patch_follows_privilege_and_ror_changes() {
+        let statuses = [None, Some(RorStatus::Inactive)];
+        let successors = [
+            juniper::Nullable::ImplicitNull,
+            juniper::Nullable::ExplicitNull,
+            juniper::Nullable::Some(ror(ROR_B)),
+        ];
+        for privileged in [false, true] {
+            for ror_changes in [false, true] {
+                for status in statuses {
+                    for successor in successors.clone() {
+                        let mut patch = patch_from(&Institution::default());
+                        patch.ror_status = status;
+                        patch.ror_successor = successor.clone();
+                        let built =
+                            InstitutionRorStatePatch::for_update(&patch, privileged, ror_changes);
+
+                        let supplied_status = if privileged { status } else { None };
+                        let supplied_successor = match (privileged, &successor) {
+                            (false, _) | (true, juniper::Nullable::ImplicitNull) => None,
+                            (true, juniper::Nullable::ExplicitNull) => Some(None),
+                            (true, juniper::Nullable::Some(value)) => Some(Some(value.clone())),
+                        };
+                        let expected = if ror_changes {
+                            InstitutionRorStatePatch {
+                                ror_status: supplied_status.or(Some(RorStatus::Active)),
+                                ror_successor: supplied_successor.or(Some(None)),
+                            }
+                        } else {
+                            InstitutionRorStatePatch {
+                                ror_status: supplied_status,
+                                ror_successor: supplied_successor,
+                            }
+                        };
+                        assert_eq!(
+                            built, expected,
+                            "privileged={privileged} ror_changes={ror_changes} \
+                             status={status:?} successor={successor:?}"
+                        );
+                        if !privileged && !ror_changes {
+                            assert_eq!(built, InstitutionRorStatePatch::default());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_update_is_one_statement_with_or_without_the_state_patch() {
+        let id = Uuid::new_v4();
+        let changeset = InstitutionChangeset::from(&patch_from(&Institution {
+            institution_id: id,
+            institution_name: "One statement".to_string(),
+            ..Default::default()
+        }));
+
+        let empty = diesel::debug_query::<diesel::pg::Pg, _>(
+            &diesel::update(institution::table.find(id))
+                .set((&changeset, &InstitutionRorStatePatch::default())),
+        )
+        .to_string();
+        assert_eq!(empty.matches("UPDATE").count(), 1, "{empty}");
+        assert!(empty.contains("\"institution_name\" = $1"), "{empty}");
+        assert!(!empty.contains("ror_status"), "{empty}");
+        assert!(!empty.contains("ror_successor"), "{empty}");
+
+        let full = diesel::debug_query::<diesel::pg::Pg, _>(
+            &diesel::update(institution::table.find(id)).set((
+                &changeset,
+                &InstitutionRorStatePatch {
+                    ror_status: Some(RorStatus::Active),
+                    ror_successor: Some(None),
+                },
+            )),
+        )
+        .to_string();
+        assert_eq!(full.matches("UPDATE").count(), 1, "{full}");
+        for column in ["\"ror\" =", "\"ror_status\" =", "\"ror_successor\" ="] {
+            assert!(full.contains(column), "{column} missing from {full}");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The policy matrix (§4.4)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn matrix_create_any_authenticated_caller_creates_an_active_row_with_history() {
+        let (_guard, pool) = setup_test_db();
+        for caller in callers("org-matrix") {
+            let ctx = ctx(&pool, caller.user());
+            let data = new_institution(&format!("Create {}", caller.label), Some(ROR_A));
+            let before = (total_institutions(&pool), total_history(&pool));
+            let policy = InstitutionPolicy::can_create(&ctx, &data, ());
+            let created = Institution::create_with_history(&ctx, &data);
+            match caller.user() {
+                None => {
+                    assert_unauthorised(policy, caller.label);
+                    assert!(matches!(created, Err(ThothError::Unauthorised)));
+                    assert_eq!(
+                        (total_institutions(&pool), total_history(&pool)),
+                        before,
+                        "{}: a refused create writes nothing",
+                        caller.label
+                    );
+                }
+                Some(user) => {
+                    assert!(policy.is_ok(), "{}: create allowed", caller.label);
+                    let created = created.expect("create");
+                    assert_eq!(created.ror_status, RorStatus::Active, "{}", caller.label);
+                    assert_eq!(created.ror_successor, None, "{}", caller.label);
+                    let rows = history(&pool, created.institution_id);
+                    assert_eq!(rows.len(), 1, "{}: one history row", caller.label);
+                    assert_eq!(rows[0].user_id, user.user_id);
+                    assert_eq!(history_data(&rows[0]), created);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_update_other_fields_is_open_to_every_authenticated_caller_and_keeps_the_state() {
+        let (_guard, pool) = setup_test_db();
+        for caller in callers("org-matrix") {
+            let row = seed(
+                pool.as_ref(),
+                &format!("Other {}", caller.label),
+                Some(ROR_A),
+            );
+            let row = set_ror_state(
+                pool.as_ref(),
+                row.institution_id,
+                RorStatus::Inactive,
+                Some(ROR_B),
+            );
+            let ctx = ctx(&pool, caller.user());
+            let patch = renamed(&row, "renamed");
+            let policy = InstitutionPolicy::can_update(&ctx, &row, &patch, ());
+            if caller.user().is_none() {
+                assert_unauthorised(policy, caller.label);
+                continue;
+            }
+            assert!(policy.is_ok(), "{}", caller.label);
+            let updated = row.update(&ctx, &patch).expect("update");
+            assert_eq!(updated.institution_name, patch.institution_name);
+            assert_eq!(updated.ror_status, RorStatus::Inactive, "{}", caller.label);
+            assert_eq!(updated.ror_successor, Some(ror(ROR_B)), "{}", caller.label);
+        }
+    }
+
+    #[test]
+    fn matrix_update_status_differing_is_denied_and_equal_is_dropped_unless_privileged() {
+        let (_guard, pool) = setup_test_db();
+        for caller in callers("org-matrix") {
+            let row = seed(
+                pool.as_ref(),
+                &format!("Status {}", caller.label),
+                Some(ROR_A),
+            );
+            let ctx = ctx(&pool, caller.user());
+
+            let mut differing = renamed(&row, "differing");
+            differing.ror_status = Some(RorStatus::Inactive);
+            let mut equal = renamed(&row, "equal");
+            equal.ror_status = Some(RorStatus::Active);
+
+            if caller.user().is_none() {
+                assert_unauthorised(
+                    InstitutionPolicy::can_update(&ctx, &row, &differing, ()),
+                    caller.label,
+                );
+                assert_unauthorised(
+                    InstitutionPolicy::can_update(&ctx, &row, &equal, ()),
+                    caller.label,
+                );
+                continue;
+            }
+            assert_eq!(
+                may_write_ror_state(&ctx),
+                caller.privileged,
+                "{}",
+                caller.label
+            );
+
+            assert!(InstitutionPolicy::can_update(&ctx, &row, &equal, ()).is_ok());
+            let after_equal = row.update(&ctx, &equal).expect("equal value update");
+            assert_eq!(
+                after_equal.ror_status,
+                RorStatus::Active,
+                "{}",
+                caller.label
+            );
+
+            let policy = InstitutionPolicy::can_update(&ctx, &after_equal, &differing, ());
+            if caller.privileged {
+                assert!(policy.is_ok(), "{}", caller.label);
+                let written = after_equal.update(&ctx, &differing).expect("privileged");
+                assert_eq!(written.ror_status, RorStatus::Inactive, "{}", caller.label);
+            } else {
+                assert_unauthorised(policy, caller.label);
+                assert_eq!(
+                    stored(pool.as_ref(), row.institution_id).ror_status,
+                    RorStatus::Active
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_update_successor_value_and_explicit_null_follow_the_same_rule() {
+        let (_guard, pool) = setup_test_db();
+        for caller in callers("org-matrix") {
+            let ctx = ctx(&pool, caller.user());
+            let row = seed(
+                pool.as_ref(),
+                &format!("Successor {}", caller.label),
+                Some(ROR_A),
+            );
+            let row = set_ror_state(
+                pool.as_ref(),
+                row.institution_id,
+                RorStatus::Inactive,
+                Some(ROR_B),
+            );
+
+            let mut differing = renamed(&row, "differing");
+            differing.ror_successor = juniper::Nullable::Some(ror(ROR_C));
+            let mut equal = renamed(&row, "equal");
+            equal.ror_successor = juniper::Nullable::Some(ror(ROR_B));
+            let mut clear = renamed(&row, "clear");
+            clear.ror_successor = juniper::Nullable::ExplicitNull;
+
+            if caller.user().is_none() {
+                for patch in [&differing, &equal, &clear] {
+                    assert_unauthorised(
+                        InstitutionPolicy::can_update(&ctx, &row, patch, ()),
+                        caller.label,
+                    );
+                }
+                continue;
+            }
+
+            assert!(InstitutionPolicy::can_update(&ctx, &row, &equal, ()).is_ok());
+            let row = row.update(&ctx, &equal).expect("equal successor");
+            assert_eq!(row.ror_successor, Some(ror(ROR_B)), "{}", caller.label);
+
+            if caller.privileged {
+                assert!(InstitutionPolicy::can_update(&ctx, &row, &differing, ()).is_ok());
+                let row = row.update(&ctx, &differing).expect("set successor");
+                assert_eq!(row.ror_successor, Some(ror(ROR_C)), "{}", caller.label);
+                assert!(InstitutionPolicy::can_update(&ctx, &row, &clear, ()).is_ok());
+                let row = row.update(&ctx, &clear).expect("clear successor");
+                assert_eq!(
+                    row.ror_successor, None,
+                    "{}: explicit null clears",
+                    caller.label
+                );
+                assert_eq!(row.ror_status, RorStatus::Inactive);
+            } else {
+                assert_unauthorised(
+                    InstitutionPolicy::can_update(&ctx, &row, &differing, ()),
+                    caller.label,
+                );
+                assert_unauthorised(
+                    InstitutionPolicy::can_update(&ctx, &row, &clear, ()),
+                    caller.label,
+                );
+                // On a row whose successor is null, an explicit null is equal,
+                // so it passes and is dropped.
+                let null_row =
+                    set_ror_state(pool.as_ref(), row.institution_id, RorStatus::Inactive, None);
+                let mut clear_null = renamed(&null_row, "null");
+                clear_null.ror_successor = juniper::Nullable::ExplicitNull;
+                assert!(InstitutionPolicy::can_update(&ctx, &null_row, &clear_null, ()).is_ok());
+                let after = null_row.update(&ctx, &clear_null).expect("dropped null");
+                assert_eq!(after.ror_successor, None);
+                assert_eq!(after.ror_status, RorStatus::Inactive);
+            }
+        }
+    }
+
+    #[test]
+    fn matrix_delete_is_unchanged() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher.zitadel_id.clone().expect("org id");
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let linked = seed(pool.as_ref(), "Linked", Some(ROR_A));
+        Funding::create(
+            pool.as_ref(),
+            &NewFunding {
+                work_id: work.work_id,
+                institution_id: linked.institution_id,
+                program: None,
+                project_name: None,
+                project_shortname: None,
+                grant_number: None,
+            },
+        )
+        .expect("funding");
+        let unlinked = seed(pool.as_ref(), "Unlinked", Some(ROR_B));
+
+        for caller in callers(&org_id) {
+            let ctx = ctx(&pool, caller.user());
+            let on_unlinked = InstitutionPolicy::can_delete(&ctx, &unlinked);
+            let on_linked = InstitutionPolicy::can_delete(&ctx, &linked);
+            if caller.user().is_none() {
+                assert_unauthorised(on_unlinked, caller.label);
+                assert_unauthorised(on_linked, caller.label);
+                continue;
+            }
+            assert!(on_unlinked.is_ok(), "{}: unlinked row", caller.label);
+            if caller.deletes_linked {
+                assert!(on_linked.is_ok(), "{}: linked row", caller.label);
+            } else {
+                assert_unauthorised(on_linked, caller.label);
+            }
+        }
+    }
+
+    #[test]
+    fn a_privileged_write_between_an_unprivileged_load_and_its_update_survives() {
+        let (_guard, pool) = setup_test_db();
+        let row = seed(pool.as_ref(), "Race", Some(ROR_A));
+        let unprivileged = ctx(&pool, Some(user_with_project_roles("race-user", None)));
+        let sync = ctx(&pool, Some(ror_sync_user("race-sync")));
+
+        // The unprivileged caller's resolver loads the row: ACTIVE, no successor.
+        let loaded = Institution::from_id(pool.as_ref(), &row.institution_id).expect("load");
+
+        // The sync commits a status change in between.
+        let mut sync_patch = patch_from(&loaded);
+        sync_patch.ror_status = Some(RorStatus::Withdrawn);
+        sync_patch.ror_successor = juniper::Nullable::Some(ror(ROR_B));
+        loaded.update(&sync, &sync_patch).expect("sync write");
+
+        // The unprivileged caller sends the values it loaded, as a client that
+        // echoes every field would. They equal the loaded row, so the policy
+        // passes, and the model drops them.
+        let mut stale = renamed(&loaded, "edited");
+        stale.ror_status = Some(RorStatus::Active);
+        stale.ror_successor = juniper::Nullable::ExplicitNull;
+        assert!(InstitutionPolicy::can_update(&unprivileged, &loaded, &stale, ()).is_ok());
+        let after = loaded.update(&unprivileged, &stale).expect("stale update");
+
+        assert_eq!(after.institution_name, stale.institution_name);
+        assert_eq!(after.ror_status, RorStatus::Withdrawn);
+        assert_eq!(after.ror_successor, Some(ror(ROR_B)));
+    }
+
+    // ------------------------------------------------------------------
+    // Changes of `ror` (§4.6)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn an_update_that_changes_ror_resets_status_and_successor() {
+        let (_guard, pool) = setup_test_db();
+        for (label, user) in [
+            (
+                "unprivileged",
+                user_with_project_roles("ror-change-user", None),
+            ),
+            (
+                "privileged, fields not supplied",
+                ror_sync_user("ror-change-sync"),
+            ),
+        ] {
+            let row = seed(pool.as_ref(), &format!("Ror change {label}"), Some(ROR_A));
+            let row = set_ror_state(
+                pool.as_ref(),
+                row.institution_id,
+                RorStatus::Withdrawn,
+                Some(ROR_B),
+            );
+            let ctx = ctx(&pool, Some(user));
+            let mut patch = patch_from(&row);
+            patch.ror = Some(ror(ROR_C));
+            let after = row.update(&ctx, &patch).expect("ror change");
+            assert_eq!(after.ror, Some(ror(ROR_C)), "{label}");
+            assert_eq!(after.ror_status, RorStatus::Active, "{label}");
+            assert_eq!(after.ror_successor, None, "{label}");
+        }
+    }
+
+    #[test]
+    fn a_privileged_update_that_changes_ror_writes_what_it_supplies_and_resets_the_rest() {
+        let (_guard, pool) = setup_test_db();
+        let sync = ctx(&pool, Some(ror_sync_user("ror-change-sync")));
+
+        // Both supplied: both written.
+        let row = seed(pool.as_ref(), "Both supplied", Some(ROR_A));
+        let mut patch = patch_from(&row);
+        patch.ror = Some(ror(ROR_C));
+        patch.ror_status = Some(RorStatus::Inactive);
+        patch.ror_successor = juniper::Nullable::Some(ror(ROR_B));
+        let after = row.update(&sync, &patch).expect("both supplied");
+        assert_eq!(
+            (after.ror, after.ror_status, after.ror_successor),
+            (Some(ror(ROR_C)), RorStatus::Inactive, Some(ror(ROR_B)))
+        );
+
+        // Only the status supplied: the successor is reset.
+        let row = seed(pool.as_ref(), "Status supplied", Some(ROR_A));
+        let row = set_ror_state(
+            pool.as_ref(),
+            row.institution_id,
+            RorStatus::Inactive,
+            Some(ROR_B),
+        );
+        let mut patch = patch_from(&row);
+        patch.ror = Some(ror(ROR_D));
+        patch.ror_status = Some(RorStatus::Withdrawn);
+        let after = row.update(&sync, &patch).expect("status supplied");
+        assert_eq!(
+            (after.ror, after.ror_status, after.ror_successor),
+            (Some(ror(ROR_D)), RorStatus::Withdrawn, None)
+        );
+
+        // Only the successor supplied: the status is reset to ACTIVE, and an
+        // ACTIVE row cannot have a successor.
+        let row = seed(pool.as_ref(), "Successor supplied", Some(ROR_A));
+        let row = set_ror_state(
+            pool.as_ref(),
+            row.institution_id,
+            RorStatus::Withdrawn,
+            Some(ROR_B),
+        );
+        let history_before = history(pool.as_ref(), row.institution_id).len();
+        let mut patch = patch_from(&row);
+        patch.ror = Some(ror(ROR_D));
+        patch.ror_successor = juniper::Nullable::Some(ror(ROR_C));
+        assert_constraint_error(row.update(&sync, &patch), ACTIVE_SUCCESSOR_MESSAGE);
+        let unchanged = stored(pool.as_ref(), row.institution_id);
+        assert_eq!(unchanged, row);
+        assert_eq!(
+            history(pool.as_ref(), row.institution_id).len(),
+            history_before
+        );
+    }
+
+    #[test]
+    fn clearing_ror_on_a_withdrawn_row_leaves_it_active_with_no_successor() {
+        let (_guard, pool) = setup_test_db();
+        let row = seed(pool.as_ref(), "Clear ror", Some(ROR_A));
+        let row = set_ror_state(
+            pool.as_ref(),
+            row.institution_id,
+            RorStatus::Withdrawn,
+            Some(ROR_B),
+        );
+        let ctx = ctx(&pool, Some(user_with_project_roles("clear-ror", None)));
+        let mut patch = patch_from(&row);
+        patch.ror = None;
+        // Two statements would write an intermediate row violating
+        // `institution_ror_state_check`; one statement succeeds.
+        let after = row.update(&ctx, &patch).expect("clear ror");
+        assert_eq!(
+            (after.ror, after.ror_status, after.ror_successor),
+            (None, RorStatus::Active, None)
+        );
+    }
+
+    #[test]
+    fn the_four_checks_return_their_messages() {
+        let (_guard, pool) = setup_test_db();
+        let superuser = ctx(&pool, Some(unscoped_user("checks", &[Role::Superuser])));
+
+        // A status on a row without a ROR ID.
+        let no_ror = seed(pool.as_ref(), "No ror", None);
+        let mut patch = patch_from(&no_ror);
+        patch.ror_status = Some(RorStatus::Inactive);
+        assert_constraint_error(no_ror.update(&superuser, &patch), STATE_CHECK_MESSAGE);
+
+        // A successor on an ACTIVE row.
+        let active = seed(pool.as_ref(), "Active", Some(ROR_A));
+        let mut patch = patch_from(&active);
+        patch.ror_successor = juniper::Nullable::Some(ror(ROR_B));
+        assert_constraint_error(active.update(&superuser, &patch), ACTIVE_SUCCESSOR_MESSAGE);
+
+        // Its own ROR ID as successor.
+        let mut patch = patch_from(&active);
+        patch.ror_status = Some(RorStatus::Withdrawn);
+        patch.ror_successor = juniper::Nullable::Some(ror(ROR_A));
+        assert_constraint_error(active.update(&superuser, &patch), SELF_SUCCESSOR_MESSAGE);
+
+        // A malformed successor (GraphQL's `Ror` scalar would refuse it first).
+        let mut patch = patch_from(&active);
+        patch.ror_status = Some(RorStatus::Withdrawn);
+        patch.ror_successor = juniper::Nullable::Some(ror("https://ror.org/not-a-ror"));
+        assert_constraint_error(active.update(&superuser, &patch), INVALID_SUCCESSOR_MESSAGE);
+
+        assert_eq!(stored(pool.as_ref(), active.institution_id), active);
+        assert_eq!(stored(pool.as_ref(), no_ror.institution_id), no_ror);
+    }
+
+    // ------------------------------------------------------------------
+    // Locking (§4.6)
+    // ------------------------------------------------------------------
+
+    fn wait_for_lock_wait(observer: &mut PgConnection, relation: &str, mode: &str) {
+        let sql = format!(
+            "SELECT count(*) AS n FROM pg_locks \
+             WHERE relation = '{relation}'::regclass AND mode = '{mode}' AND NOT granted"
+        );
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while count(observer, &sql) == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "no session started waiting for {mode} on {relation}"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    fn try_row_lock(connection: &mut PgConnection, institution_id: Uuid, mode: &str) -> bool {
+        connection.batch_execute("BEGIN").expect("begin");
+        let result = diesel::sql_query(format!(
+            "SELECT institution_id FROM institution WHERE institution_id = '{institution_id}' \
+             {mode} NOWAIT"
+        ))
+        .execute(connection);
+        connection.batch_execute("ROLLBACK").expect("rollback");
+        match result {
+            Ok(rows) => {
+                assert_eq!(rows, 1);
+                true
+            }
+            Err(error) if error.to_string().contains("could not obtain lock") => false,
+            Err(error) => panic!("unexpected probe error: {error}"),
+        }
+    }
+
+    #[test]
+    fn an_update_keeping_ror_locks_for_no_key_update_and_new_affiliations_do_not_wait() {
+        assert_eq!(
+            UPDATE_TABLE_LOCK_SQL,
+            "LOCK TABLE institution IN ROW EXCLUSIVE MODE"
+        );
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        let contributor = create_contributor(pool.as_ref());
+        let contribution = create_contribution(pool.as_ref(), &work, &contributor);
+        let target = seed(pool.as_ref(), "Lock target", Some(ROR_A));
+
+        // Stop the update after its row lock: the history insert waits here.
+        let mut holder = connect();
+        holder
+            .batch_execute("BEGIN; LOCK TABLE institution_history IN ACCESS EXCLUSIVE MODE;")
+            .expect("hold institution_history");
+
+        let update_ctx = ctx(&pool, Some(user_with_project_roles("lock-user", None)));
+        let patch = renamed(&target, "renamed");
+        let current = target.clone();
+        let update = thread::spawn(move || current.update(&update_ctx, &patch));
+
+        let mut observer = connect();
+        wait_for_lock_wait(&mut observer, "institution_history", "RowExclusiveLock");
+
+        // The row is locked, and not FOR UPDATE: FOR KEY SHARE is compatible
+        // only with FOR NO KEY UPDATE and weaker locks.
+        let mut probe = connect();
+        assert!(!try_row_lock(
+            &mut probe,
+            target.institution_id,
+            "FOR UPDATE"
+        ));
+        assert!(try_row_lock(
+            &mut probe,
+            target.institution_id,
+            "FOR KEY SHARE"
+        ));
+
+        // A new affiliation referencing the row, on a work not linked to it,
+        // does not wait.
+        let mut writer = connect();
+        writer
+            .batch_execute("SET lock_timeout = '2s'")
+            .expect("lock timeout");
+        let started = Instant::now();
+        diesel::insert_into(affiliation::table)
+            .values(&NewAffiliation {
+                contribution_id: contribution.contribution_id,
+                institution_id: target.institution_id,
+                affiliation_ordinal: 1,
+                position: None,
+            })
+            .execute(&mut writer)
+            .expect("the affiliation insert must not wait on the update's row lock");
+        assert!(started.elapsed() < Duration::from_secs(2));
+
+        holder.batch_execute("ROLLBACK").expect("release");
+        let updated = update.join().expect("update thread").expect("update");
+        assert_eq!(
+            updated.institution_name,
+            format!("{} renamed", target.institution_name)
+        );
+        assert_eq!(
+            Affiliation::all(
+                pool.as_ref(),
+                10,
+                0,
+                None,
+                Default::default(),
+                vec![],
+                Some(target.institution_id),
+                None,
+                vec![],
+                vec![],
+                None,
+                None,
+            )
+            .expect("affiliations")
+            .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn an_update_waiting_behind_share_row_exclusive_holds_no_row_lock() {
+        let (_guard, pool) = setup_test_db();
+        let target = seed(pool.as_ref(), "Waiting target", Some(ROR_A));
+
+        // As stage B's migration does.
+        let mut holder = connect();
+        holder
+            .batch_execute("BEGIN; LOCK TABLE institution IN SHARE ROW EXCLUSIVE MODE;")
+            .expect("hold SHARE ROW EXCLUSIVE");
+
+        let update_ctx = ctx(&pool, Some(ror_sync_user("waiting-sync")));
+        let patch = renamed(&target, "renamed");
+        let current = target.clone();
+        let update = thread::spawn(move || current.update(&update_ctx, &patch));
+
+        let mut observer = connect();
+        wait_for_lock_wait(&mut observer, "institution", "RowExclusiveLock");
+
+        let mut probe = connect();
+        assert!(
+            try_row_lock(&mut probe, target.institution_id, "FOR UPDATE"),
+            "the waiting update must hold no row lock"
+        );
+
+        // Control: the probe does see a row lock when one is held.
+        let mut row_holder = connect();
+        row_holder.batch_execute("BEGIN").expect("begin");
+        diesel::sql_query(format!(
+            "SELECT institution_id FROM institution WHERE institution_id = '{}' \
+             FOR NO KEY UPDATE",
+            target.institution_id
+        ))
+        .execute(&mut row_holder)
+        .expect("row lock");
+        assert!(!try_row_lock(
+            &mut probe,
+            target.institution_id,
+            "FOR UPDATE"
+        ));
+        row_holder.batch_execute("ROLLBACK").expect("release row");
+
+        holder.batch_execute("ROLLBACK").expect("release table");
+        let updated = update.join().expect("update thread").expect("update");
+        assert_eq!(
+            updated.institution_name,
+            format!("{} renamed", target.institution_name)
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // `rorStatuses` and the order (§4.7)
+    // ------------------------------------------------------------------
+
+    fn list(pool: &PgPool, filter: Option<&str>, statuses: Vec<RorStatus>) -> Vec<Uuid> {
+        Institution::all(
+            pool,
+            100,
+            0,
+            filter.map(str::to_string),
+            InstitutionOrderBy {
+                field: InstitutionField::InstitutionId,
+                direction: Direction::Asc,
+            },
+            vec![],
+            None,
+            None,
+            statuses,
+            vec![],
+            None,
+            None,
+        )
+        .expect("list")
+        .into_iter()
+        .map(|row| row.institution_id)
+        .collect()
+    }
+
+    fn count_with(pool: &PgPool, filter: Option<&str>, statuses: Vec<RorStatus>) -> i32 {
+        Institution::count(
+            pool,
+            filter.map(str::to_string),
+            vec![],
+            statuses,
+            vec![],
+            None,
+            None,
+        )
+        .expect("count")
+    }
+
+    #[test]
+    fn ror_statuses_filters_lists_and_counts_alike() {
+        let (_guard, pool) = setup_test_db();
+        let active = seed(pool.as_ref(), "Filter active", Some(ROR_A));
+        let inactive = seed(pool.as_ref(), "Filter inactive", Some(ROR_B));
+        set_ror_state(
+            pool.as_ref(),
+            inactive.institution_id,
+            RorStatus::Inactive,
+            None,
+        );
+        let withdrawn = seed(pool.as_ref(), "Filter withdrawn", Some(ROR_C));
+        set_ror_state(
+            pool.as_ref(),
+            withdrawn.institution_id,
+            RorStatus::Withdrawn,
+            Some(ROR_A),
+        );
+        let no_ror = seed(pool.as_ref(), "Filter no ror", None);
+
+        let sorted = |mut ids: Vec<Uuid>| {
+            ids.sort();
+            ids
+        };
+        let all = sorted(vec![
+            active.institution_id,
+            inactive.institution_id,
+            withdrawn.institution_id,
+            no_ror.institution_id,
+        ]);
+        let cases: Vec<(Option<&str>, Vec<RorStatus>, Vec<Uuid>)> = vec![
+            (None, vec![], all.clone()),
+            (
+                None,
+                vec![RorStatus::Active, RorStatus::Inactive, RorStatus::Withdrawn],
+                all.clone(),
+            ),
+            (
+                None,
+                vec![RorStatus::Withdrawn],
+                vec![withdrawn.institution_id],
+            ),
+            (
+                None,
+                vec![RorStatus::Active, RorStatus::Withdrawn],
+                sorted(vec![
+                    active.institution_id,
+                    withdrawn.institution_id,
+                    no_ror.institution_id,
+                ]),
+            ),
+            (
+                Some("Filter"),
+                vec![RorStatus::Inactive],
+                vec![inactive.institution_id],
+            ),
+            (
+                Some("0aaaaaa"),
+                vec![RorStatus::Active],
+                vec![active.institution_id],
+            ),
+            (Some("0aaaaaa"), vec![RorStatus::Withdrawn], vec![]),
+        ];
+        for (filter, statuses, expected) in cases {
+            assert_eq!(
+                list(pool.as_ref(), filter, statuses.clone()),
+                expected,
+                "list {filter:?} {statuses:?}"
+            );
+            assert_eq!(
+                count_with(pool.as_ref(), filter, statuses.clone()),
+                expected.len() as i32,
+                "count {filter:?} {statuses:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ordering_by_ror_status_follows_the_enum_and_breaks_ties_on_the_id() {
+        let (_guard, pool) = setup_test_db();
+        let withdrawn = seed(pool.as_ref(), "Order withdrawn", Some(ROR_A));
+        set_ror_state(
+            pool.as_ref(),
+            withdrawn.institution_id,
+            RorStatus::Withdrawn,
+            None,
+        );
+        let inactive = seed(pool.as_ref(), "Order inactive", Some(ROR_B));
+        set_ror_state(
+            pool.as_ref(),
+            inactive.institution_id,
+            RorStatus::Inactive,
+            None,
+        );
+        let mut actives = vec![
+            seed(pool.as_ref(), "Order active one", Some(ROR_C)).institution_id,
+            seed(pool.as_ref(), "Order active two", None).institution_id,
+            seed(pool.as_ref(), "Order active three", Some(ROR_D)).institution_id,
+        ];
+        actives.sort();
+
+        let ordered = |direction| {
+            Institution::all(
+                pool.as_ref(),
+                100,
+                0,
+                None,
+                InstitutionOrderBy {
+                    field: InstitutionField::RorStatus,
+                    direction,
+                },
+                vec![],
+                None,
+                None,
+                vec![],
+                vec![],
+                None,
+                None,
+            )
+            .expect("ordered")
+            .into_iter()
+            .map(|row| row.institution_id)
+            .collect::<Vec<_>>()
+        };
+
+        let mut asc = actives.clone();
+        asc.extend([inactive.institution_id, withdrawn.institution_id]);
+        let mut desc = vec![withdrawn.institution_id, inactive.institution_id];
+        desc.extend(actives.iter().copied());
+        for _ in 0..3 {
+            assert_eq!(ordered(Direction::Asc), asc);
+            assert_eq!(ordered(Direction::Desc), desc);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The works-bump trigger (§4.8, decision P3)
+    // ------------------------------------------------------------------
+
+    struct BumpFixture {
+        institution: Institution,
+        funded: Work,
+        affiliated: Work,
+    }
+
+    fn bump_fixture(pool: &PgPool) -> BumpFixture {
+        let publisher: Publisher = create_publisher(pool);
+        let imprint = create_imprint(pool, &publisher);
+        let funded = create_work(pool, &imprint);
+        let affiliated = create_work(pool, &imprint);
+        let contributor = create_contributor(pool);
+        let contribution = create_contribution(pool, &affiliated, &contributor);
+        let institution = seed(pool, "Bump", Some(ROR_A));
+        Funding::create(
+            pool,
+            &NewFunding {
+                work_id: funded.work_id,
+                institution_id: institution.institution_id,
+                program: None,
+                project_name: None,
+                project_shortname: None,
+                grant_number: None,
+            },
+        )
+        .expect("funding");
+        Affiliation::create(
+            pool,
+            &NewAffiliation {
+                contribution_id: contribution.contribution_id,
+                institution_id: institution.institution_id,
+                affiliation_ordinal: 1,
+                position: None,
+            },
+        )
+        .expect("affiliation");
+        BumpFixture {
+            institution,
+            funded,
+            affiliated,
+        }
+    }
+
+    /// Run `change` on the institution and report, for the funded and the
+    /// affiliated work, whether the trigger bumped `updated_at_with_relations`.
+    fn bumps(pool: &PgPool, fixture: &BumpFixture, change: &str) -> (bool, bool) {
+        let mut connection = pool.get().expect("connection");
+        let works = format!(
+            "('{}', '{}')",
+            fixture.funded.work_id, fixture.affiliated.work_id
+        );
+        connection
+            .batch_execute(&format!(
+                "UPDATE work SET updated_at_with_relations = '2000-01-01T00:00:00Z' \
+                 WHERE work_id IN {works}"
+            ))
+            .expect("reset the bump marker");
+        connection
+            .batch_execute(&format!(
+                "UPDATE institution SET {change} WHERE institution_id = '{}'",
+                fixture.institution.institution_id
+            ))
+            .unwrap_or_else(|error| panic!("{change}: {error}"));
+        let bumped = |connection: &mut PgConnection, work_id: Uuid| {
+            flag(
+                connection,
+                &format!(
+                    "SELECT updated_at_with_relations > '2000-01-02T00:00:00Z' AS flag \
+                     FROM work WHERE work_id = '{work_id}'"
+                ),
+            )
+        };
+        (
+            bumped(&mut connection, fixture.funded.work_id),
+            bumped(&mut connection, fixture.affiliated.work_id),
+        )
+    }
+
+    #[test]
+    fn the_trigger_bumps_works_only_for_exported_fields() {
+        let (_guard, pool) = setup_test_db();
+        let fixture = bump_fixture(pool.as_ref());
+
+        for change in [
+            "ror_status = 'inactive'".to_string(),
+            format!("ror_successor = '{ROR_B}'"),
+            format!("ror_status = 'withdrawn', ror_successor = '{ROR_C}'"),
+        ] {
+            assert_eq!(
+                bumps(pool.as_ref(), &fixture, &change),
+                (false, false),
+                "{change} must not bump"
+            );
+        }
+        for change in [
+            "institution_name = 'Bump renamed'".to_string(),
+            "institution_doi = 'https://doi.org/10.13039/100000001'".to_string(),
+            format!("ror = '{ROR_D}'"),
+            "country_code = 'fra'".to_string(),
+        ] {
+            assert_eq!(
+                bumps(pool.as_ref(), &fixture, &change),
+                (true, true),
+                "{change} must bump"
+            );
+        }
+
+        // Through the model too: a status-only privileged update bumps nothing.
+        let current = stored(pool.as_ref(), fixture.institution.institution_id);
+        let sync = ctx(&pool, Some(ror_sync_user("bump-sync")));
+        let mut connection = pool.get().expect("connection");
+        connection
+            .batch_execute(&format!(
+                "UPDATE work SET updated_at_with_relations = '2000-01-01T00:00:00Z' \
+                 WHERE work_id IN ('{}', '{}')",
+                fixture.funded.work_id, fixture.affiliated.work_id
+            ))
+            .expect("reset");
+        let mut patch = patch_from(&current);
+        patch.ror_status = Some(RorStatus::Inactive);
+        patch.ror_successor = juniper::Nullable::ExplicitNull;
+        current.update(&sync, &patch).expect("status-only update");
+        assert_eq!(
+            count(
+                &mut connection,
+                &format!(
+                    "SELECT count(*) AS n FROM work WHERE work_id IN ('{}', '{}') \
+                     AND updated_at_with_relations > '2000-01-02T00:00:00Z'",
+                    fixture.funded.work_id, fixture.affiliated.work_id
+                )
+            ),
+            0
+        );
+    }
+
+    /// The column names inside each `ROW(<prefix>…)` of a function definition.
+    fn row_fields(definition: &str, prefix: &str) -> Vec<BTreeSet<String>> {
+        definition
+            .split("ROW(")
+            .skip(1)
+            .map(|rest| rest.split(')').next().expect("a closing parenthesis"))
+            .filter(|items| items.trim_start().starts_with(prefix))
+            .map(|items| {
+                items
+                    .split(',')
+                    .map(|item| {
+                        item.trim()
+                            .strip_prefix(prefix)
+                            .unwrap_or_else(|| panic!("`{item}` lacks `{prefix}`"))
+                            .to_string()
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[derive(Debug)]
+    enum Selection {
+        Field {
+            name: String,
+            children: Vec<Selection>,
+        },
+        Spread(String),
+        Inline(Vec<Selection>),
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum Token {
+        Name(String),
+        Colon,
+        Spread,
+        Open,
+        Close,
+    }
+
+    /// Tokenise a GraphQL document, dropping comments, punctuation other than
+    /// braces and spreads, and every parenthesised argument or variable list
+    /// (whose braces are input objects, not selection sets).
+    fn tokens(document: &str) -> Vec<Token> {
+        let mut out = Vec::new();
+        let chars: Vec<char> = document.chars().collect();
+        let mut i = 0;
+        let mut parens = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if c == '#' {
+                while i < chars.len() && chars[i] != '\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            if c == '"' {
+                i += 1;
+                while i < chars.len() && chars[i] != '"' {
+                    i += 1;
+                }
+                i += 1;
+                continue;
+            }
+            match c {
+                '(' => parens += 1,
+                ')' => parens -= 1,
+                _ if parens > 0 => {}
+                '{' => out.push(Token::Open),
+                '}' => out.push(Token::Close),
+                // Outside an argument or variable list, a colon follows an
+                // alias.
+                ':' => out.push(Token::Colon),
+                '.' if chars[i..].starts_with(&['.', '.', '.']) => {
+                    out.push(Token::Spread);
+                    i += 3;
+                    continue;
+                }
+                '@' => {
+                    // A directive: skip its name; its arguments are skipped as
+                    // a parenthesised list.
+                    i += 1;
+                    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                        i += 1;
+                    }
+                    continue;
+                }
+                _ if c.is_alphabetic() || c == '_' => {
+                    let start = i;
+                    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                        i += 1;
+                    }
+                    out.push(Token::Name(chars[start..i].iter().collect()));
+                    continue;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        assert_eq!(parens, 0, "unbalanced parentheses");
+        out
+    }
+
+    fn selection_set(tokens: &[Token], position: &mut usize) -> Vec<Selection> {
+        assert_eq!(tokens[*position], Token::Open, "a selection set");
+        *position += 1;
+        let mut out = Vec::new();
+        loop {
+            match &tokens[*position] {
+                Token::Close => {
+                    *position += 1;
+                    return out;
+                }
+                Token::Spread => {
+                    *position += 1;
+                    match &tokens[*position] {
+                        Token::Name(on) if on == "on" => {
+                            *position += 2; // `on` and the type condition
+                            out.push(Selection::Inline(selection_set(tokens, position)));
+                        }
+                        Token::Name(name) => {
+                            *position += 1;
+                            out.push(Selection::Spread(name.clone()));
+                        }
+                        other => panic!("unexpected {other:?} after a spread"),
+                    }
+                }
+                Token::Name(name) => {
+                    let mut name = name.clone();
+                    *position += 1;
+                    if tokens[*position] == Token::Colon {
+                        // `alias: field`: the field's name follows the colon.
+                        let Token::Name(field) = &tokens[*position + 1] else {
+                            panic!("an alias without a field");
+                        };
+                        name = field.clone();
+                        *position += 2;
+                    }
+                    let children = if tokens[*position] == Token::Open {
+                        selection_set(tokens, position)
+                    } else {
+                        Vec::new()
+                    };
+                    out.push(Selection::Field { name, children });
+                }
+                Token::Open | Token::Colon => panic!("unexpected {:?}", tokens[*position]),
+            }
+        }
+    }
+
+    /// Every top-level definition of a document, by name.
+    fn definitions(document: &str) -> HashMap<String, Vec<Selection>> {
+        let tokens = tokens(document);
+        let mut out = HashMap::new();
+        let mut position = 0;
+        while position < tokens.len() {
+            match &tokens[position] {
+                Token::Name(keyword) if keyword == "fragment" => {
+                    let Token::Name(name) = &tokens[position + 1] else {
+                        panic!("a fragment name");
+                    };
+                    position += 4; // `fragment Name on Type`
+                    out.insert(name.clone(), selection_set(&tokens, &mut position));
+                }
+                Token::Name(keyword) if keyword == "query" => {
+                    let Token::Name(name) = &tokens[position + 1] else {
+                        panic!("a query name");
+                    };
+                    position += 2;
+                    out.insert(name.clone(), selection_set(&tokens, &mut position));
+                }
+                other => panic!("unexpected top-level token {other:?}"),
+            }
+        }
+        out
+    }
+
+    fn snake_case(name: &str) -> String {
+        let mut out = String::new();
+        for c in name.chars() {
+            if c.is_uppercase() {
+                out.push('_');
+                out.extend(c.to_lowercase());
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+
+    /// Walk a selection set, following fragment spreads, and collect the
+    /// fields selected under every field that returns an institution
+    /// (`institution`, or any name ending in `Institution`).
+    fn collect_institution_fields(
+        selections: &[Selection],
+        definitions: &HashMap<String, Vec<Selection>>,
+        fragments: &mut BTreeSet<String>,
+        fields: &mut BTreeSet<String>,
+    ) {
+        for selection in selections {
+            match selection {
+                Selection::Field { name, children } => {
+                    if name == "institution" || name.ends_with("Institution") {
+                        for child in children {
+                            match child {
+                                Selection::Field { name, children } if children.is_empty() => {
+                                    fields.insert(snake_case(name));
+                                }
+                                other => panic!(
+                                    "an institution selection holds {other:?}; extend this \
+                                     test and the trigger's field list"
+                                ),
+                            }
+                        }
+                    } else {
+                        collect_institution_fields(children, definitions, fragments, fields);
+                    }
+                }
+                Selection::Inline(children) => {
+                    collect_institution_fields(children, definitions, fragments, fields)
+                }
+                Selection::Spread(name) => {
+                    if fragments.insert(name.clone()) {
+                        let fragment = definitions
+                            .get(name)
+                            .unwrap_or_else(|| panic!("fragment {name} is not defined"));
+                        collect_institution_fields(fragment, definitions, fragments, fields);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_trigger_field_list_equals_the_institution_fields_the_exports_select() {
+        let (_guard, pool) = setup_test_db();
+        let mut connection = pool.get().expect("connection");
+        let definition = text(
+            &mut connection,
+            "SELECT pg_get_functiondef(\
+             'institution_work_updated_at_with_relations()'::regprocedure) AS value",
+        );
+        let new_rows = row_fields(&definition, "NEW.");
+        let old_rows = row_fields(&definition, "OLD.");
+        assert_eq!(new_rows.len(), 1, "{definition}");
+        assert_eq!(new_rows, old_rows, "NEW and OLD compare the same fields");
+        let trigger_fields = new_rows.into_iter().next().unwrap();
+
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../thoth-client/assets/queries.graphql");
+        let document = std::fs::read_to_string(&path).expect("the export documents");
+        let definitions = definitions(&document);
+        let mut fragments = BTreeSet::new();
+        let mut exported = BTreeSet::new();
+        for query in ["WorkQuery", "WorksQuery"] {
+            let selections = definitions
+                .get(query)
+                .unwrap_or_else(|| panic!("{query} is not defined"));
+            collect_institution_fields(selections, &definitions, &mut fragments, &mut exported);
+        }
+
+        // The fragments the two export queries use, named here so that a new
+        // one is noticed.
+        assert_eq!(
+            fragments,
+            BTreeSet::from(["Funding", "Reference", "Work"].map(String::from))
+        );
+        assert_eq!(
+            exported,
+            BTreeSet::from(
+                ["country_code", "institution_doi", "institution_name", "ror"].map(String::from)
+            )
+        );
+        assert_eq!(
+            trigger_fields, exported,
+            "the trigger's field list must equal the institution fields the exports select"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // History (§4.9)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn create_and_update_by_the_sync_each_add_one_history_row_under_its_user_id() {
+        let (_guard, pool) = setup_test_db();
+        let sync = ctx(&pool, Some(ror_sync_user("history-sync")));
+
+        let created =
+            Institution::create_with_history(&sync, &new_institution("History", Some(ROR_A)))
+                .expect("create");
+        let rows = history(pool.as_ref(), created.institution_id);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].user_id, "history-sync");
+        assert_eq!(
+            history_data(&rows[0]),
+            created,
+            "a create holds the created row"
+        );
+
+        let mut patch = renamed(&created, "updated");
+        patch.ror_status = Some(RorStatus::Inactive);
+        let updated = created.update(&sync, &patch).expect("update");
+        let rows = history(pool.as_ref(), created.institution_id);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].user_id, "history-sync");
+        assert_eq!(
+            history_data(&rows[1]),
+            created,
+            "an update holds the previous row"
+        );
+        assert_eq!(updated.ror_status, RorStatus::Inactive);
+    }
+
+    #[test]
+    fn an_update_records_the_row_re_read_under_lock_not_the_loaded_one() {
+        let (_guard, pool) = setup_test_db();
+        let row = seed(pool.as_ref(), "Re-read", Some(ROR_A));
+        let loaded = stored(pool.as_ref(), row.institution_id);
+        let changed = set_ror_state(pool.as_ref(), row.institution_id, RorStatus::Inactive, None);
+        let user = ctx(&pool, Some(user_with_project_roles("re-read", None)));
+        loaded
+            .update(&user, &renamed(&loaded, "edited"))
+            .expect("update");
+        let rows = history(pool.as_ref(), row.institution_id);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(history_data(&rows[0]), changed);
+    }
+
+    #[test]
+    fn failed_creates_and_updates_add_no_history() {
+        let (_guard, pool) = setup_test_db();
+        let sync = ctx(&pool, Some(ror_sync_user("history-failures")));
+        let before = (total_institutions(&pool), total_history(&pool));
+
+        // `institution_institution_name_check`: the insert fails.
+        let failed = Institution::create_with_history(&sync, &new_institution("", None));
+        assert!(matches!(
+            failed,
+            Err(ThothError::DatabaseConstraintError(_))
+        ));
+        assert_eq!((total_institutions(&pool), total_history(&pool)), before);
+
+        let row = Institution::create_with_history(&sync, &new_institution("Fails", None))
+            .expect("create");
+        let after_create = total_history(&pool);
+        let mut patch = patch_from(&row);
+        patch.ror_status = Some(RorStatus::Withdrawn);
+        assert_constraint_error(row.update(&sync, &patch), STATE_CHECK_MESSAGE);
+        assert_eq!(total_history(&pool), after_create);
+        assert_eq!(stored(pool.as_ref(), row.institution_id), row);
+    }
+
+    #[test]
+    fn the_unit_test_create_writes_no_history_and_the_guard_names_create_with_history() {
+        let (_guard, pool) = setup_test_db();
+        let row = seed(pool.as_ref(), "Fixture", None);
+        assert!(history(pool.as_ref(), row.institution_id).is_empty());
+        assert!(CREATE_WITHOUT_HISTORY_ERROR.contains("create_with_history"));
+    }
+
+    // ------------------------------------------------------------------
+    // The migration (§4.1, §4.2)
+    // ------------------------------------------------------------------
+
+    fn applied(connection: &mut PgConnection) -> Vec<String> {
+        connection
+            .applied_migrations()
+            .expect("applied migrations")
+            .iter()
+            .map(|version| version.to_string())
+            .collect()
+    }
+
+    /// Revert every migration newer than C's, leaving C's applied.
+    fn revert_newer_than_c(connection: &mut PgConnection) {
+        while applied(connection)
+            .iter()
+            .max()
+            .is_some_and(|newest| newest.as_str() > C_MIGRATION_VERSION)
+        {
+            connection
+                .revert_last_migration(MIGRATIONS)
+                .expect("revert a newer migration");
+        }
+        assert!(applied(connection).contains(&C_MIGRATION_VERSION.to_string()));
+    }
+
+    fn revert_through_c(connection: &mut PgConnection) {
+        revert_newer_than_c(connection);
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .expect("revert C's migration");
+        assert_eq!(reverted.to_string(), C_MIGRATION_VERSION);
+    }
+
+    fn assert_c_absent(connection: &mut PgConnection) {
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS n FROM information_schema.columns \
+                 WHERE table_name = 'institution' AND column_name IN ('ror_status', 'ror_successor')"
+            ),
+            0
+        );
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS n FROM pg_type WHERE typname = 'ror_status'"
+            ),
+            0
+        );
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS n FROM pg_constraint WHERE conname IN (\
+                 'institution_ror_successor_check', 'institution_ror_state_check', \
+                 'institution_ror_successor_self_check', 'institution_ror_active_successor_check')"
+            ),
+            0
+        );
+        let body = text(
+            connection,
+            "SELECT pg_get_functiondef(\
+             'institution_work_updated_at_with_relations()'::regprocedure) AS value",
+        );
+        assert!(body.contains("NEW IS DISTINCT FROM OLD"), "{body}");
+        assert!(!body.contains("ROW("), "{body}");
+    }
+
+    fn assert_c_present(connection: &mut PgConnection) {
+        assert_eq!(
+            text(
+                connection,
+                "SELECT string_agg(column_name || ':' || data_type || ':' || is_nullable || ':' \
+                 || coalesce(column_default, ''), ',' ORDER BY ordinal_position) AS value \
+                 FROM information_schema.columns WHERE table_name = 'institution' \
+                 AND column_name IN ('ror_status', 'ror_successor')"
+            ),
+            "ror_status:USER-DEFINED:NO:'active'::ror_status,ror_successor:text:YES:"
+        );
+        assert_eq!(
+            text(
+                connection,
+                "SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder) AS value \
+                 FROM pg_enum WHERE enumtypid = 'ror_status'::regtype"
+            ),
+            "active,inactive,withdrawn"
+        );
+        assert_eq!(
+            count(
+                connection,
+                "SELECT count(*) AS n FROM pg_constraint WHERE conrelid = 'institution'::regclass \
+                 AND convalidated AND conname IN (\
+                 'institution_ror_successor_check', 'institution_ror_state_check', \
+                 'institution_ror_successor_self_check', 'institution_ror_active_successor_check')"
+            ),
+            4
+        );
+        let body = text(
+            connection,
+            "SELECT pg_get_functiondef(\
+             'institution_work_updated_at_with_relations()'::regprocedure) AS value",
+        );
+        assert!(
+            body.contains(
+                "ROW(NEW.institution_name, NEW.institution_doi, NEW.ror, NEW.country_code)"
+            ),
+            "{body}"
+        );
+    }
+
+    #[test]
+    fn the_migration_applies_to_empty_and_populated_tables_and_reverts() {
+        let (_guard, pool) = setup_test_db();
+        // Fixtures that do not touch `institution`, created before the revert.
+        let publisher = create_publisher(pool.as_ref());
+        let imprint = create_imprint(pool.as_ref(), &publisher);
+        let work = create_work(pool.as_ref(), &imprint);
+        drop(pool);
+
+        let mut connection = connect();
+
+        // Down, then up, on an empty table.
+        revert_through_c(&mut connection);
+        assert_c_absent(&mut connection);
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up on an empty table");
+        assert_c_present(&mut connection);
+
+        // Down, then up, on a populated table, with a linked work.
+        revert_through_c(&mut connection);
+        connection
+            .batch_execute(&format!(
+                "INSERT INTO institution (institution_name, ror, institution_doi) VALUES \
+                 ('Populated one', '{ROR_A}', NULL), \
+                 ('Populated two', NULL, 'https://doi.org/10.13039/100000002'), \
+                 ('Populated three', '{ROR_B}', NULL); \
+                 INSERT INTO funding (work_id, institution_id) \
+                 SELECT '{}', institution_id FROM institution \
+                 WHERE institution_name = 'Populated one'; \
+                 UPDATE work SET updated_at_with_relations = '2000-01-01T00:00:00Z' \
+                 WHERE work_id = '{}';",
+                work.work_id, work.work_id
+            ))
+            .expect("populate");
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("up on a populated table");
+        assert_c_present(&mut connection);
+        assert_eq!(
+            count(
+                &mut connection,
+                "SELECT count(*) AS n FROM institution \
+                 WHERE ror_status = 'active' AND ror_successor IS NULL"
+            ),
+            3
+        );
+        assert!(
+            flag(
+                &mut connection,
+                &format!(
+                    "SELECT updated_at_with_relations = '2000-01-01T00:00:00Z' AS flag \
+                     FROM work WHERE work_id = '{}'",
+                    work.work_id
+                )
+            ),
+            "the migration fires no works bump"
+        );
+    }
+
+    #[test]
+    fn the_manual_rollback_pair_then_the_runner_restores_the_schema() {
+        let (_guard, pool) = setup_test_db();
+        drop(pool);
+        let mut connection = connect();
+        revert_newer_than_c(&mut connection);
+
+        connection
+            .transaction::<_, diesel::result::Error, _>(|connection| {
+                connection.batch_execute(C_DOWN_SQL)?;
+                diesel::sql_query(format!(
+                    "DELETE FROM __diesel_schema_migrations WHERE version = '{C_MIGRATION_VERSION}'"
+                ))
+                .execute(connection)?;
+                Ok(())
+            })
+            .expect("the manual rollback pair");
+        assert!(!applied(&mut connection).contains(&C_MIGRATION_VERSION.to_string()));
+        assert_c_absent(&mut connection);
+
+        connection
+            .run_pending_migrations(MIGRATIONS)
+            .expect("the forward runner");
+        assert!(applied(&mut connection).contains(&C_MIGRATION_VERSION.to_string()));
+        assert_c_present(&mut connection);
     }
 }

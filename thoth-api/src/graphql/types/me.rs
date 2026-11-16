@@ -11,6 +11,7 @@ pub struct Me {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub is_superuser: bool,
+    pub is_ror_sync_service: bool,
     pub publisher_contexts: Vec<PublisherContext>,
 }
 
@@ -37,6 +38,7 @@ impl ToMe for IntrospectedUser {
             first_name: self.given_name.clone(),
             last_name: self.family_name.clone(),
             is_superuser,
+            is_ror_sync_service: self.is_ror_sync_service(),
             publisher_contexts,
         })
     }
@@ -116,6 +118,13 @@ impl Me {
 
     fn is_superuser(&self) -> bool {
         self.is_superuser
+    }
+
+    #[graphql(
+        description = "Whether the principal holds the `ROR_SYNC_SERVICE` role. `SUPERUSER` does not imply it."
+    )]
+    fn is_ror_sync_service(&self) -> bool {
+        self.is_ror_sync_service
     }
 
     fn publisher_contexts(&self) -> Vec<PublisherContext> {

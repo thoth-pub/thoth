@@ -63,7 +63,8 @@ pub(crate) fn executor_profile(role: Role) -> Option<ExecutorProfile> {
         | Role::WorkLifecycle
         | Role::CdnWrite
         | Role::MetricsIngestService
-        | Role::MetricsReadService => None,
+        | Role::MetricsReadService
+        | Role::RorSyncService => None,
     }
 }
 
