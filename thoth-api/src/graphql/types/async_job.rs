@@ -609,18 +609,18 @@ impl From<&AsyncJobFilterInput> for engine::AsyncJobFilter {
 #[graphql(
     description = "A position in the async job list: the createdAt and asyncJobId of the last job of the previous page"
 )]
-pub struct AsyncJobCursorInput {
+pub struct AsyncJobListPositionInput {
     #[graphql(description = "createdAt of the last job of the previous page")]
     pub created_at: Timestamp,
     #[graphql(description = "asyncJobId of the last job of the previous page")]
     pub async_job_id: Uuid,
 }
 
-impl From<&AsyncJobCursorInput> for engine::JobCursor {
-    fn from(cursor: &AsyncJobCursorInput) -> Self {
+impl From<&AsyncJobListPositionInput> for engine::JobCursor {
+    fn from(position: &AsyncJobListPositionInput) -> Self {
         engine::JobCursor {
-            created_at: instant(cursor.created_at),
-            async_job_id: cursor.async_job_id,
+            created_at: instant(position.created_at),
+            async_job_id: position.async_job_id,
         }
     }
 }

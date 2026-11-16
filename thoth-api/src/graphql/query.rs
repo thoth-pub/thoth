@@ -6,8 +6,8 @@ use super::types::inputs::{
     SubjectOrderBy, TimeExpression,
 };
 use crate::graphql::types::async_job::{
-    AsyncJob, AsyncJobClaimInput, AsyncJobCursorInput, AsyncJobDetail, AsyncJobExecutorActivity,
-    AsyncJobFilterInput, AsyncJobKindSignals, AsyncJobTargetState,
+    AsyncJob, AsyncJobClaimInput, AsyncJobDetail, AsyncJobExecutorActivity, AsyncJobFilterInput,
+    AsyncJobKindSignals, AsyncJobListPositionInput, AsyncJobTargetState,
 };
 use crate::graphql::types::me::{Me, ToMe};
 use crate::graphql::Context;
@@ -2406,7 +2406,7 @@ impl QueryRoot {
         >,
         #[graphql(description = "How many jobs to return, from 1 to 100")] limit: i32,
         #[graphql(description = "List the jobs after this position; the first page when absent")]
-        after: Option<AsyncJobCursorInput>,
+        after: Option<AsyncJobListPositionInput>,
     ) -> FieldResult<Vec<AsyncJob>> {
         context
             .require_superuser()

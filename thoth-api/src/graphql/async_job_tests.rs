@@ -707,7 +707,7 @@ const READ_JOB: &str = "query Job($id: Uuid!) { asyncJob(asyncJobId: $id) { \
      transitions { fromStatus toStatus cause } } }";
 
 const LIST_JOBS: &str = "query Jobs($filter: AsyncJobFilterInput, $limit: Int!, \
-     $after: AsyncJobCursorInput) { asyncJobs(filter: $filter, limit: $limit, after: $after) { \
+     $after: AsyncJobListPositionInput) { asyncJobs(filter: $filter, limit: $limit, after: $after) { \
      asyncJobId kind status createdAt targetKeys correlationId } }";
 
 const KIND_SIGNALS: &str =
@@ -3164,10 +3164,10 @@ const NEW_DECLARATIONS: [&str; 40] = [
     "enum AsyncJobStatus {",
     "input AsyncJobClaimInput {",
     "input AsyncJobCommandInput {",
-    "input AsyncJobCursorInput {",
     "input AsyncJobEvidenceEntryInput {",
     "input AsyncJobFilterInput {",
     "input AsyncJobKindVersionsInput {",
+    "input AsyncJobListPositionInput {",
     "input ClaimAsyncJobsInput {",
     "input CompleteAsyncJobInput {",
     "input FailAsyncJobInput {",
