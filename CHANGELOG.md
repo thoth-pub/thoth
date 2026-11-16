@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
   - [1019](https://github.com/thoth-pub/thoth/issues/1019) - Let `metricWidget` serve yearly timelines, and all history when `startDate` is omitted
   - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the tables and core of the shared asynchronous job engine, inert until a job kind is registered and called
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the protected GraphQL API of the shared asynchronous job engine (executor operations for `DISSEMINATION_WORKER`, superuser commands and reads), and leave async job request bodies out of the access log
 
 ### Changed
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
