@@ -344,7 +344,8 @@ fn superworker() -> Caller {
 }
 
 /// Callers refused by every new operation: no authentication, no role, each
-/// publisher-scoped role, all of them, and each Metrics machine role.
+/// publisher-scoped role, all of them, each Metrics machine role and
+/// `ROR_SYNC_SERVICE`.
 fn outsiders() -> Vec<Caller> {
     vec![
         Caller::anonymous(),
@@ -380,6 +381,11 @@ fn outsiders() -> Vec<Caller> {
             "machine:metrics-read",
             &[Role::MetricsReadService],
         ),
+        Caller::new(
+            "ROR_SYNC_SERVICE",
+            "machine:ror-sync",
+            &[Role::RorSyncService],
+        ),
     ]
 }
 
@@ -399,6 +405,7 @@ fn refused_executors() -> Vec<Caller> {
             Role::CdnWrite,
             Role::MetricsIngestService,
             Role::MetricsReadService,
+            Role::RorSyncService,
         ],
     ));
     callers
@@ -420,6 +427,7 @@ fn refused_operators() -> Vec<Caller> {
             Role::CdnWrite,
             Role::MetricsIngestService,
             Role::MetricsReadService,
+            Role::RorSyncService,
         ],
     ));
     callers
@@ -1302,6 +1310,7 @@ fn the_test_registries_validate_and_only_dissemination_worker_maps_to_an_executo
         Role::DisseminationWorker,
         Role::MetricsIngestService,
         Role::MetricsReadService,
+        Role::RorSyncService,
     ];
     for role in roles {
         let expected = (role == Role::DisseminationWorker).then_some(ExecutorProfile {
