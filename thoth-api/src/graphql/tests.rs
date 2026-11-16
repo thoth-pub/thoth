@@ -1126,6 +1126,8 @@ fn patch_institution(institution: &Institution) -> PatchInstitution {
         institution_doi: institution.institution_doi.clone(),
         ror: institution.ror.clone(),
         country_code: institution.country_code,
+        ror_status: None,
+        ror_successor: juniper::Nullable::ImplicitNull,
     }
 }
 
@@ -1653,6 +1655,11 @@ fn assert_institution_resolvers(institution: &Institution, context: &Context) {
         institution.country_code.as_ref()
     );
     assert_eq!(institution.ror(), institution.ror.as_ref());
+    assert_eq!(institution.ror_status(), institution.ror_status);
+    assert_eq!(
+        institution.ror_successor(),
+        institution.ror_successor.as_ref()
+    );
     assert_eq!(institution.created_at(), institution.created_at);
     assert_eq!(institution.updated_at(), institution.updated_at);
     assert!(!institution

@@ -8,17 +8,19 @@ pub(crate) mod db {
     use std::collections::HashMap;
     use std::env;
     use std::fs::OpenOptions;
-    use std::sync::{Arc, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
     use std::time::Duration;
 
     use diesel::pg::PgConnection;
     use diesel::r2d2::ConnectionManager;
-    use diesel::RunQueryDsl;
+    use diesel::sql_types::{BigInt, Text};
+    use diesel::{Connection, QueryableByName, RunQueryDsl};
+    use diesel_migrations::MigrationHarness;
     use fs2::FileExt;
     use uuid::Uuid;
     use zitadel::actix::introspection::IntrospectedUser;
 
-    use crate::db::{init_pool, run_migrations, PgPool};
+    use crate::db::{init_pool, run_migrations, PgPool, MIGRATIONS as EMBEDDED_MIGRATIONS};
     use crate::graphql::Context;
     use crate::model::contribution::{Contribution, ContributionType, NewContribution};
     use crate::model::contributor::{Contributor, NewContributor};
@@ -34,7 +36,8 @@ pub(crate) mod db {
     use crate::storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client};
 
     static MIGRATIONS: OnceLock<Result<(), String>> = OnceLock::new();
-    static POOL: OnceLock<Arc<PgPool>> = OnceLock::new();
+    /// The shared pool, with the enum-type fingerprint it was created under.
+    static POOL: Mutex<Option<(String, Arc<PgPool>)>> = Mutex::new(None);
     static CLIENTS: OnceLock<(Arc<S3Client>, Arc<CloudFrontClient>)> = OnceLock::new();
 
     pub(crate) struct TestDbGuard {
@@ -61,14 +64,116 @@ pub(crate) mod db {
         env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set for backend tests")
     }
 
+    #[derive(QueryableByName)]
+    struct SchemaFingerprint {
+        #[diesel(sql_type = Text)]
+        fingerprint: String,
+    }
+
+    /// The OIDs of every enum type in `public`, and the shape of its tables
+    /// (their OIDs and column numbers, dropped columns included), in one
+    /// string. Re-applying a migration changes it whether the migration
+    /// recreates an enum, a table or only a column.
+    const SCHEMA_FINGERPRINT_SQL: &str =
+        "SELECT (SELECT COALESCE(string_agg(oid::text, ',' ORDER BY oid), '') \
+                 FROM pg_catalog.pg_type \
+                 WHERE typtype = 'e' AND typnamespace = 'public'::regnamespace) \
+             || '/' || \
+             (SELECT count(*)::text || ':' || COALESCE(sum(a.attnum), 0)::text \
+                     || ':' || COALESCE(sum(DISTINCT c.oid::bigint), 0)::text \
+              FROM pg_catalog.pg_attribute a \
+              JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+              WHERE c.relnamespace = 'public'::regnamespace \
+                AND c.relkind IN ('r', 'p') AND a.attnum > 0) AS fingerprint";
+
+    fn schema_fingerprint(connection: &mut PgConnection) -> String {
+        diesel::sql_query(SCHEMA_FINGERPRINT_SQL)
+            .get_result::<SchemaFingerprint>(connection)
+            .expect("Failed to read the schema fingerprint")
+            .fingerprint
+    }
+
+    #[derive(QueryableByName)]
+    struct HighestColumnNumber {
+        #[diesel(sql_type = BigInt)]
+        highest: i64,
+    }
+
+    /// The highest column number of any table in `public`, dropped columns
+    /// included.
+    const HIGHEST_COLUMN_NUMBER_SQL: &str = "SELECT COALESCE(max(a.attnum), 0)::bigint AS highest \
+         FROM pg_catalog.pg_attribute a \
+         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid \
+         WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')";
+
+    /// Rebuild the schema when a table nears PostgreSQL's 1600-column limit.
+    const COLUMN_NUMBER_REBUILD_THRESHOLD: i64 = 1400;
+
+    /// PostgreSQL never reuses the number of a dropped column, and a table may
+    /// hold at most 1600 columns, dropped ones included. Each revert-and-reapply
+    /// cycle of a migration that adds columns to an existing table uses up
+    /// numbers on that table: every test that reverts through an older
+    /// migration also cycles every newer one, such as ROR-SYNC-01C's two
+    /// columns on `institution`. One run uses well under the limit, but a
+    /// reused local test database reaches it after enough runs. Near the
+    /// limit, this rebuilds the schema.
+    fn rebuild_schema_near_the_column_limit(connection: &mut PgConnection) {
+        let highest = diesel::sql_query(HIGHEST_COLUMN_NUMBER_SQL)
+            .get_result::<HighestColumnNumber>(connection)
+            .expect("Failed to read the highest column number")
+            .highest;
+        if highest > COLUMN_NUMBER_REBUILD_THRESHOLD {
+            rebuild_schema(connection);
+        }
+    }
+
+    /// Empty every table, revert every migration and run them again, which
+    /// recreates every table with fresh column numbers. Emptying first means
+    /// no `down.sql` meets rows a previous test left behind.
+    pub(crate) fn rebuild_schema(connection: &mut PgConnection) {
+        diesel::sql_query(RESET_SQL)
+            .execute(connection)
+            .expect("Failed to empty the test database before the rebuild");
+        connection
+            .revert_all_migrations(EMBEDDED_MIGRATIONS)
+            .expect("Failed to revert every migration of the test database");
+        connection
+            .run_pending_migrations(EMBEDDED_MIGRATIONS)
+            .expect("Failed to rebuild the test database");
+    }
+
+    /// The shared test pool.
+    ///
+    /// Tests that revert migrations and re-apply them recreate the enum types,
+    /// tables and columns of every reverted migration, with new OIDs and
+    /// column numbers. A pooled connection that cached a statement or a type
+    /// OID from before would then fail with "cached plan must not change
+    /// result type" or a stale-OID lookup, in whichever later test reuses it.
+    /// So the pool is replaced whenever the schema fingerprint differs from
+    /// the one it was created under, which also covers [`rebuild_schema`].
+    /// Callers hold the test database lock, so no revert runs while this
+    /// reads.
     pub(crate) fn db_pool() -> Arc<PgPool> {
         let url = test_db_url();
+        let mut connection =
+            PgConnection::establish(&url).expect("Failed to connect to the test database");
+        rebuild_schema_near_the_column_limit(&mut connection);
         let migrations = MIGRATIONS
             .get_or_init(|| run_migrations(&url).map_err(|err| err.to_string()))
             .clone();
         migrations.expect("Failed to run migrations for test DB");
-        let pool = POOL.get_or_init(|| Arc::new(init_pool(&url)));
-        pool.clone()
+
+        let mut slot = POOL.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let fingerprint = schema_fingerprint(&mut connection);
+        drop(connection);
+        match slot.as_ref() {
+            Some((created_under, pool)) if *created_under == fingerprint => pool.clone(),
+            _ => {
+                let pool = Arc::new(init_pool(&url));
+                *slot = Some((fingerprint, pool.clone()));
+                pool
+            }
+        }
     }
 
     pub(crate) fn failing_pool() -> PgPool {
@@ -101,9 +206,8 @@ pub(crate) mod db {
         (Arc::clone(s3_client), Arc::clone(cloudfront_client))
     }
 
-    pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
-        let mut connection = pool.get().expect("Failed to get DB connection");
-        let sql = r#"
+    /// Empty every table but the migration versions.
+    const RESET_SQL: &str = r#"
 DO $$
 DECLARE
     tbls TEXT;
@@ -119,7 +223,12 @@ BEGIN
     END IF;
 END $$;
 "#;
-        diesel::sql_query(sql).execute(&mut connection).map(|_| ())
+
+    pub(crate) fn reset_db(pool: &PgPool) -> Result<(), diesel::result::Error> {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        diesel::sql_query(RESET_SQL)
+            .execute(&mut connection)
+            .map(|_| ())
     }
 
     pub(crate) fn setup_test_db() -> (TestDbGuard, Arc<PgPool>) {
@@ -491,6 +600,61 @@ where
         .expect("Failed to roundtrip DB enum");
 
     assert_eq!(fetched, expected);
+}
+
+mod schema_rebuild {
+    use diesel::connection::SimpleConnection;
+    use diesel::pg::PgConnection;
+    use diesel::sql_types::BigInt;
+    use diesel::{Connection, QueryableByName, RunQueryDsl};
+
+    use crate::model::tests::db::{
+        create_publisher, db_pool, rebuild_schema, setup_test_db, test_db_url,
+    };
+
+    #[derive(QueryableByName)]
+    struct ColumnNumbers {
+        #[diesel(sql_type = BigInt)]
+        highest: i64,
+        #[diesel(sql_type = BigInt)]
+        live: i64,
+    }
+
+    fn institution_column_numbers(connection: &mut PgConnection) -> (i64, i64) {
+        let numbers = diesel::sql_query(
+            "SELECT max(attnum)::bigint AS highest, \
+                    count(*) FILTER (WHERE NOT attisdropped)::bigint AS live \
+             FROM pg_catalog.pg_attribute \
+             WHERE attrelid = 'public.institution'::regclass AND attnum > 0",
+        )
+        .get_result::<ColumnNumbers>(connection)
+        .expect("Failed to read institution's column numbers");
+        (numbers.highest, numbers.live)
+    }
+
+    #[test]
+    fn the_schema_rebuild_recreates_the_tables_over_existing_rows_and_a_fresh_pool_works() {
+        let (_guard, pool) = setup_test_db();
+        create_publisher(pool.as_ref());
+        let mut connection = PgConnection::establish(&test_db_url())
+            .expect("Failed to connect to the test database");
+        connection
+            .batch_execute(
+                "ALTER TABLE institution ADD COLUMN schema_rebuild_probe integer; \
+                 ALTER TABLE institution DROP COLUMN schema_rebuild_probe;",
+            )
+            .expect("Failed to use up a column number on institution");
+        let (highest, live) = institution_column_numbers(&mut connection);
+        assert!(highest > live, "a dropped column keeps its number");
+
+        rebuild_schema(&mut connection);
+
+        let (highest, live) = institution_column_numbers(&mut connection);
+        assert_eq!(highest, live, "the rebuilt table has no dropped column");
+        drop(connection);
+        let pool = db_pool();
+        create_publisher(pool.as_ref());
+    }
 }
 
 mod publisher_ids {

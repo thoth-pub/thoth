@@ -695,7 +695,29 @@ async fn every_bounded_failure_carries_its_frozen_classification() {
         }
     }
 
-    // A second eligible managed account for the same publisher and platform.
+    // A second eligible managed account for the same publisher and platform
+    // is no longer refused (MET-WP4-MULTI-ACCOUNT-01): with the fixture
+    // account asserting COMPLETE the read is COMPLETE...
+    cover(
+        &fx,
+        fx.sessions,
+        day_n(1),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+    );
+    let response = run(
+        &schema,
+        &context,
+        DASHBOARD,
+        dashboard_variables(&fx, json!([fx.publisher_id])),
+    )
+    .await;
+    assert_eq!(
+        data(&response, "metricDashboard")["coverage"]["status"],
+        json!("COMPLETE")
+    );
     let source_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
     exec(
@@ -719,7 +741,15 @@ async fn every_bounded_failure_carries_its_frozen_classification() {
         dashboard_variables(&fx, json!([fx.publisher_id])),
     )
     .await;
-    assert_classified(&response, "MOM1_SOURCE_SCOPE_AMBIGUOUS");
+    // ...and with the new account the response has data and no error, and
+    // its coverage is UNKNOWN while the new account has no runs.
+    let dashboard = data(&response, "metricDashboard");
+    assert_eq!(dashboard["coverage"]["status"], json!("UNKNOWN"));
+    assert_eq!(
+        dashboard["coverage"]["items"][0]["status"],
+        json!("UNKNOWN")
+    );
+    assert!(!response.to_string().contains("MOM1_SOURCE_SCOPE_AMBIGUOUS"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

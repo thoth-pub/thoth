@@ -529,8 +529,6 @@ pub(crate) enum WidgetReason {
     NotEntitled,
     /// The engine re-checked the capability and refused it.
     EngineUnauthorised,
-    /// More than one eligible managed source account on a served platform.
-    SourceScopeAmbiguous,
     /// A total or country dimension ambiguity in a section.
     DimensionScopeAmbiguous,
     /// An active native-grain record on a served platform and measure.
@@ -605,10 +603,6 @@ fn engine_failure(error: &MetricReadError, deadline_expired: bool) -> Failure {
         MetricReadError::Unauthorised => Failure::new(
             MetricWidgetError::Unavailable,
             WidgetReason::EngineUnauthorised,
-        ),
-        MetricReadError::SourceScopeAmbiguous => Failure::new(
-            MetricWidgetError::Unavailable,
-            WidgetReason::SourceScopeAmbiguous,
         ),
         MetricReadError::DimensionScopeAmbiguous => Failure::new(
             MetricWidgetError::Unavailable,

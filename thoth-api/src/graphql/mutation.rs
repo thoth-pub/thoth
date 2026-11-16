@@ -66,9 +66,15 @@ use crate::model::{
         crud::{
             claim_metric_rollup_deltas, complete_metric_rollup_deltas, rebuild_metric_rollup_months,
         },
+        rebuild_run::{
+            abandon_metric_rollup_month_rebuild, advance_metric_rollup_month_rebuild,
+            metric_rollup_month_rebuild_run, start_metric_rollup_month_rebuild,
+        },
         verification::verify_metric_rollup_months,
-        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupMonthRebuildResult,
-        MetricRollupMonthVerification, MetricRollupWatermark, RebuildMetricRollupMonthsInput,
+        AbandonMetricRollupMonthRebuildInput, AdvanceMetricRollupMonthRebuildInput,
+        CompleteMetricRollupDeltasInput, MetricRollupDeltaClaim, MetricRollupMonthRebuildAdvance,
+        MetricRollupMonthRebuildResult, MetricRollupMonthRebuildRun, MetricRollupMonthVerification,
+        MetricRollupWatermark, RebuildMetricRollupMonthsInput, StartMetricRollupMonthRebuildInput,
     },
     metric_source::{
         crud::{create_metric_source, update_metric_source},
@@ -495,6 +501,61 @@ impl MutationRoot {
     }
 
     #[graphql(
+        description = "Start one resumable monthly rebuild run: REBUILD builds the six derived rollup projection families range by range and then verifies them page by page, VERIFY only verifies them and never writes a projection row. Requires the METRICS_INGEST_SERVICE role. The run records the durable rollup frontier at its start and its durable position. At most one run is open: starting while one is open fails METRIC_REBUILD_RUN_OPEN. The caller drives every step with advanceMetricRollupMonthRebuild; Thoth never advances a run on its own."
+    )]
+    fn start_metric_rollup_month_rebuild(
+        context: &Context,
+        #[graphql(description = "Which kind of run to start")]
+        input: StartMetricRollupMonthRebuildInput,
+    ) -> FieldResult<MetricRollupMonthRebuildRun> {
+        let started_by =
+            authorize_metric_rollup_service(context).map_err(IntoFieldError::into_field_error)?;
+        start_metric_rollup_month_rebuild(&context.db, &input, started_by)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Advance a resumable monthly rebuild run by one bounded step or page that commits on its own. Requires the METRICS_INGEST_SERVICE role. While BUILDING, a step verifies its range of units and, only if the range is not exact, replaces exactly that range with the rollup completion's own recomputation and verifies it again before commit; while VERIFYING, a page verifies its range in one snapshot and writes only the run. A step or page commits only while the run still has exactly expectedStepCount; a terminal or stale request returns advanced: false with the run unchanged, so a retry after a lost response is safe. METRIC_REBUILD_RETRYABLE means nothing was committed and the same request may be retried after a back-off; METRIC_REBUILD_BLOCKED means nothing was committed and the refusal will repeat until a separately authorized repair."
+    )]
+    fn advance_metric_rollup_month_rebuild(
+        context: &Context,
+        #[graphql(description = "Which run to advance, and the step count the caller last saw")]
+        input: AdvanceMetricRollupMonthRebuildInput,
+    ) -> FieldResult<MetricRollupMonthRebuildAdvance> {
+        authorize_metric_rollup_service(context).map_err(IntoFieldError::into_field_error)?;
+        advance_metric_rollup_month_rebuild(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Abandon an open resumable monthly rebuild run. Requires the METRICS_INGEST_SERVICE role. The run becomes ABANDONED and keeps its position, counters and frontiers; a terminal run is returned unchanged. The projection tables stay exactly as the committed steps left them, each committed range exact."
+    )]
+    fn abandon_metric_rollup_month_rebuild(
+        context: &Context,
+        #[graphql(description = "Which run to abandon")]
+        input: AbandonMetricRollupMonthRebuildInput,
+    ) -> FieldResult<MetricRollupMonthRebuildRun> {
+        authorize_metric_rollup_service(context).map_err(IntoFieldError::into_field_error)?;
+        abandon_metric_rollup_month_rebuild(&context.db, &input)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Read one resumable monthly rebuild run, read-only. Requires the METRICS_INGEST_SERVICE role. With a runId it returns that run, or null. Without one it returns the open run when one exists, otherwise the run with the greatest startedAt (set when the run was started), or null."
+    )]
+    fn metric_rollup_month_rebuild_run(
+        context: &Context,
+        #[graphql(
+            description = "The run to read; omit to read the open run, otherwise the latest run"
+        )]
+        run_id: Option<Uuid>,
+    ) -> FieldResult<Option<MetricRollupMonthRebuildRun>> {
+        authorize_metric_rollup_service(context).map_err(IntoFieldError::into_field_error)?;
+        metric_rollup_month_rebuild_run(&context.db, run_id)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
         description = "Verify one strictly ascending page of source accounts' derived coverage runs against the runs independently derived from raw coverage and terminal import evidence, in one read-only repeatable-read snapshot. Requires the METRICS_INGEST_SERVICE role. Writes nothing and takes no row lock. afterSourceAccountId is an exclusive ordering boundary that need not name an existing account; omitting it starts at the beginning of the domain. The limit must be between 1 and 10 inclusive and is never clamped. Every page reports the complete source-account domain's count and fingerprint from its own snapshot, so one coherent full traversal sees the same two values on every page. Returns bounded counts only; a mismatch never triggers a rebuild by itself."
     )]
     fn verify_metric_coverage_runs(
@@ -715,7 +776,7 @@ impl MutationRoot {
         #[graphql(description = "Values for institution to be created")] data: NewInstitution,
     ) -> FieldResult<Institution> {
         InstitutionPolicy::can_create(context, &data, ())?;
-        Institution::create(&context.db, &data).map_err(Into::into)
+        Institution::create_with_history(context, &data).map_err(Into::into)
     }
 
     #[graphql(description = "Create a new funding with the specified values")]

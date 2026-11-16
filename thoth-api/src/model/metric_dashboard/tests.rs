@@ -1181,11 +1181,13 @@ fn an_unrepresentable_aggregate_fails_rather_than_wrapping() {
             window: &window,
             combinations: &[],
             publishers: &[],
+            accounts: &BTreeSet::new(),
             include_countries: false,
             include_institutions: false,
             facts: &BTreeMap::new(),
             runs: &[],
         },
+        Uuid::nil(),
         &facts,
         &[],
     );
@@ -2903,8 +2905,88 @@ fn coverage_counts_only_when_its_import_is_owned_by_the_account_and_publisher() 
     assert!(!complete.is_partial);
 }
 
+/// One terminal import on `account_id` asserting `status` for `measure_id`
+/// on the fixture platform over `[start, end)`, completed at `completed_at`
+/// (an SQL literal), with the given dimension flags.
+#[allow(clippy::too_many_arguments)]
+fn cover_account(
+    fx: &Fixture,
+    account_id: Uuid,
+    measure_id: Uuid,
+    start: NaiveDate,
+    end: NaiveDate,
+    status: &str,
+    import_status: &str,
+    completed_at: &str,
+    country: bool,
+    institution: bool,
+) -> Uuid {
+    let import_id = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            import_sql(import_id, account_id, import_status, completed_at),
+            coverage_sql(
+                account_id,
+                import_id,
+                fx.platform_id,
+                measure_id,
+                start,
+                end,
+                status,
+                country,
+                institution
+            )
+        ),
+    );
+    import_id
+}
+
+/// The step-10 read's rows for the given `(account, platform, expected
+/// publisher)` triples, as `(account, publisher, start, end)`, sorted.
+fn assertion_accounts(
+    pool: &PgPool,
+    accounts: &[(Uuid, Uuid, Uuid)],
+    start: NaiveDate,
+    end: NaiveDate,
+    measures: &[Uuid],
+) -> Vec<(Uuid, Uuid, NaiveDate, NaiveDate)> {
+    let account_ids: Vec<Uuid> = accounts.iter().map(|account| account.0).collect();
+    let platforms: Vec<Uuid> = accounts.iter().map(|account| account.1).collect();
+    let publishers: Vec<Uuid> = accounts.iter().map(|account| account.2).collect();
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    let mut rows: Vec<(Uuid, Uuid, NaiveDate, NaiveDate)> = connection
+        .build_transaction()
+        .read_only()
+        .repeatable_read()
+        .run(|connection| {
+            sql_query(ASSERTIONS_SQL)
+                .bind::<Array<SqlUuid>, _>(&account_ids)
+                .bind::<Array<SqlUuid>, _>(&platforms)
+                .bind::<Array<SqlUuid>, _>(&publishers)
+                .bind::<Date, _>(start)
+                .bind::<Date, _>(end)
+                .bind::<Array<SqlUuid>, _>(measures)
+                .load::<RunRow>(connection)
+        })
+        .expect("the coverage-run statement")
+        .into_iter()
+        .map(|row| {
+            (
+                row.source_account_id,
+                row.publisher_id,
+                row.run_start,
+                row.run_end,
+            )
+        })
+        .collect();
+    rows.sort_unstable();
+    rows
+}
+
 #[test]
-fn more_than_one_eligible_driver_account_is_ambiguous_and_ineligible_ones_are_ignored() {
+fn several_eligible_driver_accounts_combine_their_coverage_and_ineligible_ones_are_ignored() {
     let (_guard, fx) = setup();
     let input = window(&fx, &[fx.sessions]);
     let add_account = |source_enabled: bool,
@@ -2986,11 +3068,467 @@ fn more_than_one_eligible_driver_account_is_ambiguous_and_ineligible_ones_are_ig
         MetricCoverageStatus::Unknown
     );
 
-    add_account(true, "DRIVER", fx.platform_id, Some(fx.publisher_id), true);
-    assert_eq!(
-        metric_dashboard(&fx.pool, &input),
-        Err(MetricReadError::SourceScopeAmbiguous)
+    // A second eligible account (B) beside the fixture's (A) is served, not
+    // refused (MET-WP4-MULTI-ACCOUNT-01).
+    let second = add_account(true, "DRIVER", fx.platform_id, Some(fx.publisher_id), true);
+    assert!(metric_dashboard(&fx.pool, &input).is_ok());
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 9);
+    commit(&fx, fx.works[1], fx.platform_id, fx.sessions, day_n(3), 4);
+    apply_all(&fx.pool);
+    let totals = totals_only(&input);
+
+    // Only A asserts: every day is UNKNOWN, the values are served and an
+    // empty cell is null.
+    cover_account(
+        &fx,
+        fx.account_id,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
     );
+    let only_a = read(&fx, &totals);
+    assert_eq!(
+        bucket_values(&only_a, fx.sessions),
+        vec![some("9"), None, some("4"), None]
+    );
+    assert_eq!(
+        item(&only_a, fx.sessions).status,
+        MetricCoverageStatus::Unknown
+    );
+    assert_eq!(item(&only_a, fx.sessions).data_through, None);
+    for day in 1..5 {
+        assert_eq!(
+            day_status(&fx, fx.sessions, day_n(day)),
+            MetricCoverageStatus::Unknown,
+            "day {day}"
+        );
+    }
+
+    // Both assert COMPLETE: the day is COMPLETE and an empty cell is "0".
+    cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
+    );
+    let both = read(&fx, &totals);
+    assert_eq!(
+        bucket_values(&both, fx.sessions),
+        vec![some("9"), some("0"), some("4"), some("0")]
+    );
+    assert_eq!(
+        item(&both, fx.sessions).status,
+        MetricCoverageStatus::Complete
+    );
+    assert_eq!(item(&both, fx.sessions).data_through, Some(day_n(4)));
+    // The step-10 read returns both accounts' runs, each with its own
+    // account.
+    let mut expected = vec![
+        (fx.account_id, fx.publisher_id, d1(), day_n(5)),
+        (second, fx.publisher_id, d1(), day_n(5)),
+    ];
+    expected.sort_unstable();
+    assert_eq!(
+        assertion_accounts(
+            &fx.pool,
+            &[
+                (fx.account_id, fx.platform_id, fx.publisher_id),
+                (second, fx.platform_id, fx.publisher_id),
+            ],
+            d1(),
+            day_n(5),
+            &[fx.sessions],
+        ),
+        expected
+    );
+
+    // A COMPLETE and B PARTIAL on day 2, and B COMPLETE from a
+    // COMPLETED_WITH_ERRORS import on day 4: both days are PARTIAL.
+    cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "PARTIAL",
+        "COMPLETED",
+        "'2026-03-11T00:00:00Z'",
+        true,
+        true,
+    );
+    cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        day_n(4),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED_WITH_ERRORS",
+        "'2026-03-11T00:00:00Z'",
+        true,
+        true,
+    );
+    let partial = read(&fx, &totals);
+    assert_eq!(
+        bucket_values(&partial, fx.sessions),
+        vec![some("9"), None, some("4"), None]
+    );
+    assert_eq!(
+        item(&partial, fx.sessions).status,
+        MetricCoverageStatus::Partial
+    );
+    for (day, status) in [
+        (1, MetricCoverageStatus::Complete),
+        (2, MetricCoverageStatus::Partial),
+        (3, MetricCoverageStatus::Complete),
+        (4, MetricCoverageStatus::Partial),
+    ] {
+        assert_eq!(
+            day_status(&fx, fx.sessions, day_n(day)),
+            status,
+            "day {day}"
+        );
+    }
+    // dataThrough is the last day of the leading run on which both assert
+    // COMPLETE.
+    assert_eq!(item(&partial, fx.sessions).data_through, Some(day_n(1)));
+    assert_eq!(partial.data_through, Some(day_n(1)));
+
+    // A asserts the country dimension and B does not: countryCoverage is
+    // false, while the undimensioned totals stay COMPLETE.
+    cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-12T00:00:00Z'",
+        false,
+        true,
+    );
+    let country = read(&fx, &totals);
+    let country_item = item(&country, fx.sessions);
+    assert_eq!(country_item.status, MetricCoverageStatus::Complete);
+    assert!(!country_item.country_coverage);
+    assert!(country_item.institution_coverage);
+    assert_eq!(
+        bucket_values(&country, fx.sessions),
+        vec![some("9"), some("0"), some("4"), some("0")]
+    );
+}
+
+#[test]
+fn overlapping_runs_of_one_account_are_refused_and_runs_of_two_accounts_are_not() {
+    let (_guard, fx) = setup();
+    let second = add_account(&fx, fx.platform_id, fx.publisher_id);
+    for account in [fx.account_id, second] {
+        cover_account(
+            &fx,
+            account,
+            fx.sessions,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+            true,
+            true,
+        );
+    }
+    let input = totals_only(&window(&fx, &[fx.sessions]));
+
+    // Runs of two accounts over the same days are two streams.
+    let served = read(&fx, &input);
+    assert_eq!(
+        item(&served, fx.sessions).status,
+        MetricCoverageStatus::Complete
+    );
+    assert_eq!(bucket_values(&served, fx.sessions), vec![some("0"); 4]);
+
+    // Two overlapping runs of one account are invalid derived state, written
+    // directly so nothing re-derives them.
+    exec_raw(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_coverage_run \
+                 (source_account_id, platform_id, publisher_id, measure_id, run_start, run_end, \
+                  coverage_status, import_status, country_coverage, institution_coverage) \
+             VALUES ('{second}', '{platform}', '{publisher}', '{measure}', '{from}', '{to}', \
+                     'COMPLETE', 'COMPLETED', TRUE, TRUE);",
+            platform = fx.platform_id,
+            publisher = fx.publisher_id,
+            measure = fx.sessions,
+            from = day_n(2),
+            to = day_n(4),
+        ),
+    );
+    let refused = metric_dashboard(&fx.pool, &input);
+    assert_eq!(refused, Err(MetricReadError::Unavailable));
+    assert_eq!(refused.map(|_| ()).unwrap_err().code(), "INTERNAL_ERROR");
+}
+
+/// [`record_sql`] with another winning account and admitting import.
+#[allow(clippy::too_many_arguments)]
+fn record_from_sql(
+    fx: &Fixture,
+    account_id: Uuid,
+    import_id: Uuid,
+    work_id: Uuid,
+    platform_id: Uuid,
+    measure_id: Uuid,
+    day: NaiveDate,
+    value: i64,
+) -> String {
+    record_sql(
+        fx,
+        Uuid::new_v4(),
+        work_id,
+        platform_id,
+        measure_id,
+        day,
+        value,
+    )
+    .replace(&format!("'{}'", fx.account_id), &format!("'{account_id}'"))
+    .replace(
+        &format!("'{}'", fx.canonical_import),
+        &format!("'{import_id}'"),
+    )
+}
+
+#[test]
+fn disabling_another_account_or_its_source_restores_the_baseline_and_keeps_its_values() {
+    let (_guard, fx) = setup();
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 9);
+    apply_all(&fx.pool);
+    cover_account(
+        &fx,
+        fx.account_id,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
+    );
+    let input = window(&fx, &[fx.sessions]);
+    // The baseline: the read before account B exists.
+    let baseline = read(&fx, &input);
+    assert_eq!(baseline.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(
+        bucket_values(&baseline, fx.sessions),
+        vec![some("9"), some("0"), some("0"), some("0")]
+    );
+
+    // B admits a value only on the pair A already serves, leaves no
+    // quarantine and asserts only days 1 and 2.
+    let (source_id, second) = (Uuid::new_v4(), Uuid::new_v4());
+    exec(
+        &fx.pool,
+        &format!(
+            "{}{}",
+            source_sql(source_id, "DRIVER", true),
+            account_sql(
+                second,
+                source_id,
+                fx.platform_id,
+                Some(fx.publisher_id),
+                true
+            )
+        ),
+    );
+    let import_id = cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        d1(),
+        day_n(3),
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
+    );
+    exec(
+        &fx.pool,
+        &record_from_sql(
+            &fx,
+            second,
+            import_id,
+            fx.works[1],
+            fx.platform_id,
+            fx.sessions,
+            day_n(2),
+            5,
+        ),
+    );
+    apply_all(&fx.pool);
+    assert_eq!(
+        scalar_i64(
+            &fx.pool,
+            "(SELECT COUNT(*) FROM metric_identifier_quarantine)"
+        ),
+        0
+    );
+    let with_b = read(&fx, &input);
+    assert_eq!(
+        bucket_values(&with_b, fx.sessions),
+        vec![some("9"), some("5"), None, None]
+    );
+    assert_eq!(with_b.coverage.status, MetricCoverageStatus::Unknown);
+
+    let assert_restored = |label: &str| {
+        let dashboard = read(&fx, &input);
+        assert_eq!(dashboard.coverage, baseline.coverage, "{label}");
+        assert_eq!(dashboard.data_through, baseline.data_through, "{label}");
+        assert_eq!(dashboard.warnings, baseline.warnings, "{label}");
+        assert_eq!(dashboard.is_partial, baseline.is_partial, "{label}");
+        // The values B admitted are still served.
+        assert_eq!(
+            bucket_values(&dashboard, fx.sessions),
+            vec![some("9"), some("5"), some("0"), some("0")],
+            "{label}"
+        );
+        assert_eq!(
+            total(&dashboard, fx.platform_id, fx.sessions),
+            some("14"),
+            "{label}"
+        );
+    };
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_source_account SET enabled = FALSE \
+             WHERE source_account_id = '{second}';"
+        ),
+    );
+    assert_restored("account B disabled");
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_source_account SET enabled = TRUE \
+             WHERE source_account_id = '{second}'; \
+             UPDATE metric_source SET enabled = FALSE WHERE source_id = '{source_id}';"
+        ),
+    );
+    assert_restored("account B's source disabled");
+}
+
+#[test]
+fn an_all_time_read_starts_at_the_earliest_account_and_is_unknown_before_the_later_one() {
+    let (_guard, fx) = setup();
+    let second = add_account(&fx, fx.platform_id, fx.publisher_id);
+    for (account, from) in [(fx.account_id, 1), (second, 4)] {
+        cover_account(
+            &fx,
+            account,
+            fx.sessions,
+            day_n(from),
+            day_n(10),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-20T00:00:00Z'",
+            true,
+            true,
+        );
+    }
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(6), 3);
+    apply_all(&fx.pool);
+    let mut input = totals_only(&request(
+        fx.publisher_id,
+        d1(),
+        day_n(10),
+        &[fx.platform_id],
+        &[fx.sessions],
+        None,
+    ));
+    input.start_date = None;
+
+    let dashboard = read(&fx, &input);
+    // The served start is the earlier account's first run.
+    assert_eq!(dashboard.start_date, d1());
+    assert_eq!(dashboard.timeline_grain, MetricTimelineGrain::Day);
+    // The days before the later account's first run are UNKNOWN.
+    let mut expected = vec![None; 3];
+    expected.extend([
+        some("0"),
+        some("0"),
+        some("3"),
+        some("0"),
+        some("0"),
+        some("0"),
+    ]);
+    assert_eq!(bucket_values(&dashboard, fx.sessions), expected);
+    let coverage = item(&dashboard, fx.sessions);
+    assert_eq!(coverage.status, MetricCoverageStatus::Unknown);
+    assert_eq!(coverage.data_through, None);
+}
+
+#[test]
+fn each_measure_combines_only_the_accounts_that_assert_it() {
+    let (_guard, fx) = setup();
+    let second = add_account(&fx, fx.platform_id, fx.publisher_id);
+    // A1 asserts M1 (sessions) only; A2 asserts M1, PARTIAL on day 2, and M2
+    // (units).
+    for (account, measure) in [
+        (fx.account_id, fx.sessions),
+        (second, fx.sessions),
+        (second, fx.units),
+    ] {
+        cover_account(
+            &fx,
+            account,
+            measure,
+            d1(),
+            day_n(5),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-03-10T00:00:00Z'",
+            true,
+            true,
+        );
+    }
+    cover_account(
+        &fx,
+        second,
+        fx.sessions,
+        day_n(2),
+        day_n(3),
+        "PARTIAL",
+        "COMPLETED",
+        "'2026-03-11T00:00:00Z'",
+        true,
+        true,
+    );
+    let dashboard = read(&fx, &totals_only(&window(&fx, &[fx.sessions, fx.units])));
+
+    // M1 is merged across both accounts.
+    assert_eq!(
+        bucket_values(&dashboard, fx.sessions),
+        vec![some("0"), None, some("0"), some("0")]
+    );
+    let merged = item(&dashboard, fx.sessions);
+    assert_eq!(merged.status, MetricCoverageStatus::Partial);
+    assert_eq!(merged.data_through, Some(day_n(1)));
+    // M2 is UNKNOWN: A1 never asserts it.
+    assert_eq!(bucket_values(&dashboard, fx.units), vec![None; 4]);
+    let unknown = item(&dashboard, fx.units);
+    assert_eq!(unknown.status, MetricCoverageStatus::Unknown);
+    assert_eq!(unknown.data_through, None);
 }
 
 #[test]
@@ -5110,20 +5648,112 @@ fn only_represented_publishers_take_part_in_coverage_and_their_assertions_combin
     assert_eq!(only_mine.data_through, Some(day_n(4)));
 
     // Nor does its source-account configuration: a second eligible account
-    // for the excluded publisher is not ambiguity for this request...
-    add_account(&fx, fx.platform_id, fx.other_publisher_id);
-    assert!(metric_dashboard(
-        &fx.pool,
+    // for the excluded publisher changes nothing for this request...
+    let second_other = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    let excluded = read(
+        &fx,
         &selected(&fx, &both, |s| {
             s.imprint_ids = Some(vec![imprint_of(&fx, fx.works[0])]);
-        })
-    )
-    .is_ok());
-    // ...but it is once that publisher is represented.
-    assert_eq!(
-        metric_dashboard(&fx.pool, &selected(&fx, &both, |_| {})),
-        Err(MetricReadError::SourceScopeAmbiguous)
+        }),
     );
+    assert_eq!(bucket_values(&excluded, fx.sessions), vec![some("0"); 4]);
+    assert_eq!(excluded.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(excluded.data_through, Some(day_n(4)));
+    // ...and once that publisher is represented it is not refused
+    // (MET-WP4-MULTI-ACCOUNT-01): its coverage is merged, so while the new
+    // account asserts nothing every day is UNKNOWN...
+    let merged = read(&fx, &totals_only(&selected(&fx, &both, |_| {})));
+    assert_eq!(bucket_values(&merged, fx.sessions), vec![None; 4]);
+    let merged_item = item(&merged, fx.sessions);
+    assert_eq!(merged_item.status, MetricCoverageStatus::Unknown);
+    assert_eq!(merged_item.data_through, None);
+    // ...and once it asserts COMPLETE, with both dimensions, every day, the
+    // other account's assertions decide exactly as before.
+    assert_coverage(
+        &fx,
+        second_other,
+        fx.platform_id,
+        fx.sessions,
+        d1(),
+        day_n(5),
+        "COMPLETE",
+        true,
+        true,
+    );
+    let merged = read(&fx, &totals_only(&selected(&fx, &both, |_| {})));
+    assert_eq!(
+        bucket_values(&merged, fx.sessions),
+        bucket_values(&combined, fx.sessions)
+    );
+    assert_eq!(merged.coverage, combined.coverage);
+    assert_eq!(merged.data_through, combined.data_through);
+}
+
+#[test]
+fn every_eligible_account_of_every_represented_publisher_must_assert_a_day() {
+    let (_guard, fx) = setup();
+    // Publisher A has accounts A1 (the fixture's) and A2; publisher B has B1.
+    let a2 = add_account(&fx, fx.platform_id, fx.publisher_id);
+    let b1 = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    // Day 1: A1, A2 and B1 assert. Day 2: A1 and B1. Day 3: A1 and A2.
+    for (account, days) in [
+        (fx.account_id, vec![1, 2, 3]),
+        (a2, vec![1, 3]),
+        (b1, vec![1, 2]),
+    ] {
+        for day in days {
+            assert_coverage(
+                &fx,
+                account,
+                fx.platform_id,
+                fx.sessions,
+                day_n(day),
+                day_n(day + 1),
+                "COMPLETE",
+                true,
+                true,
+            );
+        }
+    }
+    let both = [fx.publisher_id, fx.other_publisher_id];
+    let assert_day =
+        |day: i64, status: MetricCoverageStatus, value: Option<String>, label: &str| {
+            let mut input = totals_only(&selected(&fx, &both, |_| {}));
+            input.start_date = Some(day_n(day));
+            input.end_date = day_n(day + 1);
+            let dashboard = read(&fx, &input);
+            assert_eq!(item(&dashboard, fx.sessions).status, status, "{label}");
+            assert_eq!(
+                bucket_values(&dashboard, fx.sessions),
+                vec![value.clone()],
+                "{label}"
+            );
+            assert_eq!(
+                total(&dashboard, fx.platform_id, fx.sessions),
+                value,
+                "{label}"
+            );
+        };
+
+    assert_day(
+        1,
+        MetricCoverageStatus::Complete,
+        some("0"),
+        "A1, A2 and B1",
+    );
+    // Two open runs and two publishers: a count of publishers would say
+    // COMPLETE.
+    assert_day(2, MetricCoverageStatus::Unknown, None, "A1 and B1, not A2");
+    assert_day(3, MetricCoverageStatus::Unknown, None, "A1 and A2, not B1");
+    // B without any eligible account: A1 and A2 assert day 1.
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_source_account SET enabled = FALSE \
+             WHERE source_account_id = '{b1}';"
+        ),
+    );
+    assert_day(1, MetricCoverageStatus::Unknown, None, "B has no account");
 }
 
 // ==========================================================================
@@ -10114,32 +10744,11 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
         .iter()
         .flat_map(|platform| measures.iter().map(move |measure| (*platform, *measure)))
         .collect();
-    // The same runs, lag days and quarantine intervals in every window: two
-    // complete runs per publisher and pair, three lag days and two
-    // unresolved intervals per pair, and one value per month of 2025.
     let complete = DayCoverage {
         status: MetricCoverageStatus::Complete,
         country: true,
         institution: true,
     };
-    let mut runs = Vec::new();
-    for publisher_id in &publishers {
-        for (platform_id, measure_id) in &combinations {
-            for (start, end) in [
-                (d(2025, 2, 1), d(2025, 6, 1)),
-                (d(2025, 7, 1), d(2025, 11, 1)),
-            ] {
-                runs.push(CoverageRun {
-                    publisher_id: *publisher_id,
-                    platform_id: *platform_id,
-                    measure_id: *measure_id,
-                    start,
-                    end,
-                    coverage: complete,
-                });
-            }
-        }
-    }
     let lag_days: Vec<(Uuid, Uuid, NaiveDate)> = combinations
         .iter()
         .flat_map(|(platform_id, measure_id)| {
@@ -10148,80 +10757,138 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
         })
         .collect();
     let mut first_totals: Option<Vec<MetricTotal>> = None;
-    for years in [1, 10, 15, 26] {
-        for grain in [MetricTimelineGrain::Month, MetricTimelineGrain::Year] {
-            let label = format!("{years} years at {grain:?}");
-            let window = Window::new(d(2026 - years, 1, 1), d(2026, 1, 1), grain);
-            let mut facts: BTreeMap<(Uuid, Uuid), PairFacts> = combinations
-                .iter()
-                .map(|pair| {
-                    (
-                        *pair,
-                        PairFacts {
-                            months: (1..=12)
-                                .map(|month| (d(2025, month, 1), BigInt::new(i128::from(month))))
-                                .collect(),
-                            quarantine: vec![
-                                (d(2025, 4, 1), d(2025, 4, 3)),
-                                (d(2025, 9, 9), d(2025, 9, 10)),
-                            ],
-                            ..PairFacts::default()
-                        },
-                    )
-                })
-                .collect();
-            fold_lag(&mut facts, lag_days.clone(), &window);
-            let (dashboard, sizes) = assemble_measured(&Evaluation {
-                window: &window,
-                combinations: &combinations,
-                publishers: &publishers,
-                include_countries: true,
-                include_institutions: true,
-                facts: &facts,
-                runs: &runs,
-            });
-            // Only the bucket count follows the range.
-            assert_eq!(
-                sizes,
-                BTreeMap::from([
-                    ("runs", 5_000),
-                    ("events", 400),
-                    ("segments", 5),
-                    ("lag", 2),
-                    ("quarantine", 2),
-                    ("unjustified", 7),
-                    ("months", 12),
-                    ("days", 0),
-                    ("buckets", window.buckets.len()),
-                ]),
-                "{label}"
-            );
-            assert_eq!(
-                dashboard.timeline.len(),
-                25 * window.buckets.len(),
-                "{label}"
-            );
-            assert!(dashboard
-                .totals
-                .iter()
-                .all(|total| total.value == Some(BigInt::new(78))));
-            match &first_totals {
-                None => first_totals = Some(dashboard.totals),
-                Some(first) => assert_eq!(&dashboard.totals, first, "{label}"),
+    // One eligible account per publisher and platform, then two
+    // (MET-WP4-MULTI-ACCOUNT-01), each with its own expected sizes.
+    for (per_scope, runs_size, events_size) in [(1, 5_000, 400), (2, 10_000, 800)] {
+        // The same runs, lag days and quarantine intervals in every window:
+        // two complete runs per account and pair, three lag days and two
+        // unresolved intervals per pair, and one value per month of 2025.
+        let mut accounts: BTreeSet<EligibleAccount> = BTreeSet::new();
+        for publisher_id in &publishers {
+            for platform_id in &platforms {
+                for _ in 0..per_scope {
+                    accounts.insert(EligibleAccount {
+                        source_account_id: Uuid::new_v4(),
+                        publisher_id: *publisher_id,
+                        platform_id: *platform_id,
+                    });
+                }
+            }
+        }
+        let mut runs = Vec::new();
+        for account in &accounts {
+            for measure_id in &measures {
+                for (start, end) in [
+                    (d(2025, 2, 1), d(2025, 6, 1)),
+                    (d(2025, 7, 1), d(2025, 11, 1)),
+                ] {
+                    runs.push(CoverageRun {
+                        source_account_id: account.source_account_id,
+                        publisher_id: account.publisher_id,
+                        platform_id: account.platform_id,
+                        measure_id: *measure_id,
+                        start,
+                        end,
+                        coverage: complete,
+                    });
+                }
+            }
+        }
+        for years in [1, 10, 15, 26] {
+            for grain in [MetricTimelineGrain::Month, MetricTimelineGrain::Year] {
+                let label = format!("{per_scope} accounts, {years} years at {grain:?}");
+                let window = Window::new(d(2026 - years, 1, 1), d(2026, 1, 1), grain);
+                let mut facts: BTreeMap<(Uuid, Uuid), PairFacts> = combinations
+                    .iter()
+                    .map(|pair| {
+                        (
+                            *pair,
+                            PairFacts {
+                                months: (1..=12)
+                                    .map(|month| {
+                                        (d(2025, month, 1), BigInt::new(i128::from(month)))
+                                    })
+                                    .collect(),
+                                quarantine: vec![
+                                    (d(2025, 4, 1), d(2025, 4, 3)),
+                                    (d(2025, 9, 9), d(2025, 9, 10)),
+                                ],
+                                ..PairFacts::default()
+                            },
+                        )
+                    })
+                    .collect();
+                fold_lag(&mut facts, lag_days.clone(), &window);
+                let (dashboard, sizes) = assemble_measured(&Evaluation {
+                    window: &window,
+                    combinations: &combinations,
+                    publishers: &publishers,
+                    accounts: &accounts,
+                    include_countries: true,
+                    include_institutions: true,
+                    facts: &facts,
+                    runs: &runs,
+                });
+                // Only the bucket count follows the range.
+                assert_eq!(
+                    sizes,
+                    BTreeMap::from([
+                        ("runs", runs_size),
+                        ("events", events_size),
+                        ("segments", 5),
+                        ("lag", 2),
+                        ("quarantine", 2),
+                        ("unjustified", 7),
+                        ("months", 12),
+                        ("days", 0),
+                        ("buckets", window.buckets.len()),
+                    ]),
+                    "{label}"
+                );
+                assert_eq!(
+                    dashboard.timeline.len(),
+                    25 * window.buckets.len(),
+                    "{label}"
+                );
+                assert!(dashboard
+                    .totals
+                    .iter()
+                    .all(|total| total.value == Some(BigInt::new(78))));
+                match &first_totals {
+                    None => first_totals = Some(dashboard.totals),
+                    Some(first) => assert_eq!(&dashboard.totals, first, "{label}"),
+                }
             }
         }
     }
 }
 
-/// Where a random engine fixture places same-stream overlap.
+/// Where a random engine fixture places overlapping runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Overlap {
     Absent,
-    /// Two runs of one stream share a day inside the window.
+    /// Two runs of one eligible account share a day inside the window.
     Inside,
-    /// Two runs of one stream share days wholly before the window, so the
-    /// step-10 clipping drops both.
+    /// Two runs of one eligible account share days wholly before the window,
+    /// so the step-10 clipping drops both.
     Before,
+    /// Two eligible accounts of one publisher assert the same days inside the
+    /// window: two streams, which the read serves
+    /// (`MET-WP4-MULTI-ACCOUNT-01`).
+    AcrossAccounts,
+}
+
+/// A shape a random fixture may force on one platform, so that every
+/// multi-account outcome the oracle distinguishes is reached: every
+/// eligible account asserts `COMPLETE` with both dimensions over the whole
+/// window, except one account that is silent on some days
+/// (`OneSilent`), or except that one represented publisher has no eligible
+/// account there (`PublisherWithout`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Trap {
+    Full,
+    OneSilent,
+    PublisherWithout,
 }
 
 /// One random interval-engine fixture (A3 section 11.9).
@@ -10229,6 +10896,9 @@ struct EngineCase {
     window: Window,
     publishers: Vec<Uuid>,
     combinations: Vec<(Uuid, Uuid)>,
+    /// The eligible accounts, carried separately from the runs: the step-5
+    /// rows the engine receives.
+    accounts: BTreeSet<EligibleAccount>,
     include_countries: bool,
     include_institutions: bool,
     /// Projected values per platform, measure and day, inside the window
@@ -10239,8 +10909,25 @@ struct EngineCase {
     /// Per pair: totals on country, totals on institution, countries on
     /// institution, institutions on country.
     dependence: BTreeMap<(Uuid, Uuid), [bool; 4]>,
-    /// Coverage runs clipped to the window, as the step-10 read returns them.
+    /// Coverage runs clipped to the window, as the step-10 read returns them,
+    /// together with runs outside the eligible set that the engine must
+    /// ignore.
     runs: Vec<CoverageRun>,
+    /// What the fixture drew outside the eligible runs, for the bookkeeping.
+    drawn: Drawn,
+}
+
+/// The runs outside the eligible set a fixture drew.
+#[derive(Clone, Copy, Debug, Default)]
+struct Drawn {
+    /// Runs of a represented publisher's ineligible account, two of them
+    /// overlapping inside the window.
+    ineligible_overlap: bool,
+    /// Runs carrying an eligible account ID with a publisher or platform
+    /// label that does not match the account.
+    mislabelled: bool,
+    /// Runs of an account of a publisher outside the request.
+    outsider: bool,
 }
 
 fn random_status(rng: &mut Rng) -> MetricCoverageStatus {
@@ -10251,11 +10938,46 @@ fn random_status(rng: &mut Rng) -> MetricCoverageStatus {
     }
 }
 
+/// An eligible account of `publisher_id` on `platform_id`, added to the set.
+fn add_engine_account(
+    accounts: &mut BTreeSet<EligibleAccount>,
+    publisher_id: Uuid,
+    platform_id: Uuid,
+) -> EligibleAccount {
+    let account = EligibleAccount {
+        source_account_id: Uuid::new_v4(),
+        publisher_id,
+        platform_id,
+    };
+    accounts.insert(account);
+    account
+}
+
+/// The eligible accounts of `publisher_id` on `platform_id`.
+fn engine_accounts_of(
+    accounts: &BTreeSet<EligibleAccount>,
+    publisher_id: Uuid,
+    platform_id: Uuid,
+) -> Vec<EligibleAccount> {
+    accounts
+        .iter()
+        .filter(|account| {
+            account.publisher_id == publisher_id && account.platform_id == platform_id
+        })
+        .copied()
+        .collect()
+}
+
 /// A random fixture: one to three publishers, up to four pairs, a window of
 /// 1 to 800 days at any grain that applies, values (zeros and negatives
 /// included), lag days and quarantine intervals inside and outside the
-/// window, and per stream no run, one run over the window, or disjoint runs
-/// cut on random days and on month, year and window boundaries.
+/// window; 0 to 3 eligible accounts per represented publisher and platform
+/// (at most one in a third of the fixtures), some of them without any run;
+/// per account and pair no run, one run over the window, or disjoint runs
+/// cut on random days and on month, year and window boundaries; and runs
+/// outside the eligible set: of a represented publisher's ineligible account
+/// (sometimes overlapping), of a publisher outside the request, and with an
+/// eligible account ID under another publisher or platform label.
 fn engine_case(rng: &mut Rng, overlap: Overlap) -> EngineCase {
     let ids = |rng: &mut Rng, most: u64| -> Vec<Uuid> {
         (0..1 + rng.below(most)).map(|_| Uuid::new_v4()).collect()
@@ -10306,6 +11028,8 @@ fn engine_case(rng: &mut Rng, overlap: Overlap) -> EngineCase {
             start - Duration::days(20) + Duration::days(rng.below(span as u64 + 40) as i64)
         }
     };
+    let inside =
+        |rng: &mut Rng| -> NaiveDate { start + Duration::days(rng.below(span as u64) as i64) };
 
     let mut values: BTreeMap<(Uuid, Uuid, NaiveDate), BigInt> = BTreeMap::new();
     for (platform_id, measure_id) in &combinations {
@@ -10343,85 +11067,288 @@ fn engine_case(rng: &mut Rng, overlap: Overlap) -> EngineCase {
         dependence.insert(*pair, flags);
     }
 
-    let mut raw_runs: Vec<CoverageRun> = Vec::new();
-    let mut asserting = publishers.clone();
-    if rng.below(5) == 0 {
-        // A publisher outside the request, whose runs the engine ignores.
-        asserting.push(Uuid::new_v4());
-    }
-    for publisher_id in &asserting {
-        for (platform_id, measure_id) in &combinations {
-            let run = |from: NaiveDate, to: NaiveDate, coverage: DayCoverage| CoverageRun {
-                publisher_id: *publisher_id,
-                platform_id: *platform_id,
-                measure_id: *measure_id,
-                start: from,
-                end: to,
-                coverage,
-            };
-            match rng.below(8) {
-                0 => {}
-                1..=3 => {
-                    let status = if rng.below(4) == 0 {
-                        MetricCoverageStatus::Partial
-                    } else {
-                        MetricCoverageStatus::Complete
-                    };
-                    let coverage = DayCoverage {
-                        status,
-                        country: rng.below(4) != 0,
-                        institution: rng.below(4) != 0,
-                    };
-                    let from = start - Duration::days(rng.below(5) as i64);
-                    let to = end + Duration::days(rng.below(5) as i64);
-                    raw_runs.push(run(from, to, coverage));
+    // The eligible accounts: 0 to 3 per represented publisher and platform,
+    // or at most one in a third of the fixtures.
+    let at_most_one = rng.below(3) == 0;
+    let mut accounts: BTreeSet<EligibleAccount> = BTreeSet::new();
+    for publisher_id in &publishers {
+        for platform_id in &platforms {
+            let count = if at_most_one {
+                u64::from(rng.below(6) != 0)
+            } else {
+                match rng.below(8) {
+                    0 => 0,
+                    1..=3 => 1,
+                    4..=6 => 2,
+                    _ => 3,
                 }
-                _ => {
-                    let mut cuts: Vec<NaiveDate> =
-                        (0..2 + rng.below(6)).map(|_| pick(rng)).collect();
-                    cuts.sort_unstable();
-                    cuts.dedup();
-                    for bounds in cuts.windows(2) {
-                        if rng.below(4) == 0 {
-                            continue;
-                        }
-                        let coverage = DayCoverage {
-                            status: random_status(rng),
-                            country: rng.below(4) != 0,
-                            institution: rng.below(4) != 0,
-                        };
-                        raw_runs.push(run(bounds[0], bounds[1], coverage));
-                    }
+            };
+            for _ in 0..count {
+                add_engine_account(&mut accounts, *publisher_id, *platform_id);
+            }
+        }
+    }
+    // A forced multi-account shape on one platform, in some fixtures.
+    let trap_platform = platforms[rng.below(platforms.len() as u64) as usize];
+    let mut trap = match rng.below(8) {
+        0 => Some(Trap::Full),
+        1 => Some(Trap::OneSilent),
+        2 => Some(Trap::PublisherWithout),
+        _ => None,
+    };
+    if trap == Some(Trap::PublisherWithout) && publishers.len() < 2 {
+        trap = Some(Trap::OneSilent);
+    }
+    let mut silent_account: Option<EligibleAccount> = None;
+    if let Some(trap) = trap {
+        while engine_accounts_of(&accounts, publishers[0], trap_platform).len() < 2 {
+            add_engine_account(&mut accounts, publishers[0], trap_platform);
+        }
+        for publisher_id in &publishers[1..] {
+            if engine_accounts_of(&accounts, *publisher_id, trap_platform).is_empty() {
+                add_engine_account(&mut accounts, *publisher_id, trap_platform);
+            }
+        }
+        match trap {
+            Trap::Full => {}
+            Trap::OneSilent => {
+                let candidates: Vec<EligibleAccount> = accounts
+                    .iter()
+                    .filter(|account| account.platform_id == trap_platform)
+                    .copied()
+                    .collect();
+                silent_account = Some(candidates[rng.below(candidates.len() as u64) as usize]);
+            }
+            Trap::PublisherWithout => {
+                let without = publishers[publishers.len() - 1];
+                for account in engine_accounts_of(&accounts, without, trap_platform) {
+                    accounts.remove(&account);
                 }
             }
         }
     }
-    let (platform_id, measure_id) = combinations[0];
-    let overlapping = |from: NaiveDate, to: NaiveDate| CoverageRun {
-        publisher_id: publishers[0],
-        platform_id,
+
+    let mut raw_runs: Vec<CoverageRun> = Vec::new();
+    let full = DayCoverage {
+        status: MetricCoverageStatus::Complete,
+        country: true,
+        institution: true,
+    };
+    let run = |account: &EligibleAccount,
+               measure_id: Uuid,
+               from: NaiveDate,
+               to: NaiveDate,
+               coverage: DayCoverage| CoverageRun {
+        source_account_id: account.source_account_id,
+        publisher_id: account.publisher_id,
+        platform_id: account.platform_id,
         measure_id,
         start: from,
         end: to,
-        coverage: DayCoverage {
-            status: MetricCoverageStatus::Complete,
-            country: true,
-            institution: true,
-        },
+        coverage,
     };
+    // Random runs of one account and measure: none, one over the window, or
+    // disjoint runs between random cuts.
+    let random_runs = |rng: &mut Rng, account: &EligibleAccount, measure_id: Uuid| {
+        let mut drawn = Vec::new();
+        match rng.below(8) {
+            0 => {}
+            1..=3 => {
+                let status = if rng.below(4) == 0 {
+                    MetricCoverageStatus::Partial
+                } else {
+                    MetricCoverageStatus::Complete
+                };
+                let coverage = DayCoverage {
+                    status,
+                    country: rng.below(4) != 0,
+                    institution: rng.below(4) != 0,
+                };
+                let from = start - Duration::days(rng.below(5) as i64);
+                let to = end + Duration::days(rng.below(5) as i64);
+                drawn.push(run(account, measure_id, from, to, coverage));
+            }
+            _ => {
+                let mut cuts: Vec<NaiveDate> = (0..2 + rng.below(6)).map(|_| pick(rng)).collect();
+                cuts.sort_unstable();
+                cuts.dedup();
+                for bounds in cuts.windows(2) {
+                    if rng.below(4) == 0 {
+                        continue;
+                    }
+                    let coverage = DayCoverage {
+                        status: random_status(rng),
+                        country: rng.below(4) != 0,
+                        institution: rng.below(4) != 0,
+                    };
+                    drawn.push(run(account, measure_id, bounds[0], bounds[1], coverage));
+                }
+            }
+        }
+        drawn
+    };
+    for account in &accounts {
+        let trapped = trap.is_some() && account.platform_id == trap_platform;
+        // Some eligible accounts have no run at all.
+        if !trapped && rng.below(6) == 0 {
+            continue;
+        }
+        for measure_id in &measures {
+            if !trapped {
+                raw_runs.extend(random_runs(rng, account, *measure_id));
+            } else if silent_account == Some(*account) {
+                // Silent from `gap` for one to thirty days.
+                let gap = inside(rng);
+                let resume = gap + Duration::days(1 + rng.below(30) as i64);
+                raw_runs.push(run(
+                    account,
+                    *measure_id,
+                    start - Duration::days(2),
+                    gap,
+                    full,
+                ));
+                raw_runs.push(run(
+                    account,
+                    *measure_id,
+                    resume,
+                    end + Duration::days(2),
+                    full,
+                ));
+            } else {
+                raw_runs.push(run(
+                    account,
+                    *measure_id,
+                    start - Duration::days(rng.below(5) as i64),
+                    end + Duration::days(rng.below(5) as i64),
+                    full,
+                ));
+            }
+        }
+    }
+
+    // Runs outside the eligible set, which the engine must ignore.
+    let mut drawn = Drawn::default();
+    if rng.below(3) == 0 {
+        // A represented publisher's ineligible account, never listed.
+        let ineligible = EligibleAccount {
+            source_account_id: Uuid::new_v4(),
+            publisher_id: publishers[rng.below(publishers.len() as u64) as usize],
+            platform_id: platforms[rng.below(platforms.len() as u64) as usize],
+        };
+        for measure_id in &measures {
+            raw_runs.extend(random_runs(rng, &ineligible, *measure_id));
+        }
+        if rng.below(2) == 0 {
+            let day = inside(rng);
+            raw_runs.push(run(
+                &ineligible,
+                measures[0],
+                day,
+                day + Duration::days(1),
+                full,
+            ));
+            raw_runs.push(run(
+                &ineligible,
+                measures[0],
+                day,
+                day + Duration::days(2),
+                full,
+            ));
+            drawn.ineligible_overlap = true;
+        }
+    }
+    if rng.below(5) == 0 {
+        // A publisher outside the request with an account of its own.
+        let outsider = EligibleAccount {
+            source_account_id: Uuid::new_v4(),
+            publisher_id: Uuid::new_v4(),
+            platform_id: platforms[rng.below(platforms.len() as u64) as usize],
+        };
+        for measure_id in &measures {
+            raw_runs.extend(random_runs(rng, &outsider, *measure_id));
+        }
+        drawn.outsider = true;
+    }
+    if !accounts.is_empty() && rng.below(3) == 0 {
+        // An eligible account ID under another publisher or platform label.
+        let listed: Vec<EligibleAccount> = accounts.iter().copied().collect();
+        let account = listed[rng.below(listed.len() as u64) as usize];
+        let other_platform = platforms
+            .iter()
+            .find(|platform| **platform != account.platform_id)
+            .copied();
+        let other_publisher = publishers
+            .iter()
+            .find(|publisher| **publisher != account.publisher_id)
+            .copied()
+            .unwrap_or_else(Uuid::new_v4);
+        let mislabelled = match other_platform {
+            Some(platform_id) if rng.below(2) == 0 => EligibleAccount {
+                platform_id,
+                ..account
+            },
+            _ => EligibleAccount {
+                publisher_id: other_publisher,
+                ..account
+            },
+        };
+        for measure_id in &measures {
+            raw_runs.extend(random_runs(rng, &mislabelled, *measure_id));
+        }
+        let day = inside(rng);
+        raw_runs.push(run(
+            &mislabelled,
+            measures[0],
+            day,
+            day + Duration::days(1),
+            full,
+        ));
+        raw_runs.push(run(
+            &mislabelled,
+            measures[0],
+            day,
+            day + Duration::days(2),
+            full,
+        ));
+        drawn.mislabelled = true;
+    }
+
+    // The overlap cases, on an existing eligible account of the first pair's
+    // platform (one is added when there is none).
+    let (platform_id, measure_id) = combinations[0];
+    let existing = accounts
+        .iter()
+        .find(|account| account.platform_id == platform_id)
+        .copied();
     match overlap {
         Overlap::Absent => {}
-        Overlap::Inside => {
-            let day = start + Duration::days(rng.below(span as u64) as i64);
-            raw_runs.push(overlapping(day, day + Duration::days(1)));
-            raw_runs.push(overlapping(day, day + Duration::days(2)));
+        Overlap::Inside | Overlap::Before => {
+            let account = existing
+                .unwrap_or_else(|| add_engine_account(&mut accounts, publishers[0], platform_id));
+            let (first, second) = if overlap == Overlap::Inside {
+                let day = inside(rng);
+                (
+                    (day, day + Duration::days(1)),
+                    (day, day + Duration::days(2)),
+                )
+            } else {
+                (
+                    (start - Duration::days(30), start - Duration::days(10)),
+                    (start - Duration::days(20), start),
+                )
+            };
+            raw_runs.push(run(&account, measure_id, first.0, first.1, full));
+            raw_runs.push(run(&account, measure_id, second.0, second.1, full));
         }
-        Overlap::Before => {
-            raw_runs.push(overlapping(
-                start - Duration::days(30),
-                start - Duration::days(10),
-            ));
-            raw_runs.push(overlapping(start - Duration::days(20), start));
+        Overlap::AcrossAccounts => {
+            // Two new accounts of the first publisher with runs on the same
+            // days and no other run.
+            let day = inside(rng);
+            let until = day + Duration::days(1 + rng.below(40) as i64);
+            for _ in 0..2 {
+                let account = add_engine_account(&mut accounts, publishers[0], platform_id);
+                raw_runs.push(run(&account, measure_id, day, until, full));
+            }
         }
     }
     // Clipped to the window as the step-10 read clips them.
@@ -10440,6 +11367,7 @@ fn engine_case(rng: &mut Rng, overlap: Overlap) -> EngineCase {
         window,
         publishers,
         combinations,
+        accounts,
         include_countries: rng.below(2) == 0,
         include_institutions: rng.below(2) == 0,
         values,
@@ -10447,6 +11375,7 @@ fn engine_case(rng: &mut Rng, overlap: Overlap) -> EngineCase {
         quarantine,
         dependence,
         runs,
+        drawn,
     }
 }
 
@@ -10542,12 +11471,62 @@ fn oracle_effective(
     }
 }
 
+/// One assertion slot per eligible account, platform, measure and day of
+/// the window.
+type OracleSlots = BTreeMap<(Uuid, Uuid, Uuid), Vec<Option<DayCoverage>>>;
+
+/// The oracle's assertion slots: first every run outside the eligible set
+/// (an account the fixture does not list, a label that does not match the
+/// listed account, or a publisher outside the request) is ignored; then each
+/// eligible account holds one slot per platform, measure and day of the
+/// window, and a day asserted twice by one account is the overlap the read
+/// refuses.
+fn oracle_assertions(case: &EngineCase) -> Result<OracleSlots, MetricReadError> {
+    let window = &case.window;
+    let length = days_between(window.start, window.end).len();
+    let mut assertions: OracleSlots = BTreeMap::new();
+    for run in &case.runs {
+        let listed = case.accounts.contains(&EligibleAccount {
+            source_account_id: run.source_account_id,
+            publisher_id: run.publisher_id,
+            platform_id: run.platform_id,
+        });
+        if !listed || !case.publishers.contains(&run.publisher_id) {
+            continue;
+        }
+        let slots = assertions
+            .entry((run.source_account_id, run.platform_id, run.measure_id))
+            .or_insert_with(|| vec![None; length]);
+        for day in days_between(run.start, run.end) {
+            let at = usize::try_from((day - window.start).num_days()).expect("a day of the window");
+            if slots[at].replace(run.coverage).is_some() {
+                return Err(MetricReadError::Unavailable);
+            }
+        }
+    }
+    Ok(assertions)
+}
+
+/// The listed eligible accounts of one represented publisher on one
+/// platform, as the oracle sees them.
+fn oracle_accounts(
+    case: &EngineCase,
+    publisher_id: Uuid,
+    platform_id: Uuid,
+) -> impl Iterator<Item = &EligibleAccount> {
+    case.accounts.iter().filter(move |account| {
+        account.publisher_id == publisher_id && account.platform_id == platform_id
+    })
+}
+
 /// The day-indexed evaluator the interval engine replaced, kept as its
-/// independent oracle: every day of the window holds each stream's
-/// assertion, the assertion combined across the represented publishers,
-/// and its lag and quarantine flags; a bucket is the exact sum of the raw
-/// day values inside it, or zero when every one of its days justifies zero,
-/// or unknown.
+/// independent oracle: every day of the window holds each eligible account's
+/// assertion, the assertion combined across every eligible account of every
+/// represented publisher (asserted only when every represented publisher has
+/// an eligible account on the platform and every one of those accounts
+/// fills its slot, never by counting), and its lag and quarantine flags; a
+/// bucket is the exact sum of the raw day values inside it, or zero when
+/// every one of its days justifies zero, or unknown.
 fn day_oracle(
     case: &EngineCase,
     frontier: FrontierRow,
@@ -10557,19 +11536,7 @@ fn day_oracle(
     let index = |day: NaiveDate| {
         usize::try_from((day - window.start).num_days()).expect("a day of the window")
     };
-    // One assertion slot per stream and day: a day asserted twice by one
-    // stream is the overlap the read refuses.
-    let mut assertions: BTreeMap<(Uuid, Uuid, Uuid), Vec<Option<DayCoverage>>> = BTreeMap::new();
-    for run in &case.runs {
-        let slots = assertions
-            .entry((run.publisher_id, run.platform_id, run.measure_id))
-            .or_insert_with(|| vec![None; days.len()]);
-        for day in days_between(run.start, run.end) {
-            if slots[index(day)].replace(run.coverage).is_some() {
-                return Err(MetricReadError::Unavailable);
-            }
-        }
-    }
+    let assertions = oracle_assertions(case)?;
 
     let mut totals = Vec::new();
     let mut timeline = Vec::new();
@@ -10583,17 +11550,26 @@ fn day_oracle(
             .map(|at| {
                 let mut combined: Option<DayCoverage> = None;
                 for publisher_id in &case.publishers {
-                    let day = assertions
-                        .get(&(*publisher_id, *platform_id, *measure_id))
-                        .and_then(|slots| slots[at])?;
-                    combined = Some(match combined {
-                        None => day,
-                        Some(sofar) => DayCoverage {
-                            status: oracle_worse(sofar.status, day.status),
-                            country: sofar.country && day.country,
-                            institution: sofar.institution && day.institution,
-                        },
-                    });
+                    let mut has_account = false;
+                    for account in oracle_accounts(case, *publisher_id, *platform_id) {
+                        has_account = true;
+                        let day = assertions
+                            .get(&(account.source_account_id, *platform_id, *measure_id))
+                            .and_then(|slots| slots[at])?;
+                        combined = Some(match combined {
+                            None => day,
+                            Some(sofar) => DayCoverage {
+                                status: oracle_worse(sofar.status, day.status),
+                                country: sofar.country && day.country,
+                                institution: sofar.institution && day.institution,
+                            },
+                        });
+                    }
+                    // A represented publisher without an eligible account on
+                    // the platform leaves the day unasserted.
+                    if !has_account {
+                        return None;
+                    }
                 }
                 combined
             })
@@ -10758,24 +11734,111 @@ fn day_oracle(
     })
 }
 
+/// What alone makes an otherwise zero-justified bucket `null`, when it is
+/// one of the two multi-account traps the random test must reach.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NullCause {
+    /// Exactly one eligible account is silent on some day, while every
+    /// other eligible account asserts `COMPLETE` with both dimensions.
+    OneSilentAccount,
+    /// A represented publisher has no eligible account on the platform,
+    /// while every eligible account asserts `COMPLETE` with both dimensions.
+    PublisherWithoutAccount,
+}
+
+/// The cause of a bucket `[from, to)` of one pair being `null`, if it is one
+/// of the [`NullCause`]s: the bucket has no value, lag day or quarantine,
+/// and every eligible account that asserts a day of it asserts `COMPLETE`
+/// with both dimensions.
+fn null_cause(
+    case: &EngineCase,
+    assertions: &OracleSlots,
+    (platform_id, measure_id): (Uuid, Uuid),
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Option<NullCause> {
+    let pair_days = |day: &NaiveDate| (from..to).contains(day);
+    if case
+        .values
+        .range((platform_id, measure_id, from)..(platform_id, measure_id, to))
+        .next()
+        .is_some()
+        || case.lag_days.iter().any(|(platform, measure, day)| {
+            (*platform, *measure) == (platform_id, measure_id) && pair_days(day)
+        })
+        || case
+            .quarantine
+            .iter()
+            .any(|(platform, measure, start, end)| {
+                (*platform, *measure) == (platform_id, measure_id) && *start < to && *end > from
+            })
+    {
+        return None;
+    }
+    let without = case.publishers.iter().any(|publisher_id| {
+        oracle_accounts(case, *publisher_id, platform_id)
+            .next()
+            .is_none()
+    });
+    let listed: Vec<&EligibleAccount> = case
+        .publishers
+        .iter()
+        .flat_map(|publisher_id| oracle_accounts(case, *publisher_id, platform_id))
+        .collect();
+    let full = DayCoverage {
+        status: MetricCoverageStatus::Complete,
+        country: true,
+        institution: true,
+    };
+    let mut most_silent = 0;
+    for day in days_between(from, to) {
+        let at =
+            usize::try_from((day - case.window.start).num_days()).expect("a day of the window");
+        let mut silent = 0;
+        for account in &listed {
+            match assertions
+                .get(&(account.source_account_id, platform_id, measure_id))
+                .and_then(|slots| slots[at])
+            {
+                None => silent += 1,
+                Some(day) if day == full => {}
+                Some(_) => return None,
+            }
+        }
+        most_silent = most_silent.max(silent);
+    }
+    match (without, most_silent) {
+        (true, 0) => Some(NullCause::PublisherWithoutAccount),
+        (false, 1) => Some(NullCause::OneSilentAccount),
+        _ => None,
+    }
+}
+
 #[test]
 fn the_interval_engine_equals_the_day_oracle_on_random_fixtures() {
     let mut rng = Rng(20_261_110);
-    let (mut refused_inside, mut served_before) = (0, 0);
+    let (mut refused_inside, mut served_before, mut served_across) = (0, 0, 0);
     let (mut zeros, mut nulls, mut sums, mut complete, mut known_through) = (0, 0, 0, 0, 0);
+    let (mut single_account_cases, mut multi_account_cases, mut accounts_without_runs) = (0, 0, 0);
+    let (mut ineligible_overlap, mut mislabelled, mut outsider) = (0, 0, 0);
+    let (mut multi_complete, mut multi_one_silent, mut multi_publisher_without) = (0, 0, 0);
     for case_number in 0..420 {
         let overlap = match case_number % 7 {
+            1 => Overlap::AcrossAccounts,
             3 => Overlap::Inside,
             5 => Overlap::Before,
             _ => Overlap::Absent,
         };
         let case = engine_case(&mut rng, overlap);
         let facts = engine_facts(&case);
+        // The engine receives the fixture's account list as it is; the test
+        // computes no count.
         let engine = assemble(
             &Evaluation {
                 window: &case.window,
                 combinations: &case.combinations,
                 publishers: &case.publishers,
+                accounts: &case.accounts,
                 include_countries: case.include_countries,
                 include_institutions: case.include_institutions,
                 facts: &facts,
@@ -10788,9 +11851,10 @@ fn the_interval_engine_equals_the_day_oracle_on_random_fixtures() {
         assert_eq!(
             engine,
             oracle,
-            "case {case_number}: {:?} over {} runs",
+            "case {case_number}: {:?} over {} runs and {} accounts",
             case.window,
-            case.runs.len()
+            case.runs.len(),
+            case.accounts.len()
         );
         match (overlap, &engine) {
             (Overlap::Inside, Err(MetricReadError::Unavailable)) => refused_inside += 1,
@@ -10798,39 +11862,127 @@ fn the_interval_engine_equals_the_day_oracle_on_random_fixtures() {
                 panic!("case {case_number}: overlap inside the window was served: {other:?}")
             }
             (Overlap::Before, Ok(_)) => served_before += 1,
+            (Overlap::AcrossAccounts, Ok(_)) => served_across += 1,
             (_, Err(error)) => panic!("case {case_number}: {error:?}"),
             (_, Ok(_)) => {}
         }
-        if let Ok(dashboard) = &engine {
-            for bucket in &dashboard.timeline {
-                match bucket.value {
-                    None => nulls += 1,
-                    Some(value) if value == BigInt::ZERO => zeros += 1,
-                    Some(_) => sums += 1,
-                }
+        let Ok(dashboard) = &engine else {
+            continue;
+        };
+
+        // What the served fixture drew.
+        let per_scope = |publisher_id: Uuid, platform_id: Uuid| {
+            oracle_accounts(&case, publisher_id, platform_id).count()
+        };
+        let multi_platforms: BTreeSet<Uuid> = case
+            .combinations
+            .iter()
+            .map(|(platform_id, _)| *platform_id)
+            .filter(|platform_id| {
+                case.publishers
+                    .iter()
+                    .any(|publisher_id| per_scope(*publisher_id, *platform_id) >= 2)
+            })
+            .collect();
+        if multi_platforms.is_empty() {
+            single_account_cases += 1;
+        } else {
+            multi_account_cases += 1;
+        }
+        let with_runs: BTreeSet<Uuid> = case.runs.iter().map(|run| run.source_account_id).collect();
+        if case
+            .accounts
+            .iter()
+            .any(|account| !with_runs.contains(&account.source_account_id))
+        {
+            accounts_without_runs += 1;
+        }
+        ineligible_overlap += usize::from(case.drawn.ineligible_overlap);
+        mislabelled += usize::from(case.drawn.mislabelled);
+        outsider += usize::from(case.drawn.outsider);
+
+        for bucket in &dashboard.timeline {
+            match bucket.value {
+                None => nulls += 1,
+                Some(value) if value == BigInt::ZERO => zeros += 1,
+                Some(_) => sums += 1,
             }
-            complete += dashboard
-                .coverage
-                .items
-                .iter()
-                .filter(|item| item.status == MetricCoverageStatus::Complete)
-                .count();
-            known_through += dashboard
-                .coverage
-                .items
-                .iter()
-                .filter(|item| item.data_through.is_some())
-                .count();
+        }
+        complete += dashboard
+            .coverage
+            .items
+            .iter()
+            .filter(|item| item.status == MetricCoverageStatus::Complete)
+            .count();
+        known_through += dashboard
+            .coverage
+            .items
+            .iter()
+            .filter(|item| item.data_through.is_some())
+            .count();
+
+        // The multi-account outcomes, each on a pair whose own platform has a
+        // publisher with two or more eligible accounts.
+        let assertions = oracle_assertions(&case).expect("a served case has no overlap");
+        multi_complete += dashboard
+            .coverage
+            .items
+            .iter()
+            .filter(|item| {
+                multi_platforms.contains(&item.platform_id)
+                    && item.status == MetricCoverageStatus::Complete
+            })
+            .count();
+        for bucket in &dashboard.timeline {
+            if bucket.value.is_some() || !multi_platforms.contains(&bucket.platform_id) {
+                continue;
+            }
+            match null_cause(
+                &case,
+                &assertions,
+                (bucket.platform_id, bucket.measure_id),
+                bucket.start_date,
+                bucket.end_date,
+            ) {
+                Some(NullCause::OneSilentAccount) => multi_one_silent += 1,
+                Some(NullCause::PublisherWithoutAccount) => multi_publisher_without += 1,
+                None => {}
+            }
         }
     }
-    assert_eq!((refused_inside, served_before), (60, 60));
-    // The fixtures reach every outcome the oracle distinguishes.
+    assert_eq!((refused_inside, served_before, served_across), (60, 60, 60));
+    // The fixtures reach every outcome the oracle distinguishes, and every
+    // kind of eligible and ineligible run.
     for (outcome, count) in [
         ("zero buckets", zeros),
         ("null buckets", nulls),
         ("summed buckets", sums),
         ("complete items", complete),
         ("items with a dataThrough", known_through),
+        (
+            "cases with at most one account per publisher and platform",
+            single_account_cases,
+        ),
+        (
+            "cases with several accounts of one publisher on a platform",
+            multi_account_cases,
+        ),
+        (
+            "cases with an eligible account without runs",
+            accounts_without_runs,
+        ),
+        (
+            "served cases with overlapping ineligible runs",
+            ineligible_overlap,
+        ),
+        ("served cases with mislabelled runs", mislabelled),
+        ("served cases with an outside publisher's runs", outsider),
+        ("complete items on a multi-account platform", multi_complete),
+        ("null buckets from one silent account", multi_one_silent),
+        (
+            "null buckets from a publisher without an account",
+            multi_publisher_without,
+        ),
     ] {
         assert!(count > 0, "no {outcome}");
     }

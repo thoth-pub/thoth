@@ -64,6 +64,20 @@ pub(crate) enum Role {
     /// `DISSEMINATION_WORKER` and no `METRICS_INGEST_SERVICE` authority, and
     /// `SUPERUSER` does not imply it.
     MetricsReadService,
+    /// The ROR institution sync caller (ROR-SYNC-01C, thoth#1024;
+    /// [ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
+    /// section 3.1).
+    ///
+    /// An unscoped machine role for the weekly sync of `institution` from the
+    /// ROR dump. Institutions form one global table, which is the genuinely
+    /// global workload ADR-0008 section 3.1 requires for an unscoped role. Its
+    /// only extra authority is writing an institution's `ror_status` and
+    /// `ror_successor`; otherwise it may do what any authenticated caller may.
+    ///
+    /// It confers **no** publisher scope, no `PublisherPermissions`, no
+    /// `SUPERUSER`, no other machine role's authority, and `SUPERUSER` does
+    /// not imply it.
+    RorSyncService,
 }
 
 /// The unscoped-role check, expressed once.
@@ -74,7 +88,8 @@ pub(crate) enum Role {
 /// registry and no machine-identity storage.
 ///
 /// Sharing this implementation pattern between `SUPERUSER`,
-/// `DISSEMINATION_WORKER` and the two Metrics machine roles says nothing about
+/// `DISSEMINATION_WORKER`, the two Metrics machine roles and
+/// `ROR_SYNC_SERVICE` says nothing about
 /// what any of them may do. ADR-0008 section 3.1 fixes that independently:
 /// `SUPERUSER` authority does not imply machine-role authority, holding a
 /// machine role confers no administrative authority, and no machine role
@@ -138,6 +153,12 @@ pub(crate) trait UserAccess {
     /// their owning `MET-WP4-02` task under separate authorization.
     fn is_metrics_read_service(&self) -> bool;
 
+    /// Whether the user holds the unscoped `ROR_SYNC_SERVICE` project role.
+    ///
+    /// True only when that exact role key is present: there is no inheritance
+    /// from `SUPERUSER` or from any other role.
+    fn is_ror_sync_service(&self) -> bool;
+
     /// Returns true if the user has the given role scoped to the given ZITADEL organisation id.
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool;
 
@@ -167,6 +188,10 @@ impl UserAccess for IntrospectedUser {
         self.has_unscoped_role(Role::MetricsReadService)
     }
 
+    fn is_ror_sync_service(&self) -> bool {
+        self.has_unscoped_role(Role::RorSyncService)
+    }
+
     fn has_role_for_org(&self, role: Role, org_id: &str) -> bool {
         let role = role.as_ref();
         self.project_roles
@@ -192,9 +217,9 @@ impl UserAccess for IntrospectedUser {
         // ones. This is future-proof: adding a new publisher-scoped role
         // automatically enables publisher selection.
         //
-        // `DISSEMINATION_WORKER`, `METRICS_INGEST_SERVICE` and
-        // `METRICS_READ_SERVICE` are excluded for the same reason `SUPERUSER`
-        // is: each is an unscoped project role, so any organisation key present
+        // `DISSEMINATION_WORKER`, `METRICS_INGEST_SERVICE`,
+        // `METRICS_READ_SERVICE` and `ROR_SYNC_SERVICE` are excluded for the
+        // same reason `SUPERUSER` is: each is an unscoped project role, so any organisation key present
         // under it is not a publisher the account may act for. Without this a
         // machine-only account would appear to hold publisher organisations in
         // the frontend switcher list, which it must not.
@@ -203,6 +228,7 @@ impl UserAccess for IntrospectedUser {
             Role::DisseminationWorker.as_ref(),
             Role::MetricsIngestService.as_ref(),
             Role::MetricsReadService.as_ref(),
+            Role::RorSyncService.as_ref(),
         ];
         for (role_key, scoped) in project_roles {
             if unscoped_keys.contains(&role_key.as_str()) {
@@ -509,6 +535,7 @@ mod tests {
             "METRICS_INGEST_SERVICE"
         );
         assert_eq!(Role::MetricsReadService.as_ref(), "METRICS_READ_SERVICE");
+        assert_eq!(Role::RorSyncService.as_ref(), "ROR_SYNC_SERVICE");
     }
 
     // ----------------------------------------------------------------------
@@ -526,12 +553,13 @@ mod tests {
     /// Every principal class the matrix names, each with exactly the roles it
     /// holds, so the predicate/guard truth table below is exhaustive rather
     /// than illustrative.
-    fn principal_matrix() -> Vec<(&'static str, IntrospectedUser, bool, bool)> {
+    fn principal_matrix() -> Vec<(&'static str, IntrospectedUser, bool, bool, bool)> {
         vec![
-            ("no roles at all", mk_user(None), false, false),
+            ("no roles at all", mk_user(None), false, false, false),
             (
                 "empty role map",
                 mk_user(Some(HashMap::new())),
+                false,
                 false,
                 false,
             ),
@@ -540,22 +568,26 @@ mod tests {
                 user_with_roles(&["METRICS_INGEST_SERVICE"]),
                 true,
                 false,
+                false,
             ),
             (
                 "read service only",
                 user_with_roles(&["METRICS_READ_SERVICE"]),
                 false,
                 true,
+                false,
             ),
             (
                 "superuser only",
                 user_with_roles(&["SUPERUSER"]),
                 false,
                 false,
+                false,
             ),
             (
                 "dissemination worker only",
                 user_with_roles(&["DISSEMINATION_WORKER"]),
+                false,
                 false,
                 false,
             ),
@@ -575,10 +607,12 @@ mod tests {
                 },
                 false,
                 false,
+                false,
             ),
             (
                 "superuser plus dissemination worker",
                 user_with_roles(&["SUPERUSER", "DISSEMINATION_WORKER"]),
+                false,
                 false,
                 false,
             ),
@@ -587,10 +621,12 @@ mod tests {
                 user_with_roles(&["METRICS_INGEST_SERVICE", "METRICS_READ_SERVICE"]),
                 true,
                 true,
+                false,
             ),
             (
                 "case variant of the ingest key",
                 user_with_roles(&["metrics_ingest_service"]),
+                false,
                 false,
                 false,
             ),
@@ -599,10 +635,12 @@ mod tests {
                 user_with_roles(&[" METRICS_READ_SERVICE"]),
                 false,
                 false,
+                false,
             ),
             (
                 "generic service keys that do not exist",
                 user_with_roles(&["SERVICE", "MACHINE", "WORKER", "METRICS_SERVICE"]),
+                false,
                 false,
                 false,
             ),
@@ -611,13 +649,42 @@ mod tests {
                 user_with_roles(&["METRICS_SYNC_SERVICE"]),
                 false,
                 false,
+                false,
+            ),
+            (
+                "ROR sync service only",
+                user_with_roles(&["ROR_SYNC_SERVICE"]),
+                false,
+                false,
+                true,
+            ),
+            (
+                "superuser plus ROR sync service, granted explicitly",
+                user_with_roles(&["SUPERUSER", "ROR_SYNC_SERVICE"]),
+                false,
+                false,
+                true,
+            ),
+            (
+                "case variant of the ROR sync key",
+                user_with_roles(&["ror_sync_service"]),
+                false,
+                false,
+                false,
+            ),
+            (
+                "near-miss ROR keys that do not exist",
+                user_with_roles(&["ROR_SERVICE", "ROR_SYNC", "ROR_SYNC_SERVICE "]),
+                false,
+                false,
+                false,
             ),
         ]
     }
 
     #[test]
     fn metrics_predicates_follow_the_exact_role_key_and_nothing_else() {
-        for (label, user, ingest, read) in principal_matrix() {
+        for (label, user, ingest, read, _) in principal_matrix() {
             assert_eq!(
                 user.is_metrics_ingest_service(),
                 ingest,
@@ -664,6 +731,51 @@ mod tests {
         assert!(
             !read.is_metrics_ingest_service(),
             "read must not imply ingest"
+        );
+    }
+
+    #[test]
+    fn the_ror_sync_predicate_follows_the_exact_role_key_and_nothing_else() {
+        for (label, user, _, _, ror_sync) in principal_matrix() {
+            assert_eq!(
+                user.is_ror_sync_service(),
+                ror_sync,
+                "{label}: ROR sync predicate"
+            );
+        }
+    }
+
+    #[test]
+    fn the_ror_sync_role_implies_no_other_authority_and_superuser_does_not_imply_it() {
+        let ror_sync = user_with_roles(&["ROR_SYNC_SERVICE"]);
+        assert!(
+            !ror_sync.is_superuser(),
+            "ROR_SYNC_SERVICE must not confer SUPERUSER"
+        );
+        assert!(!ror_sync.is_dissemination_worker());
+        assert!(!ror_sync.is_metrics_ingest_service());
+        assert!(!ror_sync.is_metrics_read_service());
+        for org in ["org-1", ""] {
+            assert_eq!(
+                ror_sync.permissions_for_org(org),
+                PublisherPermissions::default(),
+                "ROR_SYNC_SERVICE must confer no publisher permission"
+            );
+            for role in [
+                Role::PublisherAdmin,
+                Role::PublisherUser,
+                Role::WorkLifecycle,
+                Role::CdnWrite,
+            ] {
+                assert!(!ror_sync.has_role_for_org(role, org));
+            }
+        }
+
+        let superuser = user_with_roles(&["SUPERUSER"]);
+        assert!(superuser.is_superuser());
+        assert!(
+            !superuser.is_ror_sync_service(),
+            "SUPERUSER must not confer the ROR sync machine role"
         );
     }
 
@@ -747,7 +859,7 @@ mod tests {
                 ctx(None).require_metrics_read_service(),
                 Err(ThothError::Unauthorised)
             ));
-            for (label, user, ingest, read) in principal_matrix() {
+            for (label, user, ingest, read, _) in principal_matrix() {
                 let user_id = user.user_id.clone();
                 let c = ctx(Some(user));
                 let ingest_result = c.require_metrics_ingest_service();
@@ -863,6 +975,44 @@ mod tests {
         );
         assert!(!user.has_role_for_org(Role::PublisherUser, "org-1"));
         assert!(!user.has_role_for_org(Role::CdnWrite, "org-1"));
+    }
+
+    #[test]
+    fn a_ror_sync_machine_only_account_holds_no_publisher_scope() {
+        // ZITADEL may carry an organisation key under an unscoped role; it is
+        // not a publisher the account may act for.
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        roles.insert(Role::RorSyncService.as_ref().to_string(), scoped("org-1"));
+        let user = mk_user(Some(roles));
+        assert!(
+            user.publisher_org_ids().is_empty(),
+            "a ROR sync machine account must not appear to hold publisher organisations"
+        );
+        assert_eq!(
+            user.permissions_for_org("org-1"),
+            PublisherPermissions::default()
+        );
+        assert_eq!(
+            user.permissions_for_org("org-2"),
+            PublisherPermissions::default()
+        );
+        assert!(!user.has_role_for_org(Role::PublisherUser, "org-1"));
+        assert!(!user.has_role_for_org(Role::CdnWrite, "org-1"));
+    }
+
+    #[test]
+    fn publisher_org_ids_still_collects_scoped_roles_alongside_the_ror_sync_role() {
+        let mut roles: HashMap<String, HashMap<String, String>> = HashMap::new();
+        roles.insert(Role::PublisherUser.as_ref().to_string(), scoped("org-1"));
+        roles.insert(Role::RorSyncService.as_ref().to_string(), scoped("org-9"));
+        let user = mk_user(Some(roles));
+        assert_eq!(
+            user.publisher_org_ids(),
+            vec!["org-1".to_string()],
+            "only the genuinely publisher-scoped role contributes organisations"
+        );
+        assert!(user.has_role_for_org(Role::PublisherUser, "org-1"));
+        assert!(user.is_ror_sync_service());
     }
 
     #[test]
