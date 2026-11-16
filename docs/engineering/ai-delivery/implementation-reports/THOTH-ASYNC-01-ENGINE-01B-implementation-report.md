@@ -1,5 +1,7 @@
 # THOTH-ASYNC-01-ENGINE-01B Implementation Report
 
+Corrections recorded in THOTH-ASYNC-01-ENGINE-01-INTEG-implementation-report.md, section 16.
+
 E2 of `THOTH-ASYNC-01-ENGINE-01`: the protected GraphQL API of the shared PostgreSQL job engine that E1 (`THOTH-ASYNC-01-ENGINE-01A`) built. Risk CRITICAL. The task is complete and no HOLD is open. Section 5 lists the readings. Section 14 lists two items for the reviewers to confirm and one for the orchestrator.
 
 ## 1. Repository state

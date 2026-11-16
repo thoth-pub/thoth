@@ -1,5 +1,7 @@
 # THOTH-ASYNC-01-ENGINE-01A Implementation Report
 
+Corrections recorded in THOTH-ASYNC-01-ENGINE-01-INTEG-implementation-report.md, section 16.
+
 This report records E1, the inert core of the shared job engine (spec section 22.1), at code head `5ee645147fd78c208e6c96924bfa2e7f630e5130`, after review round 1. The commit that rewrites this report is a child of that head and changes only this file. The report was first added in `80fa214863a615dd6dab2800445ef482235ba1be`, over code head `0529a403edc66cd96cdb7f587e580f4619e13029`; both review legs reviewed `80fa2148`.
 
 ## Review round 1
