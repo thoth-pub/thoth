@@ -8,16 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [[1.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.10.0) - 2026-11-16
 ### Added
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Let `metricDashboard` read all Metrics history when `startDate` is omitted, and add a `YEAR` timeline grain
-  - [1007](https://github.com/thoth-pub/thoth/issues/1007), [1019](https://github.com/thoth-pub/thoth/issues/1019) - Add a public, read-only `metricWidget` query for the embeddable metrics widget, off by default behind `THOTH_METRIC_WIDGET`
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Let `metricDashboard` read all Metrics history when `startDate` is omitted, return the served `startDate`, `endDate` and `timelineGrain`, and add a `YEAR` timeline grain
+  - [1007](https://github.com/thoth-pub/thoth/issues/1007), [1019](https://github.com/thoth-pub/thoth/issues/1019) - Add a public, read-only `metricWidget` query for the embeddable metrics widget, served only when `THOTH_METRIC_WIDGET` is `ON` (default `OFF`)
   - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a ROR status and successor to institutions, with a `rorStatuses` filter, writable only by `SUPERUSER` and a new `ROR_SYNC_SERVICE` role
-  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable rebuild and paged verification of the Metrics rollups for large corpora
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `rorStatus` and `rorSuccessor` to institutions, a `rorStatuses` filter to `institutions` and `institutionCount`, and a `ROR_STATUS` sort field
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a `ROR_SYNC_SERVICE` role to `thoth zitadel setup`, which with `SUPERUSER` is the only role that can write an institution's ROR status and successor, and `isRorSyncService` to `me`
+  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable rebuild and paged verification of the Metrics rollups for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` timelines, raise its limits to 100 publishers and 25,000 works, and bound each read's time and concurrency
-  - [1030](https://github.com/thoth-pub/thoth/issues/1030) - Let `metricDashboard` and `metricWidget` serve a publisher with more than one managed source account on a platform
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Record an institution's history when it is created, and update linked works' `updatedAtWithRelations` only when an exported institution field changes
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`; a `DAY` timeline keeps the 366-day limit and needs a `startDate`
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 works and 100,000 institution rows, give each read a 20-second deadline, and limit each API process to three concurrent reads, with the new retryable `METRIC_READ_BUSY` error
+  - [1030](https://github.com/thoth-pub/thoth/issues/1030) - Let `metricDashboard` and `metricWidget` serve a publisher with more than one managed source account on a platform, combining their coverage, instead of refusing the read as `MOM1_SOURCE_SCOPE_AMBIGUOUS`
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Reset an institution's ROR status and successor when its ROR ID changes, and record its history when it is created
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Update linked works' `updatedAtWithRelations` only when an institution's name, DOI, ROR ID or country changes
   - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
 
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
