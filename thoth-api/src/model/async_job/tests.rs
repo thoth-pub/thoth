@@ -11,8 +11,8 @@
 //! `time_`, `bounds_`, `phase_`, `regression_` (accepted regression), `locks_`
 //! (commands and locks), `s9_` (section 9 additions), `mapping_` (error
 //! mapping, which with the deadlock assertions covers deadlock freedom), plus
-//! `registry_` and `carry_` (carry-forward part A, and the E2 carry fix
-//! FBE-2).
+//! `registry_` and `carry_` (carry-forward part A, and the E2 carry fixes
+//! FBE-2 and FBE-5).
 
 use std::sync::mpsc;
 use std::thread;
@@ -7706,7 +7706,8 @@ fn carry_t16_and_t18_succeeded_entries_may_carry_a_source_ref() {
 
 // ---------------------------------------------------------------------------
 // E2 carry fixes (THOTH-ASYNC-01-ENGINE-01B): FBE-2, the kind list and the
-// regressed-target list of the signals
+// regressed-target list of the signals; FBE-5, the `jsonb` refusal class and
+// the nested engine transaction
 // ---------------------------------------------------------------------------
 
 /// The kinds `kind_signals` reports under `registry`, with `known`.
@@ -7849,6 +7850,101 @@ fn carry_fbe2_regressed_targets_are_counted_exactly_and_listed_up_to_the_bound()
     assert_eq!(v.regressed_targets.len() as i64, limit);
     assert_eq!(listed(&v), first_keys(c, limit));
     assert!(!listed(&v).contains(cleared.as_str()));
+}
+
+/// FBE-5 (a): `jsonb` refusals are data exceptions (SQLSTATE class 22) and
+/// answer `None`; an accepted value is measured on its canonical form; the
+/// caller's transaction stays usable after each refusal.
+#[test]
+fn carry_fbe5_jsonb_refusals_are_the_data_exception_class_only() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let outcome = c.transaction::<(), DieselError, _>(|c| {
+        let measured = json_measure(c, r#"{"b": 1, "a": [true]}"#)
+            .expect("measured")
+            .expect("accepted");
+        let canonical = r#"{"a": [true], "b": 1}"#;
+        assert_eq!(measured.bytes as usize, canonical.len());
+        assert_eq!(
+            Some(measured.digest),
+            text(
+                c,
+                &format!(
+                    "SELECT encode(sha256(convert_to('{canonical}', 'UTF8')), 'hex') AS value"
+                )
+            )
+        );
+        // 22003 twice, 22P02 twice and 22P05: each passes serde except the
+        // syntax error, and only the database refuses the others.
+        for refused in [
+            r#"{"n": 1e-20000}"#,
+            r#"{"n": 1e200000}"#,
+            r#"{"a": "\u0000"}"#,
+            r#"{"a": "\ud800"}"#,
+            "{",
+        ] {
+            assert_eq!(json_measure(c, refused), Ok(None), "{refused}");
+            assert_eq!(scalar(c, "SELECT 1::bigint AS value"), 1);
+        }
+        Ok(())
+    });
+    assert_eq!(outcome, Ok(()));
+}
+
+/// FBE-5 (a): any other database error is `ASYNC_JOB_INTEGRITY_VIOLATION`,
+/// never a refusal: a hard error inside the savepoint (nesting deeper than
+/// the server's stack allows, SQLSTATE 54001), after which the caller's
+/// transaction stays usable, and an aborted caller transaction (25P02).
+#[test]
+fn carry_fbe5_any_other_database_error_is_an_integrity_violation_not_a_refusal() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    // serde refuses nesting deeper than 128 levels, so no engine path sends
+    // this to the database; only a direct call reaches it.
+    let deep = format!("{}{}", "[".repeat(1_000_000), "]".repeat(1_000_000));
+    assert!(serde_json::from_str::<serde_json::Value>(&deep).is_err());
+    let outcome = c.transaction::<(), DieselError, _>(|c| {
+        assert_eq!(
+            json_measure(c, &deep),
+            Err(ThothError::AsyncJobIntegrityViolation)
+        );
+        assert_eq!(scalar(c, "SELECT 1::bigint AS value"), 1);
+        Ok(())
+    });
+    assert_eq!(outcome, Ok(()));
+    let outcome = c.transaction::<(), DieselError, _>(|c| {
+        assert!(c.batch_execute("SELECT 1 / 0").is_err());
+        assert_eq!(
+            json_measure(c, r#"{"a": 1}"#),
+            Err(ThothError::AsyncJobIntegrityViolation)
+        );
+        Err(DieselError::RollbackTransaction)
+    });
+    assert_eq!(outcome, Err(DieselError::RollbackTransaction));
+    assert_eq!(scalar(c, "SELECT 1::bigint AS value"), 1);
+}
+
+/// FBE-5 (b): an engine-owned transaction requested on a connection already
+/// in a transaction runs nothing, keeps `ASYNC_JOB_INTEGRITY_VIOLATION` and
+/// logs its own fixed line, not the generic non-database-error line.
+#[test]
+fn carry_fbe5_a_nested_engine_transaction_runs_nothing_and_keeps_its_code() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let outcome = c.transaction::<(), DieselError, _>(|c| {
+        let mut ran = false;
+        let answer = with_engine_transaction_on(c, |_| {
+            ran = true;
+            Ok(())
+        });
+        assert_eq!(answer, Err(ThothError::AsyncJobIntegrityViolation));
+        assert!(!ran);
+        assert_eq!(scalar(c, "SELECT 1::bigint AS value"), 1);
+        Ok(())
+    });
+    assert_eq!(outcome, Ok(()));
+    assert!(NESTED_ENGINE_TRANSACTION_LOG.contains("ASYNC_JOB_INTEGRITY_VIOLATION"));
+    assert!(!NESTED_ENGINE_TRANSACTION_LOG.contains("non-database error"));
 }
 
 // ---------------------------------------------------------------------------

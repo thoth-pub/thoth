@@ -948,30 +948,61 @@ pub(crate) struct JsonMeasured {
     pub digest: String,
 }
 
-/// Ask the database, inside a savepoint so neither statement can abort the
-/// caller's transaction, for `octet_length($1::jsonb::text)` and the SHA-256
-/// of the canonical form. `Ok(None)` means `jsonb` refused the value; a
-/// busy-class error (timeout, deadlock, cancel, closed connection, failed
-/// send) is `ASYNC_JOB_BUSY`.
+#[derive(QueryableByName)]
+struct InputErrorRow {
+    #[diesel(sql_type = Nullable<Text>)]
+    code: Option<String>,
+}
+
+/// The SQLSTATE class of a data exception, the only class in which `jsonb`
+/// refuses a value as input.
+const DATA_EXCEPTION_CLASS: &str = "22";
+
+/// Ask the database, inside a savepoint so no statement can abort the
+/// caller's transaction, whether `jsonb` accepts the text, and then for
+/// `octet_length($1::jsonb::text)` and the SHA-256 of the canonical form.
+///
+/// Diesel exposes no SQLSTATE, so the first question is
+/// `pg_input_error_info($1, 'jsonb')` (PostgreSQL 16 or later), which reports
+/// the SQLSTATE of a refused input without raising. `Ok(None)` means `jsonb`
+/// refused the value with a data exception (SQLSTATE class 22). A refusal in
+/// any other class, and any database error, is
+/// `ASYNC_JOB_INTEGRITY_VIOLATION`, except the busy class (timeout, deadlock,
+/// cancel, closed connection, failed send), which is `ASYNC_JOB_BUSY`.
 pub(crate) fn json_measure(
     conn: &mut PgConnection,
     text: &str,
 ) -> ThothResult<Option<JsonMeasured>> {
-    let measured = in_savepoint(conn, |conn| {
+    let measured = in_savepoint(conn, |conn| -> QueryResult<Result<JsonMeasure, String>> {
+        let refused = sql_query("SELECT (pg_input_error_info($1, 'jsonb')).sql_error_code AS code")
+            .bind::<Text, _>(text)
+            .get_result::<InputErrorRow>(conn)?
+            .code;
+        if let Some(code) = refused {
+            return Ok(Err(code));
+        }
         sql_query(
             "SELECT octet_length($1::jsonb::text) AS bytes, \
                     encode(sha256(convert_to($1::jsonb::text, 'UTF8')), 'hex') AS digest",
         )
         .bind::<Text, _>(text)
         .get_result::<JsonMeasure>(conn)
+        .map(Ok)
     });
     match measured {
-        Ok(measure) => Ok(Some(JsonMeasured {
+        Ok(Ok(measure)) => Ok(Some(JsonMeasured {
             bytes: measure.bytes,
             digest: measure.digest,
         })),
-        Err(error) if is_busy_error(&error) => Err(ThothError::AsyncJobBusy),
-        Err(_) => Ok(None),
+        Ok(Err(code)) if code.starts_with(DATA_EXCEPTION_CLASS) => Ok(None),
+        Ok(Err(code)) => {
+            log::error!(
+                "async job engine: jsonb refused an input outside SQLSTATE class 22; \
+                 mapped to ASYNC_JOB_INTEGRITY_VIOLATION (SQLSTATE {code})"
+            );
+            Err(ThothError::AsyncJobIntegrityViolation)
+        }
+        Err(error) => Err(map_db_error(error)),
     }
 }
 
@@ -1166,6 +1197,13 @@ pub(crate) fn map_commit_error(error: DieselError) -> ThothError {
     map_db_error(error)
 }
 
+/// The fixed server-log message of a wrapper asked to open its transaction on
+/// a connection already in one: a caller fault, not a database failure, so
+/// its log line differs from every database-error line.
+pub(crate) const NESTED_ENGINE_TRANSACTION_LOG: &str =
+    "async job engine: an engine-owned transaction was requested on a connection \
+     already in a transaction; nothing ran; mapped to ASYNC_JOB_INTEGRITY_VIOLATION";
+
 /// Run `operation` in an engine-owned READ COMMITTED transaction with
 /// `SET LOCAL lock_timeout = '5s'`, on a connection from `pool`. A pool that
 /// cannot hand out a connection is `ASYNC_JOB_BUSY`.
@@ -1178,7 +1216,8 @@ pub fn with_engine_transaction<T>(
 }
 
 /// [`with_engine_transaction`] on a given connection, which must not be in a
-/// transaction.
+/// transaction. On a connection already in one it runs nothing and answers
+/// `ASYNC_JOB_INTEGRITY_VIOLATION`, logging [`NESTED_ENGINE_TRANSACTION_LOG`].
 pub fn with_engine_transaction_on<T>(
     conn: &mut PgConnection,
     operation: impl FnOnce(&mut PgConnection) -> ThothResult<T>,
@@ -1193,6 +1232,10 @@ pub fn with_engine_transaction_on<T>(
     match result {
         Ok(value) => Ok(value),
         Err(WrapperError::Engine(error)) => Err(error),
+        Err(WrapperError::Database(DieselError::AlreadyInTransaction)) => {
+            log::error!("{NESTED_ENGINE_TRANSACTION_LOG}");
+            Err(ThothError::AsyncJobIntegrityViolation)
+        }
         Err(WrapperError::Database(error)) => Err(map_commit_error(error)),
     }
 }
