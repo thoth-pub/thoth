@@ -1,6 +1,13 @@
 use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 
+use crate::graphql::types::async_job::{
+    AsyncJob, AsyncJobClaimField, AsyncJobClaimInput, AsyncJobClaimResult, AsyncJobCommandInput,
+    AsyncJobCommandResult, AsyncJobLeaseRenewal, ClaimAsyncJobsInput, CompleteAsyncJobInput,
+    FailAsyncJobInput, MarkAsyncJobEffectConfirmedInput, RenewAsyncJobLeaseInput,
+    ResolveAsyncJobReconciliationAsStaffInput, ResolveAsyncJobReconciliationInput,
+    WaitAsyncJobInput,
+};
 use crate::graphql::Context;
 use crate::markup::{convert_to_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
@@ -9,6 +16,13 @@ use crate::model::{
         PatchAdditionalResource, ResourceType,
     },
     affiliation::{Affiliation, AffiliationPolicy, NewAffiliation, PatchAffiliation},
+    async_job::{
+        cancel_job_command_on, claim_on, claim_reconciliation_on, complete_on,
+        executor::authorize_executor, fail_on, mark_effect_confirmed_on, mark_effect_started_on,
+        redact_job_diagnostics_command_on, release_on, renew_on, resolve_reconciliation_command_on,
+        resolve_reconciliation_on, retry_job_command_on, wait_on, with_engine_transaction,
+        StaffActor,
+    },
     award::{Award, AwardPolicy, NewAward, PatchAward},
     biography::{Biography, BiographyPolicy, NewBiography, PatchBiography},
     book_review::{BookReview, BookReviewPolicy, NewBookReview, PatchBookReview},
@@ -369,6 +383,62 @@ fn rebuild_coverage_runs(
     authorize_metric_coverage_run_maintenance(context)?;
     rebuild_metric_coverage_runs(&context.db, source_account_id)
         .map_err(IntoFieldError::into_field_error)
+}
+
+/// Authorize and run one async job claim (`THOTH-ASYNC-01-ENGINE-01B`
+/// specification section 14.1).
+///
+/// Authorization comes first, so a refused caller reaches neither the claim
+/// memo nor the engine. The executor's domain, risk class, capabilities and
+/// revision modes come from the executor map and its principal from the
+/// token; the request names only the executor, the kinds, their payload
+/// versions and the bounds. The claim then runs through the request's claim
+/// memo: the first claim field the executor runs claims, and every later
+/// claim field of the request answers from what it stored.
+fn run_async_job_claim(
+    context: &Context,
+    field: AsyncJobClaimField,
+    data: &ClaimAsyncJobsInput,
+) -> FieldResult<AsyncJobClaimResult> {
+    let (profile, principal) = authorize_executor(context)
+        .and_then(|profile| Ok((profile, context.user_id()?)))
+        .map_err(IntoFieldError::into_field_error)?;
+    context.async_job_claims.claim_once(field, data, || {
+        let executor = profile.executor(&data.claimed_by, principal);
+        data.claim_request()
+            .and_then(|request| {
+                with_engine_transaction(&context.db, |conn| match field {
+                    AsyncJobClaimField::Execution => {
+                        claim_on(conn, context.async_registry, &executor, request)
+                    }
+                    AsyncJobClaimField::Reconciliation => {
+                        claim_reconciliation_on(conn, context.async_registry, &executor, request)
+                    }
+                })
+            })
+            .map(AsyncJobClaimResult::from)
+            .map_err(IntoFieldError::into_field_error)
+    })
+}
+
+/// Authorize an async job operator command (`THOTH-ASYNC-01-ENGINE-01B`
+/// specification section 14.2) and build its staff actor.
+///
+/// Superuser only, refused before the engine runs: `DISSEMINATION_WORKER`,
+/// the Metrics machine roles and every publisher-scoped role are refused.
+/// The actor's principal is the authenticated user, never input, and the
+/// request ID is always present, so every command is idempotent.
+fn authorize_async_command(
+    context: &Context,
+    reason: &str,
+    request_id: Uuid,
+) -> ThothResult<StaffActor> {
+    context.require_superuser()?;
+    Ok(StaffActor {
+        principal: context.user_id()?.to_string(),
+        reason: reason.to_string(),
+        request_id: Some(request_id),
+    })
 }
 
 #[juniper::graphql_object(Context = Context)]
@@ -2224,6 +2294,299 @@ impl MutationRoot {
     ) -> FieldResult<MetricSourceAccount> {
         authorize_metric_registry_admin(context)
             .and_then(|actor| update_metric_source_account(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    // ----------------------------------------------------------------------
+    // Async job engine (`THOTH-ASYNC-01-ENGINE-01B`)
+    //
+    // Ten executor operations, each authorized through the executor map
+    // before the engine runs, and four operator commands, each superuser
+    // only. Every engine call runs in its own engine-owned READ COMMITTED
+    // transaction with the registry the `Context` carries.
+    // ----------------------------------------------------------------------
+
+    #[graphql(
+        description = "Claim ready async jobs of the requested kinds and payload versions. Requires the DISSEMINATION_WORKER role, and every requested kind this server knows must be one that role executes, or nothing is claimed. A request claims at most once: a later claim field with the same field name and arguments returns the same result, and any other is refused with ASYNC_JOB_DUPLICATE_CLAIM, so send a claim as the only field of its request"
+    )]
+    fn claim_async_jobs(
+        context: &Context,
+        #[graphql(
+            description = "The executor name, the kinds with their payload versions, and the bounds"
+        )]
+        input: ClaimAsyncJobsInput,
+    ) -> FieldResult<Option<AsyncJobClaimResult>> {
+        run_async_job_claim(context, AsyncJobClaimField::Execution, &input).map(Some)
+    }
+
+    #[graphql(
+        description = "Renew the lease of an execution or reconciliation claim. Requires the DISSEMINATION_WORKER role and the current claim token, and the lease must not have expired. The lease never passes the attempt's runtime deadline"
+    )]
+    fn renew_async_job_lease(
+        context: &Context,
+        #[graphql(description = "The claim and the requested lease")]
+        input: RenewAsyncJobLeaseInput,
+    ) -> FieldResult<AsyncJobLeaseRenewal> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    renew_on(conn, context.async_registry, &claim, input.lease_seconds)
+                })
+            })
+            .map(AsyncJobLeaseRenewal::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record that a claimed job's external effect is starting. The kind's effect window must remain on both the lease and the attempt's runtime deadline. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn mark_async_job_effect_started(
+        context: &Context,
+        #[graphql(description = "The claimed job and its claim token")] input: AsyncJobClaimInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    mark_effect_started_on(conn, context.async_registry, &claim)
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Record that the provider acknowledged a claimed job's external effect. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn mark_async_job_effect_confirmed(
+        context: &Context,
+        #[graphql(description = "The claimed job, its claim token and the provider's reference")]
+        input: MarkAsyncJobEffectConfirmedInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    mark_effect_confirmed_on(
+                        conn,
+                        context.async_registry,
+                        &claim,
+                        input.provider_ref.as_deref(),
+                    )
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Checkpoint a claimed job and yield it until resumeAt, keeping its targets held. If the job's waiting deadline has passed, it moves to RECONCILIATION_REQUIRED or FAILED instead, as the returned status shows. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn wait_async_job(
+        context: &Context,
+        #[graphql(
+            description = "The claimed job, its claim token, the checkpoint and when to resume"
+        )]
+        input: WaitAsyncJobInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    wait_on(conn, context.async_registry, &claim, input.wait_request())
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Complete a claimed job with its evidence. The returned status is SUCCEEDED, or RECONCILIATION_REQUIRED when evidence given after the effect started cannot be recorded. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn complete_async_job(
+        context: &Context,
+        #[graphql(description = "The claimed job, its claim token, the outcome and the evidence")]
+        input: CompleteAsyncJobInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    complete_on(
+                        conn,
+                        context.async_registry,
+                        &claim,
+                        input.complete_request(),
+                    )
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Report a claimed job's failure. Before its effect started the job is retried or fails; after that it requires reconciliation, unless the absence of the effect is proven. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn fail_async_job(
+        context: &Context,
+        #[graphql(description = "The claimed job, its claim token and the failure")]
+        input: FailAsyncJobInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    fail_on(conn, context.async_registry, &claim, input.fail_request())
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Yield a claimed job before its effect started, without using its retry budget. Requires the DISSEMINATION_WORKER role and the current claim token"
+    )]
+    fn release_async_job(
+        context: &Context,
+        #[graphql(description = "The claimed job and its claim token")] input: AsyncJobClaimInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    release_on(conn, context.async_registry, &claim)
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Claim async jobs that require reconciliation, as their reconciler. Requires the DISSEMINATION_WORKER role, and every requested kind this server knows must be one that role reconciles, or nothing is claimed. It shares the one claim a request may run with claimAsyncJobs"
+    )]
+    fn claim_async_job_reconciliations(
+        context: &Context,
+        #[graphql(
+            description = "The executor name, the kinds with their payload versions, and the bounds"
+        )]
+        input: ClaimAsyncJobsInput,
+    ) -> FieldResult<Option<AsyncJobClaimResult>> {
+        run_async_job_claim(context, AsyncJobClaimField::Reconciliation, &input).map(Some)
+    }
+
+    #[graphql(
+        description = "Resolve a claimed reconciliation with its evidence. An executor reconciler cannot accept a regression. Requires the DISSEMINATION_WORKER role and the current reconciliation claim token"
+    )]
+    fn resolve_async_job_reconciliation(
+        context: &Context,
+        #[graphql(description = "The claimed job, its claim token, the outcome and the evidence")]
+        input: ResolveAsyncJobReconciliationInput,
+    ) -> FieldResult<AsyncJob> {
+        authorize_executor(context)
+            .map(|profile| profile.worker_claim(input.async_job_id, input.claim_token))
+            .and_then(|claim| {
+                with_engine_transaction(&context.db, |conn| {
+                    resolve_reconciliation_on(
+                        conn,
+                        context.async_registry,
+                        &claim,
+                        input.resolution(),
+                    )
+                })
+            })
+            .map(AsyncJob::from)
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Cancel an async job before its effect started, in the states its kind allows; a running or waiting job whose effect started is stopped and moves to RECONCILIATION_REQUIRED instead. Superuser only. The decision, a refusal included, is recorded and returned as data"
+    )]
+    fn cancel_async_job(
+        context: &Context,
+        #[graphql(description = "The job, the reason and the request ID")]
+        input: AsyncJobCommandInput,
+    ) -> FieldResult<AsyncJobCommandResult> {
+        authorize_async_command(context, &input.reason, input.request_id)
+            .and_then(|actor| {
+                with_engine_transaction(&context.db, |conn| {
+                    let command = cancel_job_command_on(
+                        conn,
+                        context.async_registry,
+                        &actor,
+                        input.async_job_id,
+                    )?;
+                    AsyncJobCommandResult::read(conn, command)
+                })
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Create a new job retrying a FAILED or CANCELLED async job that provably wrote no effect, once per job and only where its kind allows. Superuser only. The decision, a refusal included, is recorded and returned as data, with the new job when applied"
+    )]
+    fn retry_async_job(
+        context: &Context,
+        #[graphql(description = "The job, the reason and the request ID")]
+        input: AsyncJobCommandInput,
+    ) -> FieldResult<AsyncJobCommandResult> {
+        authorize_async_command(context, &input.reason, input.request_id)
+            .and_then(|actor| {
+                with_engine_transaction(&context.db, |conn| {
+                    let command = retry_job_command_on(
+                        conn,
+                        context.async_registry,
+                        &actor,
+                        input.async_job_id,
+                    )?;
+                    AsyncJobCommandResult::read(conn, command)
+                })
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Resolve an async job that requires reconciliation with one of its kind's staff outcomes and the evidence that outcome needs. Refused while an executor holds a live reconciliation claim. Superuser only. The decision, a refusal included, is recorded and returned as data"
+    )]
+    fn resolve_async_job_reconciliation_as_staff(
+        context: &Context,
+        #[graphql(
+            description = "The job, the outcome, its evidence, the reason and the request ID"
+        )]
+        input: ResolveAsyncJobReconciliationAsStaffInput,
+    ) -> FieldResult<AsyncJobCommandResult> {
+        authorize_async_command(context, &input.reason, input.request_id)
+            .and_then(|actor| {
+                with_engine_transaction(&context.db, |conn| {
+                    let command = resolve_reconciliation_command_on(
+                        conn,
+                        context.async_registry,
+                        &actor,
+                        input.async_job_id,
+                        input.resolution(),
+                    )?;
+                    AsyncJobCommandResult::read(conn, command)
+                })
+            })
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Erase an async job's recorded diagnostics: the error details, provider references and evidence of its finished attempts, and a finished job's provider reference and checkpoint. An open attempt is left unchanged. Superuser only. The decision is recorded and returned as data"
+    )]
+    fn redact_async_job_diagnostics(
+        context: &Context,
+        #[graphql(description = "The job, the reason and the request ID")]
+        input: AsyncJobCommandInput,
+    ) -> FieldResult<AsyncJobCommandResult> {
+        authorize_async_command(context, &input.reason, input.request_id)
+            .and_then(|actor| {
+                with_engine_transaction(&context.db, |conn| {
+                    let command =
+                        redact_job_diagnostics_command_on(conn, &actor, input.async_job_id)?;
+                    AsyncJobCommandResult::read(conn, command)
+                })
+            })
             .map_err(IntoFieldError::into_field_error)
     }
 }

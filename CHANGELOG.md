@@ -6,34 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-  - [1006](https://github.com/thoth-pub/thoth/pull/1006) - Add ADR-0012, the shared architecture for asynchronous events and background jobs
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Allow `metricDashboard` to omit `startDate` to read all Metrics history before `endDate`, and return the served `startDate`, `endDate` and `timelineGrain`
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Add a `YEAR` timeline grain to `metricDashboard`
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Limit each API process to three concurrent `metricDashboard` reads, and add the retryable `METRIC_READ_BUSY` error for a read that waits more than a second for one
-  - [1007](https://github.com/thoth-pub/thoth/issues/1007) - Add a public, read-only metricWidget query for the embeddable metrics widget, off by default behind THOTH_METRIC_WIDGET
-  - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
-  - [1019](https://github.com/thoth-pub/thoth/issues/1019) - Let `metricWidget` serve yearly timelines, and all history when `startDate` is omitted
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `rorStatus` and `rorSuccessor` to institutions, writable only by `SUPERUSER` and the new `ROR_SYNC_SERVICE` role
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a `rorStatuses` filter to `institutions` and `institutionCount`, and a `ROR_STATUS` sort field
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `isRorSyncService` to `me`, and the `ROR_SYNC_SERVICE` role to `thoth zitadel setup`
-  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable, caller-driven rebuild and paged verification of the derived Metrics rollup projections for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine (its tables and core, and a protected GraphQL API with executor operations for `DISSEMINATION_WORKER` and superuser commands and reads), inert until a job kind is registered, and leave async job request bodies out of the access log
 
 ### Changed
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Record an institution's history when it is created, not only when it is updated
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Reset an institution's ROR status and successor when its ROR ID changes
-  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Update linked works' `updatedAtWithRelations` only when an institution's name, DOI, ROR ID or country changes
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 resolved works and 100,000 institution rows
-  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Give each `metricDashboard` read a 20-second deadline to start its statements
-  - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
   - [1029](https://github.com/thoth-pub/thoth/pull/1029) - Merge institutions that share a ROR ID into one, moving their links and history to the survivor, and make the ROR ID unique; see `thoth-api/ops/ror-sync-01b/README.md` before upgrading
-  - [1030](https://github.com/thoth-pub/thoth/issues/1030) - Let `metricDashboard` and `metricWidget` serve a publisher with more than one managed source account on a platform, combining their coverage, instead of refusing the read
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Record ADR-0015, which splits the shared job engine of ADR-0012 into a jobs-first release and a later routing release, and adds a safety rule for withdrawing a route contract revision (decision only; no code change)
+
+## [[1.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.10.0) - 2026-11-16
+### Added
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Let `metricDashboard` read all Metrics history when `startDate` is omitted, return the served `startDate`, `endDate` and `timelineGrain`, and add a `YEAR` timeline grain
+  - [1007](https://github.com/thoth-pub/thoth/issues/1007), [1019](https://github.com/thoth-pub/thoth/issues/1019) - Add a public, read-only `metricWidget` query for the embeddable metrics widget, served only when `THOTH_METRIC_WIDGET` is `ON` (default `OFF`)
+  - [1013](https://github.com/thoth-pub/thoth/issues/1013) - Add a public `workFilterOptions` query that lists the filter values of a set of publishers' works
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add `rorStatus` and `rorSuccessor` to institutions, a `rorStatuses` filter to `institutions` and `institutionCount`, and a `ROR_STATUS` sort field
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Add a `ROR_SYNC_SERVICE` role to `thoth zitadel setup`, which with `SUPERUSER` is the only role that can write an institution's ROR status and successor, and `isRorSyncService` to `me`
+  - [1012](https://github.com/thoth-pub/thoth/issues/1012) - Add a resumable rebuild and paged verification of the Metrics rollups for large corpora (`startMetricRollupMonthRebuild`, `advanceMetricRollupMonthRebuild`, `abandonMetricRollupMonthRebuild`, `metricRollupMonthRebuildRun`)
 
 ### Changed
-  - [1008](https://github.com/thoth-pub/thoth/issues/1008) - Record ADR-0014, the decision to let the embeddable metrics widget read public metrics without a credential (decision only; no API change yet)
-
-### Fixed
-  - [1021](https://github.com/thoth-pub/thoth/pull/1021) - Fix a timing race in a Metrics rollup test
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Remove the 366-day limit on `metricDashboard` `MONTH` and `YEAR` timelines, and let `AUTO` choose `DAY`, `MONTH` or `YEAR`; a `DAY` timeline keeps the 366-day limit and needs a `startDate`
+  - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Raise the `metricDashboard` limits to 100 publishers, 25,000 works and 100,000 institution rows, give each read a 20-second deadline, and limit each API process to three concurrent reads, with the new retryable `METRIC_READ_BUSY` error
+  - [1030](https://github.com/thoth-pub/thoth/issues/1030) - Let `metricDashboard` and `metricWidget` serve a publisher with more than one managed source account on a platform, combining their coverage, instead of refusing the read as `MOM1_SOURCE_SCOPE_AMBIGUOUS`
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Reset an institution's ROR status and successor when its ROR ID changes, and record its history when it is created
+  - [1028](https://github.com/thoth-pub/thoth/pull/1028) - Update linked works' `updatedAtWithRelations` only when an institution's name, DOI, ROR ID or country changes
+  - [1017](https://github.com/thoth-pub/thoth/issues/1017) - Update Thema codes to v1.7
 
 ## [[1.9.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.9.0) - 2026-11-07
 ### Added
