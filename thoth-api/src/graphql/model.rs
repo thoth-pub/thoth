@@ -7,6 +7,7 @@ use uuid::Uuid;
 use zitadel::actix::introspection::IntrospectedUser;
 
 use super::dataloader::{unpack_assignments, unpack_loaded, RequestLoaders};
+use super::types::async_job::AsyncJobClaimMemo;
 use super::types::inputs::{
     ContributionOrderBy, Convert, Direction, FundingOrderBy, IssueOrderBy, LanguageOrderBy,
     LengthUnit, PriceOrderBy, SubjectOrderBy, TimeExpression, WeightUnit,
@@ -16,6 +17,7 @@ use crate::markup::{convert_from_jats, ConversionLimit, MarkupFormat};
 use crate::model::{
     additional_resource::{AdditionalResource, AdditionalResourceOrderBy},
     affiliation::{Affiliation, AffiliationOrderBy},
+    async_job::{AsyncJobRegistry, PRODUCTION_REGISTRY},
     award::{Award, AwardOrderBy, AwardRole},
     biography::{Biography, BiographyOrderBy},
     book_review::{BookReview, BookReviewOrderBy},
@@ -135,6 +137,17 @@ pub struct Context {
     ///
     /// `Context` is built per request, so the counter never crosses requests.
     pub(crate) work_filter_options_claims: AtomicUsize,
+    /// The kind registry the async job resolvers serve with
+    /// (THOTH-ASYNC-01-ENGINE-01B specification section 14.1).
+    ///
+    /// [`Context::new`] sets the empty production registry, so the engine is
+    /// inert; tests serve with their own through
+    /// [`Context::with_async_registry`]. There is no global switch.
+    pub(crate) async_registry: &'static AsyncJobRegistry,
+    /// This request's one async job claim (specification section 14.1).
+    ///
+    /// `Context` is built per request, so the memo never crosses requests.
+    pub(crate) async_job_claims: AsyncJobClaimMemo,
 }
 
 impl Context {
@@ -155,6 +168,8 @@ impl Context {
             metric_widget: crate::model::metric_widget::MetricWidgetSwitch::default(),
             metric_widget_claims: AtomicUsize::new(0),
             work_filter_options_claims: AtomicUsize::new(0),
+            async_registry: &PRODUCTION_REGISTRY,
+            async_job_claims: AsyncJobClaimMemo::default(),
         }
     }
 
@@ -164,6 +179,13 @@ impl Context {
         switch: crate::model::metric_widget::MetricWidgetSwitch,
     ) -> Self {
         self.metric_widget = switch;
+        self
+    }
+
+    /// Serve the async job resolvers with `registry` instead of the empty
+    /// production registry. Tests use it to inject their kinds.
+    pub fn with_async_registry(mut self, registry: &'static AsyncJobRegistry) -> Self {
+        self.async_registry = registry;
         self
     }
 

@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine (its tables and core, and a protected GraphQL API with executor operations for `DISSEMINATION_WORKER` and superuser commands and reads), inert until a job kind is registered, and leave async job request bodies out of the access log
+
 ### Changed
   - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Record ADR-0015, which splits the shared job engine of ADR-0012 into a jobs-first release and a later routing release, and adds a safety rule for withdrawing a route contract revision (decision only; no code change)
 

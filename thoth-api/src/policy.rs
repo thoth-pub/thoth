@@ -20,8 +20,17 @@ pub(crate) enum Role {
     /// ([ADR-0008](../../docs/engineering/decisions/ADR-0008-machine-roles-and-durable-job-primitives.md)
     /// section 3.2).
     ///
-    /// This is a **Publisher-Services-specific** machine role with exactly three
-    /// permitted operations, not a generic service role. It is unscoped because
+    /// This is a **Publisher-Services-specific** machine role, not a generic
+    /// service role. It permits exactly the three `BE-04` operations
+    /// (`claimDistributionJobs`, `completeDistributionJob` and
+    /// `failDistributionJob`) and, since `THOTH-ASYNC-01-ENGINE-01B`, the async
+    /// job executor operations (`claimAsyncJobs`, `renewAsyncJobLease`,
+    /// `markAsyncJobEffectStarted`, `markAsyncJobEffectConfirmed`,
+    /// `waitAsyncJob`, `completeAsyncJob`, `failAsyncJob`, `releaseAsyncJob`,
+    /// `claimAsyncJobReconciliations`, `resolveAsyncJobReconciliation` and the
+    /// `asyncJobTargetState` query), only for kinds whose executor or reconciler
+    /// domain is `Dissemination`. It gains no async job operator command and no
+    /// async job operator read. It is unscoped because
     /// a back-catalogue worker genuinely operates across every publisher, which
     /// is the only condition under which ADR-0008 section 3.1 permits an
     /// unscoped machine role: a per-organisation grant would have to be
@@ -303,14 +312,16 @@ pub(crate) trait PolicyContext {
     /// Require that the authenticated user holds the `DISSEMINATION_WORKER`
     /// role.
     ///
-    /// This is the one explicit guard for the three permitted worker
-    /// operations. It mirrors [`Self::require_superuser`] in shape and in
-    /// nothing else: `SUPERUSER` does **not** satisfy it, and this guard confers
-    /// no publisher scope, no administrative authority and no capability of any
-    /// other role. A principal that must genuinely act as both is granted both
-    /// roles explicitly, and may then exercise exactly the operations each is
-    /// independently allowed — which is a `BE-04` matrix decision and not a
-    /// general role-composition rule.
+    /// This is the one explicit guard for the role's permitted operations: the
+    /// three `BE-04` worker operations and the async job executor operations
+    /// of `THOTH-ASYNC-01-ENGINE-01B`, whose engine then admits only kinds of
+    /// the `Dissemination` domain. It mirrors [`Self::require_superuser`] in
+    /// shape and in nothing else: `SUPERUSER` does **not** satisfy it, and this
+    /// guard confers no publisher scope, no administrative authority and no
+    /// capability of any other role. A principal that must genuinely act as
+    /// both is granted both roles explicitly, and may then exercise exactly the
+    /// operations each is independently allowed — which is a `BE-04` matrix
+    /// decision and not a general role-composition rule.
     ///
     /// # Errors
     ///
