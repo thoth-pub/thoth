@@ -11,7 +11,8 @@
 //! `time_`, `bounds_`, `phase_`, `regression_` (accepted regression), `locks_`
 //! (commands and locks), `s9_` (section 9 additions), `mapping_` (error
 //! mapping, which with the deadlock assertions covers deadlock freedom), plus
-//! `registry_` and `carry_` (carry-forward part A).
+//! `registry_` and `carry_` (carry-forward part A, and the E2 carry fix
+//! FBE-2).
 
 use std::sync::mpsc;
 use std::thread;
@@ -7701,6 +7702,153 @@ fn carry_t16_and_t18_succeeded_entries_may_carry_a_source_ref() {
     assert_eq!(done.status, AsyncJobStatus::Succeeded);
     assert_eq!(state(c, &z).unwrap().applied_order, Some(3));
     assert_no_unspecified(c);
+}
+
+// ---------------------------------------------------------------------------
+// E2 carry fixes (THOTH-ASYNC-01-ENGINE-01B): FBE-2, the kind list and the
+// regressed-target list of the signals
+// ---------------------------------------------------------------------------
+
+/// The kinds `kind_signals` reports under `registry`, with `known`.
+fn signal_kinds(conn: &mut PgConnection, registry: &AsyncJobRegistry) -> Vec<(String, bool)> {
+    kind_signals(conn, registry)
+        .expect("signals")
+        .into_iter()
+        .map(|signal| (signal.kind, signal.known))
+        .collect()
+}
+
+/// FBE-2: the kinds are the registry's and every kind in the table, a kind
+/// with only terminal jobs included (spec 15), now read by a loose index scan
+/// instead of `SELECT DISTINCT` over the whole table.
+#[test]
+fn carry_fbe2_signals_list_every_kind_of_the_registry_or_the_table() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    assert!(signal_kinds(c, &PRODUCTION_REGISTRY).is_empty());
+    let a = create(c, new_job(TEST_EFFECT, "kinds-terminal", &[&key(NS_CS)]));
+    assert_applied(&do_cancel(c, a.async_job_id), "CANCELLED");
+    create(c, new_job(TEST_VERSIONED, "kinds-pending", &[&key(NS_CS)]));
+    create(c, new_job(TEST_READ, "kinds-read", &[&key(NS_READ)]));
+    create(c, new_job(TEST_READ, "kinds-read-2", &[&key(NS_READ)]));
+    let unknown = |kind: &str| (kind.to_string(), false);
+    assert_eq!(
+        signal_kinds(c, &PRODUCTION_REGISTRY),
+        vec![
+            unknown(TEST_EFFECT),
+            unknown(TEST_READ),
+            unknown(TEST_VERSIONED)
+        ]
+    );
+    assert_eq!(
+        signal_kinds(c, &NARROW_REGISTRY),
+        vec![
+            unknown(TEST_EFFECT),
+            (TEST_READ.to_string(), true),
+            unknown(TEST_VERSIONED)
+        ]
+    );
+    // The full registry: each of its kinds once, all known.
+    let all = signal_kinds(c, &REGISTRY);
+    assert_eq!(all.len(), REGISTRY.policies().len());
+    assert!(all.iter().all(|(_, known)| *known));
+    // The loose index scan finds what a full scan finds.
+    let distinct = text(
+        c,
+        "SELECT string_agg(kind, ',' ORDER BY kind COLLATE \"C\") AS value \
+           FROM (SELECT DISTINCT kind FROM public.async_job) k",
+    );
+    let listed: Vec<String> = signal_kinds(c, &PRODUCTION_REGISTRY)
+        .into_iter()
+        .map(|(kind, _)| kind)
+        .collect();
+    assert_eq!(Some(listed.join(",")), distinct);
+}
+
+/// FBE-2: accepted regressions are counted exactly and listed up to
+/// `REGRESSED_LIST_LIMIT` per kind, ascending by target key; the count and the
+/// list follow an ordinary write that clears one.
+#[test]
+fn carry_fbe2_regressed_targets_are_counted_exactly_and_listed_up_to_the_bound() {
+    let (_guard, mut conn) = setup();
+    let c = &mut conn;
+    let limit = signals::REGRESSED_LIST_LIMIT;
+    let total = limit + 1;
+    for i in 0..total {
+        // `regressed_job` with a fresh job id each time.
+        let k = key(NS_RB);
+        seed_rb_state(c, &k, 9, "h9");
+        let (a, claim) = started(c, revision_job(&format!("bound-{i}"), &k, 4, "h4"));
+        let outcome = do_complete(
+            c,
+            &claim,
+            completion(
+                CompletionOutcome::EffectApplied,
+                vec![rb_entry(&k, 4, "h4")],
+            ),
+        )
+        .unwrap();
+        assert!(matches!(
+            outcome,
+            CompleteOutcome::ReconciliationRequired(_)
+        ));
+        let result = do_staff(
+            c,
+            a.async_job_id,
+            staff_evidence(StaffOutcome::AcceptRegression, &applied_evidence(4)),
+        );
+        assert_applied(&result, "REGRESSION_ACCEPTED");
+    }
+    // The first `n` regressed keys in the database's own order.
+    let first_keys = |c: &mut PgConnection, n: i64| {
+        text(
+            c,
+            &format!(
+                "SELECT string_agg(target_key, ',' ORDER BY target_key) AS value FROM ( \
+                    SELECT target_key FROM public.async_effect_target_state \
+                     WHERE regressed_at IS NOT NULL ORDER BY target_key LIMIT {n}) k"
+            ),
+        )
+        .expect("regressed keys")
+    };
+    let listed = |signal: &KindSignals| {
+        signal
+            .regressed_targets
+            .iter()
+            .map(|target| target.target_key.as_str())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let v = signals_of(c, TEST_REVISION);
+    assert_eq!(v.regressed_target_count, total);
+    assert_eq!(v.regressed_targets.len() as i64, limit);
+    assert_eq!(listed(&v), first_keys(c, limit));
+    assert!(v.regressed_targets.iter().all(|target| (
+        target.applied_order,
+        target.regressed_from_order,
+        target.regressed_from_fingerprint.as_deref()
+    ) == (Some(4), Some(9), Some("h9"))));
+    let other = signals_of(c, TEST_EFFECT);
+    assert_eq!(other.regressed_target_count, 0);
+    assert!(other.regressed_targets.is_empty());
+    // An ordinary write above the pre-acceptance revision clears the first
+    // listed target: the count drops by one and the list stays full.
+    let cleared = v.regressed_targets[0].target_key.clone();
+    let (_b, claim) = started(c, revision_job("newer", &cleared, 10, "h10"));
+    do_complete(
+        c,
+        &claim,
+        completion(
+            CompletionOutcome::EffectApplied,
+            vec![rb_entry(&cleared, 10, "h10")],
+        ),
+    )
+    .unwrap();
+    let v = signals_of(c, TEST_REVISION);
+    assert_eq!(v.regressed_target_count, total - 1);
+    assert_eq!(v.regressed_targets.len() as i64, limit);
+    assert_eq!(listed(&v), first_keys(c, limit));
+    assert!(!listed(&v).contains(cleared.as_str()));
 }
 
 // ---------------------------------------------------------------------------
