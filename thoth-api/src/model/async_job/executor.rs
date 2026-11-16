@@ -207,8 +207,8 @@ pub const OMITTED_REQUEST_BODY: &str = "[async job operation body omitted]";
 /// The body is decoded into [`GraphQLRequest`], the type the `/graphql`
 /// handler deserializes, so every body shape the handler accepts (a
 /// positional JSON array included) is matched on the query text the server
-/// would execute, and a JSON escape such as `claimAsyncJobs` cannot
-/// hide a field name. GraphQL names have no escape syntax, so aliases and
+/// would execute, and a JSON unicode escape inside a field name cannot hide
+/// it. GraphQL names have no escape syntax, so aliases and
 /// fragments still contain the field name. A body that type cannot decode is
 /// refused by the handler and runs no operation; it is omitted when its raw
 /// text contains the marker, so a malformed body around a live claim token is
