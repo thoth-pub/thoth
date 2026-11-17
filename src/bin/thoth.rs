@@ -13,7 +13,8 @@ lazy_static::lazy_static! {
         .subcommand(commands::INIT.clone())
         .subcommand(commands::cache::COMMAND.clone())
         .subcommand(commands::zitadel::COMMAND.clone())
-        .subcommand(commands::publisher_services::COMMAND.clone());
+        .subcommand(commands::publisher_services::COMMAND.clone())
+        .subcommand(commands::worker::COMMAND.clone());
 }
 
 fn main() -> thoth::errors::ThothResult<()> {
@@ -24,6 +25,9 @@ fn main() -> thoth::errors::ThothResult<()> {
         Some(("start", start_arguments)) => match start_arguments.subcommand() {
             Some(("graphql-api", arguments)) => commands::start::graphql_api(arguments),
             Some(("export-api", arguments)) => commands::start::export_api(arguments),
+            // The worker's run function answers its exit code; this entry
+            // point is the only caller of `std::process::exit`.
+            Some(("worker", arguments)) => std::process::exit(commands::start::worker(arguments)),
             _ => unreachable!(),
         },
         Some(("migrate", arguments)) => commands::migrate(arguments),
@@ -37,6 +41,10 @@ fn main() -> thoth::errors::ThothResult<()> {
         },
         Some(("zitadel", arguments)) => match arguments.subcommand() {
             Some(("setup", _)) => commands::zitadel::setup(arguments),
+            _ => unreachable!(),
+        },
+        Some(("worker", arguments)) => match arguments.subcommand() {
+            Some(("health", arguments)) => std::process::exit(commands::worker::health(arguments)),
             _ => unreachable!(),
         },
         Some(("publisher-services", arguments)) => match arguments.subcommand() {
@@ -1018,5 +1026,227 @@ mod metric_widget_control {
             assert_eq!(arg.get_env().and_then(|value| value.to_str()), Some(env));
             assert_eq!(arg.get_default_values(), ["OFF"]);
         }
+    }
+}
+
+/// THOTH-ASYNC-01-WORKER-01 W26: the `thoth start worker` and `thoth worker
+/// health` command surfaces.
+#[cfg(test)]
+mod worker_command {
+    use super::*;
+    use std::env::{remove_var, set_var, var_os};
+    use std::ffi::OsString;
+
+    const DATABASE_ENV: &str = "DATABASE_URL";
+    const SENTINEL: &str = "postgres://w26-sentinel-user:w26-sentinel-secret@w26-sentinel-host/db";
+
+    /// `DATABASE_URL` set to the sentinel; the previous value comes back on
+    /// drop. Only built while the shared environment lock is held.
+    struct DatabaseEnv {
+        previous: Option<OsString>,
+    }
+
+    impl DatabaseEnv {
+        fn set(value: &str) -> DatabaseEnv {
+            let previous = var_os(DATABASE_ENV);
+            set_var(DATABASE_ENV, value);
+            DatabaseEnv { previous }
+        }
+    }
+
+    impl Drop for DatabaseEnv {
+        fn drop(&mut self) {
+            match self.previous.take() {
+                Some(previous) => set_var(DATABASE_ENV, previous),
+                None => remove_var(DATABASE_ENV),
+            }
+        }
+    }
+
+    fn subcommand<'a>(parent: &'a clap::Command, name: &str) -> &'a clap::Command {
+        parent
+            .get_subcommands()
+            .find(|command| command.get_name() == name)
+            .unwrap_or_else(|| panic!("subcommand {name}"))
+    }
+
+    fn argument_ids(command: &clap::Command) -> Vec<String> {
+        let mut ids: Vec<String> = command
+            .get_arguments()
+            .map(|arg| arg.get_id().to_string())
+            .filter(|id| id != "help" && id != "version")
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    fn env_of(command: &clap::Command, id: &str) -> Option<String> {
+        command
+            .get_arguments()
+            .find(|arg| arg.get_id() == id)
+            .and_then(|arg| arg.get_env())
+            .map(|env| env.to_string_lossy().into_owned())
+    }
+
+    fn default_of(command: &clap::Command, id: &str) -> Vec<String> {
+        command
+            .get_arguments()
+            .find(|arg| arg.get_id() == id)
+            .map(|arg| {
+                arg.get_default_values()
+                    .iter()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn start_worker_has_exactly_the_section_4_arguments() {
+        let _lock = super::test_env_lock::hold();
+        let worker = subcommand(subcommand(&THOTH, "start"), "worker");
+        let mut expected = vec![
+            "db",
+            "worker-name",
+            "kinds",
+            "capabilities",
+            "slots",
+            "poll-seconds",
+            "shutdown-grace-seconds",
+            "liveness-file",
+        ];
+        expected.sort();
+        assert_eq!(argument_ids(worker), expected);
+        for arg in worker.get_arguments() {
+            let id = arg.get_id().as_str();
+            assert!(!id.starts_with("aws"), "{id}");
+            assert_ne!(id, "key");
+        }
+        for (id, env, default) in [
+            ("db", DATABASE_ENV, None),
+            ("worker-name", "ASYNC_WORKER_NAME", Some("thoth-worker")),
+            ("kinds", "ASYNC_WORKER_KINDS", Some("")),
+            ("capabilities", "ASYNC_WORKER_CAPABILITIES", Some("")),
+            ("slots", "ASYNC_WORKER_SLOTS", Some("4")),
+            ("poll-seconds", "ASYNC_WORKER_POLL_SECONDS", Some("5")),
+            (
+                "shutdown-grace-seconds",
+                "ASYNC_WORKER_SHUTDOWN_GRACE_SECONDS",
+                Some("20"),
+            ),
+            (
+                "liveness-file",
+                "ASYNC_WORKER_LIVENESS_FILE",
+                Some("/tmp/thoth-worker-liveness"),
+            ),
+        ] {
+            assert_eq!(env_of(worker, id).as_deref(), Some(env), "{id}");
+            let defaults = default_of(worker, id);
+            assert_eq!(defaults.first().map(String::as_str), default, "{id}");
+            let arg = worker
+                .get_arguments()
+                .find(|arg| arg.get_id() == id)
+                .expect("argument");
+            assert_eq!(
+                arg.get_long(),
+                Some(if id == "db" { "database-url" } else { id })
+            );
+        }
+        let db = worker
+            .get_arguments()
+            .find(|arg| arg.get_id() == "db")
+            .expect("db");
+        assert!(db.is_hide_env_values_set());
+    }
+
+    #[test]
+    fn start_worker_help_never_prints_the_database_url() {
+        let _lock = super::test_env_lock::hold();
+        let _env = DatabaseEnv::set(SENTINEL);
+        // Built after the variable is set, because clap reads an argument's
+        // environment value when the argument is constructed.
+        let help = commands::start::worker_command()
+            .render_long_help()
+            .to_string();
+        assert!(help.contains("DATABASE_URL"));
+        assert!(!help.contains("w26-sentinel"), "{help}");
+        // Control: the shared argument without the call-site setting would
+        // print it, so the check above can fail.
+        let control = clap::Command::new("control")
+            .arg(arguments::database())
+            .render_long_help()
+            .to_string();
+        assert!(control.contains("w26-sentinel"));
+    }
+
+    #[test]
+    fn the_shared_database_argument_is_unchanged_for_the_other_commands() {
+        let _lock = super::test_env_lock::hold();
+        let shared = arguments::database();
+        assert!(!shared.is_hide_env_values_set());
+        assert_eq!(shared.get_long(), Some("database-url"));
+        assert_eq!(shared.get_short(), Some('D'));
+        assert_eq!(
+            shared
+                .get_env()
+                .map(|env| env.to_string_lossy().into_owned()),
+            Some(DATABASE_ENV.to_string())
+        );
+        let start = subcommand(&THOTH, "start");
+        for command in [
+            subcommand(start, "graphql-api"),
+            &*commands::INIT,
+            &*commands::MIGRATE,
+        ] {
+            let db = command
+                .get_arguments()
+                .find(|arg| arg.get_id() == "db")
+                .expect("db");
+            assert!(!db.is_hide_env_values_set(), "{}", command.get_name());
+            assert_eq!(db.get_env(), shared.get_env());
+        }
+    }
+
+    #[test]
+    fn worker_health_has_its_two_arguments() {
+        let _lock = super::test_env_lock::hold();
+        let health = subcommand(subcommand(&THOTH, "worker"), "health");
+        assert_eq!(
+            argument_ids(health),
+            vec!["liveness-file".to_string(), "max-age-seconds".to_string()]
+        );
+        assert_eq!(
+            env_of(health, "liveness-file").as_deref(),
+            Some("ASYNC_WORKER_LIVENESS_FILE")
+        );
+        assert_eq!(
+            env_of(health, "max-age-seconds").as_deref(),
+            Some("ASYNC_WORKER_HEALTH_MAX_AGE_SECONDS")
+        );
+        assert_eq!(default_of(health, "max-age-seconds"), vec!["60"]);
+        assert_eq!(
+            default_of(health, "liveness-file"),
+            vec!["/tmp/thoth-worker-liveness"]
+        );
+    }
+
+    #[test]
+    fn worker_health_answers_1_for_a_missing_liveness_file() {
+        let _lock = super::test_env_lock::hold();
+        let matches = THOTH
+            .clone()
+            .try_get_matches_from([
+                "thoth",
+                "worker",
+                "health",
+                "--liveness-file",
+                "/nonexistent-w26-dir/liveness",
+                "--max-age-seconds",
+                "60",
+            ])
+            .expect("parse");
+        let (_, worker) = matches.subcommand().expect("worker");
+        let (_, health) = worker.subcommand().expect("health");
+        assert_eq!(commands::worker::health(health), 1);
     }
 }

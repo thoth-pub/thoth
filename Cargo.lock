@@ -5048,6 +5048,7 @@ dependencies = [
  "diesel-derive-newtype",
  "diesel_migrations",
  "dotenv",
+ "env_logger",
  "fs2",
  "futures",
  "hex",
