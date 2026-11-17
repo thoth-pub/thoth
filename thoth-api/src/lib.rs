@@ -1,4 +1,6 @@
 #[cfg(feature = "backend")]
+pub mod async_worker;
+#[cfg(feature = "backend")]
 pub mod db;
 #[cfg(feature = "backend")]
 pub mod graphql;
