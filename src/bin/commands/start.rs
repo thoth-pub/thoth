@@ -3,6 +3,7 @@ use clap::{ArgMatches, Command};
 use lazy_static::lazy_static;
 use thoth::{
     api::{
+        async_worker::{launch, WorkerArgs},
         graphql::MutationGuardMode,
         model::{distribution_job::DistributionJobCreation, metric_widget::MetricWidgetSwitch},
     },
@@ -44,7 +45,25 @@ lazy_static! {
                 .arg(arguments::keep_alive("EXPORT_API_KEEP_ALIVE"))
                 .arg(arguments::export_url())
                 .arg(arguments::gql_endpoint()),
-        );
+        )
+        .subcommand(worker_command());
+}
+
+/// `thoth start worker` (THOTH-ASYNC-01-WORKER-01, section 4). The database
+/// argument is the shared one with its value hidden from `--help`; the
+/// worker takes no AWS or key argument (its AWS authority is the ECS task
+/// role).
+pub(crate) fn worker_command() -> Command {
+    Command::new("worker")
+        .about("Start the trusted in-process async job worker (idle while no kind is listed)")
+        .arg(arguments::database().hide_env_values(true))
+        .arg(arguments::worker_name())
+        .arg(arguments::worker_kinds())
+        .arg(arguments::worker_capabilities())
+        .arg(arguments::worker_slots())
+        .arg(arguments::worker_poll_seconds())
+        .arg(arguments::worker_shutdown_grace_seconds())
+        .arg(arguments::worker_liveness_file())
 }
 
 /// Resolve the effective mutation-guard mode from parsed arguments.
@@ -171,4 +190,70 @@ pub fn export_api(arguments: &ArgMatches) -> ThothResult<()> {
         gql_endpoint,
     )
     .map_err(|e| e.into())
+}
+
+/// Run the worker until it exits, answering its exit code. The binary's
+/// entry point is the only caller of `std::process::exit` (section 6.8 step
+/// 7). The first `SIGTERM` or `SIGINT` requests shutdown and a second one
+/// ends the grace phase; the signal listener runs on its own small runtime
+/// thread, so the worker's own threads stay plain threads.
+pub fn worker(arguments: &ArgMatches) -> i32 {
+    let text = |name: &str| {
+        arguments
+            .get_one::<String>(name)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let args = WorkerArgs {
+        database_url: arguments.get_one::<String>("db").cloned(),
+        worker_name: text("worker-name"),
+        kinds: text("kinds"),
+        capabilities: text("capabilities"),
+        slots: text("slots"),
+        poll_seconds: text("poll-seconds"),
+        shutdown_grace_seconds: text("shutdown-grace-seconds"),
+        liveness_file: text("liveness-file"),
+    };
+    let process = match launch(args) {
+        Ok(process) => process,
+        Err(code) => return code,
+    };
+    let handle = process.handle();
+    let spawned = std::thread::Builder::new()
+        .name("async-worker-signals".to_string())
+        .spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_current_thread()
+                .enable_io()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(_) => {
+                    handle.signal_setup_failed();
+                    return;
+                }
+            };
+            runtime.block_on(async move {
+                use tokio::signal::unix::{signal, SignalKind};
+                let (mut terminate, mut interrupt) = match (
+                    signal(SignalKind::terminate()),
+                    signal(SignalKind::interrupt()),
+                ) {
+                    (Ok(terminate), Ok(interrupt)) => (terminate, interrupt),
+                    _ => {
+                        handle.signal_setup_failed();
+                        return;
+                    }
+                };
+                loop {
+                    tokio::select! {
+                        _ = terminate.recv() => handle.request_shutdown(),
+                        _ = interrupt.recv() => handle.request_shutdown(),
+                    }
+                }
+            });
+        });
+    if spawned.is_err() {
+        process.handle().signal_setup_failed();
+    }
+    process.run()
 }
