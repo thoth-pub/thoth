@@ -473,7 +473,15 @@ impl ClaimHandle<'_> {
                     return match renewed {
                         Ok(renewal) => {
                             self.store(before, &renewal);
-                            self.after_effect_mark()
+                            self.after_effect_mark()?;
+                            // `renew_on` caps the lease at the runtime
+                            // deadline: after long retries the renewal can
+                            // leave less than the window, as a post-effect
+                            // `confirm_claim` checks too.
+                            if self.remaining_runtime() < self.window() {
+                                return Err(HandlerError::EffectWindowInsufficient);
+                            }
+                            Ok(())
                         }
                         Err(error) => Err(self.note_error(&error)),
                     };
@@ -488,7 +496,17 @@ impl ClaimHandle<'_> {
                     self.rt.mark_expired(self.state);
                     return Err(HandlerError::LeaseExpired);
                 }
-                Err(error) => return Err(self.note_error(&error)),
+                Err(error) => {
+                    // After an unknown try, only a proven answer moves the
+                    // phase. `EFFECT_WINDOW_INSUFFICIENT` is one (the engine
+                    // checks the phase first, so T4 never committed); any
+                    // other error leaves the earlier try's outcome unknown.
+                    if unknown && !matches!(error, ThothError::AsyncJobEffectWindowInsufficient) {
+                        self.set_phase(TrackedPhase::PossiblyStarted);
+                        self.mark_shutdown_after_effect_mark();
+                    }
+                    return Err(self.note_error(&error));
+                }
             }
         }
     }

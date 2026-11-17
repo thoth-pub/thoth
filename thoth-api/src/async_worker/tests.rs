@@ -714,7 +714,10 @@ fn w6_success_read_only_and_effectful() {
     let attempt = last_execution(&mut conn, effect.async_job_id);
     assert_eq!(row.effect_phase, AsyncEffectPhase::EffectStarted);
     let started_at = attempt.effect_started_at.expect("effect_started_at");
-    assert!(attempt.last_heartbeat_at >= attempt.started_at);
+    assert!(
+        attempt.last_heartbeat_at > attempt.started_at,
+        "the paired renew_on ran"
+    );
     let lease = row.lease_expires_at.unwrap();
     assert!(
         seconds(lease - started_at) >= 30,
@@ -888,7 +891,7 @@ fn w8_wait_then_resume_with_checkpoint_and_confirm_claim() {
     // resume_at = clock + poll_min + margin, the clock read in the wait's
     // transaction just before the attempt closed.
     let delay = (waiting.available_at - attempt.finished_at.unwrap()).num_milliseconds();
-    assert!((14_000..=20_000).contains(&delay), "{delay} ms");
+    assert!((14_000..=15_000).contains(&delay), "{delay} ms");
     make_available(&mut conn, id);
     assert!(wait_status(&mut conn, id, "SUCCEEDED"));
     assert_eq!(worker.stop(), 0);
@@ -2230,7 +2233,7 @@ fn w19_reconciliation_outcomes_and_effect_settled_at() {
     // The clock was read in the same transaction, just before the attempt
     // closed.
     let delay = (row.available_at - closed).num_milliseconds();
-    assert!((14_000..=20_000).contains(&delay), "{delay} ms");
+    assert!((14_000..=15_000).contains(&delay), "{delay} ms");
     // Carry FBW4-1: capped at the waiting deadline.
     let row = job(&mut conn, capped);
     assert_eq!(Some(row.available_at), row.waiting_deadline);
@@ -2423,7 +2426,7 @@ fn w20_fault_fallback_and_wait_resume_at() {
     // resume_at = clock + max(0, poll_interval_min_seconds 5 + 10); the
     // attempt closed in the same transaction, just after the clock read.
     let delay = (row.available_at - closed).num_milliseconds();
-    assert!((14_000..=20_000).contains(&delay), "{delay} ms");
+    assert!((14_000..=15_000).contains(&delay), "{delay} ms");
     assert!(row.available_at <= row.waiting_deadline.unwrap());
 
     // resume_after past the waiting deadline is capped to it.
@@ -2433,13 +2436,23 @@ fn w20_fault_fallback_and_wait_resume_at() {
     assert_eq!(Some(row.available_at), row.waiting_deadline);
 
     // A deadline closer than poll_min + margin: WAIT_DEADLINE_TOO_CLOSE.
+    let shared = Arc::clone(worker.shared());
+    let failures = || shared.counters.failures.load(Ordering::Relaxed);
+    assert_eq!(failures(), 0, "no handler Fail in this test");
     due_later(&mut conn, close, 8);
     assert_eq!(status(&mut conn, close), "RETRY_SCHEDULED");
     assert_eq!(
         last_execution(&mut conn, close).error_code.as_deref(),
         Some("WAIT_DEADLINE_TOO_CLOSE")
     );
+    assert!(
+        wait_for(|| failures() >= 1),
+        "a wait turned into fail_on is counted as a failure"
+    );
     assert_eq!(worker.stop(), 0);
+    // The two fault fallbacks have their own counter.
+    assert_eq!(shared.counters.fault_fallbacks.load(Ordering::Relaxed), 2);
+    assert_eq!(shared.counters.action_fallbacks.load(Ordering::Relaxed), 0);
 }
 
 /// Make a job waited once through the engine due now, with its waiting
@@ -2458,24 +2471,47 @@ fn due_later(conn: &mut PgConnection, id: Uuid, deadline_seconds: i64) {
 
 #[test]
 fn w20_runtime_thread_panic_exits_1_and_withholds_liveness() {
-    let (_guard, _conn) = setup();
+    let (_guard, mut conn) = setup();
+    // A handler held in flight keeps the runtime in its grace phase after
+    // the panic, so the ticker runs with the panic recorded.
+    let entered = Flag::new();
+    let release = Flag::new();
+    let flags = (Arc::clone(&entered), Arc::clone(&release));
+    let execute = exec_fn(move |job, _ctx| {
+        flags.0.set();
+        flags.1.wait();
+        complete(job)
+    });
     let hooks = Arc::new(TestHooks::default());
-    let worker = start_hooked(
+    let mut worker = start_hooked(
         &[W_READ],
         1,
-        effectful(),
+        execute,
         still_required(),
         no_tweak,
         Arc::clone(&hooks),
     );
-    assert!(wait_for(|| hooks.calls(Op::Claim) >= 1));
+    let id = mode_job(&mut conn, W_READ, "held").async_job_id;
+    assert!(entered.wait());
+    let in_flight_lines = || logger().containing("claim call was still in flight").len();
+    let before = in_flight_lines();
     hooks.inject_claim_loop_panic();
-    let mut worker = worker;
     assert!(wait_for(|| hooks
         .liveness()
         .contains(&Some("RUNTIME_THREAD_PANICKED"))));
+    release.set();
     assert_eq!(worker.wait_code(), 1);
     worker.join_threads();
+    assert_eq!(
+        status(&mut conn, id),
+        "SUCCEEDED",
+        "the held handler finished"
+    );
+    assert_eq!(
+        in_flight_lines(),
+        before,
+        "a panicked claim loop counts as exited: no wait for the join bound"
+    );
 }
 
 #[test]
@@ -2799,6 +2835,29 @@ fn w22_effect_marks_with_unknown_outcomes() {
         four(Fault::busy_after_commit),
         "RECONCILIATION_REQUIRED",
     );
+    // A retry after an unknown try that answers neither busy nor a proven
+    // outcome: the earlier try may have committed.
+    let g = run(
+        "g",
+        Op::EffectStart,
+        vec![Fault::busy_after_commit(), Fault::integrity()],
+        "RECONCILIATION_REQUIRED",
+    );
+    // The extra renewal after PHASE leaves less than the window before the
+    // runtime deadline.
+    let shared = Arc::clone(worker.shared());
+    hooks.push_faults(
+        Op::ExtraRenew,
+        vec![Fault::pass_then(move || {
+            shared.set_remaining(Duration::from_secs(10))
+        })],
+    );
+    let h = run(
+        "h",
+        Op::EffectStart,
+        vec![Fault::busy_after_commit()],
+        "RECONCILIATION_REQUIRED",
+    );
     assert_eq!(worker.stop(), 0);
 
     assert_eq!(
@@ -2811,6 +2870,8 @@ fn w22_effect_marks_with_unknown_outcomes() {
             "t5-b Ok(()) Ok(()) EffectConfirmed",
             "t5-c Ok(()) Ok(()) EffectConfirmed",
             "t5-d Ok(()) Err(Busy) EffectStarted",
+            "g Err(Failed(\"ASYNC_JOB_INTEGRITY_VIOLATION\")) PossiblyStarted",
+            "h Err(EffectWindowInsufficient) EffectStarted",
         ]
     );
     for id in [b, c] {
@@ -2833,6 +2894,12 @@ fn w22_effect_marks_with_unknown_outcomes() {
         assert!(last_execution(&mut conn, id).effect_confirmed_at.is_some());
     }
     assert!(last_execution(&mut conn, t5d).effect_confirmed_at.is_some());
+    for id in [g, h] {
+        assert!(
+            last_execution(&mut conn, id).effect_started_at.is_some(),
+            "T4 committed on the first try"
+        );
+    }
 }
 
 /// W22 (f): the stop signal during the retries, and during a successful T4.
@@ -2851,7 +2918,6 @@ fn w22f_signal_during_effect_mark_never_answers_ok() {
             fail(FailureClass::Indeterminate, "FENCE_REFUSED")
         });
         let hooks = Arc::new(TestHooks::default());
-        let id = mode_job(&mut conn, W_EFFECT, case).async_job_id;
         let mut worker = start_hooked(
             &[W_EFFECT],
             1,
@@ -2866,7 +2932,9 @@ fn w22f_signal_during_effect_mark_never_answers_ok() {
         } else {
             Fault::pass_then(move || handle.request_shutdown())
         };
+        // The fault is in place before the job exists.
         hooks.push_faults(Op::EffectStart, vec![fault]);
+        let id = mode_job(&mut conn, W_EFFECT, case).async_job_id;
         assert_eq!(worker.wait_code(), 0);
         worker.join_threads();
         assert_eq!(
@@ -2983,6 +3051,10 @@ fn w24_health_function() {
     assert!(is_healthy(&path, 60, now), "fresh");
     assert!(is_healthy(&path, 60, now + 60));
     assert!(!is_healthy(&path, 60, now + 61), "stale");
+    assert!(
+        !is_healthy(&path, 60, now - 1),
+        "a time later than now (the clock stepped back)"
+    );
     std::fs::write(&path, "not a number").unwrap();
     assert!(!is_healthy(&path, 60, now), "unparseable");
     std::fs::remove_file(&path).unwrap();

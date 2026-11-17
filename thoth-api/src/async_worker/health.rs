@@ -58,12 +58,17 @@ pub fn write_liveness(path: &Path, unix_seconds: u64) -> io::Result<()> {
     fs::rename(&temporary, path)
 }
 
-/// True when the file exists, parses and is at most `max_age_seconds` old
-/// at `now_unix`.
+/// True when the file exists, parses, is not later than `now_unix` and is
+/// at most `max_age_seconds` old at `now_unix`. A time in the future (for
+/// example after the clock stepped back) is unhealthy, so a stalled ticker
+/// cannot stay healthy until the clock catches up; a running ticker
+/// rewrites the file within one period.
 pub fn is_healthy(path: &Path, max_age_seconds: u64, now_unix: u64) -> bool {
     match fs::read_to_string(path) {
         Ok(text) => match parse_liveness_text(&text) {
-            Some(written) => now_unix.saturating_sub(written) <= max_age_seconds,
+            Some(written) => {
+                written <= now_unix && now_unix.saturating_sub(written) <= max_age_seconds
+            }
             None => false,
         },
         Err(_) => false,

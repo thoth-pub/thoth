@@ -407,6 +407,7 @@ pub(crate) struct Counters {
     pub expired_leases: AtomicU64,
     pub busy: AtomicU64,
     pub action_fallbacks: AtomicU64,
+    pub fault_fallbacks: AtomicU64,
     pub shutdown_fallbacks: AtomicU64,
     pub stalled_ticks: AtomicU64,
 }
@@ -902,7 +903,13 @@ impl Shared {
         if at > status.last_renewal {
             status.last_renewal = at;
         }
-        status.lease_expires_at = expiry;
+        // Renewals commit in renewal-lock order but are stored after the
+        // lock drops, so an older answer can arrive last. The request only
+        // grows and the deadline is fixed, so the latest expiry is the
+        // largest.
+        if expiry > status.lease_expires_at {
+            status.lease_expires_at = expiry;
+        }
     }
 
     pub(crate) fn idle_slot_count(&self) -> usize {
@@ -990,8 +997,8 @@ impl Shared {
             "async worker: summary: in-flight {in_flight}, idle slots {}, hung slots {}; since \
              start: claims {}, successes {}, failures {}, waits {}, releases {}, unrun {}, \
              reconciliation resolutions {}, lost claims {}, expired leases {}, busy answers {}, \
-             action fallbacks {}, shutdown fallbacks {}, claim ticks stopped by heartbeat or \
-             renewal health {}; last successful claim call {last_claim}",
+             action fallbacks {}, fault fallbacks {}, shutdown fallbacks {}, claim ticks stopped by \
+             heartbeat or renewal health {}; last successful claim call {last_claim}",
             self.idle_slot_count(),
             self.hung_durations().len(),
             read(&c.claims),
@@ -1005,6 +1012,7 @@ impl Shared {
             read(&c.expired_leases),
             read(&c.busy),
             read(&c.action_fallbacks),
+            read(&c.fault_fallbacks),
             read(&c.shutdown_fallbacks),
             read(&c.stalled_ticks),
         )

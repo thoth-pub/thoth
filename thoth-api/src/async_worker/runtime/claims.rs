@@ -147,6 +147,7 @@ pub fn compute_claim_sets(
 /// Idle mode (spec section 6.2 step 6): record progress every poll interval
 /// and make no database call.
 pub(crate) fn idle_loop(rt: &Arc<Shared>) {
+    let _exit = LoopExit(rt);
     loop {
         rt.record_loop();
         if rt.stopping() || rt.hard_stopped() {
@@ -154,11 +155,21 @@ pub(crate) fn idle_loop(rt: &Arc<Shared>) {
         }
         rt.sleep_unless_stopped(rt.timings.poll);
     }
-    rt.events.update(|state| state.loop_exited = true);
+}
+
+/// Sets `loop_exited` when the loop ends, by return or by panic, so the
+/// shutdown never waits the join bound for a loop that is gone.
+struct LoopExit<'a>(&'a Shared);
+
+impl Drop for LoopExit<'_> {
+    fn drop(&mut self) {
+        self.0.events.update(|state| state.loop_exited = true);
+    }
 }
 
 /// The claim loop (spec section 6.3).
 pub(crate) fn claim_loop(rt: &Arc<Shared>) {
+    let _exit = LoopExit(rt);
     let mut first = Purpose::Execution;
     let mut backoff: Option<Duration> = None;
     let mut last_recover: Option<Instant> = None;
@@ -276,7 +287,6 @@ pub(crate) fn claim_loop(rt: &Arc<Shared>) {
         rt.sleep_unless_stopped(delay);
         rt.record_loop();
     }
-    rt.events.update(|state| state.loop_exited = true);
 }
 
 /// Step 3: the heartbeat thread is not cycling, or claims are in flight and

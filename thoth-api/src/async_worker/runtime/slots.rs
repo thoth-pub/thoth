@@ -26,6 +26,10 @@ use crate::model::async_job::{
     ResolveReconciliation, WaitOutcome, WaitRequest,
 };
 
+/// The code of a handler `Wait` whose waiting deadline is too close for any
+/// valid `resume_at`; the runtime fails the attempt instead.
+const WAIT_DEADLINE_TOO_CLOSE: &str = "WAIT_DEADLINE_TOO_CLOSE";
+
 /// A claimed job handed to a slot thread.
 pub(crate) struct Assignment {
     pub state: Arc<ClaimState>,
@@ -294,6 +298,10 @@ fn finish_execution(
             bump(match action {
                 ExecutionAction::Complete(_) => &counters.successes,
                 ExecutionAction::Fail(_) => &counters.failures,
+                // A wait whose deadline was too close became a `fail_on`.
+                ExecutionAction::Wait(_) if outcome.starts_with(WAIT_DEADLINE_TOO_CLOSE) => {
+                    &counters.failures
+                }
                 ExecutionAction::Wait(_) => &counters.waits,
                 ExecutionAction::Release => &counters.releases,
             });
@@ -326,9 +334,9 @@ fn wait_in_transaction(
                 conn,
                 rt.registry,
                 &state.claim,
-                fallback_request(FailureClass::Indeterminate, "WAIT_DEADLINE_TOO_CLOSE"),
+                fallback_request(FailureClass::Indeterminate, WAIT_DEADLINE_TOO_CLOSE),
             )
-            .map(|job| format!("WAIT_DEADLINE_TOO_CLOSE -> {}", job.status.as_str()));
+            .map(|job| format!("{WAIT_DEADLINE_TOO_CLOSE} -> {}", job.status.as_str()));
         }
     };
     let request = WaitRequest {
@@ -521,7 +529,7 @@ fn fault_fallback(rt: &Shared, state: &ClaimState, error: &ThothError, started: 
         state.job_id,
         log_code(error)
     );
-    bump(&rt.counters.action_fallbacks);
+    bump(&rt.counters.fault_fallbacks);
     let plan = match state.purpose {
         Purpose::Execution => Some((FailureClass::Indeterminate, "WORKER_ENGINE_FAULT")),
         Purpose::Reconciliation => None,
@@ -693,14 +701,21 @@ pub(crate) fn apply_unrun(rt: &Shared, state: &ClaimState) {
     let started = Instant::now();
     mark_returned(state);
     bump(&rt.counters.unrun);
+    // The unrun rule runs on the claim-loop thread: record loop progress
+    // before and after each call (spec section 6.3 step 7).
     let with_retries = |f: &mut dyn FnMut(&mut PgConnection) -> ThothResult<String>| {
-        rt.engine_call_with_retries(Op::Unrun, f).0
+        rt.record_loop();
+        let result = rt.engine_call_with_retries(Op::Unrun, f).0;
+        rt.record_loop();
+        result
     };
     let mut result = Step::Failed(ThothError::AsyncJobBusy);
     let mut decided = false;
     if state.purpose == Purpose::Execution {
+        rt.record_loop();
         let (waited, _) =
             rt.engine_call_with_retries(Op::Unrun, |conn| guarded_wait(conn, rt, state));
+        rt.record_loop();
         match waited {
             Ok(Guarded::Waited(outcome)) => {
                 result = Step::Done(outcome);
