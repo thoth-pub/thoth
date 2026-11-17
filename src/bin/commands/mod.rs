@@ -12,6 +12,7 @@ use thoth::{
 pub(super) mod cache;
 pub(super) mod publisher_services;
 pub(super) mod start;
+pub(super) mod worker;
 pub(super) mod zitadel;
 
 lazy_static! {

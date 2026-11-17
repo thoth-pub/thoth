@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
   - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine (its tables and core, and a protected GraphQL API with executor operations for `DISSEMINATION_WORKER` and superuser commands and reads), inert until a job kind is registered, and leave async job request bodies out of the access log
+  - [1039](https://github.com/thoth-pub/thoth/issues/1039) - Add `thoth start worker`, the in-process async job worker, and `thoth worker health`; the worker ships inert: with no kind listed in `ASYNC_WORKER_KINDS` (the default) it stays idle and opens no database connection
 
 ### Changed
   - [1029](https://github.com/thoth-pub/thoth/pull/1029) - Merge institutions that share a ROR ID into one, moving their links and history to the survivor, and make the ROR ID unique; see `thoth-api/ops/ror-sync-01b/README.md` before upgrading

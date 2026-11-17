@@ -247,3 +247,87 @@ pub fn aws_region() -> Arg {
         .help("AWS region for S3/CloudFront")
         .num_args(1)
 }
+
+// The `thoth start worker` and `thoth worker health` arguments
+// (THOTH-ASYNC-01-WORKER-01, section 4). Each is a plain string; the worker
+// validates every value itself and reports every problem at once.
+
+pub fn worker_name() -> Arg {
+    Arg::new("worker-name")
+        .long("worker-name")
+        .value_name("ASYNC_WORKER_NAME")
+        .env("ASYNC_WORKER_NAME")
+        .default_value(thoth::api::async_worker::config::DEFAULT_WORKER_NAME)
+        .help("Executor name recorded on claimed jobs; tasks of one service share it")
+        .num_args(1)
+}
+
+pub fn worker_kinds() -> Arg {
+    Arg::new("kinds")
+        .long("kinds")
+        .value_name("ASYNC_WORKER_KINDS")
+        .env("ASYNC_WORKER_KINDS")
+        .default_value("")
+        .help("Comma-separated job kinds this worker may claim; empty means idle")
+        .num_args(1)
+}
+
+pub fn worker_capabilities() -> Arg {
+    Arg::new("capabilities")
+        .long("capabilities")
+        .value_name("ASYNC_WORKER_CAPABILITIES")
+        .env("ASYNC_WORKER_CAPABILITIES")
+        .default_value("")
+        .help("Comma-separated runtime capabilities this deployment provides")
+        .num_args(1)
+}
+
+pub fn worker_slots() -> Arg {
+    Arg::new("slots")
+        .long("slots")
+        .value_name("ASYNC_WORKER_SLOTS")
+        .env("ASYNC_WORKER_SLOTS")
+        .default_value(thoth::api::async_worker::config::DEFAULT_SLOTS)
+        .help("Handler calls in flight at once (1 to 16)")
+        .num_args(1)
+}
+
+pub fn worker_poll_seconds() -> Arg {
+    Arg::new("poll-seconds")
+        .long("poll-seconds")
+        .value_name("ASYNC_WORKER_POLL_SECONDS")
+        .env("ASYNC_WORKER_POLL_SECONDS")
+        .default_value(thoth::api::async_worker::config::DEFAULT_POLL_SECONDS)
+        .help("Idle poll interval in seconds (1 to 60)")
+        .num_args(1)
+}
+
+pub fn worker_shutdown_grace_seconds() -> Arg {
+    Arg::new("shutdown-grace-seconds")
+        .long("shutdown-grace-seconds")
+        .value_name("ASYNC_WORKER_SHUTDOWN_GRACE_SECONDS")
+        .env("ASYNC_WORKER_SHUTDOWN_GRACE_SECONDS")
+        .default_value(thoth::api::async_worker::config::DEFAULT_SHUTDOWN_GRACE_SECONDS)
+        .help("Handler time in seconds after a stop signal (1 to 80)")
+        .num_args(1)
+}
+
+pub fn worker_liveness_file() -> Arg {
+    Arg::new("liveness-file")
+        .long("liveness-file")
+        .value_name("ASYNC_WORKER_LIVENESS_FILE")
+        .env("ASYNC_WORKER_LIVENESS_FILE")
+        .default_value(thoth::api::async_worker::config::DEFAULT_LIVENESS_FILE)
+        .help("Absolute path of the worker's liveness file")
+        .num_args(1)
+}
+
+pub fn worker_health_max_age_seconds() -> Arg {
+    Arg::new("max-age-seconds")
+        .long("max-age-seconds")
+        .value_name("ASYNC_WORKER_HEALTH_MAX_AGE_SECONDS")
+        .env("ASYNC_WORKER_HEALTH_MAX_AGE_SECONDS")
+        .default_value(thoth::api::async_worker::config::DEFAULT_HEALTH_MAX_AGE_SECONDS)
+        .help("Largest liveness file age in seconds that counts as healthy (15 to 600)")
+        .num_args(1)
+}
