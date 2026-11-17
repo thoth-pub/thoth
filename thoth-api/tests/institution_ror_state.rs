@@ -152,16 +152,22 @@ fn state(institution: &Value) -> (Value, Value) {
 }
 
 /// Create an institution with a ROR ID and give it a status and successor
-/// as the sync would.
-async fn seeded(pool: &Arc<PgPool>, name: &str, status: &str, successor: Option<&str>) -> String {
-    let created = create(pool, ror_sync("seed-sync"), name, Some(ROR_A)).await;
+/// as the sync would. ROR IDs are unique, so each row in a test needs its own.
+async fn seeded(
+    pool: &Arc<PgPool>,
+    name: &str,
+    ror: &str,
+    status: &str,
+    successor: Option<&str>,
+) -> String {
+    let created = create(pool, ror_sync("seed-sync"), name, Some(ror)).await;
     let id = id_of(&created);
     let successor = successor.map_or("null".to_string(), |value| format!("\"{value}\""));
     let response = update_literal(
         pool,
         ror_sync("seed-sync"),
         &format!(
-            "institutionId: \"{id}\", institutionName: \"{name}\", ror: \"{ROR_A}\", \
+            "institutionId: \"{id}\", institutionName: \"{name}\", ror: \"{ror}\", \
              rorStatus: {status}, rorSuccessor: {successor}"
         ),
     )
@@ -313,7 +319,7 @@ async fn absent_fields_are_unchanged_explicit_null_clears_and_a_value_sets() {
 #[tokio::test(flavor = "current_thread")]
 async fn an_unprivileged_caller_is_denied_the_whole_update_for_a_differing_value() {
     let (_guard, pool) = setup();
-    let id = seeded(&pool, "Guarded", "INACTIVE", Some(ROR_B)).await;
+    let id = seeded(&pool, "Guarded", ROR_A, "INACTIVE", Some(ROR_B)).await;
     let renamed =
         format!("institutionId: \"{id}\", institutionName: \"Renamed\", ror: \"{ROR_A}\"");
     let history_before = history(&pool, &id).len();
@@ -376,7 +382,7 @@ async fn an_unprivileged_caller_is_denied_the_whole_update_for_a_differing_value
 #[tokio::test(flavor = "current_thread")]
 async fn a_change_of_ror_through_graphql_resets_the_state() {
     let (_guard, pool) = setup();
-    let id = seeded(&pool, "Moving", "WITHDRAWN", Some(ROR_B)).await;
+    let id = seeded(&pool, "Moving", ROR_A, "WITHDRAWN", Some(ROR_B)).await;
     let response = update_literal(
         &pool,
         no_role("editor"),
@@ -437,8 +443,8 @@ async fn me_reports_the_ror_sync_guard_not_superuser() {
 async fn ror_statuses_filters_institutions_and_institution_count_alike() {
     let (_guard, pool) = setup();
     let active = id_of(&create(&pool, ror_sync("filter-sync"), "Filter active", Some(ROR_A)).await);
-    let inactive = seeded(&pool, "Filter inactive", "INACTIVE", None).await;
-    let withdrawn = seeded(&pool, "Filter withdrawn", "WITHDRAWN", Some(ROR_B)).await;
+    let inactive = seeded(&pool, "Filter inactive", ROR_B, "INACTIVE", None).await;
+    let withdrawn = seeded(&pool, "Filter withdrawn", ROR_C, "WITHDRAWN", Some(ROR_B)).await;
 
     for (argument, expected) in [
         ("", vec![&active, &inactive, &withdrawn]),

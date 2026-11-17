@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.11.0) - 2026-11-18
+### Added
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine and its protected GraphQL API, inert until a job kind is registered, and leave async job request bodies out of the access log
+  - [1039](https://github.com/thoth-pub/thoth/issues/1039) - Add `thoth start worker` and `thoth worker health`; the worker stays idle unless `ASYNC_WORKER_KINDS` lists a job kind
+
+### Changed
+  - [1029](https://github.com/thoth-pub/thoth/pull/1029) - Merge institutions that share a ROR ID into one, moving their links and history to the survivor, and make the ROR ID unique; see `thoth-api/ops/ror-sync-01b/README.md` before upgrading
+
 ## [[1.10.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.10.0) - 2026-11-16
 ### Added
   - [1010](https://github.com/thoth-pub/thoth/pull/1010) - Let `metricDashboard` read all Metrics history when `startDate` is omitted, return the served `startDate`, `endDate` and `timelineGrain`, and add a `YEAR` timeline grain

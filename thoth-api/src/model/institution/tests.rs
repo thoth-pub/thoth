@@ -1471,6 +1471,14 @@ mod ror_state {
         Ror(value.to_string())
     }
 
+    /// A distinct valid ROR ID per loop iteration, since `ror` is unique.
+    fn nth_ror(letter: char, index: usize) -> String {
+        format!(
+            "https://ror.org/0{}{index:02}",
+            letter.to_string().repeat(6)
+        )
+    }
+
     /// A policy context that can move to another thread.
     struct ThreadCtx {
         db: Arc<PgPool>,
@@ -1957,9 +1965,10 @@ mod ror_state {
     #[test]
     fn matrix_create_any_authenticated_caller_creates_an_active_row_with_history() {
         let (_guard, pool) = setup_test_db();
-        for caller in callers("org-matrix") {
+        for (index, caller) in callers("org-matrix").into_iter().enumerate() {
             let ctx = ctx(&pool, caller.user());
-            let data = new_institution(&format!("Create {}", caller.label), Some(ROR_A));
+            let ror_id = nth_ror('a', index);
+            let data = new_institution(&format!("Create {}", caller.label), Some(&ror_id));
             let before = (total_institutions(&pool), total_history(&pool));
             let policy = InstitutionPolicy::can_create(&ctx, &data, ());
             let created = Institution::create_with_history(&ctx, &data);
@@ -1991,11 +2000,11 @@ mod ror_state {
     #[test]
     fn matrix_update_other_fields_is_open_to_every_authenticated_caller_and_keeps_the_state() {
         let (_guard, pool) = setup_test_db();
-        for caller in callers("org-matrix") {
+        for (index, caller) in callers("org-matrix").into_iter().enumerate() {
             let row = seed(
                 pool.as_ref(),
                 &format!("Other {}", caller.label),
-                Some(ROR_A),
+                Some(&nth_ror('a', index)),
             );
             let row = set_ror_state(
                 pool.as_ref(),
@@ -2021,11 +2030,11 @@ mod ror_state {
     #[test]
     fn matrix_update_status_differing_is_denied_and_equal_is_dropped_unless_privileged() {
         let (_guard, pool) = setup_test_db();
-        for caller in callers("org-matrix") {
+        for (index, caller) in callers("org-matrix").into_iter().enumerate() {
             let row = seed(
                 pool.as_ref(),
                 &format!("Status {}", caller.label),
-                Some(ROR_A),
+                Some(&nth_ror('a', index)),
             );
             let ctx = ctx(&pool, caller.user());
 
@@ -2079,12 +2088,12 @@ mod ror_state {
     #[test]
     fn matrix_update_successor_value_and_explicit_null_follow_the_same_rule() {
         let (_guard, pool) = setup_test_db();
-        for caller in callers("org-matrix") {
+        for (index, caller) in callers("org-matrix").into_iter().enumerate() {
             let ctx = ctx(&pool, caller.user());
             let row = seed(
                 pool.as_ref(),
                 &format!("Successor {}", caller.label),
-                Some(ROR_A),
+                Some(&nth_ror('a', index)),
             );
             let row = set_ror_state(
                 pool.as_ref(),
@@ -2226,7 +2235,7 @@ mod ror_state {
     #[test]
     fn an_update_that_changes_ror_resets_status_and_successor() {
         let (_guard, pool) = setup_test_db();
-        for (label, user) in [
+        for (index, (label, user)) in [
             (
                 "unprivileged",
                 user_with_project_roles("ror-change-user", None),
@@ -2235,8 +2244,15 @@ mod ror_state {
                 "privileged, fields not supplied",
                 ror_sync_user("ror-change-sync"),
             ),
-        ] {
-            let row = seed(pool.as_ref(), &format!("Ror change {label}"), Some(ROR_A));
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let row = seed(
+                pool.as_ref(),
+                &format!("Ror change {label}"),
+                Some(&nth_ror('a', index)),
+            );
             let row = set_ror_state(
                 pool.as_ref(),
                 row.institution_id,
@@ -2245,9 +2261,10 @@ mod ror_state {
             );
             let ctx = ctx(&pool, Some(user));
             let mut patch = patch_from(&row);
-            patch.ror = Some(ror(ROR_C));
+            let new_ror = nth_ror('c', index);
+            patch.ror = Some(ror(&new_ror));
             let after = row.update(&ctx, &patch).expect("ror change");
-            assert_eq!(after.ror, Some(ror(ROR_C)), "{label}");
+            assert_eq!(after.ror, Some(ror(&new_ror)), "{label}");
             assert_eq!(after.ror_status, RorStatus::Active, "{label}");
             assert_eq!(after.ror_successor, None, "{label}");
         }
@@ -2298,7 +2315,8 @@ mod ror_state {
         );
         let history_before = history(pool.as_ref(), row.institution_id).len();
         let mut patch = patch_from(&row);
-        patch.ror = Some(ror(ROR_D));
+        // A ROR ID no row holds, so that only the successor CHECK can fail.
+        patch.ror = Some(ror(&nth_ror('d', 1)));
         patch.ror_successor = juniper::Nullable::Some(ror(ROR_C));
         assert_constraint_error(row.update(&sync, &patch), ACTIVE_SUCCESSOR_MESSAGE);
         let unchanged = stored(pool.as_ref(), row.institution_id);

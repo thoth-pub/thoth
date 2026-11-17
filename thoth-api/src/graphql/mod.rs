@@ -1,6 +1,8 @@
 pub mod model;
 pub mod types;
 
+#[cfg(test)]
+mod async_job_tests;
 mod dataloader;
 #[cfg(test)]
 mod distribution_job_tests;
