@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [[1.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.11.0) - 2026-11-18
 ### Added
-  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine and its protected GraphQL API, inert until a job kind is registered, and leave job request bodies out of the access log
+  - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine and its protected GraphQL API, inert until a job kind is registered, and leave async job request bodies out of the access log
   - [1039](https://github.com/thoth-pub/thoth/issues/1039) - Add `thoth start worker` and `thoth worker health`; the worker stays idle unless `ASYNC_WORKER_KINDS` lists a job kind
 
 ### Changed
