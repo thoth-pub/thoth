@@ -1,6 +1,6 @@
 # THOTH-ASYNC-01-WORKER-01 Implementation Report
 
-This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1. The commit that rewrites this report is a child of that head and changes only this file. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed.
+This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1 and its re-check. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed, and rewritten for review round 1 in `d2ffe71a244edc64124f1c6290350d7a19cac09b`, which both legs re-checked. The commit that last changes this report is a child of `d2ffe71a`; besides this file it changes one sentence of the module docs in `thoth-api/src/async_worker/mod.rs` (FBC-R1) and no code.
 
 ## Review round 1
 
@@ -37,6 +37,13 @@ Mutation check of the fixes, in two builds, then restored: each of six reverts m
 | Fault fallbacks counted as action fallbacks | `w20_fault_fallback_and_wait_resume_at` (fault fallbacks 0, not 2) |
 | `WAIT_DEADLINE_TOO_CLOSE` counted as a wait | `w20_fault_fallback_and_wait_resume_at` (no failure counted) |
 
+## Re-check of review round 1
+
+Both legs re-checked `d2ffe71a244edc64124f1c6290350d7a19cac09b` and returned APPROVED: every round-1 finding is closed or accepted as recorded or deferred, and each leg reverted two of the new fixes and saw its test fail. Each leg raised one new P3:
+
+- **OPC-R1**, decision 12 gave a false reason: the database URL is required whatever the kind list (W1 asserts it), not optional for the idle default. Fixed: decision 12 is reworded. The behaviour is unchanged.
+- **FBC-R1**, after `EffectWindowInsufficient` from `mark_effect_started` following a committed T4 (case `h`), a handler that returns `Release`, reading effect rule 3 as "before effect start", gets the action fallback's code `HANDLER_ACTION_INVALID`; the job state is right (`RECONCILIATION_REQUIRED`). Fixed in the module docs: effect rule 3 says the handler decides by `tracked_phase()`, and that `mark_effect_started` can give this answer after its T4 committed.
+
 ## 1. Repository state
 
 Owning GitHub issue: thoth-pub/thoth#1039 (sub-issue of #957)
@@ -68,7 +75,8 @@ Out-of-scope changes made: NONE.
 - `a44aae4` - THOTH-ASYNC-01-WORKER-01: Add thoth start worker and thoth worker health
 - `f6bf6d5` - THOTH-ASYNC-01-WORKER-01: Record the worker in the changelog and add the implementation report
 - `4847717` - THOTH-ASYNC-01-WORKER-01: Address the review round's small findings
-- the child of `4847717` that rewrites this report
+- `d2ffe71` - THOTH-ASYNC-01-WORKER-01: Complete the implementation report for review round 1
+- the child of `d2ffe71` that records the re-check in this report and rewords effect rule 3 in the module docs
 
 Every commit is authored and committed as `Javier Arias <javier@jarias.org>`.
 
@@ -183,7 +191,7 @@ Each is the reading safer for jobs and effects where the spec left a choice.
 9. **A payload that does not parse** into a `JobView` is handled as a handler panic (the handler is not called; fallback by tracked phase, `HANDLER_PANIC`).
 10. **A READ_ONLY kind** whose `reconciler_domain` is `ThothWorker` joins the reconciliation set like any other kind; the engine never makes such a job `RECONCILIATION_REQUIRED`, so its reconciliation claims return nothing. W6 asserts one poll row per kind and purpose of the claim sets (four for its two kinds).
 11. **Test drop.** A `TestWorker` dropped by a failing test hard-stops its runtime without asserting, so one failure cannot leave a runtime claiming the next test's jobs.
-12. **A missing `--database-url`** (with a non-empty kind list) is a validation error with exit code 1 and a line naming the argument, like every other invalid value, not clap's usage code 2: the argument is not clap-`required` because the idle default needs no URL.
+12. **A missing `--database-url`** is a validation error with exit code 1 and a line naming the argument, like every other invalid value, not clap's usage code 2: the argument is not clap-`required`, so `WorkerConfig` reports it with every other problem at once (W1). The URL is required whatever the kind list, although the idle default opens no connection.
 
 ### 5.2 Carries
 

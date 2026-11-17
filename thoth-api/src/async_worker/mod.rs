@@ -44,7 +44,10 @@
 //! 3. On [`HandlerError::EffectWindowInsufficient`] the handler starts no
 //!    write: before effect start it returns `Release`, and the next claim
 //!    starts a fresh attempt with a full deadline; after effect start it
-//!    returns `Wait` with a safe checkpoint, or `Fail` `Indeterminate`.
+//!    returns `Wait` with a safe checkpoint, or `Fail` `Indeterminate`. The
+//!    handler decides by `tracked_phase()`, not by which fence answered:
+//!    `mark_effect_started` can answer it after its T4 committed (an earlier
+//!    try answered busy), and the attempt is then after effect start.
 //! 4. On [`HandlerError::Busy`] (or any refusal) from a fence, the handler
 //!    must not start the write. For T4 the runtime has already set the
 //!    tracked phase to "possibly started" if the outcome is unknown, and the
