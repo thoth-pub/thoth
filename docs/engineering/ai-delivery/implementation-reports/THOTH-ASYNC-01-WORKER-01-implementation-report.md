@@ -1,6 +1,6 @@
 # THOTH-ASYNC-01-WORKER-01 Implementation Report
 
-This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1 and its re-check. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed, and rewritten for review round 1 in `d2ffe71a244edc64124f1c6290350d7a19cac09b`, which both legs re-checked. The commit that last changes this report is a child of `d2ffe71a`; besides this file it changes one sentence of the module docs in `thoth-api/src/async_worker/mod.rs` (FBC-R1) and no code.
+This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1 and its re-check. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed, and rewritten for review round 1 in `d2ffe71a244edc64124f1c6290350d7a19cac09b`, which both legs re-checked. The commit that last changes this report is a child of `d2ffe71a`; besides this file it changes effect rule 3 in the module docs of `thoth-api/src/async_worker/mod.rs` (FBC-R1) and no code.
 
 ## Review round 1
 
@@ -42,7 +42,7 @@ Mutation check of the fixes, in two builds, then restored: each of six reverts m
 Both legs re-checked `d2ffe71a244edc64124f1c6290350d7a19cac09b` and returned APPROVED: every round-1 finding is closed or accepted as recorded or deferred, and each leg reverted two of the new fixes and saw its test fail. Each leg raised one new P3:
 
 - **OPC-R1**, decision 12 gave a false reason: the database URL is required whatever the kind list (W1 asserts it), not optional for the idle default. Fixed: decision 12 is reworded. The behaviour is unchanged.
-- **FBC-R1**, after `EffectWindowInsufficient` from `mark_effect_started` following a committed T4 (case `h`), a handler that returns `Release`, reading effect rule 3 as "before effect start", gets the action fallback's code `HANDLER_ACTION_INVALID`; the job state is right (`RECONCILIATION_REQUIRED`). Fixed in the module docs: effect rule 3 says the handler decides by `tracked_phase()`, and that `mark_effect_started` can give this answer after its T4 committed.
+- **FBC-R1**, after `EffectWindowInsufficient` from `mark_effect_started` following a committed T4 (case `h`), a handler that returns `Release`, reading effect rule 3 as "before effect start", gets the action fallback's code `HANDLER_ACTION_INVALID`; the job state is right (`RECONCILIATION_REQUIRED`). Recorded: effect rule 3 in the module docs now says that `Release` after this answer from `mark_effect_started` stays right for the job, and that in this one case the attempt's code is `HANDLER_ACTION_INVALID`. A handler cannot tell the case apart, because no public accessor gives the tracked phase; a truthful code is deferred (section 13).
 
 ## 1. Repository state
 
@@ -335,6 +335,7 @@ Monitoring required: none until step 3; then the liveness file through `thoth wo
 - **Hung-slot accounting (OPC-6 b).** W24 tests the hung-slot, all-slots-hung and heartbeat-stall withhold rules through the pure `withhold_reason`; `hung_durations` has no runtime test.
 - **Long back-off liveness (OPC-6 d).** Covered by construction (the loop records progress around every sleep), not by a test.
 - **The 14,000 ms lower bound (FBC-5 c).** It assumes less than 1 s between two statements of one transaction; a stalled CI host could fail it spuriously.
+- **The code after a late window refusal (FBC-R1).** When `mark_effect_started` answers `EffectWindowInsufficient` after its T4 committed (case `h`) and the handler returns `Release`, as effect rule 3 allows, the attempt's code is `HANDLER_ACTION_INVALID`, although the handler followed the rules. The job ends `RECONCILIATION_REQUIRED` either way. Step 4, which brings the first handlers, should either give handlers a public tracked-phase accessor or make the runtime give this case a code of its own.
 - **A panicked runtime exits quickly.** After a runtime-thread panic with no claim in flight, the process may exit before the ticker's next period; the exit code (1) is then the signal, and the ticker withholds only while the runtime is still up (W20).
 
 ## 14. Unresolved issues
