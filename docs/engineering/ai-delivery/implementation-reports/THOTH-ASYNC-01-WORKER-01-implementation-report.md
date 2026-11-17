@@ -1,6 +1,6 @@
 # THOTH-ASYNC-01-WORKER-01 Implementation Report
 
-This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1 and its re-check. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed, and rewritten for review round 1 in `d2ffe71a244edc64124f1c6290350d7a19cac09b`, which both legs re-checked. The commit that last changes this report is a child of `d2ffe71a`; besides this file it changes effect rule 3 in the module docs of `thoth-api/src/async_worker/mod.rs` (FBC-R1) and no code.
+This report records step 2 of the async job delivery, the trusted in-process `thoth-worker` runtime (thoth-pub/thoth#1039), at code head `48477179cbdaa6e13b48a94cfc65001113d089a8`, after review round 1 and its re-check. The report was first added in `f6bf6d594bea44b2c8d463e8fd233425c11e9ec3`, which both review legs reviewed, and rewritten for review round 1 in `d2ffe71a244edc64124f1c6290350d7a19cac09b`, which both legs re-checked. The commits after `d2ffe71a` change only this file and effect rule 3 in the module docs of `thoth-api/src/async_worker/mod.rs` (OPC-R1, FBC-R1); they change no code.
 
 ## Review round 1
 
@@ -76,7 +76,7 @@ Out-of-scope changes made: NONE.
 - `f6bf6d5` - THOTH-ASYNC-01-WORKER-01: Record the worker in the changelog and add the implementation report
 - `4847717` - THOTH-ASYNC-01-WORKER-01: Address the review round's small findings
 - `d2ffe71` - THOTH-ASYNC-01-WORKER-01: Complete the implementation report for review round 1
-- the child of `d2ffe71` that records the re-check in this report and rewords effect rule 3 in the module docs
+- the commits after `d2ffe71`, which record the re-check in this report and correct effect rule 3 in the module docs, with no code change (the PR lists them)
 
 Every commit is authored and committed as `Javier Arias <javier@jarias.org>`.
 
