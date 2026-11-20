@@ -114,6 +114,11 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "metric_source_account_platform_id_fkey" => "The metric platform of a metric source account must be an existing metric platform.",
     "metric_source_account_source_id_external_key_key" => "A metric source account with this external key already exists for this metric source.",
     "metric_source_account_source_id_fkey" => "The metric source of a metric source account must be an existing metric source.",
+    // Account windows and successions (MET-WP4-MONTH-01). Each message is
+    // byte-identical to the coordinator's own pre-check refusal, so the CHECKs
+    // never fire from the API and the two boundaries are indistinguishable.
+    "metric_source_account_succession_check" => "A metric source account succession must be 1 to 64 lowercase letters, digits and single hyphens.",
+    "metric_source_account_window_check" => "A metric source account window must end after it starts.",
     "metric_source_registry_history_action_before_state_check" => "Metric source registry history is invalid: a creation must record no previous state and an update must record one.",
     "metric_source_registry_history_actor_check" => "Metric source registry history actor must not be an empty string.",
     // Metrics foreign keys to legacy parents (MET-WP11-B-LEGACY-FK-ERRORS, #990).
@@ -437,7 +442,7 @@ mod tests {
     /// the `MET-WP1-12` guard below proves for the registry surface.
     #[test]
     fn metrics_source_administration_constraints_map_to_bounded_messages() {
-        const REACHABLE: [&str; 14] = [
+        const REACHABLE: [&str; 16] = [
             "metric_source_code_check",
             "metric_source_code_key",
             "metric_source_default_finalization_delay_days_check",
@@ -450,6 +455,8 @@ mod tests {
             "metric_source_account_platform_id_fkey",
             "metric_source_account_source_id_external_key_key",
             "metric_source_account_source_id_fkey",
+            "metric_source_account_succession_check",
+            "metric_source_account_window_check",
             "metric_source_registry_history_action_before_state_check",
             "metric_source_registry_history_actor_check",
         ];

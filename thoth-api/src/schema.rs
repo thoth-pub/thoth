@@ -1075,6 +1075,64 @@ table! {
 table! {
     use diesel::sql_types::*;
 
+    metric_native_country_month (work_id, platform_id, measure_id, month_start, country_code) {
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        country_code -> Bpchar,
+        value -> Int8,
+        requires_institution_coverage -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_native_institution_month (work_id, platform_id, measure_id, month_start, institution_id) {
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        institution_id -> Uuid,
+        value -> Int8,
+        requires_country_coverage -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_native_month (work_id, platform_id, measure_id, month_start) {
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        month_start -> Date,
+        value -> Nullable<Int8>,
+        live -> Bool,
+        requires_country_coverage -> Bool,
+        requires_institution_coverage -> Bool,
+        country_ambiguous -> Bool,
+        institution_ambiguous -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_native_refusal (work_id, platform_id, measure_id, period_start, period_end) {
+        work_id -> Uuid,
+        platform_id -> Uuid,
+        measure_id -> Uuid,
+        period_start -> Date,
+        period_end -> Date,
+        inconsistent -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
     metric_operas_export (export_id) {
         export_id -> Uuid,
         record_revision_id -> Uuid,
@@ -1511,6 +1569,9 @@ table! {
         expected_publisher_id -> Nullable<Uuid>,
         configuration -> Jsonb,
         enabled -> Bool,
+        window_start -> Nullable<Date>,
+        window_end -> Nullable<Date>,
+        succession -> Nullable<Text>,
     }
 }
 
@@ -2186,6 +2247,10 @@ allow_tables_to_appear_in_same_query!(
     metric_import_batch,
     metric_import_error,
     metric_measure,
+    metric_native_country_month,
+    metric_native_institution_month,
+    metric_native_month,
+    metric_native_refusal,
     metric_operas_export,
     metric_operas_import,
     metric_operas_mapping,

@@ -53,7 +53,7 @@ use std::time::{Duration, Instant};
 use chrono::{Datelike, NaiveDate, Utc};
 use diesel::pg::PgConnection;
 use diesel::sql_types::{
-    Array, BigInt as SqlBigInt, Date, Nullable, Text, Timestamptz, Uuid as SqlUuid,
+    Array, BigInt as SqlBigInt, Bool, Date, Nullable, Text, Timestamptz, Uuid as SqlUuid,
 };
 use diesel::RunQueryDsl;
 use juniper::{graphql_value, FieldError, IntoFieldError};
@@ -64,9 +64,9 @@ use uuid::Uuid;
 use crate::db::PgPool;
 use crate::model::metric_coverage::MetricCoverageStatus;
 use crate::model::metric_dashboard::{
-    metric_pair_read, MetricCountryTotal, MetricDashboard, MetricPairRead, MetricReadError,
-    MetricTimeBucket, MetricTimelineGrain, MetricTotal, ReadDeadline, AGGREGATE_OUT_OF_RANGE,
-    CUSTOM_PLANS_SQL, PROJECTION_LOCK_SQL,
+    metric_pair_read, MetricCountryTotal, MetricDashboard, MetricMonthServing, MetricPairRead,
+    MetricReadError, MetricTimeBucket, MetricTimelineGrain, MetricTotal, ReadDeadline,
+    AGGREGATE_OUT_OF_RANGE, CUSTOM_PLANS_SQL, PROJECTION_LOCK_SQL,
 };
 use crate::model::metric_measure::MetricMeasureUnit;
 use crate::model::publisher::{PublisherCapability, ThothPackage};
@@ -353,7 +353,7 @@ pub struct MetricWidgetSection {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "True when coverage is not complete for some served platform, measure and day, when some values may still change or be incomplete, or when nothing is served"
+            description = "True when coverage is not complete for some served platform, measure and day, when some values may still change or be incomplete, or when nothing is served. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub is_partial: bool,
@@ -372,21 +372,21 @@ pub struct MetricWidgetPairCoverage {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL"
+            description = "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub status: MetricCoverageStatus,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not"
+            description = "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub data_through: Option<NaiveDate>,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "True only when every day of the served range has coverage that includes the country dimension"
+            description = "True only when every day of the served range has coverage that includes the country dimension. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub country_coverage: bool,
@@ -531,7 +531,9 @@ pub(crate) enum WidgetReason {
     EngineUnauthorised,
     /// A total or country dimension ambiguity in a section.
     DimensionScopeAmbiguous,
-    /// An active native-grain record on a served platform and measure.
+    /// An active native-grain record on a served platform and measure: a
+    /// `REPORTING_PERIOD` record, or, while monthly serving is `OFF`, a
+    /// `MONTH` record.
     UnsupportedSourceGrain,
     /// Both widget slots of this process are taken.
     NoSlot,
@@ -968,8 +970,10 @@ pub(crate) const METRIC_WIDGET_RESOLUTION_SQL: &str =
              WHERE lower(w.doi) = $1";
 
 /// Step 11: the served pairs of one section: the distinct eligible
-/// platform/measure pairs with a monthly projection row, or a total-ambiguous
-/// month, for the section's works `$1` in the months `[$2, $3)`, ordered by
+/// platform/measure pairs with a monthly projection row, a total-ambiguous
+/// month, or, when `$5` says the server serves `MONTH` records, a native
+/// month (`MET-WP4-MONTH-01`; the branch is folded away otherwise), for the
+/// section's works `$1` in the months `[$2, $3)`, ordered by
 /// platform ID and measure ID, stopping after `$4` rows. A measure is eligible
 /// only when it is public, enabled and additive across time and works, and a
 /// platform only when it is enabled, so nothing else can be served, bound,
@@ -988,6 +992,13 @@ pub(crate) const METRIC_WIDGET_PAIRS_SQL: &str = "SELECT served.platform_id, ser
                    AND a.month_start >= $2 \
                    AND a.month_start < $3 \
                    AND a.total_ambiguous \
+                 UNION \
+                 SELECT n.platform_id, n.measure_id \
+                 FROM public.metric_native_month n \
+                 WHERE $5 \
+                   AND n.work_id = ANY($1) \
+                   AND n.month_start >= $2 \
+                   AND n.month_start < $3 \
              ) served \
              JOIN public.metric_platform p ON p.platform_id = served.platform_id \
              JOIN public.metric_measure m ON m.measure_id = served.measure_id \
@@ -1002,7 +1013,8 @@ pub(crate) const METRIC_WIDGET_PAIRS_SQL: &str = "SELECT served.platform_id, ser
 /// Step 11 of an all-history read (`startDate` omitted): the served pairs of
 /// one section over all history before `endDate` `$2`, each with its earliest
 /// served month. The eligibility of [`METRIC_WIDGET_PAIRS_SQL`]: a monthly
-/// projection row, or a total-ambiguous month, of the section's works `$1`,
+/// projection row, a total-ambiguous month, or, when `$4` says the server
+/// serves `MONTH` records, a native month, of the section's works `$1`,
 /// on an enabled platform and a public, enabled measure additive across time
 /// and works. Ordered by platform ID and measure ID, stopping after `$3` rows.
 /// The month columns are first days of months by their tables' check
@@ -1018,6 +1030,10 @@ pub(crate) const METRIC_WIDGET_HISTORY_PAIRS_SQL: &str =
                  SELECT a.platform_id, a.measure_id, a.month_start \
                  FROM public.metric_rollup_work_month_ambiguity a \
                  WHERE a.work_id = ANY($1) AND a.month_start < $2 AND a.total_ambiguous \
+                 UNION ALL \
+                 SELECT n.platform_id, n.measure_id, n.month_start \
+                 FROM public.metric_native_month n \
+                 WHERE $4 AND n.work_id = ANY($1) AND n.month_start < $2 \
              ) served \
              JOIN public.metric_platform p ON p.platform_id = served.platform_id \
              JOIN public.metric_measure m ON m.measure_id = served.measure_id \
@@ -1255,16 +1271,31 @@ impl Profile<'static> {
 /// Answer one `metricWidget` selection.
 ///
 /// `claims` is the request context's claim counter: only the selection that
-/// claims it first may read. The caller's identity is never consulted.
+/// claims it first may read. The caller's identity is never consulted. This
+/// entry point does not serve `MONTH` records: it is
+/// [`metric_widget_with_month_serving`] with [`MetricMonthServing::Off`].
+#[cfg(test)]
 pub(crate) fn metric_widget(
     db: &PgPool,
     switch: MetricWidgetSwitch,
     claims: &AtomicUsize,
     input: &MetricWidgetInput,
 ) -> Result<MetricWidget, MetricWidgetError> {
+    metric_widget_with_month_serving(db, switch, MetricMonthServing::Off, claims, input)
+}
+
+/// [`metric_widget`] under the server's `THOTH_METRIC_MONTH_SERVING` value.
+pub(crate) fn metric_widget_with_month_serving(
+    db: &PgPool,
+    switch: MetricWidgetSwitch,
+    month_serving: MetricMonthServing,
+    claims: &AtomicUsize,
+    input: &MetricWidgetInput,
+) -> Result<MetricWidget, MetricWidgetError> {
     resolve(
         db,
         switch,
+        month_serving,
         claims,
         input,
         &Profile::production(),
@@ -1272,11 +1303,12 @@ pub(crate) fn metric_widget(
     )
 }
 
-/// [`metric_widget`] with an explicit profile and log sink. The log decision
-/// runs exactly once per call.
+/// [`metric_widget_with_month_serving`] with an explicit profile and log
+/// sink. The log decision runs exactly once per call.
 fn resolve(
     db: &PgPool,
     switch: MetricWidgetSwitch,
+    month_serving: MetricMonthServing,
     claims: &AtomicUsize,
     input: &MetricWidgetInput,
     profile: &Profile<'_>,
@@ -1313,7 +1345,7 @@ fn resolve(
                 ONE_SELECTION_MESSAGE,
             )))
         } else {
-            read(db, input, profile, &mut facts)
+            read(db, input, month_serving, profile, &mut facts)
         }
     };
     facts.elapsed_ms = started.elapsed().as_millis();
@@ -1329,6 +1361,7 @@ fn resolve(
 fn read(
     db: &PgPool,
     input: &MetricWidgetInput,
+    month_serving: MetricMonthServing,
     profile: &Profile<'_>,
     facts: &mut WidgetFacts,
 ) -> Result<MetricWidget, Failure> {
@@ -1355,7 +1388,16 @@ fn read(
         .build_transaction()
         .read_only()
         .repeatable_read()
-        .run(|connection| transact(connection, &request, profile, &deadline, facts));
+        .run(|connection| {
+            transact(
+                connection,
+                &request,
+                month_serving,
+                profile,
+                &deadline,
+                facts,
+            )
+        });
     facts.last_statement = deadline.last_statement();
     let widget = outcome?;
     facts.step = WidgetStep::Commit;
@@ -1508,6 +1550,7 @@ fn served_pairs(
     connection: &mut PgConnection,
     works: &[Uuid],
     request: &ValidatedInput,
+    month_serving: MetricMonthServing,
     deadline: &Deadline,
 ) -> Result<Vec<(Uuid, Uuid)>, Failure> {
     deadline.admit("METRIC_WIDGET_PAIRS_SQL")?;
@@ -1516,6 +1559,7 @@ fn served_pairs(
         .bind::<Date, _>(request.start)
         .bind::<Date, _>(request.end)
         .bind::<SqlBigInt, _>(METRIC_WIDGET_MAX_PAIRS as i64 + 1)
+        .bind::<Bool, _>(month_serving == MetricMonthServing::On)
         .load(connection)?;
     Ok(rows
         .into_iter()
@@ -1529,6 +1573,7 @@ fn history_pairs(
     connection: &mut PgConnection,
     works: &[Uuid],
     request: &ValidatedInput,
+    month_serving: MetricMonthServing,
     deadline: &Deadline,
 ) -> Result<Vec<HistoryPairRow>, Failure> {
     deadline.admit("METRIC_WIDGET_HISTORY_PAIRS_SQL")?;
@@ -1536,6 +1581,7 @@ fn history_pairs(
         .bind::<Array<SqlUuid>, _>(works)
         .bind::<Date, _>(request.end)
         .bind::<SqlBigInt, _>(METRIC_WIDGET_MAX_PAIRS as i64 + 1)
+        .bind::<Bool, _>(month_serving == MetricMonthServing::On)
         .load(connection)?)
 }
 
@@ -1551,15 +1597,16 @@ fn section_pairs(
     connection: &mut PgConnection,
     works: &[Uuid],
     request: &ValidatedInput,
+    month_serving: MetricMonthServing,
     deadline: &Deadline,
 ) -> Result<SectionPairs, Failure> {
     if !request.history {
         return Ok(SectionPairs {
-            pairs: served_pairs(connection, works, request, deadline)?,
+            pairs: served_pairs(connection, works, request, month_serving, deadline)?,
             first_month: None,
         });
     }
-    let rows = history_pairs(connection, works, request, deadline)?;
+    let rows = history_pairs(connection, works, request, month_serving, deadline)?;
     Ok(SectionPairs {
         first_month: rows.iter().map(|row| row.first_month).min(),
         pairs: rows
@@ -1599,6 +1646,7 @@ fn engine_section(
     works: &[Uuid],
     pairs: &[(Uuid, Uuid)],
     request: &ValidatedInput,
+    month_serving: MetricMonthServing,
     frontier: (Timestamp, Timestamp),
     deadline: &Deadline,
     facts: &mut WidgetFacts,
@@ -1607,7 +1655,9 @@ fn engine_section(
         .with_timeline_grain(request.grain.engine())
         .with_countries(true)
         .with_institutions(false)
-        .with_capability(PublisherCapability::MetricsWidget);
+        .with_capability(PublisherCapability::MetricsWidget)
+        .with_month_serving(month_serving)
+        .with_all_history(request.history);
     let result =
         metric_pair_read(connection, &read, deadline.for_engine_run()).map_err(|error| {
             facts.engine_section = Some(section);
@@ -1662,6 +1712,7 @@ fn empty_section() -> MetricWidgetSection {
 fn transact(
     connection: &mut PgConnection,
     request: &ValidatedInput,
+    month_serving: MetricMonthServing,
     profile: &Profile<'_>,
     deadline: &Deadline,
     facts: &mut WidgetFacts,
@@ -1729,7 +1780,7 @@ fn transact(
     let SectionPairs {
         pairs: work_pairs,
         first_month: work_first,
-    } = section_pairs(connection, &work_works, request, deadline)?;
+    } = section_pairs(connection, &work_works, request, month_serving, deadline)?;
     facts.work = Some(SectionSize::of(&work_pairs));
     let SectionPairs {
         pairs: chapter_pairs,
@@ -1740,7 +1791,13 @@ fn transact(
             first_month: None,
         }
     } else {
-        let section = section_pairs(connection, &children.served, request, deadline)?;
+        let section = section_pairs(
+            connection,
+            &children.served,
+            request,
+            month_serving,
+            deadline,
+        )?;
         facts.chapters = Some(SectionSize::of(&section.pairs));
         section
     };
@@ -1789,6 +1846,7 @@ fn transact(
             &work_works,
             &work_pairs,
             &served,
+            month_serving,
             frontier,
             deadline,
             facts,
@@ -1808,6 +1866,7 @@ fn transact(
             &children.served,
             &chapter_pairs,
             &served,
+            month_serving,
             frontier,
             deadline,
             facts,

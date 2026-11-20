@@ -33,6 +33,7 @@ use crate::model::metric_ingestion::{
     PROVENANCE_DETAILS_SCHEMA, SUPPORTED_SCHEMA_VERSION,
 };
 use crate::model::metric_measure::MetricMeasure;
+use crate::model::metric_native_month::{self, NativeMonthKeys};
 use crate::model::metric_platform::MetricPlatform;
 use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::{
@@ -444,17 +445,21 @@ fn process_one(
         value: quarantine.value,
     };
 
+    let mut native_keys = NativeMonthKeys::default();
     let outcome = apply_canonical_application(
         connection,
         &canonical,
         CanonicalChronology::Historical {
             import_created_at: import.created_at,
         },
+        &mut native_keys,
     )
     .map_err(|error| match error {
         CanonicalApplicationError::Database(error) => RowAttemptError::Database(error),
         CanonicalApplicationError::InternalStateInconsistency => RowAttemptError::InternalState,
     })?;
+    // `MET-WP4-MONTH-01`: after the row's canonical write, before commit.
+    metric_native_month::recompute(connection, &native_keys)?;
 
     let (state, record_id, revision_id) = match outcome {
         CanonicalApplicationOutcome::Winner {

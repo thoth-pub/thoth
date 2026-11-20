@@ -723,22 +723,22 @@ fn alltime_descriptions() -> Vec<(&'static str, Option<&'static str>, &'static s
         (
             "type MetricWidgetSection {",
             Some("isPartial"),
-            "True when coverage is not complete for some served platform, measure and day, when some values may still change or be incomplete, or when nothing is served",
+            "True when coverage is not complete for some served platform, measure and day, when some values may still change or be incomplete, or when nothing is served. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate",
         ),
         (
             "type MetricWidgetPairCoverage {",
             Some("status"),
-            "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL",
+            "COMPLETE only when every day of the served range is completely covered, including by country; UNKNOWN when any day has no coverage; otherwise PARTIAL. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate",
         ),
         (
             "type MetricWidgetPairCoverage {",
             Some("dataThrough"),
-            "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not",
+            "The last day of the unbroken run from the served startDate in which every day is completely covered and its values settled, or null when the first day is not. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate",
         ),
         (
             "type MetricWidgetPairCoverage {",
             Some("countryCoverage"),
-            "True only when every day of the served range has coverage that includes the country dimension",
+            "True only when every day of the served range has coverage that includes the country dimension. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate",
         ),
     ]
 }
