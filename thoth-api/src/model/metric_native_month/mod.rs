@@ -586,4 +586,4 @@ pub(crate) fn recompute_metric_native_months(
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

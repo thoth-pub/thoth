@@ -7,6 +7,7 @@
 //! with the writer or with V-NATIVE.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -14,7 +15,7 @@ use std::time::{Duration, Instant};
 use chrono::{Datelike, Days, Months, NaiveDate};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::sql_types::{Date, Text, Uuid as SqlUuid};
+use diesel::sql_types::{Array, BigInt as SqlBigInt, Bool, Date, Nullable, Text, Uuid as SqlUuid};
 use diesel::{sql_query, Connection, QueryableByName, RunQueryDsl};
 use diesel_migrations::MigrationHarness;
 use thoth_errors::ThothError;
@@ -25,6 +26,15 @@ use super::{
     RECOMPUTE_STATEMENTS, REPAIR_CHUNK_WORKS, REPAIR_STATEMENTS,
 };
 use crate::db::{PgPool, MIGRATIONS};
+use crate::model::metric_coverage::MetricCoverageStatus;
+use crate::model::metric_dashboard::tests::{
+    apply_all, coverage_sql, exec as dashboard_exec, import_sql, oracle_buckets,
+};
+use crate::model::metric_dashboard::{
+    metric_dashboard_with_month_serving, MetricDashboard, MetricDashboardInput, MetricMonthServing,
+    MetricReadError, MetricSelectorInput, MetricTimelineGrain, MetricWarningCode,
+    NATIVE_MONTHS_SQL,
+};
 use crate::model::metric_identifier_quarantine_reconciliation::reconcile_metric_identifier_quarantine;
 use crate::model::metric_ingestion::{
     ingest_metric_batch, MetricIngestionBatch, MetricIngestionOutcome, NormalizedMetricObservation,
@@ -34,8 +44,16 @@ use crate::model::metric_platform::tests::setup_registry_db;
 use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_record_provenance::MetricRecordProvenanceClassification as Class;
 use crate::model::metric_rollup_delta::crud::claim_metric_rollup_deltas;
-use crate::model::metric_rollup_delta::tests::{captured, logging_pool};
+use crate::model::metric_rollup_delta::tests::{
+    captured, logging_pool, month_state, oracle_month_state, oracle_year_state, projection,
+    verification, year_state,
+};
+use crate::model::metric_widget::{
+    metric_widget_with_month_serving, MetricWidget, MetricWidgetError, MetricWidgetGrain,
+    MetricWidgetInput, MetricWidgetSwitch,
+};
 use crate::model::tests::db::{test_db_url, TestDbGuard};
+use crate::model::Doi;
 
 const REGISTER: &str = include_str!("../../../../docs/metrics/contract-register.md");
 const MUTATION_SOURCE: &str = include_str!("../../graphql/mutation.rs");
@@ -560,7 +578,7 @@ fn json_rows(pool: &PgPool, sql: &str) -> Vec<serde_json::Value> {
     .collect()
 }
 
-fn v_native(pool: &PgPool) -> BTreeMap<String, i64> {
+pub(crate) fn v_native(pool: &PgPool) -> BTreeMap<String, i64> {
     let rows = json_rows(pool, &v_native_sql());
     assert_eq!(rows.len(), 1);
     let counts: BTreeMap<String, i64> = rows[0]
@@ -573,7 +591,7 @@ fn v_native(pool: &PgPool) -> BTreeMap<String, i64> {
     counts
 }
 
-fn v_native_total(pool: &PgPool) -> i64 {
+pub(crate) fn v_native_total(pool: &PgPool) -> i64 {
     v_native(pool).values().sum()
 }
 
@@ -584,7 +602,7 @@ fn v_native_keys(pool: &PgPool) -> Vec<serde_json::Value> {
     json_rows(pool, &format!("{}\n{keys}", &full[..at]))
 }
 
-fn v_month(pool: &PgPool) -> BTreeMap<String, serde_json::Value> {
+pub(crate) fn v_month(pool: &PgPool) -> BTreeMap<String, serde_json::Value> {
     json_rows(pool, &register_sql("**V-MONTH (PRE-1)**"))
         .into_iter()
         .map(|row| {
@@ -599,13 +617,13 @@ fn v_month(pool: &PgPool) -> BTreeMap<String, serde_json::Value> {
         .collect()
 }
 
-fn v_conflict(pool: &PgPool) -> i64 {
+pub(crate) fn v_conflict(pool: &PgPool) -> i64 {
     json_rows(pool, &register_sql("**V-CONFLICT**, once rollups"))[0]["count"]
         .as_i64()
         .expect("a count")
 }
 
-fn v_plan(
+pub(crate) fn v_plan(
     pool: &PgPool,
     publisher: Uuid,
     platform: Uuid,
@@ -1610,4 +1628,1703 @@ fn month_records_leave_the_rollup_stream_untouched_and_a_claim_skips_them() {
         months,
         "the claim leaves the MONTH deltas"
     );
+}
+
+// ---------------------------------------------------------------------------
+// MET-WP4-MONTH-01 T1 (its `ON` part), T2 and T14: the reads over ingested
+// months and rolled-up days
+// ---------------------------------------------------------------------------
+
+fn next_month(month: NaiveDate) -> NaiveDate {
+    month + Months::new(1)
+}
+
+fn known(text: &str) -> Option<String> {
+    Some(text.to_string())
+}
+
+/// The id of the seeded measure `code`.
+fn measure_id(fx: &Fx, code: &str) -> Uuid {
+    lines(
+        &fx.pool,
+        &format!("SELECT measure_id::text AS line FROM metric_measure WHERE code = '{code}'"),
+    )[0]
+    .parse()
+    .expect("a measure id")
+}
+
+/// `net_units` reported by day too, so a signed day side can net to 0.
+fn allow_daily_net_units(fx: &Fx) {
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_platform_measure \
+                SET supported_grains = \
+                    ARRAY['DAY','MONTH','REPORTING_PERIOD']::metric_reporting_grain[] \
+              WHERE measure_id = '{}'",
+            measure_id(fx, "net_units")
+        ),
+    );
+}
+
+/// Give the publisher the dashboard and widget capabilities, and both
+/// accounts `COMPLETE` coverage of both measures over `[start, end)`, with
+/// countries and institutions, each from its own completed import (the
+/// coverage runs derived as the trigger would).
+fn entitle_and_cover(fx: &Fx, start: NaiveDate, end: NaiveDate) {
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE publisher SET subscription_package = 'SPHINX' WHERE publisher_id = '{}'",
+            fx.publisher_id
+        ),
+    );
+    let net_units = measure_id(fx, "net_units");
+    for code in [ACCOUNT_A, ACCOUNT_B] {
+        let account: Uuid = lines(
+            &fx.pool,
+            &format!(
+                "SELECT source_account_id::text AS line FROM metric_source_account \
+                 WHERE code = '{code}'"
+            ),
+        )[0]
+        .parse()
+        .expect("an account id");
+        let import = Uuid::new_v4();
+        let mut statements = import_sql(import, account, "COMPLETED", "'2025-02-01T00:00:00Z'");
+        for measure in [fx.title_sessions, net_units] {
+            statements.push_str(&coverage_sql(
+                account,
+                import,
+                fx.platform_id,
+                measure,
+                start,
+                end,
+                "COMPLETE",
+                true,
+                true,
+            ));
+        }
+        dashboard_exec(&fx.pool, &statements);
+    }
+}
+
+/// A `metricDashboard` request of the publisher, or of `works` of it, on
+/// the fixture platform and `measures`, over `[start, end)` (`start`
+/// omitted for all time) at `grain`, with the given sections.
+fn native_request(
+    fx: &Fx,
+    works: &[Uuid],
+    measures: &[Uuid],
+    (start, end): (Option<NaiveDate>, NaiveDate),
+    grain: MetricTimelineGrain,
+    (countries, institutions): (bool, bool),
+) -> MetricDashboardInput {
+    MetricDashboardInput {
+        selector: MetricSelectorInput {
+            publisher_ids: Some(vec![fx.publisher_id]),
+            work_ids: (!works.is_empty()).then(|| works.to_vec()),
+            ..MetricSelectorInput::default()
+        },
+        start_date: start,
+        end_date: end,
+        measures: Some(measures.to_vec()),
+        platforms: Some(vec![fx.platform_id]),
+        timeline_grain: Some(grain),
+        include_countries: Some(countries),
+        include_institutions: Some(institutions),
+    }
+}
+
+/// A widget read, under `ON`, of the fixture work `work`.
+fn native_widget(
+    fx: &Fx,
+    work: usize,
+    (start, end): (Option<NaiveDate>, NaiveDate),
+    grain: MetricWidgetGrain,
+) -> Result<MetricWidget, MetricWidgetError> {
+    let doi = fx.dois[work]
+        .trim_start_matches("https://doi.org/")
+        .to_string();
+    metric_widget_with_month_serving(
+        &fx.pool,
+        MetricWidgetSwitch::On,
+        MetricMonthServing::On,
+        &AtomicUsize::new(0),
+        &MetricWidgetInput {
+            doi: Doi(doi),
+            chapter_dois: None,
+            start_date: start,
+            end_date: end,
+            timeline_grain: Some(grain),
+        },
+    )
+}
+
+/// T1 (annex), its `ON` part: `MONTH` records just ingested, with no rollup
+/// run since, are served at once by `metricDashboard` and by the widget,
+/// with no `ROLLUP_LAG` and the `rollupWatermark` of a read made before
+/// them; `OFF` refuses the same read as today.
+#[test]
+fn under_on_ingested_months_are_served_at_once_with_no_lag_and_the_same_watermark() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2024, 1, 1), date(2024, 4, 1));
+    entitle_and_cover(&fx, start, end);
+    let net_units = measure_id(&fx, "net_units");
+    let input = native_request(
+        &fx,
+        &[],
+        &[fx.title_sessions, net_units],
+        (Some(start), end),
+        MetricTimelineGrain::Month,
+        (true, true),
+    );
+    let read = |serving| metric_dashboard_with_month_serving(&fx.pool, &input, serving);
+    let values = |dashboard: &MetricDashboard, measure: Uuid| {
+        let total = dashboard
+            .totals
+            .iter()
+            .find(|total| total.measure_id == measure)
+            .and_then(|total| total.value)
+            .map(|value| value.to_string());
+        let buckets: Vec<Option<String>> = dashboard
+            .timeline
+            .iter()
+            .filter(|bucket| bucket.measure_id == measure)
+            .map(|bucket| bucket.value.map(|value| value.to_string()))
+            .collect();
+        (total, buckets)
+    };
+    let before = read(MetricMonthServing::On).expect("served before the months");
+    assert_eq!(
+        values(&before, fx.title_sessions),
+        (known("0"), vec![known("0"); 3])
+    );
+    fx.ingest(
+        "t1-on",
+        false,
+        &[
+            month_obs(0, false, date(2024, 1, 1), 0, 7),
+            month_obs(1, true, date(2024, 2, 1), 2, -3),
+        ],
+    )
+    .expect("the months are ingested");
+
+    let after = read(MetricMonthServing::On).expect("served at once");
+    assert_eq!(after.rollup_watermark, before.rollup_watermark);
+    assert!(
+        after
+            .warnings
+            .iter()
+            .all(|warning| warning.code != MetricWarningCode::RollupLag),
+        "{:?}",
+        after.warnings
+    );
+    assert_eq!(
+        values(&after, fx.title_sessions),
+        (known("7"), vec![known("7"), known("0"), known("0")])
+    );
+    assert_eq!(
+        values(&after, net_units),
+        (known("-3"), vec![known("0"), known("-3"), known("0")])
+    );
+    assert_eq!(
+        after
+            .countries
+            .iter()
+            .map(|row| (
+                row.measure_id,
+                row.country_code.clone(),
+                row.value.to_string()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(net_units, "GB".to_string(), "-3".to_string())]
+    );
+    assert_eq!(after.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(
+        read(MetricMonthServing::Off),
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "OFF refuses as today"
+    );
+
+    let widget = native_widget(&fx, 0, (Some(start), end), MetricWidgetGrain::Month)
+        .expect("the widget serves the month at once");
+    assert_eq!(widget.rollup_watermark, before.rollup_watermark);
+    assert_eq!(
+        widget
+            .work
+            .timeline
+            .iter()
+            .map(|bucket| (
+                bucket.measure_id,
+                bucket.value.map(|value| value.to_string())
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (fx.title_sessions, known("7")),
+            (fx.title_sessions, known("0")),
+            (fx.title_sessions, known("0")),
+        ]
+    );
+    assert_eq!(
+        widget.work.coverage[0].status,
+        MetricCoverageStatus::Complete
+    );
+}
+
+/// What one generated (work, measure, month) cell of T2 and T14 holds on
+/// its native side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NativeSide {
+    Absent,
+    Live,
+    /// Every record written or revised to 0.
+    Zero,
+    /// Masks 2 and 1 alone.
+    TotalAmbiguous,
+    /// Masks 0, 3 and 6.
+    CountryAmbiguous,
+}
+
+/// What one generated cell holds on its day side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DaySide {
+    Absent,
+    Live,
+    /// Rows on one to three days, every value 0.
+    Zero,
+    /// An undimensioned 0 beside a non-zero country row on one day.
+    ZeroTotalBesideSection,
+    /// One row +x on the 3rd and -x on the 21st (a signed measure).
+    SignedNetZero,
+    /// Two countries, +x and -x, on one day (a signed measure).
+    CountriesNettingToZero,
+    /// Masks 2 and 1 alone on the 10th.
+    TotalAmbiguous,
+    /// Masks 0, 3 and 5 on the 5th.
+    InstitutionAmbiguous,
+}
+
+/// Every mask set whose total and both sections resolve; all eight masks
+/// are among them.
+const RESOLVING: [&[u8]; 20] = [
+    &[0],
+    &[0, 2],
+    &[0, 1],
+    &[0, 4],
+    &[0, 2, 1],
+    &[0, 3],
+    &[0, 6],
+    &[0, 5],
+    &[0, 7],
+    &[2],
+    &[1],
+    &[3],
+    &[4],
+    &[5],
+    &[6],
+    &[7],
+    &[0, 2, 3],
+    &[0, 1, 3],
+    &[0, 2, 6],
+    &[0, 1, 5],
+];
+
+/// The (country, institution) indices of one mask's rows: one or more of
+/// its combinations.
+fn combinations(generator: &mut Generator, mask: u8) -> Vec<(usize, usize)> {
+    let countries: &[usize] = if mask & 2 != 0 { &[0, 1] } else { &[0] };
+    let institutions: &[usize] = if mask & 1 != 0 { &[0, 1] } else { &[0] };
+    let all: Vec<(usize, usize)> = countries
+        .iter()
+        .flat_map(|country| {
+            institutions
+                .iter()
+                .map(move |institution| (*country, *institution))
+        })
+        .collect();
+    let mut chosen: Vec<(usize, usize)> = all
+        .iter()
+        .copied()
+        .filter(|_| generator.below(2) == 0)
+        .collect();
+    if chosen.is_empty() {
+        chosen.push(all[generator.below(all.len() as u64) as usize]);
+    }
+    chosen
+}
+
+/// A non-zero value, signed for `net_units`.
+fn nonzero(generator: &mut Generator, net: bool) -> i64 {
+    let value = 1 + generator.below(20) as i64;
+    if net && generator.below(2) == 0 {
+        -value
+    } else {
+        value
+    }
+}
+
+/// One `DAY` observation.
+fn day_obs(
+    work: usize,
+    net: bool,
+    day: NaiveDate,
+    mask: u8,
+    (country, institution): (usize, usize),
+    value: i64,
+) -> Obs {
+    Obs {
+        end: day + Days::new(1),
+        grain: MetricReportingGrain::Day,
+        country,
+        institution,
+        ..month_obs(work, net, day, mask, value)
+    }
+}
+
+/// The `MONTH` records of one native side.
+fn native_side(
+    generator: &mut Generator,
+    work: usize,
+    net: bool,
+    month: NaiveDate,
+    side: NativeSide,
+) -> Vec<Obs> {
+    let masks: &[u8] = match side {
+        NativeSide::Absent => return Vec::new(),
+        NativeSide::Live | NativeSide::Zero => {
+            RESOLVING[generator.below(RESOLVING.len() as u64) as usize]
+        }
+        NativeSide::TotalAmbiguous => &[2, 1],
+        NativeSide::CountryAmbiguous => &[0, 3, 6],
+    };
+    let mut records = Vec::new();
+    for mask in masks {
+        for (country, institution) in combinations(generator, *mask) {
+            let value = if side == NativeSide::Zero {
+                0
+            } else {
+                nonzero(generator, net)
+            };
+            records.push(Obs {
+                country,
+                institution,
+                ..month_obs(work, net, month, *mask, value)
+            });
+        }
+    }
+    records
+}
+
+/// The `DAY` records of one day side.
+fn day_side(
+    generator: &mut Generator,
+    work: usize,
+    net: bool,
+    month: NaiveDate,
+    side: DaySide,
+) -> Vec<Obs> {
+    let last = next_month(month) - Days::new(1);
+    let some_day = |generator: &mut Generator| match generator.below(4) {
+        0 => month,
+        1 => last,
+        _ => month + Days::new(1 + generator.below(27)),
+    };
+    let mut rows = Vec::new();
+    match side {
+        DaySide::Absent => {}
+        DaySide::Live | DaySide::Zero => {
+            let mut days = BTreeSet::new();
+            for _ in 0..1 + generator.below(3) {
+                days.insert(some_day(generator));
+            }
+            for day in days {
+                let masks = RESOLVING[generator.below(RESOLVING.len() as u64) as usize];
+                for mask in masks {
+                    for dims in combinations(generator, *mask) {
+                        let value = if side == DaySide::Zero {
+                            0
+                        } else {
+                            nonzero(generator, net)
+                        };
+                        rows.push(day_obs(work, net, day, *mask, dims, value));
+                    }
+                }
+            }
+        }
+        DaySide::ZeroTotalBesideSection => {
+            let day = some_day(generator);
+            rows.push(day_obs(work, net, day, 0, (0, 0), 0));
+            let country = generator.below(2) as usize;
+            rows.push(day_obs(
+                work,
+                net,
+                day,
+                2,
+                (country, 0),
+                nonzero(generator, false),
+            ));
+        }
+        DaySide::SignedNetZero => {
+            assert!(net, "a signed measure");
+            let mask = [0, 2, 3, 6][generator.below(4) as usize];
+            let dims = (generator.below(2) as usize, generator.below(2) as usize);
+            let value = 1 + generator.below(20) as i64;
+            rows.push(day_obs(work, net, month + Days::new(2), mask, dims, value));
+            rows.push(day_obs(
+                work,
+                net,
+                month + Days::new(20),
+                mask,
+                dims,
+                -value,
+            ));
+        }
+        DaySide::CountriesNettingToZero => {
+            assert!(net, "a signed measure");
+            let day = some_day(generator);
+            let value = 1 + generator.below(20) as i64;
+            rows.push(day_obs(work, net, day, 2, (0, 0), value));
+            rows.push(day_obs(work, net, day, 2, (1, 0), -value));
+        }
+        DaySide::TotalAmbiguous => {
+            let day = month + Days::new(9);
+            rows.push(day_obs(work, net, day, 2, (0, 0), nonzero(generator, net)));
+            rows.push(day_obs(work, net, day, 1, (0, 0), nonzero(generator, net)));
+        }
+        DaySide::InstitutionAmbiguous => {
+            let day = month + Days::new(4);
+            rows.push(day_obs(work, net, day, 0, (0, 0), nonzero(generator, net)));
+            rows.push(day_obs(work, net, day, 3, (0, 0), nonzero(generator, net)));
+            rows.push(day_obs(work, net, day, 5, (0, 1), nonzero(generator, net)));
+        }
+    }
+    rows
+}
+
+/// The dimension tuple of `obs` within its (work, measure): which of the
+/// publication, country and institution it names.
+fn dimension_tuple(obs: &Obs) -> (bool, Option<usize>, Option<usize>) {
+    (
+        obs.mask & 4 != 0,
+        (obs.mask & 2 != 0).then_some(obs.country),
+        (obs.mask & 1 != 0).then_some(obs.institution),
+    )
+}
+
+/// The two request rounds of T2 and T14 over 2024: the designed cells, and a
+/// seeded draw for every other (work, measure, month). A third of the keys
+/// are first written in round one with another value and revised to theirs
+/// in round two: up, down or to 0.
+fn mixed_plan(seed: u64) -> [Vec<Obs>; 2] {
+    use DaySide as D;
+    use NativeSide as N;
+    let designed: BTreeMap<(usize, bool, u32), (NativeSide, DaySide)> = BTreeMap::from([
+        ((0, false, 2), (N::Live, D::Live)),
+        ((1, true, 3), (N::Live, D::SignedNetZero)),
+        ((1, true, 4), (N::Live, D::CountriesNettingToZero)),
+        ((2, false, 5), (N::Live, D::ZeroTotalBesideSection)),
+        ((0, true, 6), (N::Zero, D::Live)),
+        ((2, true, 2), (N::Live, D::Zero)),
+        ((0, false, 7), (N::TotalAmbiguous, D::Live)),
+        ((0, true, 9), (N::Absent, D::InstitutionAmbiguous)),
+        ((1, false, 10), (N::CountryAmbiguous, D::Absent)),
+        ((2, true, 11), (N::TotalAmbiguous, D::Absent)),
+        ((2, false, 12), (N::Absent, D::TotalAmbiguous)),
+    ]);
+    let mut generator = Generator(seed);
+    let [mut first, mut second] = [Vec::new(), Vec::new()];
+    for number in 1..=12 {
+        let month = date(2024, number, 1);
+        for work in 0..3 {
+            for net in [false, true] {
+                let (native, day) = match designed.get(&(work, net, number)) {
+                    Some(sides) => *sides,
+                    None => match generator.below(12) {
+                        0 | 1 => (N::Absent, D::Absent),
+                        2..=4 => (N::Live, D::Absent),
+                        5..=7 => (N::Absent, D::Live),
+                        8 | 9 => (N::Live, D::Live),
+                        10 => (N::Zero, D::Live),
+                        _ => (N::Live, D::Zero),
+                    },
+                };
+                // Ingestion refuses a record whose exact dimensional cell
+                // already holds an overlapping period, so the two sides are
+                // redrawn until they share no dimension tuple.
+                let observations = loop {
+                    let mut observations = native_side(&mut generator, work, net, month, native);
+                    let tuples: BTreeSet<_> = observations.iter().map(dimension_tuple).collect();
+                    let days = day_side(&mut generator, work, net, month, day);
+                    if days
+                        .iter()
+                        .all(|obs| !tuples.contains(&dimension_tuple(obs)))
+                    {
+                        observations.extend(days);
+                        break observations;
+                    }
+                };
+                for obs in observations {
+                    if generator.below(3) == 0 {
+                        let earlier = loop {
+                            let value = if net {
+                                generator.below(41) as i64 - 20
+                            } else {
+                                generator.below(21) as i64
+                            };
+                            if value != obs.value {
+                                break value;
+                            }
+                        };
+                        first.push(Obs {
+                            value: earlier,
+                            ..obs
+                        });
+                    }
+                    second.push(obs);
+                }
+            }
+        }
+    }
+    [first, second]
+}
+
+/// Ingest the plan of `seed` through the real coordinator on account A, in
+/// two rounds of requests, each followed by the real rollup claim and
+/// completion; the rows' classifications, counted.
+fn ingest_mixed(fx: &Fx, seed: u64) -> BTreeMap<String, usize> {
+    let mut classes: BTreeMap<String, usize> = BTreeMap::new();
+    for (round, observations) in mixed_plan(seed).iter().enumerate() {
+        for (chunk, part) in observations.chunks(400).enumerate() {
+            let key = format!("mixed-{seed}-{round}-{chunk}");
+            let outcome = ingest_metric_batch(&fx.pool, &fx.batch(&key, false, part))
+                .unwrap_or_else(|error| panic!("{key}: {error:?}"));
+            for row in &outcome.rows {
+                *classes
+                    .entry(format!("{:?}", row.classification))
+                    .or_default() += 1;
+            }
+        }
+        apply_all(&fx.pool);
+    }
+    classes
+}
+
+/// Section rows of the 03A tables whose cell `(work, platform, measure,
+/// month)` has neither a total nor an ambiguity row.
+fn orphan_section_rows(pool: &PgPool) -> usize {
+    lines(
+        pool,
+        "SELECT count(*)::text AS line FROM ( \
+             SELECT work_id, platform_id, measure_id, month_start \
+               FROM metric_rollup_work_country_month \
+             UNION \
+             SELECT work_id, platform_id, measure_id, month_start \
+               FROM metric_rollup_work_institution_month \
+         ) s \
+         WHERE NOT EXISTS (SELECT 1 FROM metric_rollup_work_month t \
+                            WHERE t.work_id = s.work_id AND t.platform_id = s.platform_id \
+                              AND t.measure_id = s.measure_id \
+                              AND t.month_start = s.month_start) \
+           AND NOT EXISTS (SELECT 1 FROM metric_rollup_work_month_ambiguity a \
+                            WHERE a.work_id = s.work_id AND a.platform_id = s.platform_id \
+                              AND a.measure_id = s.measure_id \
+                              AND a.month_start = s.month_start)",
+    )[0]
+    .parse()
+    .expect("a count")
+}
+
+/// T2 (annex), 03A untouched: with `MONTH` and `DAY` records mixed (every
+/// mask, both measures, three works, revisions up, down and to 0), rolled
+/// up through the real claim and completion, the work-day rows are exactly
+/// the `DAY` records' current values, the 03A and yearly tables equal the
+/// existing per-day oracle over work-day rows only, every 03A section row
+/// has a total or ambiguity row of its cell, and `verifyMetricRollupMonths`
+/// reports exact.
+#[test]
+fn mixed_month_and_day_records_leave_03a_equal_to_the_per_day_oracle() {
+    let (_guard, fx) = setup();
+    let pool = fx.pool.as_ref();
+    allow_daily_net_units(&fx);
+    let classes = ingest_mixed(&fx, 20_261_121);
+    assert_eq!(
+        classes.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["Revision", "Winner"],
+        "{classes:?}"
+    );
+    let months = lines(
+        pool,
+        "SELECT count(*)::text AS line FROM metric_record WHERE reporting_grain = 'MONTH'",
+    );
+    assert_ne!(months, ["0"], "MONTH records are mixed in");
+    let set = |statement: &str| lines(pool, statement).into_iter().collect::<BTreeSet<_>>();
+    let from_records = set(
+        "SELECT concat_ws('|', r.work_id, coalesce(r.publication_id::text, '-'), r.platform_id, \
+                r.measure_id, r.period_start, coalesce(r.country_code::text, '-'), \
+                coalesce(r.institution_id::text, '-'), sum(v.value)) AS line \
+           FROM metric_record r \
+           JOIN metric_record_revision v \
+             ON v.record_revision_id = r.current_revision_id AND v.record_id = r.record_id \
+          WHERE r.reporting_grain = 'DAY' AND v.status = 'CURRENT' \
+          GROUP BY r.work_id, r.publication_id, r.platform_id, r.measure_id, r.period_start, \
+                   r.country_code, r.institution_id",
+    );
+    let work_days = set(
+        "SELECT concat_ws('|', work_id, coalesce(publication_id::text, '-'), platform_id, \
+                measure_id, day, coalesce(country_code::text, '-'), \
+                coalesce(institution_id::text, '-'), value) AS line \
+           FROM metric_rollup_work_day",
+    );
+    assert!(!work_days.is_empty());
+    assert_eq!(
+        work_days, from_records,
+        "work-day rows are the DAY records alone"
+    );
+    let days = projection(pool);
+    assert_eq!(month_state(pool), oracle_month_state(&days));
+    assert_eq!(year_state(pool), oracle_year_state(&days));
+    assert_eq!(orphan_section_rows(pool), 0);
+    let verified = verification(pool);
+    assert!(verified.matches, "{verified:?}");
+}
+
+/// One row of a cell as plain reads give it: its mask, publication,
+/// country and institution (`-` when absent) and value.
+#[derive(Debug, Clone)]
+struct CellRow {
+    mask: u8,
+    publication: String,
+    country: String,
+    institution: String,
+    value: i64,
+}
+
+/// A cell resolved by the register's generic rule (Amendment 6 for the
+/// total; per section, the unique least mask bearing it). Totals and
+/// section rows are kept per publication, as the 03A identity keys keep
+/// them.
+#[derive(Debug, Default)]
+struct Resolved {
+    /// `None` when the total is ambiguous.
+    total: Option<i128>,
+    totals: BTreeMap<String, i128>,
+    countries: BTreeMap<(String, String), i128>,
+    institutions: BTreeMap<(String, String), i128>,
+    country_ambiguous: bool,
+    institution_ambiguous: bool,
+    /// Any row is not 0.
+    live: bool,
+}
+
+fn resolve(rows: &[CellRow]) -> Resolved {
+    let masks: BTreeSet<u8> = rows.iter().map(|row| row.mask).collect();
+    let total_mask = if masks.contains(&0) {
+        Some(0)
+    } else if masks.len() == 1 {
+        masks.first().copied()
+    } else {
+        None
+    };
+    let (country, country_ambiguous) = least_bearing(&masks, 2);
+    let (institution, institution_ambiguous) = least_bearing(&masks, 1);
+    let mut resolved = Resolved {
+        country_ambiguous,
+        institution_ambiguous,
+        live: rows.iter().any(|row| row.value != 0),
+        ..Resolved::default()
+    };
+    for row in rows {
+        let value = i128::from(row.value);
+        if Some(row.mask) == total_mask {
+            resolved.total = Some(resolved.total.unwrap_or(0) + value);
+            *resolved.totals.entry(row.publication.clone()).or_default() += value;
+        }
+        if Some(row.mask) == country {
+            *resolved
+                .countries
+                .entry((row.publication.clone(), row.country.clone()))
+                .or_default() += value;
+        }
+        if Some(row.mask) == institution {
+            *resolved
+                .institutions
+                .entry((row.publication.clone(), row.institution.clone()))
+                .or_default() += value;
+        }
+    }
+    if total_mask.is_some() && resolved.total.is_none() {
+        resolved.total = Some(0);
+    }
+    resolved
+}
+
+/// The expected answer for one served pair.
+#[derive(Debug, PartialEq, Eq)]
+struct PairAnswer {
+    total: Option<String>,
+    buckets: Vec<Option<String>>,
+    status: MetricCoverageStatus,
+    data_through: Option<NaiveDate>,
+}
+
+/// The expected answer of one read, its pairs by measure.
+#[derive(Debug, PartialEq, Eq)]
+struct ReadAnswer {
+    pairs: BTreeMap<Uuid, PairAnswer>,
+    countries: Vec<(Uuid, String, String)>,
+    institutions: Vec<(Uuid, Uuid, String)>,
+}
+
+/// T14's oracle: plain reads of `metric_record`, its current revisions and
+/// `metric_rollup_work_day` only, never of a native table, under complete
+/// coverage of every day it is asked about.
+struct ReadOracle {
+    /// The served `MONTH` cells, by (work, measure, month).
+    natives: BTreeMap<(Uuid, Uuid, NaiveDate), Vec<CellRow>>,
+    /// The work-day cells, by (work, measure, day).
+    days: BTreeMap<(Uuid, Uuid, NaiveDate), Vec<CellRow>>,
+}
+
+impl ReadOracle {
+    fn read(fx: &Fx) -> ReadOracle {
+        let cells = |statement: String| {
+            let mut cells: BTreeMap<(Uuid, Uuid, NaiveDate), Vec<CellRow>> = BTreeMap::new();
+            for line in lines(&fx.pool, &statement) {
+                let f: Vec<&str> = line.split('|').collect();
+                assert_eq!(f.len(), 7, "{line}");
+                let key = (
+                    f[0].parse().expect("a work"),
+                    f[1].parse().expect("a measure"),
+                    NaiveDate::parse_from_str(f[2], "%Y-%m-%d").expect("a date"),
+                );
+                cells.entry(key).or_default().push(CellRow {
+                    mask: u8::from(f[3] != "-") * 4
+                        + u8::from(f[4] != "-") * 2
+                        + u8::from(f[5] != "-"),
+                    publication: f[3].into(),
+                    country: f[4].into(),
+                    institution: f[5].into(),
+                    value: f[6].parse().expect("a value"),
+                });
+            }
+            cells
+        };
+        let platform = fx.platform_id;
+        ReadOracle {
+            natives: cells(format!(
+                "SELECT concat_ws('|', r.work_id, r.measure_id, r.period_start, \
+                        coalesce(r.publication_id::text, '-'), \
+                        coalesce(r.country_code::text, '-'), \
+                        coalesce(r.institution_id::text, '-'), v.value) AS line \
+                   FROM metric_record r \
+                   JOIN metric_record_revision v \
+                     ON v.record_revision_id = r.current_revision_id \
+                    AND v.record_id = r.record_id \
+                  WHERE r.reporting_grain = 'MONTH' AND v.status = 'CURRENT' \
+                    AND r.platform_id = '{platform}' \
+                    AND r.period_end = (r.period_start + interval '1 month')::date \
+                    AND extract(day FROM r.period_start) = 1"
+            )),
+            days: cells(format!(
+                "SELECT concat_ws('|', work_id, measure_id, day, \
+                        coalesce(publication_id::text, '-'), \
+                        coalesce(country_code::text, '-'), \
+                        coalesce(institution_id::text, '-'), value) AS line \
+                   FROM metric_rollup_work_day WHERE platform_id = '{platform}'"
+            )),
+        }
+    }
+
+    /// The day side of `(work, measure, month)` as the 03A month rows the
+    /// per-day rule gives it: (it has rows, it is live — a total, country
+    /// or institution row not 0, or an ambiguity row — every total row is
+    /// 0, some section row is not 0).
+    fn day_month(&self, work: Uuid, measure: Uuid, month: NaiveDate) -> (bool, bool, bool, bool) {
+        let mut totals: BTreeMap<String, i128> = BTreeMap::new();
+        let mut sections: BTreeMap<(u8, String, String), i128> = BTreeMap::new();
+        let (mut rows, mut ambiguity) = (false, false);
+        for (_, cell) in self
+            .days
+            .range((work, measure, month)..(work, measure, next_month(month)))
+        {
+            rows = true;
+            let resolved = resolve(cell);
+            ambiguity |= resolved.total.is_none()
+                || resolved.country_ambiguous
+                || resolved.institution_ambiguous;
+            for (publication, value) in resolved.totals {
+                *totals.entry(publication).or_default() += value;
+            }
+            for ((publication, code), value) in resolved.countries {
+                *sections.entry((2, publication, code)).or_default() += value;
+            }
+            for ((publication, id), value) in resolved.institutions {
+                *sections.entry((1, publication, id)).or_default() += value;
+            }
+        }
+        let sections_live = sections.values().any(|value| *value != 0);
+        let live = ambiguity || totals.values().any(|value| *value != 0) || sections_live;
+        let zero_totals = !totals.is_empty() && totals.values().all(|value| *value == 0);
+        (rows, live, zero_totals, sections_live)
+    }
+
+    fn conflicted(&self, work: Uuid, measure: Uuid, month: NaiveDate) -> bool {
+        self.natives
+            .get(&(work, measure, month))
+            .is_some_and(|cell| resolve(cell).live)
+            && self.day_month(work, measure, month).1
+    }
+
+    /// Every conflicted cell.
+    fn conflicts(&self) -> BTreeSet<(Uuid, Uuid, NaiveDate)> {
+        self.natives
+            .keys()
+            .copied()
+            .filter(|(work, measure, month)| self.conflicted(*work, *measure, *month))
+            .collect()
+    }
+
+    /// The refusal of a read of `works` and `measures` over `[start, end)`:
+    /// an ambiguous day cell in the range (total, or a requested section),
+    /// then an unconflicted native cell wholly inside it that is.
+    fn refusal(
+        &self,
+        works: &[Uuid],
+        measures: &[Uuid],
+        (start, end): (NaiveDate, NaiveDate),
+        (countries, institutions): (bool, bool),
+    ) -> Option<MetricReadError> {
+        let refuses = |resolved: &Resolved| {
+            resolved.total.is_none()
+                || (countries && resolved.country_ambiguous)
+                || (institutions && resolved.institution_ambiguous)
+        };
+        let day_refuses = self.days.iter().any(|((work, measure, day), cell)| {
+            works.contains(work)
+                && measures.contains(measure)
+                && start <= *day
+                && *day < end
+                && refuses(&resolve(cell))
+        });
+        let native_refuses = self.natives.iter().any(|((work, measure, month), cell)| {
+            works.contains(work)
+                && measures.contains(measure)
+                && start <= *month
+                && next_month(*month) <= end
+                && !self.conflicted(*work, *measure, *month)
+                && refuses(&resolve(cell))
+        });
+        (day_refuses || native_refuses).then_some(MetricReadError::DimensionScopeAmbiguous)
+    }
+
+    /// The `TOTAL` rows `NATIVE_MONTHS_SQL` must give for `works` and
+    /// `measures` over `[start, end)` (`start` omitted for all time):
+    /// `measure|month|total|conflict|wholly_inside`.
+    fn native_totals(
+        &self,
+        works: &[Uuid],
+        measures: &[Uuid],
+        (start, end): (Option<NaiveDate>, NaiveDate),
+    ) -> BTreeSet<String> {
+        let mut months: BTreeMap<(Uuid, NaiveDate), (Option<i128>, bool)> = BTreeMap::new();
+        for ((work, measure, month), cell) in &self.natives {
+            if !works.contains(work)
+                || !measures.contains(measure)
+                || *month >= end
+                || start.is_some_and(|start| next_month(*month) <= start)
+            {
+                continue;
+            }
+            let entry = months.entry((*measure, *month)).or_insert((None, false));
+            if self.conflicted(*work, *measure, *month) {
+                entry.1 = true;
+            } else if let Some(total) = resolve(cell).total {
+                entry.0 = Some(entry.0.unwrap_or(0) + total);
+            }
+        }
+        months
+            .into_iter()
+            .map(|((measure, month), (total, conflict))| {
+                let whole = start.is_none_or(|start| month >= start) && next_month(month) <= end;
+                format!(
+                    "{measure}|{month}|{}|{}|{}",
+                    total.map_or("null".to_string(), |total| total.to_string()),
+                    flag(conflict),
+                    flag(whole)
+                )
+            })
+            .collect()
+    }
+
+    /// The answer of a read of `works` and `measures` over `[start, end)`
+    /// at the served `grain`, every day completely covered.
+    fn answer(
+        &self,
+        works: &[Uuid],
+        measures: &[Uuid],
+        (start, end): (NaiveDate, NaiveDate),
+        grain: MetricTimelineGrain,
+        sections: (bool, bool),
+    ) -> Result<ReadAnswer, MetricReadError> {
+        if let Some(error) = self.refusal(works, measures, (start, end), sections) {
+            return Err(error);
+        }
+        let buckets = oracle_buckets(start, end, grain);
+        let mut countries: BTreeMap<(Uuid, String), i128> = BTreeMap::new();
+        let mut institutions: BTreeMap<(Uuid, Uuid), i128> = BTreeMap::new();
+        let mut pairs = BTreeMap::new();
+        for measure in measures {
+            let mut add_sections = |resolved: &Resolved| {
+                for ((_, code), value) in &resolved.countries {
+                    *countries.entry((*measure, code.clone())).or_default() += value;
+                }
+                for ((_, id), value) in &resolved.institutions {
+                    let id: Uuid = id.parse().expect("an institution");
+                    *institutions.entry((*measure, id)).or_default() += value;
+                }
+            };
+            // The day side: each day's total over the works.
+            let mut day_totals: BTreeMap<NaiveDate, i128> = BTreeMap::new();
+            for ((_, _, day), cell) in self.days.iter().filter(|((work, cell_measure, day), _)| {
+                cell_measure == measure && works.contains(work) && start <= *day && *day < end
+            }) {
+                let resolved = resolve(cell);
+                *day_totals.entry(*day).or_default() += resolved.total.expect("not refused");
+                add_sections(&resolved);
+            }
+            // The native side: per month overlapping the range, the
+            // unconflicted cells' total and whether one is conflicted.
+            let mut months: BTreeMap<NaiveDate, (Option<i128>, bool)> = BTreeMap::new();
+            for ((work, cell_measure, month), cell) in &self.natives {
+                if cell_measure != measure
+                    || !works.contains(work)
+                    || *month >= end
+                    || next_month(*month) <= start
+                {
+                    continue;
+                }
+                let entry = months.entry(*month).or_insert((None, false));
+                if self.conflicted(*work, *measure, *month) {
+                    entry.1 = true;
+                    continue;
+                }
+                let resolved = resolve(cell);
+                if let Some(total) = resolved.total {
+                    entry.0 = Some(entry.0.unwrap_or(0) + total);
+                }
+                if start <= *month && next_month(*month) <= end {
+                    add_sections(&resolved);
+                }
+            }
+            // The cut set: conflicted months, and those not wholly inside
+            // the range and the bucket of their first day.
+            let cut: Vec<(NaiveDate, NaiveDate)> = months
+                .iter()
+                .filter(|(month, (_, conflict))| {
+                    let month_end = next_month(**month);
+                    let whole = start <= **month
+                        && month_end <= end
+                        && buckets
+                            .iter()
+                            .find(|(from, to)| *from <= **month && **month < *to)
+                            .is_some_and(|(_, to)| month_end <= *to);
+                    *conflict || !whole
+                })
+                .map(|(month, _)| ((*month).max(start), next_month(*month).min(end)))
+                .collect();
+            let value = |from: NaiveDate, to: NaiveDate| -> Option<String> {
+                let mut sum: Option<i128> = None;
+                for total in day_totals.range(from..to).map(|(_, total)| *total) {
+                    sum = Some(sum.unwrap_or(0) + total);
+                }
+                for (month, (total, _)) in months.range(from..to) {
+                    if let (true, Some(total)) = (next_month(*month) <= to, total) {
+                        sum = Some(sum.unwrap_or(0) + total);
+                    }
+                }
+                match sum {
+                    Some(sum) => Some(sum.to_string()),
+                    None if cut
+                        .iter()
+                        .all(|(cut_from, cut_to)| *cut_to <= from || *cut_from >= to) =>
+                    {
+                        known("0")
+                    }
+                    None => None,
+                }
+            };
+            let first_break = cut.iter().map(|(from, _)| *from).min();
+            pairs.insert(
+                *measure,
+                PairAnswer {
+                    total: value(start, end),
+                    buckets: buckets.iter().map(|(from, to)| value(*from, *to)).collect(),
+                    status: if cut.is_empty() {
+                        MetricCoverageStatus::Complete
+                    } else {
+                        MetricCoverageStatus::Partial
+                    },
+                    data_through: match first_break {
+                        Some(day) if day <= start => None,
+                        Some(day) => day.pred_opt(),
+                        None => end.pred_opt(),
+                    },
+                },
+            );
+        }
+        let (with_countries, with_institutions) = sections;
+        Ok(ReadAnswer {
+            pairs,
+            countries: if with_countries {
+                countries
+                    .into_iter()
+                    .map(|((measure, code), value)| (measure, code, value.to_string()))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            institutions: if with_institutions {
+                institutions
+                    .into_iter()
+                    .map(|((measure, id), value)| (measure, id, value.to_string()))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+        })
+    }
+
+    /// The measures the widget serves for `work` over the months `[from,
+    /// to)`: those with a work-day row or a native cell there.
+    fn widget_measures(
+        &self,
+        work: Uuid,
+        measures: &[Uuid],
+        (from, to): (NaiveDate, NaiveDate),
+    ) -> Vec<Uuid> {
+        measures
+            .iter()
+            .copied()
+            .filter(|measure| {
+                self.days
+                    .range((work, *measure, from)..(work, *measure, to))
+                    .next()
+                    .is_some()
+                    || self
+                        .natives
+                        .range((work, *measure, from)..(work, *measure, to))
+                        .next()
+                        .is_some()
+            })
+            .collect()
+    }
+
+    /// The first day of the earliest month with a work-day row or a native
+    /// cell of `work` before `end`.
+    fn first_month(&self, work: Uuid, measures: &[Uuid], end: NaiveDate) -> Option<NaiveDate> {
+        measures
+            .iter()
+            .flat_map(|measure| {
+                let day = self
+                    .days
+                    .range((work, *measure, NaiveDate::MIN)..(work, *measure, end))
+                    .next()
+                    .map(|((_, _, day), _)| *day);
+                let month = self
+                    .natives
+                    .range((work, *measure, NaiveDate::MIN)..(work, *measure, end))
+                    .next()
+                    .map(|((_, _, month), _)| *month);
+                [day, month]
+            })
+            .flatten()
+            .min()
+            .map(|day| day.with_day(1).expect("a first day"))
+    }
+}
+
+/// One served pair: its total, its buckets and their values.
+type ServedPair = (
+    Option<String>,
+    Vec<(NaiveDate, NaiveDate)>,
+    Vec<Option<String>>,
+);
+
+/// The total, the buckets and the bucket values of `measure` in one served
+/// answer.
+fn served_pair(
+    totals: &[crate::model::metric_dashboard::MetricTotal],
+    timeline: &[crate::model::metric_dashboard::MetricTimeBucket],
+    measure: Uuid,
+) -> ServedPair {
+    let total = totals
+        .iter()
+        .find(|total| total.measure_id == measure)
+        .and_then(|total| total.value)
+        .map(|value| value.to_string());
+    let buckets = timeline
+        .iter()
+        .filter(|bucket| bucket.measure_id == measure)
+        .map(|bucket| (bucket.start_date, bucket.end_date))
+        .collect();
+    let values = timeline
+        .iter()
+        .filter(|bucket| bucket.measure_id == measure)
+        .map(|bucket| bucket.value.map(|value| value.to_string()))
+        .collect();
+    (total, buckets, values)
+}
+
+/// T14 (`MET-WP4-MONTH-01`), with a fixed seed: `MONTH` records over all
+/// eight dimension masks, three works and twelve months, ingested through
+/// the real coordinator and revised up, down and to 0, mixed with `DAY`
+/// records rolled up through the real claim and completion, with designed
+/// conflicts, zero sides, zero totals beside non-zero section rows, signed
+/// months netting to 0 and ambiguity on either side. No 03A section row
+/// lacks a total or ambiguity row of its cell. Under `ON`,
+/// `metricDashboard` (every grain, aligned and clipped ranges, filtered
+/// works, explicit and omitted start) and the widget in pair mode
+/// (explicit and all-history) give the totals, buckets, sections, statuses,
+/// `dataThrough` and ambiguity refusals of an oracle computed from plain
+/// reads of `metric_record`, its current revisions and
+/// `metric_rollup_work_day` only, and `NATIVE_MONTHS_SQL`'s `TOTAL` rows
+/// carry its conflict flags. The register's checks over this database:
+/// V-NATIVE 0, V-CONFLICT the oracle's conflicted cells, V-MONTH clear and
+/// V-PLAN the oracle's live native cells of each plan.
+#[test]
+fn ingested_months_and_rolled_up_days_read_equal_to_an_independent_oracle() {
+    let (_guard, fx) = setup();
+    let pool = fx.pool.as_ref();
+    allow_daily_net_units(&fx);
+    let net_units = measure_id(&fx, "net_units");
+    let measures = [fx.title_sessions, net_units];
+    let (first_day, end_of_data) = (date(2024, 1, 1), date(2025, 1, 1));
+    entitle_and_cover(&fx, first_day, end_of_data);
+    let classes = ingest_mixed(&fx, 20_261_120);
+    assert_eq!(
+        classes.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["Revision", "Winner"],
+        "{classes:?}"
+    );
+    assert_eq!(orphan_section_rows(pool), 0);
+    let oracle = ReadOracle::read(&fx);
+
+    // The fixture holds what the stage names.
+    let mut counters: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut bump = |name: &'static str| *counters.entry(name).or_default() += 1;
+    let masks: BTreeSet<u8> = oracle
+        .natives
+        .values()
+        .flatten()
+        .map(|row| row.mask)
+        .collect();
+    assert_eq!(masks, (0..8).collect(), "every mask among the months");
+    for (work, measure, month) in oracle.natives.keys() {
+        let native = resolve(&oracle.natives[&(*work, *measure, *month)]);
+        let (rows, live, zero_totals, sections_live) = oracle.day_month(*work, *measure, *month);
+        match (rows, native.live, live) {
+            (true, true, true) => bump("conflicted cells"),
+            (true, false, true) => bump("zero native sides beside a live day side"),
+            (true, true, false) => bump("zero day sides beside a live native side"),
+            _ => {}
+        }
+        if rows && live && zero_totals && sections_live {
+            bump("zero totals beside a non-zero section row");
+        }
+        let day_values = oracle
+            .days
+            .range((*work, *measure, *month)..(*work, *measure, next_month(*month)))
+            .flat_map(|(_, cell)| cell)
+            .any(|row| row.value != 0);
+        if rows && !live && day_values {
+            bump("signed day months netting to 0, both sides added");
+        }
+        if native.total.is_none() {
+            bump("total-ambiguous native cells");
+        }
+        if native.country_ambiguous {
+            bump("country-ambiguous native cells");
+        }
+    }
+    for cell in oracle.days.values() {
+        let resolved = resolve(cell);
+        if resolved.total.is_none() {
+            bump("total-ambiguous day cells");
+        }
+        if resolved.institution_ambiguous {
+            bump("institution-ambiguous day cells");
+        }
+    }
+    for line in lines(
+        pool,
+        "SELECT concat_ws('|', r.reporting_grain, \
+                CASE WHEN n.value = 0 THEN 'zero' WHEN n.value > o.value THEN 'up' \
+                     ELSE 'down' END) AS line \
+           FROM metric_record r \
+           JOIN metric_record_revision o ON o.record_id = r.record_id AND o.revision_number = 1 \
+           JOIN metric_record_revision n ON n.record_id = r.record_id AND n.revision_number = 2",
+    ) {
+        match line.as_str() {
+            "MONTH|up" => bump("MONTH revisions up"),
+            "MONTH|down" => bump("MONTH revisions down"),
+            "MONTH|zero" => bump("MONTH revisions to 0"),
+            "DAY|up" => bump("DAY revisions up"),
+            "DAY|down" => bump("DAY revisions down"),
+            _ => bump("DAY revisions to 0"),
+        }
+    }
+
+    // The conflict flags of NATIVE_MONTHS_SQL's TOTAL rows.
+    let native_totals = |works: &[Uuid], range: (Option<NaiveDate>, NaiveDate)| {
+        let mut connection = pool.get().expect("a connection");
+        sql_query(format!(
+            "SELECT concat_ws('|', n.measure_id, n.month_start, coalesce(n.total, 'null'), \
+                    n.conflict, n.wholly_inside) AS line \
+               FROM ({NATIVE_MONTHS_SQL}) n WHERE n.kind = 'TOTAL'"
+        ))
+        .bind::<Array<SqlUuid>, _>(works.to_vec())
+        .bind::<Array<SqlUuid>, _>(vec![fx.platform_id])
+        .bind::<Array<SqlUuid>, _>(measures.to_vec())
+        .bind::<Nullable<Date>, _>(range.0)
+        .bind::<Date, _>(range.1)
+        .bind::<Bool, _>(true)
+        .bind::<Bool, _>(true)
+        .bind::<SqlBigInt, _>(100_001_i64)
+        .load::<Line>(&mut connection)
+        .expect("NATIVE_MONTHS_SQL")
+        .into_iter()
+        .map(|row| row.line)
+        .collect::<BTreeSet<String>>()
+    };
+    for (works, range) in [
+        (fx.works.clone(), (Some(first_day), end_of_data)),
+        (
+            fx.works.clone(),
+            (Some(date(2024, 2, 10)), date(2024, 8, 20)),
+        ),
+        (vec![fx.works[0], fx.works[2]], (None, date(2024, 10, 1))),
+        (
+            vec![fx.works[1]],
+            (Some(date(2024, 3, 1)), date(2024, 5, 15)),
+        ),
+    ] {
+        let expected = oracle.native_totals(&works, &measures, range);
+        assert!(!expected.is_empty());
+        assert_eq!(native_totals(&works, range), expected, "{range:?}");
+    }
+
+    // metricDashboard under ON.
+    let mut read_dashboard = |label: &str,
+                              works: &[usize],
+                              (start, end): (Option<NaiveDate>, NaiveDate),
+                              grain: MetricTimelineGrain,
+                              sections: (bool, bool)| {
+        let selected: Vec<Uuid> = works.iter().map(|work| fx.works[*work]).collect();
+        let scope = if selected.is_empty() {
+            fx.works.clone()
+        } else {
+            selected.clone()
+        };
+        let input = native_request(&fx, &selected, &measures, (start, end), grain, sections);
+        let actual = metric_dashboard_with_month_serving(pool, &input, MetricMonthServing::On);
+        // All time starts at the earliest evidence: the coverage's first day.
+        let from = start.unwrap_or(first_day);
+        let refusal = oracle.refusal(&scope, &measures, (from, end), sections);
+        let dashboard = match (actual, refusal) {
+            (Err(error), Some(expected)) => {
+                assert_eq!(error, expected, "{label}");
+                bump("refused reads");
+                return;
+            }
+            (Ok(dashboard), None) => dashboard,
+            (actual, refusal) => panic!("{label}: {actual:?}, the oracle's refusal {refusal:?}"),
+        };
+        assert_eq!(
+            (dashboard.start_date, dashboard.end_date),
+            (from, end),
+            "{label}"
+        );
+        let served = dashboard.timeline_grain;
+        assert_ne!(served, MetricTimelineGrain::Auto, "{label}");
+        if grain != MetricTimelineGrain::Auto {
+            assert_eq!(served, grain, "{label}");
+        }
+        let answer = oracle
+            .answer(&scope, &measures, (from, end), served, sections)
+            .expect("not refused");
+        for measure in &measures {
+            let expected = &answer.pairs[measure];
+            let (total, buckets, values) =
+                served_pair(&dashboard.totals, &dashboard.timeline, *measure);
+            assert_eq!(buckets, oracle_buckets(from, end, served), "{label}");
+            assert_eq!(
+                (&total, &values),
+                (&expected.total, &expected.buckets),
+                "{label} {measure}"
+            );
+            let item = dashboard
+                .coverage
+                .items
+                .iter()
+                .find(|item| item.measure_id == *measure)
+                .expect("an item");
+            assert_eq!(
+                (item.status, item.data_through),
+                (expected.status, expected.data_through),
+                "{label} {measure}"
+            );
+            if expected.status == MetricCoverageStatus::Partial {
+                bump("served pairs PARTIAL from a cut");
+            }
+            if expected.buckets.iter().any(Option::is_none) {
+                bump("served pairs with a null bucket");
+            }
+        }
+        assert_eq!(
+            dashboard
+                .countries
+                .iter()
+                .map(|row| (
+                    row.measure_id,
+                    row.country_code.clone(),
+                    row.value.to_string()
+                ))
+                .collect::<Vec<_>>(),
+            answer.countries,
+            "{label}"
+        );
+        assert_eq!(
+            dashboard
+                .institutions
+                .iter()
+                .map(|row| (row.measure_id, row.institution_id, row.value.to_string()))
+                .collect::<Vec<_>>(),
+            answer.institutions,
+            "{label}"
+        );
+        bump("served reads");
+    };
+    use MetricTimelineGrain::{Auto, Day, Month, Year};
+    let all: &[usize] = &[];
+    for (label, works, start, end, grain, sections) in [
+        ("a year", all, first_day, end_of_data, Year, (true, true)),
+        (
+            "six months",
+            all,
+            first_day,
+            date(2024, 7, 1),
+            Month,
+            (true, true),
+        ),
+        (
+            "six months at YEAR",
+            all,
+            first_day,
+            date(2024, 7, 1),
+            Year,
+            (false, false),
+        ),
+        (
+            "two months of days",
+            all,
+            date(2024, 2, 1),
+            date(2024, 4, 1),
+            Day,
+            (true, true),
+        ),
+        (
+            "clipped months",
+            all,
+            date(2024, 1, 15),
+            date(2024, 6, 20),
+            Month,
+            (true, false),
+        ),
+        (
+            "a clipped year",
+            all,
+            date(2024, 3, 10),
+            date(2024, 8, 25),
+            Year,
+            (false, true),
+        ),
+        (
+            "clipped days",
+            all,
+            date(2024, 4, 3),
+            date(2024, 5, 27),
+            Day,
+            (true, true),
+        ),
+        (
+            "AUTO",
+            all,
+            date(2024, 6, 15),
+            date(2024, 8, 15),
+            Auto,
+            (true, true),
+        ),
+        (
+            "autumn",
+            all,
+            date(2024, 9, 1),
+            date(2024, 12, 1),
+            Month,
+            (false, false),
+        ),
+        (
+            "autumn of two works",
+            &[0, 1],
+            date(2024, 9, 1),
+            date(2024, 12, 1),
+            Month,
+            (false, false),
+        ),
+        (
+            "autumn countries",
+            &[1],
+            date(2024, 9, 1),
+            date(2024, 11, 1),
+            Month,
+            (true, false),
+        ),
+        (
+            "autumn institutions",
+            &[0],
+            date(2024, 9, 1),
+            date(2024, 11, 1),
+            Month,
+            (false, true),
+        ),
+        (
+            "a cut ambiguous month",
+            &[2],
+            date(2024, 11, 10),
+            date(2024, 12, 5),
+            Day,
+            (false, false),
+        ),
+        (
+            "an ambiguous day",
+            &[2],
+            date(2024, 11, 10),
+            date(2024, 12, 20),
+            Day,
+            (false, false),
+        ),
+    ] {
+        read_dashboard(label, works, (Some(start), end), grain, sections);
+    }
+    for (label, works, end, grain, sections) in [
+        (
+            "all time to September",
+            &[1, 2][..],
+            date(2024, 9, 1),
+            Year,
+            (true, true),
+        ),
+        (
+            "all time to July, AUTO",
+            all,
+            date(2024, 7, 1),
+            Auto,
+            (false, false),
+        ),
+        (
+            "all time of two works",
+            &[0, 1],
+            end_of_data,
+            Year,
+            (false, false),
+        ),
+        (
+            "all time to mid-June",
+            all,
+            date(2024, 6, 15),
+            Month,
+            (true, true),
+        ),
+        ("all time", all, end_of_data, Year, (true, true)),
+    ] {
+        read_dashboard(label, works, (None, end), grain, sections);
+    }
+    let mut generator = Generator(20_261_122);
+    let selections: [&[usize]; 5] = [&[], &[0], &[1], &[2], &[0, 2]];
+    for draw in 0..24 {
+        let start = first_day + Days::new(generator.below(330));
+        let end = start + Days::new(1 + generator.below((end_of_data - start).num_days() as u64));
+        let grain = [Day, Month, Year, Auto][generator.below(4) as usize];
+        let sections = (generator.below(2) == 0, generator.below(2) == 0);
+        let works = selections[generator.below(5) as usize];
+        read_dashboard(
+            &format!("draw {draw}: {works:?} [{start}, {end}) {grain:?} {sections:?}"),
+            works,
+            (Some(start), end),
+            grain,
+            sections,
+        );
+    }
+
+    // The widget in pair mode under ON.
+    for work in 0..3 {
+        let work_id = fx.works[work];
+        for (label, (start, end), grain) in [
+            (
+                "six months",
+                (Some(first_day), date(2024, 7, 1)),
+                MetricWidgetGrain::Month,
+            ),
+            (
+                "summer to autumn",
+                (Some(date(2024, 6, 1)), date(2024, 12, 1)),
+                MetricWidgetGrain::Month,
+            ),
+            (
+                "all history to September",
+                (None, date(2024, 9, 1)),
+                MetricWidgetGrain::Year,
+            ),
+            ("all history", (None, end_of_data), MetricWidgetGrain::Year),
+        ] {
+            let label = format!("widget, work {work}, {label}");
+            let actual = native_widget(&fx, work, (start, end), grain);
+            let from = start
+                .or_else(|| oracle.first_month(work_id, &measures, end))
+                .expect("every work has a served month");
+            let served = oracle.widget_measures(work_id, &measures, (from, end));
+            let timeline = match grain {
+                MetricWidgetGrain::Year => Year,
+                _ => Month,
+            };
+            let expected = oracle.answer(&[work_id], &served, (from, end), timeline, (true, false));
+            let widget = match (actual, expected) {
+                (Err(error), Err(_)) => {
+                    assert_eq!(error, MetricWidgetError::Unavailable, "{label}");
+                    bump("refused widget reads");
+                    continue;
+                }
+                (Ok(widget), Ok(answer)) => (widget, answer),
+                (actual, expected) => panic!("{label}: {actual:?} against {expected:?}"),
+            };
+            let (widget, answer) = widget;
+            assert_eq!((widget.start_date, widget.end_date), (from, end), "{label}");
+            let section = &widget.work;
+            assert_eq!(
+                section
+                    .coverage
+                    .iter()
+                    .map(|item| item.measure_id)
+                    .collect::<BTreeSet<_>>(),
+                served.iter().copied().collect::<BTreeSet<_>>(),
+                "{label}"
+            );
+            for item in &section.coverage {
+                let expected = &answer.pairs[&item.measure_id];
+                let (total, buckets, values) =
+                    served_pair(&section.totals, &section.timeline, item.measure_id);
+                assert_eq!(buckets, oracle_buckets(from, end, timeline), "{label}");
+                assert_eq!(
+                    (&total, &values),
+                    (&expected.total, &expected.buckets),
+                    "{label}"
+                );
+                assert_eq!(
+                    (item.status, item.data_through),
+                    (expected.status, expected.data_through),
+                    "{label}"
+                );
+            }
+            assert_eq!(
+                section
+                    .countries
+                    .iter()
+                    .map(|row| (
+                        row.measure_id,
+                        row.country_code.clone(),
+                        row.value.to_string()
+                    ))
+                    .collect::<Vec<_>>(),
+                answer.countries,
+                "{label}"
+            );
+            bump("served widget reads");
+        }
+    }
+
+    // The register's checks over this database.
+    let conflicts = oracle.conflicts();
+    assert_eq!(v_native_total(pool), 0, "V-NATIVE");
+    assert_eq!(
+        v_conflict(pool),
+        i64::try_from(conflicts.len()).expect("a count"),
+        "V-CONFLICT"
+    );
+    let grains = v_month(pool);
+    let month_row = &grains["MONTH"];
+    let records = oracle.natives.values().map(Vec::len).sum::<usize>();
+    assert_eq!(
+        (
+            month_row["active"].as_i64(),
+            month_row["invalid_periods"].as_i64(),
+            month_row["inconsistent_pointers"].as_i64(),
+            month_row["non_additive"].as_i64(),
+        ),
+        (
+            Some(i64::try_from(records).expect("a count")),
+            Some(0),
+            Some(0),
+            Some(0)
+        ),
+        "V-MONTH"
+    );
+    for (from, through) in [
+        (date(2023, 12, 1), date(2023, 12, 31)),
+        (date(2024, 2, 10), date(2024, 2, 20)),
+        (date(2024, 3, 31), date(2024, 6, 1)),
+        (first_day, date(2024, 12, 31)),
+    ] {
+        let live = oracle
+            .natives
+            .iter()
+            .filter(|((_, _, month), cell)| {
+                *month <= through && next_month(*month) > from && resolve(cell).live
+            })
+            .count();
+        assert_eq!(
+            v_plan(pool, fx.publisher_id, fx.platform_id, from, through),
+            i64::try_from(live).expect("a count"),
+            "V-PLAN [{from}, {through}]"
+        );
+    }
+
+    println!("T14 counters: {counters:?}");
+    for name in [
+        "conflicted cells",
+        "zero native sides beside a live day side",
+        "zero day sides beside a live native side",
+        "zero totals beside a non-zero section row",
+        "signed day months netting to 0, both sides added",
+        "total-ambiguous native cells",
+        "country-ambiguous native cells",
+        "total-ambiguous day cells",
+        "institution-ambiguous day cells",
+        "MONTH revisions up",
+        "MONTH revisions down",
+        "MONTH revisions to 0",
+        "DAY revisions up",
+        "DAY revisions down",
+        "DAY revisions to 0",
+        "refused reads",
+        "served reads",
+        "served pairs PARTIAL from a cut",
+        "served pairs with a null bucket",
+        "refused widget reads",
+        "served widget reads",
+    ] {
+        assert!(
+            counters.get(name).is_some_and(|count| *count > 0),
+            "{name}: {counters:?}"
+        );
+    }
 }

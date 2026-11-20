@@ -4232,14 +4232,20 @@ fn an_all_history_read_of_two_whole_years_reads_years_only_in_both_runs() {
         .contains("grain=YEAR history=false buckets=2"));
     assert_eq!(without_as_of(widget.clone()), without_as_of(explicit));
     history_and_explicit(&fx.pool, &input);
-    assert_year_oracle(&fx, &widget, &[first, second]);
+    assert_year_oracle(&fx, &input, &widget, &[first, second]);
 }
 
 // -- Equivalence oracle (section 8) ----------------------------------------
 
 /// The oracle over every section of `widget`, at `YEAR` over its served
-/// range.
-fn assert_year_oracle(fx: &Fixture, widget: &MetricWidget, chapters: &[Uuid]) {
+/// range; then (`MET-WP4-MONTH-01` T5) `input`, which `widget` answers, read
+/// again under `ON`.
+fn assert_year_oracle(
+    fx: &Fixture,
+    input: &MetricWidgetInput,
+    widget: &MetricWidget,
+    chapters: &[Uuid],
+) {
     let range = (widget.start_date, widget.end_date);
     assert_each_served_pair_equals_its_dashboard_read_at(
         fx,
@@ -4256,6 +4262,87 @@ fn assert_year_oracle(fx: &Fixture, widget: &MetricWidget, chapters: &[Uuid]) {
             range,
             MetricTimelineGrain::Year,
         );
+    }
+    assert_on_equals_off(fx, input, widget, chapters);
+}
+
+/// T5 (`MET-WP4-MONTH-01`): `input` under `ON`, on `DAY`-only data, equals
+/// `off`, its `OFF` response, apart from `asOf`. With `startDate` omitted,
+/// the one exception is 3.8's coverage fields: every other field is equal,
+/// and each section's coverage items equal T16's oracle (each pair's own
+/// all-time `ON` read at `YEAR`, restricted to the section's works), with
+/// the section's `dataThrough` and `isPartial` their register s4.1
+/// aggregation.
+fn assert_on_equals_off(
+    fx: &Fixture,
+    input: &MetricWidgetInput,
+    off: &MetricWidget,
+    chapters: &[Uuid],
+) {
+    let on = resolve_serving(&fx.pool, input, MetricMonthServing::On)
+        .0
+        .expect("the ON read");
+    if input.start_date.is_some() {
+        assert_eq!(
+            without_as_of(on),
+            without_as_of(off.clone()),
+            "ON equals OFF"
+        );
+        return;
+    }
+    let values = |widget: &MetricWidget| {
+        let mut widget = without_as_of(widget.clone());
+        for section in std::iter::once(&mut widget.work).chain(widget.chapters.as_mut()) {
+            section.coverage.clear();
+            section.data_through = None;
+            section.is_partial = false;
+        }
+        widget
+    };
+    assert_eq!(
+        values(&on),
+        values(off),
+        "ON equals OFF but for 3.8's fields"
+    );
+    let sections = std::iter::once((&on.work, vec![fx.works[0]])).chain(
+        on.chapters
+            .as_ref()
+            .map(|section| (section, chapters.to_vec())),
+    );
+    for (section, works) in sections {
+        assert!(!section.coverage.is_empty());
+        let mut partial = false;
+        let mut through = Vec::new();
+        for item in &section.coverage {
+            let restricted = MetricDashboardInput {
+                start_date: None,
+                ..single_pair_input_at(
+                    fx,
+                    &works,
+                    item.platform_id,
+                    item.measure_id,
+                    (on.start_date, on.end_date),
+                    MetricTimelineGrain::Year,
+                )
+            };
+            let alone =
+                metric_dashboard_with_month_serving(&fx.pool, &restricted, MetricMonthServing::On)
+                    .expect("the pair's own all-time read");
+            let oracle = &alone.coverage.items[0];
+            assert_eq!(
+                (item.status, item.data_through, item.country_coverage),
+                (oracle.status, oracle.data_through, oracle.country_coverage),
+                "{works:?} {item:?}"
+            );
+            partial |= alone.is_partial;
+            through.push(oracle.data_through);
+        }
+        let expected_through = through
+            .into_iter()
+            .collect::<Option<Vec<NaiveDate>>>()
+            .and_then(|dates| dates.into_iter().min());
+        assert_eq!(section.data_through, expected_through, "{works:?}");
+        assert_eq!(section.is_partial, partial, "{works:?}");
     }
 }
 
@@ -4319,13 +4406,13 @@ fn each_served_pair_of_a_mixed_all_history_window_equals_its_single_pair_read() 
         .map(|row| row.country_code.as_str())
         .collect();
     assert_eq!(countries, ["DE", "FR", "GB"]);
-    assert_year_oracle(&fx, &widget, &[first, second]);
+    assert_year_oracle(&fx, &input, &widget, &[first, second]);
     // The same with startDate set to the served start, and with an earlier
     // one.
     history_and_explicit(&fx.pool, &input);
-    let earlier = read(&fx.pool, &year_input_from(BOOK_BARE, d(2023, 1, 1), end))
-        .expect("an earlier start is served");
-    assert_year_oracle(&fx, &earlier, &[first, second]);
+    let earlier_input = year_input_from(BOOK_BARE, d(2023, 1, 1), end);
+    let earlier = read(&fx.pool, &earlier_input).expect("an earlier start is served");
+    assert_year_oracle(&fx, &earlier_input, &earlier, &[first, second]);
 }
 
 #[test]
@@ -4367,7 +4454,7 @@ fn each_served_pair_of_an_all_history_whole_year_equals_its_single_pair_read() {
     assert_eq!(widget.start_date, d(2025, 1, 1));
     assert_year_buckets(&widget, d(2025, 1, 1), end);
     assert_eq!(widget.work.countries.len(), 2);
-    assert_year_oracle(&fx, &widget, &[]);
+    assert_year_oracle(&fx, &input, &widget, &[]);
     history_and_explicit(&fx.pool, &input);
 }
 
@@ -4413,7 +4500,7 @@ fn each_served_pair_of_an_all_history_read_across_one_january_equals_its_single_
         widget.work.coverage[0].status,
         MetricCoverageStatus::Complete
     );
-    assert_year_oracle(&fx, &widget, &[]);
+    assert_year_oracle(&fx, &input, &widget, &[]);
     history_and_explicit(&fx.pool, &input);
 }
 
@@ -4432,13 +4519,14 @@ fn an_all_history_read_reaching_past_today_carries_no_coverage_signal() {
     );
     cover_over(&fx, fx.sessions, d(2026, 3, 1), d(2026, 11, 1));
     apply_all(&fx.pool);
-    let widget = history_and_explicit(&fx.pool, &year_input(BOOK_BARE, end));
+    let input = year_input(BOOK_BARE, end);
+    let widget = history_and_explicit(&fx.pool, &input);
     assert_eq!(widget.start_date, d(2026, 3, 1));
     let coverage = &widget.work.coverage[0];
     assert_eq!(coverage.status, MetricCoverageStatus::Unknown);
     assert!(!coverage.country_coverage);
     assert!(widget.work.is_partial);
-    assert_year_oracle(&fx, &widget, &[]);
+    assert_year_oracle(&fx, &input, &widget, &[]);
 }
 
 // -- Native grain and ambiguity (section 4.3) ------------------------------
@@ -5131,6 +5219,104 @@ fn under_on_a_conflicted_month_is_served_partial_in_the_book_and_the_children() 
         );
         assert_eq!(section.coverage[0].status, MetricCoverageStatus::Partial);
         assert!(section.is_partial);
+    }
+}
+
+/// T6 (`MET-WP4-MONTH-01`) through the widget: a withdrawn month is not
+/// served, and the response equals `OFF`'s and the one before it; each
+/// contradictory `MONTH` pointer (under `OFF` too, as today) and, under
+/// `ON`, a non-calendar `MONTH` record, once projected, fail the served
+/// pair's engine read, which the widget gives as `INTERNAL_ERROR`; under
+/// `OFF` the non-calendar record is an active `MONTH` record, refused as
+/// today.
+#[test]
+fn under_on_a_contradictory_or_non_calendar_month_is_internal_and_a_withdrawn_one_is_not_served() {
+    use crate::model::metric_dashboard::tests::{native_record, Native};
+    use MetricWidgetError::{Internal, Unavailable};
+    let (start, end) = march();
+    // (label, the record's period, its pointer, OFF's error, ON's error)
+    let cases = [
+        (
+            "a withdrawn month",
+            (start, end),
+            Native::Retracted,
+            None,
+            None,
+        ),
+        (
+            "a pointer at a superseded revision",
+            (start, end),
+            Native::PointsAtSuperseded,
+            Some(Internal),
+            Some(Internal),
+        ),
+        (
+            "a revision without a pointer",
+            (start, end),
+            Native::NoPointer,
+            Some(Internal),
+            Some(Internal),
+        ),
+        (
+            "a retracted pointer beside a current revision",
+            (start, end),
+            Native::RetractedBesideCurrent,
+            Some(Internal),
+            Some(Internal),
+        ),
+        (
+            "a non-calendar month",
+            (start, d(2026, 3, 20)),
+            Native::Active,
+            Some(Unavailable),
+            Some(Internal),
+        ),
+    ];
+    for (label, (from, to), state, off_error, on_error) in cases {
+        let (_guard, fx) = widget_setup();
+        cover_march(&fx, fx.sessions);
+        commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(2), 3);
+        apply_all(&fx.pool);
+        let input = input_for(BOOK_BARE);
+        let before = resolve_serving(&fx.pool, &input, MetricMonthServing::Off)
+            .0
+            .expect("served before the record");
+        native_record(
+            &fx,
+            fx.works[0],
+            fx.platform_id,
+            fx.sessions,
+            "MONTH",
+            from,
+            to,
+            state,
+        );
+        crate::model::metric_native_month::recompute_metric_native_months(
+            &fx.pool,
+            fx.publisher_id,
+        )
+        .expect("the native projection");
+        let (off, _) = resolve_serving(&fx.pool, &input, MetricMonthServing::Off);
+        let (on, lines) = resolve_serving(&fx.pool, &input, MetricMonthServing::On);
+        match (off_error, on_error) {
+            (Some(off_error), Some(on_error)) => {
+                assert_eq!(off, Err(off_error), "{label}: OFF");
+                assert_eq!(on, Err(on_error), "{label}: ON");
+                assert_eq!(on_error.code(), "INTERNAL_ERROR");
+                assert!(
+                    lines
+                        .iter()
+                        .any(|line| line.reason == Some(WidgetReason::EngineUnavailable)),
+                    "{label}"
+                );
+            }
+            _ => {
+                let off = off.expect("OFF serves");
+                let on = on.expect("ON serves");
+                assert_eq!(without_as_of(on.clone()), without_as_of(off), "{label}");
+                assert_eq!(without_as_of(on), without_as_of(before), "{label}");
+            }
+        }
     }
 }
 
