@@ -127,6 +127,13 @@ pub struct Context {
     /// Default `OFF`; set once at process start through
     /// [`Context::with_metric_widget`], so `Context::new` keeps its signature.
     pub(crate) metric_widget: crate::model::metric_widget::MetricWidgetSwitch,
+    /// Whether `metricDashboard` and `metricWidget` serve `MONTH` records
+    /// (`MET-WP4-MONTH-01`, `THOTH_METRIC_MONTH_SERVING`).
+    ///
+    /// Default `OFF`; set once at process start through
+    /// [`Context::with_metric_month_serving`], so `Context::new` keeps its
+    /// signature.
+    pub(crate) metric_month_serving: crate::model::metric_dashboard::MetricMonthServing,
     /// How many `metricWidget` resolutions this request has claimed
     /// (`MET-WP4-WIDGET-01` specification section 4.1 step 3).
     ///
@@ -166,6 +173,7 @@ impl Context {
             cloudfront_client,
             job_creation,
             metric_widget: crate::model::metric_widget::MetricWidgetSwitch::default(),
+            metric_month_serving: crate::model::metric_dashboard::MetricMonthServing::default(),
             metric_widget_claims: AtomicUsize::new(0),
             work_filter_options_claims: AtomicUsize::new(0),
             async_registry: &PRODUCTION_REGISTRY,
@@ -179,6 +187,15 @@ impl Context {
         switch: crate::model::metric_widget::MetricWidgetSwitch,
     ) -> Self {
         self.metric_widget = switch;
+        self
+    }
+
+    /// Set whether the two Metrics reads serve `MONTH` records.
+    pub fn with_metric_month_serving(
+        mut self,
+        month_serving: crate::model::metric_dashboard::MetricMonthServing,
+    ) -> Self {
+        self.metric_month_serving = month_serving;
         self
     }
 
@@ -4653,6 +4670,27 @@ impl MetricSourceAccount {
     #[graphql(description = "Whether the account is currently enabled")]
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+
+    #[graphql(
+        description = "First day on which the account's coverage counts, if its window is bounded there. A window limits only which days the account's coverage counts for; it restricts no collection and never hides a value"
+    )]
+    pub fn window_start(&self) -> Option<NaiveDate> {
+        self.window_start
+    }
+
+    #[graphql(
+        description = "First day on which the account's coverage no longer counts, if its window is bounded there"
+    )]
+    pub fn window_end(&self) -> Option<NaiveDate> {
+        self.window_end
+    }
+
+    #[graphql(
+        description = "The account's succession label, if any. Accounts of one publisher and platform that share a label collect one source of traffic and stand in for each other inside their windows"
+    )]
+    pub fn succession(&self) -> Option<&String> {
+        self.succession.as_ref()
     }
 }
 

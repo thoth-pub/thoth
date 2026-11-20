@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use juniper::{FieldError, FieldResult};
 use uuid::Uuid;
 
@@ -68,6 +69,7 @@ use crate::model::{
         crud::{create_metric_measure, update_metric_measure},
         MetricMeasure, NewMetricMeasure, PatchMetricMeasure,
     },
+    metric_native_month::{recompute_metric_native_months, MetricNativeMonthRecomputeResult},
     metric_platform::{
         crud::{create_metric_platform, update_metric_platform},
         MetricPlatform, NewMetricPlatform, PatchMetricPlatform,
@@ -95,8 +97,12 @@ use crate::model::{
         MetricSource, NewMetricSource, PatchMetricSource,
     },
     metric_source_account::{
-        crud::{create_metric_source_account, update_metric_source_account},
-        MetricSourceAccount, NewMetricSourceAccount, PatchMetricSourceAccount,
+        crud::{
+            create_metric_source_account, update_metric_source_account,
+            update_metric_source_account_window,
+        },
+        MetricSourceAccount, MetricSourceAccountWindow, NewMetricSourceAccount,
+        PatchMetricSourceAccount,
     },
     metric_source_checkpoint::MetricSourceCheckpoint,
     price::{NewPrice, PatchPrice, Price, PricePolicy},
@@ -2294,6 +2300,48 @@ impl MutationRoot {
     ) -> FieldResult<MetricSourceAccount> {
         authorize_metric_registry_admin(context)
             .and_then(|actor| update_metric_source_account(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Replace a metric source account's coverage window and succession, selected by its exact stable code. Superuser only. This is a complete replacement of windowStart, windowEnd and succession, where null clears one; the window runs from windowStart inclusive to windowEnd exclusive, and the account's coverage counts only inside it. A window alone never lowers what a day requires, and accounts stand in for each other only inside a succession: a label that groups accounts of one publisher and platform only, asserting that they collect one source of traffic, so that on each day the members whose window contains it must together assert it. A request that matches the stored values changes nothing and records no audit entry, and any real change records one before/after audit entry atomically. An account whose stored configuration is outside the supported representations is neither updated nor audited"
+    )]
+    fn update_metric_source_account_window(
+        context: &Context,
+        #[graphql(description = "The exact stable code of the metric source account")] code: String,
+        #[graphql(
+            description = "The first day the account's coverage counts, inclusive, or null for no start"
+        )]
+        window_start: Option<NaiveDate>,
+        #[graphql(
+            description = "The day from which the account's coverage no longer counts, exclusive, or null for no end. It must be after windowStart"
+        )]
+        window_end: Option<NaiveDate>,
+        #[graphql(
+            description = "The account's succession: 1 to 64 lowercase letters, digits and single hyphens, shared only by accounts of one publisher and platform that collect one source of traffic, or null for none"
+        )]
+        succession: Option<String>,
+    ) -> FieldResult<MetricSourceAccount> {
+        let data = MetricSourceAccountWindow {
+            code,
+            window_start,
+            window_end,
+            succession,
+        };
+        authorize_metric_registry_admin(context)
+            .and_then(|actor| update_metric_source_account_window(&context.db, actor, &data))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Recompute the native-month projection of every work now under a publisher's imprints from its canonical records, in chunks of at most 50 works, each its own transaction. Superuser only. It changes no canonical record, is idempotent, and runs beside ingestion and reads; a chunk that fails leaves the earlier chunks committed and exact, and is retried by calling it again"
+    )]
+    fn recompute_metric_native_months(
+        context: &Context,
+        #[graphql(description = "The publisher whose works are recomputed")] publisher_id: Uuid,
+    ) -> FieldResult<MetricNativeMonthRecomputeResult> {
+        authorize_metric_registry_admin(context)
+            .and_then(|_| recompute_metric_native_months(&context.db, publisher_id))
             .map_err(IntoFieldError::into_field_error)
     }
 

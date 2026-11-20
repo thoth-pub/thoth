@@ -36,7 +36,10 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
-    metric_dashboard::{metric_dashboard, MetricDashboard, MetricDashboardInput, MetricReadError},
+    metric_dashboard::{
+        metric_dashboard_with_month_serving as read_metric_dashboard, MetricDashboard,
+        MetricDashboardInput, MetricReadError,
+    },
     metric_measure::{
         crud::{list_metric_measures, metric_measure_by_code},
         MetricMeasure,
@@ -48,7 +51,9 @@ use crate::model::{
     metric_platform_measure::{crud::metric_platform_measure_by_codes, MetricPlatformMeasure},
     metric_source::{crud::metric_source_by_code, MetricSource},
     metric_source_account::{crud::metric_source_account_by_code, MetricSourceAccount},
-    metric_widget::{metric_widget as read_metric_widget, MetricWidget, MetricWidgetInput},
+    metric_widget::{
+        metric_widget_with_month_serving as read_metric_widget, MetricWidget, MetricWidgetInput,
+    },
     price::{CurrencyCode, Price},
     publication::{Publication, PublicationOrderBy, PublicationType},
     publisher::{Publisher, PublisherOrderBy, ThothPackage},
@@ -2307,7 +2312,7 @@ impl QueryRoot {
     // ----------------------------------------------------------------------
 
     #[graphql(
-        description = "Coverage-aware Metrics totals, timeline, countries and institutions for one bounded request. Requires the METRICS_READ_SERVICE role, and every selected publisher must be entitled to the Metrics dashboard. Absent totals and timeline values are null unless complete coverage justifies a zero, country and institution rows list only known values, and the response reports its coverage, freshness and warnings. A request intersecting Metrics reported for a whole month or reporting period fails with METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
+        description = "Coverage-aware Metrics totals, timeline, countries and institutions for one bounded request. Requires the METRICS_READ_SERVICE role, and every selected publisher must be entitled to the Metrics dashboard. Absent totals and timeline values are null unless complete coverage justifies a zero, country and institution rows list only known values, and the response reports its coverage, freshness and warnings. A request intersecting Metrics reported for a reporting period fails with METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN, and so does one intersecting Metrics reported for a whole month unless this server serves monthly Metrics; a served month counts only in a value whose dates contain all of it, and where days of that month are also reported the days are served and the month is marked incomplete"
     )]
     fn metric_dashboard(
         context: &Context,
@@ -2316,7 +2321,7 @@ impl QueryRoot {
         context
             .require_metrics_read_service()
             .map_err(MetricReadError::from)
-            .and_then(|_| metric_dashboard(&context.db, &input))
+            .and_then(|_| read_metric_dashboard(&context.db, &input, context.metric_month_serving))
             .map_err(IntoFieldError::into_field_error)
     }
 
@@ -2364,6 +2369,7 @@ impl QueryRoot {
         read_metric_widget(
             &context.db,
             context.metric_widget,
+            context.metric_month_serving,
             &context.metric_widget_claims,
             &input,
         )

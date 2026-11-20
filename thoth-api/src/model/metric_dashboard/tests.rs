@@ -1182,6 +1182,7 @@ fn an_unrepresentable_aggregate_fails_rather_than_wrapping() {
             combinations: &[],
             publishers: &[],
             accounts: &BTreeSet::new(),
+            windows: &BTreeMap::new(),
             include_countries: false,
             include_institutions: false,
             facts: &BTreeMap::new(),
@@ -3856,7 +3857,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     let source = include_str!("mod.rs");
     // The public entry point only names the production timeout.
     let public_entry = source
-        .split_once("pub(crate) fn metric_dashboard(")
+        .split_once("pub(crate) fn metric_dashboard_with_month_serving(")
         .expect("the entry point")
         .1
         .split_once("\n}\n")
@@ -3865,7 +3866,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     let public_chain: String = public_entry.split_whitespace().collect();
     assert!(
         public_chain
-            .ends_with("{metric_dashboard_with_statement_timeout(db,input,STATEMENT_TIMEOUT_SQL)"),
+            .ends_with("{metric_dashboard_with_statement_timeout(db,input,month_serving,STATEMENT_TIMEOUT_SQL)"),
         "the entry point must delegate with the production timeout: {public_chain}"
     );
     // The timeout-parameterized entry point only adds the production
@@ -3881,7 +3882,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
     let timeout_chain: String = timeout_entry.split_whitespace().collect();
     assert!(
         timeout_chain.ends_with(
-            "{metric_dashboard_with_controls(db,input,&ReadControls{statement_timeout_sql,\
+            "{metric_dashboard_with_controls(db,input,month_serving,&ReadControls{statement_timeout_sql,\
              guard:&METRIC_DASHBOARD_READS,slot_wait:METRIC_DASHBOARD_SLOT_WAIT,\
              read_deadline:METRIC_DASHBOARD_READ_DEADLINE,today:Utc::now().date_naive(),},)"
         ),
@@ -3896,7 +3897,7 @@ fn the_read_path_is_one_read_only_repeatable_read_transaction_of_selects() {
         .0;
     let chain: String = entry.split_whitespace().collect();
     assert!(
-        chain.contains(".build_transaction().read_only().repeatable_read().run(|connection|{evaluate(connection,&request,controls.statement_timeout_sql,&deadline,)})"),
+        chain.contains(".build_transaction().read_only().repeatable_read().run(|connection|{evaluate(connection,&request,month_serving,controls.statement_timeout_sql,&deadline,)})"),
         "every statement must run inside one read-only repeatable-read transaction: {chain}"
     );
     assert_eq!(
@@ -4005,13 +4006,15 @@ fn the_pre_snapshot_lock_names_exactly_the_six_truncated_tables_in_the_verifier_
 
 /// Every query the read may execute, by name: one text per slot, and the
 /// eight texts of the step-7 family.
-const READ_STATEMENTS: [(&str, &str); 19] = [
+const READ_STATEMENTS: [(&str, &str); 21] = [
     ("PUBLISHERS_SQL", PUBLISHERS_SQL),
     ("WORKS_SQL", WORKS_SQL),
+    ("NATIVE_MONTHS_SQL", NATIVE_MONTHS_SQL),
     ("KNOWN_SQL", KNOWN_SQL),
     ("REPRESENTED_SQL", REPRESENTED_SQL),
     ("ACCOUNTS_SQL", ACCOUNTS_SQL),
     ("CANONICAL_SQL", CANONICAL_SQL),
+    ("PAIR_STARTS_SQL", PAIR_STARTS_SQL),
     ("MONTHS_SQL", MONTHS_SQL),
     ("MONTHS_SCAN_SQL", MONTHS_SCAN_SQL),
     ("MONTHS_FULL_SCAN_SQL", MONTHS_FULL_SCAN_SQL),
@@ -6749,6 +6752,13 @@ fn assert_serving_matches_the_day_oracle(
     for grain in grains {
         let (result, statements) = captured_statements(&for_grain(grain));
         let dashboard = result.unwrap_or_else(|error| panic!("{label} {grain:?}: {error:?}"));
+        // MET-WP4-MONTH-01 T5: on this DAY-only data, ON equals OFF.
+        assert_on_matches_off(
+            &fx.pool,
+            &for_grain(grain),
+            &dashboard,
+            &format!("{label} {grain:?}"),
+        );
         let step_seven = statement_names(&statements)
             .into_iter()
             .find(|name| name.starts_with("MONTHS_"));
@@ -8918,6 +8928,7 @@ fn lock_contention_past_the_statement_timeout_fails_closed_and_returns_the_conne
     let result = metric_dashboard_with_statement_timeout(
         &pool,
         &input,
+        MetricMonthServing::Off,
         "SET LOCAL statement_timeout = '250ms'",
     );
     assert_eq!(result, Err(MetricReadError::Unavailable));
@@ -9342,6 +9353,7 @@ fn the_date_domain_is_checked_against_an_injected_today_before_any_statement() {
             metric_dashboard_with_controls(
                 &pool,
                 &over(&base, start, end, grain),
+                MetricMonthServing::Off,
                 &controls(&guard)
             ),
             Err(MetricReadError::QueryLimitExceeded(message)),
@@ -9410,6 +9422,7 @@ fn the_date_domain_is_checked_against_an_injected_today_before_any_statement() {
         let served = metric_dashboard_with_controls(
             &fx.pool,
             &over(&base, start, end, grain),
+            MetricMonthServing::Off,
             &controls(&guard),
         )
         .unwrap_or_else(|error| panic!("{label}: {error:?}"));
@@ -10457,10 +10470,11 @@ fn a_filtered_omitted_start_is_the_first_evidence_of_the_selected_pairs() {
         ),
         CANONICAL_SQL,
         "boolean, bigint, uuid[], date, date, uuid[], uuid[], boolean, boolean, uuid[], \
-         uuid[], uuid[], uuid[]",
+         uuid[], uuid[], uuid[], boolean, date[], date[]",
         &format!(
             "FALSE, 0, {works}, NULL, '{end}', ARRAY['{platform}']::uuid[], \
-             ARRAY['{measure}']::uuid[], TRUE, TRUE, {accounts}, ARRAY['{publisher}']::uuid[]",
+             ARRAY['{measure}']::uuid[], TRUE, TRUE, {accounts}, ARRAY['{publisher}']::uuid[], \
+             FALSE, ARRAY[NULL]::date[], ARRAY[NULL]::date[]",
             works = uuid_array(&fx.works),
             end = day_n(5),
             platform = fx.platform_id,
@@ -10503,10 +10517,11 @@ fn a_filtered_omitted_start_is_the_first_evidence_of_the_selected_pairs() {
         ),
         CANONICAL_SQL,
         "boolean, bigint, uuid[], date, date, uuid[], uuid[], boolean, boolean, uuid[], \
-         uuid[], uuid[], uuid[]",
+         uuid[], uuid[], uuid[], boolean, date[], date[]",
         &format!(
             "FALSE, 0, {works}, NULL, '{end}', ARRAY['{platform}']::uuid[], \
-             ARRAY['{measure}']::uuid[], TRUE, FALSE, {accounts}, ARRAY['{publisher}']::uuid[]",
+             ARRAY['{measure}']::uuid[], TRUE, FALSE, {accounts}, ARRAY['{publisher}']::uuid[], \
+             FALSE, ARRAY[NULL]::date[], ARRAY[NULL]::date[]",
             works = uuid_array(&fx.works),
             end = day_n(5),
             platform = fx.platform_id,
@@ -10625,10 +10640,21 @@ fn no_sql_constant_expands_the_days_of_a_range() {
             }
         }
     }
-    // The one date array any statement unnests is the candidate triples of
+    // The date arrays the statements unnest are the account windows of
+    // CANONICAL_SQL's and PAIR_STARTS_SQL's run and coverage branches, one
+    // element per eligible account row, and the candidate triples of
     // DIMENSION_CELLS_SQL, which the read takes from day rows the previous
     // statement returned: never days built from the range bounds.
-    assert_eq!(date_arrays, ["DIMENSION_CELLS_SQL"]);
+    assert_eq!(
+        date_arrays,
+        [
+            "CANONICAL_SQL",
+            "CANONICAL_SQL",
+            "PAIR_STARTS_SQL",
+            "PAIR_STARTS_SQL",
+            "DIMENSION_CELLS_SQL"
+        ]
+    );
     assert!(DIMENSION_CELLS_SQL.contains(
         "JOIN unnest($2::uuid[], $3::uuid[], $4::date[]) \
          AS candidate(platform_id, measure_id, day)"
@@ -10824,6 +10850,7 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
                     combinations: &combinations,
                     publishers: &publishers,
                     accounts: &accounts,
+                    windows: &BTreeMap::new(),
                     include_countries: true,
                     include_institutions: true,
                     facts: &facts,
@@ -10858,6 +10885,135 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
                     None => first_totals = Some(dashboard.totals),
                     Some(first) => assert_eq!(&dashboard.totals, first, "{label}"),
                 }
+            }
+        }
+    }
+    // MET-WP4-MONTH-01 (T12): native months (served, conflicted and
+    // total-ambiguous), windows, a succession and a pair start grow no
+    // structure with the range either; only the buckets follow it.
+    let mut accounts: BTreeSet<EligibleAccount> = BTreeSet::new();
+    let mut windows: BTreeMap<EligibleAccount, AccountWindow> = BTreeMap::new();
+    for publisher_id in &publishers {
+        for platform_id in &platforms {
+            let archive = EligibleAccount {
+                source_account_id: Uuid::new_v4(),
+                publisher_id: *publisher_id,
+                platform_id: *platform_id,
+            };
+            let live = EligibleAccount {
+                source_account_id: Uuid::new_v4(),
+                ..archive
+            };
+            let site = EligibleAccount {
+                source_account_id: Uuid::new_v4(),
+                ..archive
+            };
+            windows.insert(
+                archive,
+                AccountWindow {
+                    start: None,
+                    end: Some(d(2025, 7, 1)),
+                    succession: Some("archive-live".into()),
+                },
+            );
+            windows.insert(
+                live,
+                AccountWindow {
+                    start: Some(d(2025, 7, 1)),
+                    end: None,
+                    succession: Some("archive-live".into()),
+                },
+            );
+            windows.insert(
+                site,
+                AccountWindow {
+                    start: Some(d(2025, 3, 1)),
+                    end: None,
+                    succession: None,
+                },
+            );
+            accounts.extend([archive, live, site]);
+        }
+    }
+    let mut runs = Vec::new();
+    for account in &accounts {
+        for measure_id in &measures {
+            for (start, end) in [
+                (d(2025, 2, 1), d(2025, 6, 1)),
+                (d(2025, 7, 1), d(2025, 11, 1)),
+            ] {
+                runs.push(CoverageRun {
+                    source_account_id: account.source_account_id,
+                    publisher_id: account.publisher_id,
+                    platform_id: account.platform_id,
+                    measure_id: *measure_id,
+                    start,
+                    end,
+                    coverage: complete,
+                });
+            }
+        }
+    }
+    for grain in [MetricTimelineGrain::Month, MetricTimelineGrain::Year] {
+        let mut first: Option<BTreeMap<&'static str, usize>> = None;
+        for years in [1, 10, 15, 26] {
+            let label = format!("native months and windows, {years} years at {grain:?}");
+            let window = Window::new(d(2026 - years, 1, 1), d(2026, 1, 1), grain);
+            let facts: BTreeMap<(Uuid, Uuid), PairFacts> = combinations
+                .iter()
+                .map(|pair| {
+                    (
+                        *pair,
+                        PairFacts {
+                            months: BTreeMap::from([(d(2025, 8, 1), BigInt::new(28))]),
+                            native: BTreeMap::from([
+                                (
+                                    d(2025, 1, 1),
+                                    NativeMonth {
+                                        total: Some(BigInt::new(5)),
+                                        conflict: false,
+                                    },
+                                ),
+                                (
+                                    d(2025, 8, 1),
+                                    NativeMonth {
+                                        total: Some(BigInt::new(9)),
+                                        conflict: true,
+                                    },
+                                ),
+                                (
+                                    d(2025, 12, 1),
+                                    NativeMonth {
+                                        total: None,
+                                        conflict: false,
+                                    },
+                                ),
+                            ]),
+                            start: Some(d(2025, 2, 1)),
+                            ..PairFacts::default()
+                        },
+                    )
+                })
+                .collect();
+            let (_, mut sizes) = assemble_measured(&Evaluation {
+                window: &window,
+                combinations: &combinations,
+                publishers: &publishers,
+                accounts: &accounts,
+                windows: &windows,
+                include_countries: true,
+                include_institutions: true,
+                facts: &facts,
+                runs: &runs,
+            });
+            assert_eq!(
+                sizes.remove("buckets"),
+                Some(window.buckets.len()),
+                "{label}"
+            );
+            match &first {
+                None => first = Some(sizes),
+                Some(first) => assert_eq!(&sizes, first, "{label}"),
             }
         }
     }
@@ -11839,6 +11995,7 @@ fn the_interval_engine_equals_the_day_oracle_on_random_fixtures() {
                 combinations: &case.combinations,
                 publishers: &case.publishers,
                 accounts: &case.accounts,
+                windows: &BTreeMap::new(),
                 include_countries: case.include_countries,
                 include_institutions: case.include_institutions,
                 facts: &facts,
@@ -12023,7 +12180,9 @@ fn three_reads_proceed_a_fourth_waits_without_a_connection_and_is_busy_past_the_
         let readers: Vec<_> = pools
             .iter()
             .map(|(pool, _)| {
-                scope.spawn(move || metric_dashboard_with_controls(pool, input, patient))
+                scope.spawn(move || {
+                    metric_dashboard_with_controls(pool, input, MetricMonthServing::Off, patient)
+                })
             })
             .collect();
         for pause in &pauses {
@@ -12035,7 +12194,7 @@ fn three_reads_proceed_a_fourth_waits_without_a_connection_and_is_busy_past_the_
         // whole once its wait has passed.
         let started = Instant::now();
         assert_eq!(
-            metric_dashboard_with_controls(&busy_pool, input, short),
+            metric_dashboard_with_controls(&busy_pool, input, MetricMonthServing::Off, short),
             Err(MetricReadError::Busy)
         );
         assert!(started.elapsed() >= StdDuration::from_millis(200));
@@ -12050,7 +12209,7 @@ fn three_reads_proceed_a_fourth_waits_without_a_connection_and_is_busy_past_the_
         reversed.end_date = d(2026, 2, 1);
         let started = Instant::now();
         assert_eq!(
-            metric_dashboard_with_controls(&busy_pool, &reversed, short),
+            metric_dashboard_with_controls(&busy_pool, &reversed, MetricMonthServing::Off, short),
             Err(MetricReadError::QueryInvalid(DATE_ORDER))
         );
         assert!(started.elapsed() < StdDuration::from_millis(200));
@@ -12058,7 +12217,9 @@ fn three_reads_proceed_a_fourth_waits_without_a_connection_and_is_busy_past_the_
 
         // A patient fourth read waits holding no connection, and is served
         // as soon as a slot frees.
-        let waiter = scope.spawn(move || metric_dashboard_with_controls(waiting, input, patient));
+        let waiter = scope.spawn(move || {
+            metric_dashboard_with_controls(waiting, input, MetricMonthServing::Off, patient)
+        });
         std::thread::sleep(StdDuration::from_millis(300));
         assert!(!waiter.is_finished(), "the fourth read waits");
         let state = waiting.state();
@@ -12123,8 +12284,8 @@ fn a_slot_is_given_back_on_success_every_error_rollback_and_panic() {
     let controls = private_controls(&guard, StdDuration::from_millis(100), SYNC_DEADLINE);
 
     let (pool, log) = capturing_pool();
-    let served =
-        metric_dashboard_with_controls(&pool, &input, &controls).expect("a successful read");
+    let served = metric_dashboard_with_controls(&pool, &input, MetricMonthServing::Off, &controls)
+        .expect("a successful read");
     assert_twelve(&served, &fx);
     assert_eq!(
         statement_names(&log.lock().expect("the statement log")).last(),
@@ -12151,7 +12312,7 @@ fn a_slot_is_given_back_on_success_every_error_rollback_and_panic() {
         refused.selector.publisher_ids = Some(vec![publisher_id]);
         let (pool, log) = capturing_pool();
         assert_eq!(
-            metric_dashboard_with_controls(&pool, &refused, &controls),
+            metric_dashboard_with_controls(&pool, &refused, MetricMonthServing::Off, &controls),
             Err(error),
             "{label}"
         );
@@ -12166,7 +12327,7 @@ fn a_slot_is_given_back_on_success_every_error_rollback_and_panic() {
     // A checkout that fails, within the unreachable pool's 100 ms.
     let started = Instant::now();
     assert_eq!(
-        metric_dashboard_with_controls(&failing_pool(), &input, &controls),
+        metric_dashboard_with_controls(&failing_pool(), &input, MetricMonthServing::Off, &controls),
         Err(MetricReadError::Unavailable)
     );
     assert!(started.elapsed() < StdDuration::from_secs(5));
@@ -12179,7 +12340,7 @@ fn a_slot_is_given_back_on_success_every_error_rollback_and_panic() {
         .build(ConnectionManager::<PgConnection>::new(test_db_url()))
         .expect("a panicking pool");
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        metric_dashboard_with_controls(&panicking, &input, &controls)
+        metric_dashboard_with_controls(&panicking, &input, MetricMonthServing::Off, &controls)
     }));
     assert!(
         caught.is_err(),
@@ -12189,7 +12350,8 @@ fn a_slot_is_given_back_on_success_every_error_rollback_and_panic() {
 
     // Every slot is back: the next read is served.
     assert_twelve(
-        &metric_dashboard_with_controls(&fx.pool, &input, &controls).expect("the next read"),
+        &metric_dashboard_with_controls(&fx.pool, &input, MetricMonthServing::Off, &controls)
+            .expect("the next read"),
         &fx,
     );
     assert_eq!(guard.held(), 0);
@@ -12221,7 +12383,7 @@ fn a_poisoned_guard_still_admits_and_releases() {
 
     let controls = private_controls(&guard, StdDuration::from_millis(100), SYNC_DEADLINE);
     assert_twelve(
-        &metric_dashboard_with_controls(&fx.pool, &input, &controls)
+        &metric_dashboard_with_controls(&fx.pool, &input, MetricMonthServing::Off, &controls)
             .expect("a read through the poisoned guard"),
         &fx,
     );
@@ -12247,7 +12409,9 @@ fn a_read_past_its_deadline_rolls_back_and_a_read_whose_statements_all_started_i
         let pause = Arc::new(Pause::default());
         let (pool, log) = pausing_pool(prefix, PauseAt::Finish, &pause);
         let result = std::thread::scope(|scope| {
-            let reader = scope.spawn(|| metric_dashboard_with_controls(&pool, &input, &controls));
+            let reader = scope.spawn(|| {
+                metric_dashboard_with_controls(&pool, &input, MetricMonthServing::Off, &controls)
+            });
             pause.wait_arrived();
             std::thread::sleep(StdDuration::from_millis(1_700));
             pause.release();
@@ -12278,7 +12442,15 @@ fn a_read_past_its_deadline_rolls_back_and_a_read_whose_statements_all_started_i
         .build_transaction()
         .read_only()
         .repeatable_read()
-        .run(|connection| evaluate(connection, &request, STATEMENT_TIMEOUT_SQL, &deadline));
+        .run(|connection| {
+            evaluate(
+                connection,
+                &request,
+                MetricMonthServing::Off,
+                STATEMENT_TIMEOUT_SQL,
+                &deadline,
+            )
+        });
     drop(connection);
     assert_eq!(result, Err(MetricReadError::Unavailable));
     assert!(deadline.expired());
@@ -12292,7 +12464,7 @@ fn a_read_past_its_deadline_rolls_back_and_a_read_whose_statements_all_started_i
     let (pool, log) = capturing_pool();
     let expired = private_controls(&guard, METRIC_DASHBOARD_SLOT_WAIT, StdDuration::ZERO);
     assert_eq!(
-        metric_dashboard_with_controls(&pool, &input, &expired),
+        metric_dashboard_with_controls(&pool, &input, MetricMonthServing::Off, &expired),
         Err(MetricReadError::Unavailable)
     );
     assert_eq!(
@@ -12330,7 +12502,7 @@ fn a_checkout_the_deadline_cuts_short_fails_through_the_deadline_and_a_pool_time
     // given back.
     let controls = private_controls(&guard, METRIC_DASHBOARD_SLOT_WAIT, short);
     assert_eq!(
-        metric_dashboard_with_controls(&pool, &input, &controls),
+        metric_dashboard_with_controls(&pool, &input, MetricMonthServing::Off, &controls),
         Err(MetricReadError::Unavailable)
     );
     assert_eq!(guard.held(), 0);
@@ -12795,6 +12967,7 @@ fn an_omitted_start_read_locks_before_its_snapshot_through_rebuilds_and_contenti
         metric_dashboard_with_statement_timeout(
             &pool,
             &input,
+            MetricMonthServing::Off,
             "SET LOCAL statement_timeout = '250ms'",
         ),
         Err(MetricReadError::Unavailable)
@@ -13863,6 +14036,20 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
             column("expected_publisher_id")
         )
     };
+    // The OFF values of CANONICAL_SQL's account-window arrays: one NULL per
+    // account row.
+    let windows_of = |publishers: &[Uuid]| {
+        let accounts = scalar_i64(
+            &fx.pool,
+            &format!(
+                "(SELECT COUNT(*) FROM metric_source_account \
+                   WHERE expected_publisher_id = ANY({}))",
+                uuid_array(publishers)
+            ),
+        );
+        let nulls = vec!["NULL"; usize::try_from(accounts).expect("an account count")].join(", ");
+        format!("ARRAY[{nulls}]::date[], ARRAY[{nulls}]::date[]")
+    };
     let platforms = uuid_array(&scope.platforms);
     let measures = uuid_array(&scope.measures);
     let one = uuid_array(&[fx.publisher_id]);
@@ -13930,17 +14117,18 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
         &format!("{}, {platforms}, 'DRIVER'", uuid_array(&three)),
     );
     let canonical_types = "boolean, bigint, uuid[], date, date, uuid[], uuid[], boolean, \
-                           boolean, uuid[], uuid[], uuid[], uuid[]";
+                           boolean, uuid[], uuid[], uuid[], uuid[], boolean, date[], date[]";
     explain(
         "CANONICAL_SQL (3 publishers' works, 5x5, 366 days, lagging)",
         CANONICAL_SQL,
         canonical_types,
         &format!(
             "TRUE, 1, {works}, '{start}', '{end}', {platforms}, {measures}, FALSE, TRUE, \
-             {accounts}, {publishers}",
+             {accounts}, {publishers}, FALSE, {windows}",
             works = works_of(&three),
             accounts = accounts_of(&three),
             publishers = uuid_array(&three),
+            windows = windows_of(&three),
         ),
     );
     for (label, filtered) in [("omitted pairs", "FALSE"), ("filtered", "TRUE")] {
@@ -13950,10 +14138,11 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
             canonical_types,
             &format!(
                 "TRUE, 1, {works}, NULL, '{end}', {platforms}, {measures}, TRUE, {filtered}, \
-                 {accounts}, {publishers}",
+                 {accounts}, {publishers}, FALSE, {windows}",
                 works = works_of(&three),
                 accounts = accounts_of(&three),
                 publishers = uuid_array(&three),
+                windows = windows_of(&three),
             ),
         );
     }
@@ -14204,4 +14393,1292 @@ fn metric_dashboard_query_plan_and_latency_evidence() {
         &month(&a),
     );
     println!("{}", load_average());
+}
+
+// ===========================================================================
+// MET-WP4-MONTH-01: native months, conflicts, cut months, pair starts,
+// windows and successions, and the switch
+// ===========================================================================
+
+fn read_with(
+    fx: &Fixture,
+    input: &MetricDashboardInput,
+    month_serving: MetricMonthServing,
+) -> Result<MetricDashboard, MetricReadError> {
+    metric_dashboard_with_month_serving(&fx.pool, input, month_serving)
+}
+
+fn read_on(fx: &Fixture, input: &MetricDashboardInput) -> MetricDashboard {
+    read_with(fx, input, MetricMonthServing::On)
+        .unwrap_or_else(|error| panic!("the ON read failed: {error:?}"))
+}
+
+/// `dashboard` with `asOf` taken from `like`, so two reads compare whole.
+fn as_of_from(dashboard: &MetricDashboard, like: &MetricDashboard) -> MetricDashboard {
+    let mut dashboard = dashboard.clone();
+    dashboard.as_of = like.as_of;
+    dashboard
+}
+
+/// Everything but the coverage fields of the pair-start rule.
+#[allow(clippy::type_complexity)]
+fn values_of(
+    dashboard: &MetricDashboard,
+) -> (
+    Vec<MetricTotal>,
+    Vec<MetricTimeBucket>,
+    Vec<MetricCountryTotal>,
+    Vec<MetricInstitutionTotal>,
+    NaiveDate,
+    NaiveDate,
+    MetricTimelineGrain,
+) {
+    (
+        dashboard.totals.clone(),
+        dashboard.timeline.clone(),
+        dashboard.countries.clone(),
+        dashboard.institutions.clone(),
+        dashboard.start_date,
+        dashboard.end_date,
+        dashboard.timeline_grain,
+    )
+}
+
+/// T5: the same read under `ON` equals the `OFF` one apart from `asOf`;
+/// with `startDate` omitted, apart from the pair-start rule's coverage fields.
+fn assert_on_matches_off(
+    pool: &PgPool,
+    input: &MetricDashboardInput,
+    off: &MetricDashboard,
+    label: &str,
+) {
+    let on = metric_dashboard_with_month_serving(pool, input, MetricMonthServing::On)
+        .unwrap_or_else(|error| panic!("{label}: the ON read failed: {error:?}"));
+    if input.start_date.is_some() {
+        assert_eq!(&as_of_from(&on, off), off, "{label}: ON equals OFF");
+    } else {
+        assert_eq!(
+            values_of(&on),
+            values_of(off),
+            "{label}: ON values equal OFF"
+        );
+    }
+}
+
+/// Recompute the native projection of every fixture publisher, as the
+/// writer would have for records inserted directly.
+fn project(fx: &Fixture) {
+    for publisher in [fx.publisher_id, fx.other_publisher_id] {
+        crate::model::metric_native_month::recompute_metric_native_months(&fx.pool, publisher)
+            .expect("the native projection");
+    }
+}
+
+/// One served `MONTH` record on the fixture platform, projected.
+fn native_month(
+    fx: &Fixture,
+    work_id: Uuid,
+    measure_id: Uuid,
+    month: NaiveDate,
+    country: Option<&str>,
+    value: i64,
+) -> Uuid {
+    let (record_id, revision_id) = (Uuid::new_v4(), Uuid::new_v4());
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record \
+                 (record_id, identity_hash, work_id, platform_id, measure_id, period_start, \
+                  period_end, reporting_grain, country_code, winning_source_account_id) \
+             VALUES ('{record_id}', 'month-{record_id}', '{work_id}', '{platform}', \
+                     '{measure_id}', '{month}', '{end}', 'MONTH', {country}, '{account}'); \
+             INSERT INTO metric_record_revision \
+                 (record_revision_id, record_id, revision_number, import_id, value, \
+                  content_hash, status) \
+             VALUES ('{revision_id}', '{record_id}', 1, '{import}', {value}, \
+                     'content-{revision_id}', 'CURRENT'); \
+             UPDATE metric_record SET current_revision_id = '{revision_id}' \
+              WHERE record_id = '{record_id}';",
+            platform = fx.platform_id,
+            end = month + chrono::Months::new(1),
+            country = sql_opt(country),
+            account = fx.account_id,
+            import = fx.canonical_import,
+        ),
+    );
+    project(fx);
+    record_id
+}
+
+/// Set a native record's current value directly, then reproject.
+fn set_native_value(fx: &Fixture, record_id: Uuid, value: i64) {
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_record_revision SET value = {value} WHERE record_revision_id = \
+               (SELECT current_revision_id FROM metric_record WHERE record_id = '{record_id}')"
+        ),
+    );
+    project(fx);
+}
+
+fn complete(fx: &Fixture, measure_id: Uuid, start: NaiveDate, end: NaiveDate) {
+    cover(
+        fx,
+        measure_id,
+        start,
+        end,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-10-01T00:00:00Z'",
+    );
+}
+
+fn units_request(
+    fx: &Fixture,
+    start: NaiveDate,
+    end: NaiveDate,
+    grain: MetricTimelineGrain,
+) -> MetricDashboardInput {
+    request(
+        fx.publisher_id,
+        start,
+        end,
+        &[fx.platform_id],
+        &[fx.units],
+        Some(grain),
+    )
+}
+
+#[test]
+fn a_native_month_counts_once_and_adds_to_other_works_days() {
+    let (_guard, fx) = setup();
+    complete(&fx, fx.units, d(2026, 1, 1), d(2026, 4, 1));
+    native_month(&fx, fx.works[0], fx.units, d(2026, 1, 1), None, 5);
+    native_month(&fx, fx.works[0], fx.units, d(2026, 1, 1), Some("GB"), 5);
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.units,
+        d(2026, 1, 10),
+        3,
+    );
+    apply_all(&fx.pool);
+    let mut input = units_request(
+        &fx,
+        d(2026, 1, 1),
+        d(2026, 4, 1),
+        MetricTimelineGrain::Month,
+    );
+    let off = read_with(&fx, &input, MetricMonthServing::Off);
+    assert_eq!(
+        off,
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "OFF refuses as before"
+    );
+    let on = read_on(&fx, &input);
+    assert_eq!(total(&on, fx.platform_id, fx.units), some("8"));
+    assert_eq!(
+        bucket_values(&on, fx.units),
+        vec![some("8"), some("0"), some("0")]
+    );
+    assert_eq!(item(&on, fx.units).status, MetricCoverageStatus::Complete);
+    assert_eq!(item(&on, fx.units).data_through, Some(d(2026, 3, 31)));
+    assert!(codes(&on).is_empty());
+    input.include_countries = Some(true);
+    let sections = read_on(&fx, &input);
+    assert_eq!(
+        countries(&sections),
+        vec![(fx.units, "GB".to_string(), "5".to_string())]
+    );
+    let year = read_on(
+        &fx,
+        &units_request(&fx, d(2026, 1, 1), d(2027, 1, 1), MetricTimelineGrain::Year),
+    );
+    assert_eq!(total(&year, fx.platform_id, fx.units), some("8"));
+    assert_eq!(bucket_values(&year, fx.units), vec![some("8")]);
+}
+
+#[test]
+fn a_conflicted_month_serves_its_days_and_either_side_zeroed_clears_it() {
+    let (_guard, fx) = setup();
+    complete(&fx, fx.units, d(2026, 1, 1), d(2026, 4, 1));
+    let native = native_month(&fx, fx.works[0], fx.units, d(2026, 2, 1), None, 7);
+    native_month(&fx, fx.works[1], fx.units, d(2026, 2, 1), None, 4);
+    let day = commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.units,
+        d(2026, 2, 10),
+        2,
+    );
+    apply_all(&fx.pool);
+    let input = units_request(
+        &fx,
+        d(2026, 1, 1),
+        d(2026, 4, 1),
+        MetricTimelineGrain::Month,
+    );
+    let conflicted = read_on(&fx, &input);
+    assert_eq!(
+        bucket_values(&conflicted, fx.units),
+        vec![some("0"), some("6"), some("0")],
+        "the day side of work 0 and work 1's month, never both sides of work 0"
+    );
+    assert_eq!(total(&conflicted, fx.platform_id, fx.units), some("6"));
+    assert_eq!(
+        item(&conflicted, fx.units).status,
+        MetricCoverageStatus::Partial
+    );
+    assert_eq!(
+        item(&conflicted, fx.units).data_through,
+        Some(d(2026, 1, 31))
+    );
+    assert_eq!(codes(&conflicted), vec![MetricWarningCode::PartialCoverage]);
+    let year = read_on(
+        &fx,
+        &units_request(&fx, d(2026, 1, 1), d(2027, 1, 1), MetricTimelineGrain::Year),
+    );
+    assert_eq!(total(&year, fx.platform_id, fx.units), some("6"));
+    assert_eq!(bucket_values(&year, fx.units), vec![some("6")]);
+    // The rest of the year is uncovered, so the year is UNKNOWN; never
+    // COMPLETE.
+    assert_eq!(item(&year, fx.units).status, MetricCoverageStatus::Unknown);
+
+    // The day side zeroed: the month counts again and the read is complete.
+    revise(&fx, day, 2, 0, 2);
+    apply_all(&fx.pool);
+    let day_zeroed = read_on(&fx, &input);
+    assert_eq!(total(&day_zeroed, fx.platform_id, fx.units), some("11"));
+    assert_eq!(
+        item(&day_zeroed, fx.units).status,
+        MetricCoverageStatus::Complete
+    );
+
+    // The day side live again and the native side zeroed: the days alone,
+    // and a month-aligned read can be complete.
+    revise(&fx, day, 3, 2, 0);
+    apply_all(&fx.pool);
+    set_native_value(&fx, native, 0);
+    let native_zeroed = read_on(&fx, &input);
+    assert_eq!(total(&native_zeroed, fx.platform_id, fx.units), some("6"));
+    assert_eq!(
+        item(&native_zeroed, fx.units).status,
+        MetricCoverageStatus::Complete
+    );
+    // A zero month is still cut where a cell cuts it.
+    let cut = read_on(
+        &fx,
+        &units_request(&fx, d(2026, 2, 5), d(2026, 2, 20), MetricTimelineGrain::Day),
+    );
+    assert_eq!(item(&cut, fx.units).status, MetricCoverageStatus::Partial);
+}
+
+#[test]
+fn a_month_unapplied_days_lag_and_applied_days_conflict_and_nothing_sums_both() {
+    let (_guard, fx) = setup();
+    complete(&fx, fx.units, d(2026, 1, 1), d(2026, 3, 1));
+    native_month(&fx, fx.works[0], fx.units, d(2026, 1, 1), None, 9);
+    let input = units_request(
+        &fx,
+        d(2026, 1, 1),
+        d(2026, 3, 1),
+        MetricTimelineGrain::Month,
+    );
+    assert_eq!(
+        total(&read_on(&fx, &input), fx.platform_id, fx.units),
+        some("9")
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, d(2026, 1, 5), 4);
+    let lagging = read_on(&fx, &input);
+    assert_eq!(total(&lagging, fx.platform_id, fx.units), some("9"));
+    assert!(codes(&lagging).contains(&MetricWarningCode::RollupLag));
+    apply_all(&fx.pool);
+    let applied = read_on(&fx, &input);
+    assert_eq!(total(&applied, fx.platform_id, fx.units), some("4"));
+    assert_eq!(
+        item(&applied, fx.units).status,
+        MetricCoverageStatus::Partial
+    );
+}
+
+#[test]
+fn a_cut_month_adds_nothing_to_its_cell_and_its_days_are_never_complete() {
+    let (_guard, fx) = setup();
+    complete(&fx, fx.units, d(2026, 1, 1), d(2026, 4, 1));
+    native_month(&fx, fx.works[0], fx.units, d(2026, 1, 1), None, 10);
+    for (start, end) in [
+        (d(2026, 1, 10), d(2026, 1, 20)),
+        (d(2026, 1, 10), d(2026, 3, 1)),
+        (d(2026, 1, 1), d(2026, 3, 1)),
+    ] {
+        let dashboard = read_on(
+            &fx,
+            &units_request(&fx, start, end, MetricTimelineGrain::Day),
+        );
+        let label = format!("[{start}, {end}) DAY");
+        assert_eq!(
+            item(&dashboard, fx.units).status,
+            MetricCoverageStatus::Partial,
+            "{label}"
+        );
+        assert!(
+            codes(&dashboard).contains(&MetricWarningCode::PartialCoverage),
+            "{label}"
+        );
+        let buckets = bucket_values(&dashboard, fx.units);
+        let january = ((end.min(d(2026, 2, 1)) - start).num_days()) as usize;
+        assert!(
+            buckets[..january].iter().all(Option::is_none),
+            "{label}: cut days are null"
+        );
+        assert!(
+            buckets[january..].iter().all(|value| value == &some("0")),
+            "{label}: February's days are justified zeroes"
+        );
+        if start == d(2026, 1, 1) {
+            assert_eq!(
+                total(&dashboard, fx.platform_id, fx.units),
+                some("10"),
+                "{label}"
+            );
+            assert_eq!(item(&dashboard, fx.units).data_through, None, "{label}");
+        } else {
+            assert_eq!(total(&dashboard, fx.platform_id, fx.units), None, "{label}");
+        }
+    }
+    let monthly = read_on(
+        &fx,
+        &units_request(
+            &fx,
+            d(2026, 1, 1),
+            d(2026, 4, 1),
+            MetricTimelineGrain::Month,
+        ),
+    );
+    assert_eq!(
+        item(&monthly, fx.units).status,
+        MetricCoverageStatus::Complete
+    );
+    assert_eq!(
+        bucket_values(&monthly, fx.units),
+        vec![some("10"), some("0"), some("0")],
+        "no native row and complete coverage give 0"
+    );
+    let clipped = read_on(
+        &fx,
+        &units_request(
+            &fx,
+            d(2026, 1, 10),
+            d(2026, 3, 1),
+            MetricTimelineGrain::Month,
+        ),
+    );
+    assert_eq!(
+        bucket_values(&clipped, fx.units)[0],
+        None,
+        "a cut month's cell is null"
+    );
+    assert_eq!(
+        item(&clipped, fx.units).status,
+        MetricCoverageStatus::Partial
+    );
+}
+
+#[test]
+fn native_refusals_and_ambiguity_follow_the_precedence() {
+    let (_guard, fx) = setup();
+    complete(&fx, fx.units, d(2026, 1, 1), d(2026, 4, 1));
+    let input = units_request(
+        &fx,
+        d(2026, 1, 1),
+        d(2026, 4, 1),
+        MetricTimelineGrain::Month,
+    );
+    // A total-ambiguous cell refuses; country ambiguity only with countries.
+    native_month(&fx, fx.works[0], fx.units, d(2026, 1, 1), Some("GB"), 1);
+    let ambiguous = Uuid::new_v4();
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO institution (institution_id, institution_name) VALUES ('{ambiguous}', 'Inst')"
+        ),
+    );
+    exec(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_record (record_id, identity_hash, work_id, platform_id, measure_id, \
+               period_start, period_end, reporting_grain, institution_id, winning_source_account_id) \
+             VALUES ('{record}', 'inst-{record}', '{work}', '{platform}', '{measure}', '2026-01-01', \
+               '2026-02-01', 'MONTH', '{ambiguous}', '{account}'); \
+             INSERT INTO metric_record_revision (record_revision_id, record_id, revision_number, \
+               import_id, value, content_hash, status) \
+             VALUES ('{revision}', '{record}', 1, '{import}', 2, 'content-{revision}', 'CURRENT'); \
+             UPDATE metric_record SET current_revision_id = '{revision}' WHERE record_id = '{record}';",
+            record = Uuid::new_v4(),
+            revision = Uuid::new_v4(),
+            work = fx.works[0],
+            platform = fx.platform_id,
+            measure = fx.units,
+            account = fx.account_id,
+            import = fx.canonical_import,
+        ),
+    );
+    project(&fx);
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::On),
+        Err(MetricReadError::DimensionScopeAmbiguous)
+    );
+    // An active reporting period refuses with the same error under ON.
+    native_record(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.units,
+        "REPORTING_PERIOD",
+        d(2026, 2, 1),
+        d(2026, 2, 20),
+        Native::Active,
+    );
+    project(&fx);
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::On),
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "step 6 precedes the native ambiguity"
+    );
+    // A projected inconsistency precedes the reporting period.
+    native_record(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.units,
+        "MONTH",
+        d(2026, 3, 1),
+        d(2026, 3, 20),
+        Native::Active,
+    );
+    project(&fx);
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::On),
+        Err(MetricReadError::Unavailable)
+    );
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::Off),
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "OFF refuses as before"
+    );
+}
+
+// --------------------------------------------------------------------------
+// MET-WP4-MONTH-01 T16: pair starts (section 3.8)
+// --------------------------------------------------------------------------
+
+/// The end of every pair-start read: 1 January 2025.
+fn pair_start_end() -> NaiveDate {
+    d(2025, 1, 1)
+}
+
+/// The all-time `YEAR` read of `measures` on `platforms` before 2025.
+fn pair_start_input(fx: &Fixture, platforms: &[Uuid], measures: &[Uuid]) -> MetricDashboardInput {
+    all_time(&request(
+        fx.publisher_id,
+        pair_start_end(),
+        pair_start_end(),
+        platforms,
+        measures,
+        Some(MetricTimelineGrain::Year),
+    ))
+}
+
+/// Complete coverage of `measure_id` from `day` to the end, and one value on
+/// `day`, applied.
+fn day_pair_from(fx: &Fixture, work_id: Uuid, measure_id: Uuid, day: NaiveDate, value: i64) {
+    complete(fx, measure_id, day, pair_start_end());
+    commit(fx, work_id, fx.platform_id, measure_id, day, value);
+    apply_all(&fx.pool);
+}
+
+fn item_of(
+    dashboard: &MetricDashboard,
+    platform_id: Uuid,
+    measure_id: Uuid,
+) -> &MetricCoverageItem {
+    dashboard
+        .coverage
+        .items
+        .iter()
+        .find(|found| (found.platform_id, found.measure_id) == (platform_id, measure_id))
+        .expect("a coverage item for the pair")
+}
+
+fn status_and_through(
+    dashboard: &MetricDashboard,
+    measure_id: Uuid,
+) -> (MetricCoverageStatus, Option<NaiveDate>) {
+    let found = item(dashboard, measure_id);
+    (found.status, found.data_through)
+}
+
+/// T16's oracle: each item of an all-time read under `ON` equals the item of
+/// the all-time read restricted to its pair at the same grain, and the
+/// top-level `dataThrough` follows from the items.
+fn assert_items_equal_restricted_reads(
+    fx: &Fixture,
+    input: &MetricDashboardInput,
+    on: &MetricDashboard,
+    label: &str,
+) {
+    assert_eq!(input.start_date, None, "{label}");
+    for found in &on.coverage.items {
+        let restricted = MetricDashboardInput {
+            platforms: Some(vec![found.platform_id]),
+            measures: Some(vec![found.measure_id]),
+            timeline_grain: Some(on.timeline_grain),
+            ..input.clone()
+        };
+        assert_eq!(
+            read_on(fx, &restricted).coverage.items,
+            vec![found.clone()],
+            "{label}: the item of the restricted read"
+        );
+    }
+    let through = on
+        .coverage
+        .items
+        .iter()
+        .map(|found| found.data_through)
+        .collect::<Option<Vec<NaiveDate>>>()
+        .and_then(|dates| dates.into_iter().min());
+    assert_eq!(
+        on.data_through, through,
+        "{label}: the top-level dataThrough"
+    );
+}
+
+/// One all-time read on `DAY`-only data under both switch values: its values
+/// equal `OFF`'s and its items the restricted reads'. Returns `(OFF, ON)`.
+fn pair_start_reads(
+    fx: &Fixture,
+    input: &MetricDashboardInput,
+    label: &str,
+) -> (MetricDashboard, MetricDashboard) {
+    let off = read(fx, input);
+    let on = read_on(fx, input);
+    assert_eq!(values_of(&on), values_of(&off), "{label}: values equal OFF");
+    assert_items_equal_restricted_reads(fx, input, &on, label);
+    (off, on)
+}
+
+#[test]
+fn a_monthly_pair_and_a_later_day_pair_are_each_complete_from_their_own_start() {
+    let (_guard, fx) = setup();
+    let end = pair_start_end();
+    let through = Some(d(2024, 12, 31));
+    // A monthly pair from 2015: native months, complete from January 2015.
+    complete(&fx, fx.units, d(2015, 1, 1), end);
+    for (month, value) in [(d(2015, 1, 1), 5), (d(2019, 6, 1), 3), (d(2024, 11, 1), 2)] {
+        native_month(&fx, fx.works[0], fx.units, month, None, value);
+    }
+    // A DAY pair whose values and complete runs start on 15 March 2024.
+    day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2024, 7, 1),
+        6,
+    );
+    apply_all(&fx.pool);
+    let input = pair_start_input(&fx, &[fx.platform_id], &[fx.units, fx.sessions]);
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::Off),
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "OFF refuses the months as before"
+    );
+    let on = read_on(&fx, &input);
+    assert_eq!(
+        (on.start_date, on.end_date, on.timeline_grain),
+        (d(2015, 1, 1), end, MetricTimelineGrain::Year)
+    );
+    for measure_id in [fx.units, fx.sessions] {
+        assert_eq!(
+            status_and_through(&on, measure_id),
+            (MetricCoverageStatus::Complete, through)
+        );
+    }
+    assert_eq!(on.coverage.status, MetricCoverageStatus::Complete);
+    assert_eq!(on.data_through, through);
+    assert!(codes(&on).is_empty() && !on.is_partial);
+    let mut units = vec![some("0"); 10];
+    units[0] = some("5");
+    units[4] = some("3");
+    units[9] = some("2");
+    assert_eq!(bucket_values(&on, fx.units), units);
+    let mut sessions = vec![None; 10];
+    sessions[9] = some("10");
+    assert_eq!(
+        bucket_values(&on, fx.sessions),
+        sessions,
+        "the later pair's earlier buckets are null"
+    );
+    assert_eq!(total(&on, fx.platform_id, fx.units), some("10"));
+    assert_eq!(total(&on, fx.platform_id, fx.sessions), some("10"));
+    assert_items_equal_restricted_reads(&fx, &input, &on, "a monthly and a DAY pair");
+}
+
+#[test]
+fn two_day_pairs_of_different_starts_are_each_judged_from_their_own() {
+    let (_guard, fx) = setup();
+    let through = Some(d(2024, 12, 31));
+    day_pair_from(&fx, fx.works[0], fx.units, d(2020, 5, 10), 7);
+    day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+    let input = pair_start_input(&fx, &[fx.platform_id], &[fx.units, fx.sessions]);
+    let (off, on) = pair_start_reads(&fx, &input, "two DAY pairs");
+    assert_eq!(on.start_date, d(2020, 5, 10));
+    assert_eq!(
+        status_and_through(&off, fx.sessions),
+        (MetricCoverageStatus::Unknown, None),
+        "OFF judges every pair from the served start"
+    );
+    for measure_id in [fx.units, fx.sessions] {
+        assert_eq!(
+            status_and_through(&on, measure_id),
+            (MetricCoverageStatus::Complete, through)
+        );
+    }
+    assert_eq!(on.data_through, through);
+    assert!(codes(&on).is_empty());
+    assert_eq!(
+        bucket_values(&on, fx.sessions),
+        vec![None, None, None, None, some("4")]
+    );
+    // With an explicit start the response equals OFF's.
+    let explicit = over(
+        &input,
+        Some(d(2020, 5, 10)),
+        pair_start_end(),
+        MetricTimelineGrain::Year,
+    );
+    let off_explicit = read(&fx, &explicit);
+    assert_on_matches_off(&fx.pool, &explicit, &off_explicit, "an explicit start");
+    assert_eq!(
+        status_and_through(&off_explicit, fx.sessions),
+        (MetricCoverageStatus::Unknown, None)
+    );
+}
+
+#[test]
+fn values_before_the_first_run_leave_the_pair_unknown_with_a_null_data_through() {
+    let (_guard, fx) = setup();
+    day_pair_from(&fx, fx.works[0], fx.units, d(2020, 5, 10), 7);
+    day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2023, 1, 10),
+        3,
+    );
+    apply_all(&fx.pool);
+    let input = pair_start_input(&fx, &[fx.platform_id], &[fx.units, fx.sessions]);
+    let (_, on) = pair_start_reads(&fx, &input, "values before the first run");
+    assert_eq!(
+        status_and_through(&on, fx.sessions),
+        (MetricCoverageStatus::Unknown, None)
+    );
+    assert_eq!(
+        status_and_through(&on, fx.units),
+        (MetricCoverageStatus::Complete, Some(d(2024, 12, 31)))
+    );
+    assert_eq!(on.data_through, None);
+}
+
+#[test]
+fn a_pair_start_is_set_by_terminal_import_coverage_quarantine_and_a_lag_day() {
+    for kind in [
+        FirstEvidence::CornerProbe,
+        FirstEvidence::Quarantine,
+        FirstEvidence::Lag,
+    ] {
+        let (_guard, fx) = setup();
+        day_pair_from(&fx, fx.works[0], fx.units, d(2020, 5, 10), 7);
+        day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+        // Placed on the sessions pair, before its first run and value.
+        place_first_evidence(&fx, kind, d(2023, 6, 10));
+        let input = pair_start_input(&fx, &[fx.platform_id], &[fx.units, fx.sessions]);
+        let label = format!("{kind:?}");
+        let (_, on) = pair_start_reads(&fx, &input, &label);
+        assert_eq!(
+            status_and_through(&on, fx.sessions),
+            (MetricCoverageStatus::Unknown, None),
+            "{label}"
+        );
+        assert_eq!(
+            status_and_through(&on, fx.units),
+            (MetricCoverageStatus::Complete, Some(d(2024, 12, 31))),
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn a_cross_product_pair_without_evidence_is_unknown_as_today() {
+    let (_guard, fx) = setup();
+    day_pair_from(&fx, fx.works[0], fx.units, d(2020, 5, 10), 7);
+    day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+    let input = pair_start_input(
+        &fx,
+        &[fx.platform_id, fx.other_platform_id],
+        &[fx.units, fx.sessions],
+    );
+    let (off, on) = pair_start_reads(&fx, &input, "the cross product");
+    for measure_id in [fx.units, fx.sessions] {
+        let empty = item_of(&on, fx.other_platform_id, measure_id);
+        assert_eq!(
+            (empty.status, empty.data_through),
+            (MetricCoverageStatus::Unknown, None)
+        );
+        assert_eq!(
+            empty,
+            item_of(&off, fx.other_platform_id, measure_id),
+            "as today"
+        );
+        let served = item_of(&on, fx.platform_id, measure_id);
+        assert_eq!(
+            (served.status, served.data_through),
+            (MetricCoverageStatus::Complete, Some(d(2024, 12, 31)))
+        );
+    }
+    assert_eq!(on.data_through, None);
+}
+
+#[test]
+fn a_second_publisher_whose_pair_starts_later_leaves_it_unknown() {
+    let (_guard, fx) = setup();
+    let end = pair_start_end();
+    day_pair_from(&fx, fx.works[0], fx.units, d(2020, 5, 10), 7);
+    day_pair_from(&fx, fx.works[1], fx.sessions, d(2024, 3, 15), 4);
+    // The second publisher asserts units from the same day, and sessions
+    // only from June 2024, after the sessions pair's start.
+    let second = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    for (measure_id, from) in [(fx.units, d(2020, 5, 10)), (fx.sessions, d(2024, 6, 1))] {
+        cover_account(
+            &fx,
+            second,
+            measure_id,
+            from,
+            end,
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-10-01T00:00:00Z'",
+            true,
+            true,
+        );
+    }
+    commit(
+        &fx,
+        fx.other_work,
+        fx.platform_id,
+        fx.sessions,
+        d(2024, 6, 1),
+        2,
+    );
+    apply_all(&fx.pool);
+    let mut input = pair_start_input(&fx, &[fx.platform_id], &[fx.units, fx.sessions]);
+    input.selector.publisher_ids = Some(vec![fx.publisher_id, fx.other_publisher_id]);
+    let (_, on) = pair_start_reads(&fx, &input, "two publishers");
+    assert_eq!(
+        status_and_through(&on, fx.units),
+        (MetricCoverageStatus::Complete, Some(d(2024, 12, 31)))
+    );
+    assert_eq!(
+        status_and_through(&on, fx.sessions),
+        (MetricCoverageStatus::Unknown, None),
+        "the second publisher is silent from the pair's start to its own"
+    );
+}
+
+#[test]
+fn a_pair_start_that_disagrees_with_the_served_start_is_internal() {
+    let (_guard, fx) = setup();
+    let end = pair_start_end();
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.units,
+        d(2020, 5, 10),
+        7,
+    );
+    commit(&fx, fx.works[0], fx.platform_id, fx.units, d(2022, 2, 2), 1);
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2021, 3, 3),
+        4,
+    );
+    apply_all(&fx.pool);
+    for measure_id in [fx.units, fx.sessions] {
+        complete(&fx, measure_id, d(2021, 1, 1), end);
+    }
+    let input = omitted_pairs(&pair_start_input(&fx, &[fx.platform_id], &[fx.units]));
+    assert_eq!(read_on(&fx, &input).start_date, d(2020, 5, 10));
+    // A damaged 03A month key: May 2020's work-day rows stay, its monthly row
+    // goes, so the pair starts no longer reach the served start.
+    exec_raw(
+        &fx.pool,
+        "DELETE FROM metric_rollup_work_month WHERE month_start = '2020-05-01';",
+    );
+    let refused = read_with(&fx, &input, MetricMonthServing::On);
+    assert_eq!(refused, Err(MetricReadError::Unavailable));
+    assert_eq!(refused.map(|_| ()).unwrap_err().code(), "INTERNAL_ERROR");
+    assert!(
+        read_with(&fx, &input, MetricMonthServing::Off).is_ok(),
+        "OFF reads no pair start"
+    );
+}
+
+// --------------------------------------------------------------------------
+// MET-WP4-MONTH-01 T4 and T11: the statements each switch value runs
+// --------------------------------------------------------------------------
+
+/// One read under `month_serving` on a fresh capturing connection: its result
+/// and the name of every statement it sent.
+fn captured_names(
+    input: &MetricDashboardInput,
+    month_serving: MetricMonthServing,
+) -> (Result<MetricDashboard, MetricReadError>, Vec<&'static str>) {
+    let (pool, log) = capturing_pool();
+    let result = metric_dashboard_with_month_serving(&pool, input, month_serving);
+    let statements = log.lock().expect("the statement log").clone();
+    (result, statement_names(&statements))
+}
+
+/// `off` with step 3b after the selector when `native`, and `PAIR_STARTS_SQL`
+/// after step 6 when `pair_starts`.
+fn on_names(off: &[&'static str], native: bool, pair_starts: bool) -> Vec<&'static str> {
+    let mut names = Vec::with_capacity(off.len() + 2);
+    for name in off {
+        names.push(*name);
+        if native && *name == "WORKS_SQL" {
+            names.push("NATIVE_MONTHS_SQL");
+        }
+        if pair_starts && *name == "CANONICAL_SQL" {
+            names.push("PAIR_STARTS_SQL");
+        }
+    }
+    names
+}
+
+#[test]
+fn on_adds_step_3b_and_the_pair_starts_exactly_where_due_and_off_runs_neither() {
+    use MetricTimelineGrain::{Day, Month, Year};
+    let (_guard, fx) = setup();
+    let institution = insert_institution(&fx.pool);
+    let candidate_cell = |day: NaiveDate| {
+        commit_cell(
+            &fx,
+            fx.works[0],
+            day,
+            &[
+                (Dims::default(), 4),
+                (
+                    Dims {
+                        country: Some("GB"),
+                        ..Dims::default()
+                    },
+                    4,
+                ),
+            ],
+        );
+        apply_all(&fx.pool);
+    };
+    candidate_cell(d(2025, 3, 15));
+    commit_cell(
+        &fx,
+        fx.works[0],
+        d(2025, 4, 10),
+        &[(
+            Dims {
+                institution: Some(institution),
+                ..Dims::default()
+            },
+            2,
+        )],
+    );
+    commit(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        d(2025, 6, 20),
+        1,
+    );
+    commit(&fx, fx.works[1], fx.platform_id, fx.units, d(2025, 2, 2), 3);
+    apply_all(&fx.pool);
+    for measure_id in [fx.sessions, fx.units] {
+        cover(
+            &fx,
+            measure_id,
+            d(2025, 1, 1),
+            d(2026, 1, 1),
+            "COMPLETE",
+            "COMPLETED",
+            "'2026-01-02T00:00:00Z'",
+        );
+    }
+    let base = request(
+        fx.publisher_id,
+        d(2025, 1, 1),
+        d(2026, 1, 1),
+        &[fx.platform_id],
+        &[fx.sessions],
+        Some(Month),
+    );
+    let explicit = |start: NaiveDate, end: NaiveDate, grain| over(&base, Some(start), end, grain);
+    let omitted = |end: NaiveDate, grain| over(&base, None, end, grain);
+    let without_platforms = |input: MetricDashboardInput| MetricDashboardInput {
+        platforms: None,
+        ..input
+    };
+    let both = |input: MetricDashboardInput| MetricDashboardInput {
+        measures: Some(vec![fx.sessions, fx.units]),
+        ..input
+    };
+    let mut nothing = explicit(d(2025, 2, 1), d(2025, 8, 1), Month);
+    nothing.selector.work_types = Some(vec![WorkType::JournalIssue]);
+    let (june_25, july) = (d(2025, 6, 25), d(2025, 7, 1));
+
+    // One form under both values: OFF never runs either new statement and is
+    // what the OFF entry point serves; ON runs OFF's sequence plus exactly
+    // the statements due, within its ceiling, and serves OFF's response
+    // (with startDate omitted, OFF's values).
+    let check = |label: &str, input: &MetricDashboardInput, native: bool, pair_starts: bool| {
+        let (off, off_sequence) = captured_names(input, MetricMonthServing::Off);
+        let off = off.unwrap_or_else(|error| panic!("{label}, OFF: {error:?}"));
+        for name in ["NATIVE_MONTHS_SQL", "PAIR_STARTS_SQL"] {
+            assert!(!off_sequence.contains(&name), "{label}: OFF runs {name}");
+        }
+        let entry = metric_dashboard(&fx.pool, input)
+            .unwrap_or_else(|error| panic!("{label}, the OFF entry point: {error:?}"));
+        assert_eq!(
+            as_of_from(&entry, &off),
+            off,
+            "{label}: the entry point is OFF"
+        );
+        let (on, on_sequence) = captured_names(input, MetricMonthServing::On);
+        let on = on.unwrap_or_else(|error| panic!("{label}, ON: {error:?}"));
+        assert_eq!(
+            on_sequence,
+            on_names(&off_sequence, native, pair_starts),
+            "{label}"
+        );
+        if input.start_date.is_some() {
+            assert_eq!(as_of_from(&on, &off), off, "{label}: ON equals OFF");
+        } else {
+            assert_eq!(
+                values_of(&on),
+                values_of(&off),
+                "{label}: ON values equal OFF"
+            );
+        }
+        let ceiling = if pair_starts { 20 } else { 19 };
+        assert!(
+            on_sequence.len() <= ceiling,
+            "{label}: {} statements over the ceiling of {ceiling}",
+            on_sequence.len()
+        );
+        on_sequence
+    };
+    check(
+        "aligned MONTH",
+        &explicit(d(2025, 2, 1), d(2025, 8, 1), Month),
+        true,
+        false,
+    );
+    check(
+        "a range with no complete month",
+        &explicit(d(2025, 3, 10), d(2025, 3, 20), Day),
+        true,
+        false,
+    );
+    assert_eq!(
+        check(
+            "the explicit longest path",
+            &without_platforms(explicit(d(2025, 3, 10), june_25, Month)),
+            true,
+            false,
+        ),
+        on_names(&LONGEST_PATH, true, false),
+        "nineteen statements"
+    );
+    check("all time, one pair", &omitted(july, Year), true, false);
+    check(
+        "all time, two pairs",
+        &both(omitted(july, Year)),
+        true,
+        true,
+    );
+    check("a read that serves nothing", &nothing, false, false);
+    check(
+        "all time, serving nothing",
+        &all_time(&nothing),
+        false,
+        false,
+    );
+
+    // The all-time longest path of two pairs: evidence before the first
+    // complete month makes the leading edge hold a base cell to resolve.
+    candidate_cell(d(2024, 12, 20));
+    let longest = check(
+        "all time, the longest path of two pairs",
+        &both(without_platforms(omitted(june_25, Month))),
+        true,
+        true,
+    );
+    assert_eq!(longest, on_names(&LONGEST_PATH, true, true));
+    assert_eq!(longest.len(), 20, "twenty with the checkout");
+}
+
+// --------------------------------------------------------------------------
+// MET-WP4-MONTH-01 T9: windows and successions
+// --------------------------------------------------------------------------
+
+/// Set an account's window and succession directly.
+fn set_window(
+    fx: &Fixture,
+    account_id: Uuid,
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+    succession: Option<&str>,
+) {
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_source_account \
+                SET window_start = {}, window_end = {}, succession = {} \
+              WHERE source_account_id = '{account_id}';",
+            sql_opt(start),
+            sql_opt(end),
+            sql_opt(succession),
+        ),
+    );
+}
+
+/// Complete coverage of sessions on the fixture platform by `account_id` over
+/// `[start, end)`.
+fn sessions_asserted(fx: &Fixture, account_id: Uuid, start: NaiveDate, end: NaiveDate) {
+    cover_account(
+        fx,
+        account_id,
+        fx.sessions,
+        start,
+        end,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
+    );
+}
+
+/// `OFF`'s response, which `ON` must equal (there is no `MONTH` data).
+fn read_both(fx: &Fixture, input: &MetricDashboardInput, label: &str) -> MetricDashboard {
+    let off = read(fx, input);
+    assert_on_matches_off(&fx.pool, input, &off, label);
+    off
+}
+
+#[test]
+fn a_succession_carries_coverage_across_its_boundary_and_windows_alone_never_do() {
+    use MetricCoverageStatus::{Complete, Unknown};
+    let (_guard, fx) = setup();
+    let (archive, live) = (
+        fx.account_id,
+        add_account(&fx, fx.platform_id, fx.publisher_id),
+    );
+    let (start, boundary, end) = (d(2026, 1, 1), d(2026, 2, 1), d(2026, 3, 1));
+    // Each account asserts only inside the window it will be given.
+    sessions_asserted(&fx, archive, start, boundary);
+    sessions_asserted(&fx, live, boundary, end);
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 1, 20),
+        3,
+    );
+    apply_all(&fx.pool);
+    let input = request(
+        fx.publisher_id,
+        start,
+        end,
+        &[fx.platform_id],
+        &[fx.sessions],
+        Some(MetricTimelineGrain::Month),
+    );
+    let expect = |label: &str,
+                  status: MetricCoverageStatus,
+                  through: Option<NaiveDate>,
+                  february: Option<String>| {
+        let dashboard = read_both(&fx, &input, label);
+        assert_eq!(
+            status_and_through(&dashboard, fx.sessions),
+            (status, through),
+            "{label}"
+        );
+        assert_eq!(
+            bucket_values(&dashboard, fx.sessions),
+            vec![some("3"), february],
+            "{label}"
+        );
+    };
+
+    // Two accounts without a window or succession: two slots, each silent
+    // for half the range.
+    expect("unbounded", Unknown, None, None);
+    // Windows alone never raise a day.
+    set_window(&fx, archive, None, Some(boundary), None);
+    set_window(&fx, live, Some(boundary), None, None);
+    expect("windows alone", Unknown, None, None);
+    // Two overlapping runs of the live account before its window neither
+    // count nor refuse.
+    exec_raw(
+        &fx.pool,
+        &format!(
+            "INSERT INTO metric_coverage_run \
+                 (source_account_id, platform_id, publisher_id, measure_id, run_start, run_end, \
+                  coverage_status, import_status, country_coverage, institution_coverage) \
+             VALUES ('{live}', '{platform}', '{publisher}', '{measure}', '2026-01-01', \
+                     '2026-01-20', 'COMPLETE', 'COMPLETED', TRUE, TRUE), \
+                    ('{live}', '{platform}', '{publisher}', '{measure}', '2026-01-10', \
+                     '2026-02-01', 'COMPLETE', 'COMPLETED', TRUE, TRUE);",
+            platform = fx.platform_id,
+            publisher = fx.publisher_id,
+            measure = fx.sessions,
+        ),
+    );
+    expect("runs outside a window", Unknown, None, None);
+    // One succession: complete across the boundary.
+    set_window(&fx, archive, None, Some(boundary), Some("site"));
+    set_window(&fx, live, Some(boundary), None, Some("site"));
+    expect("one succession", Complete, Some(d(2026, 2, 28)), some("0"));
+    // A member whose window reaches past its last run leaves those days
+    // unknown.
+    set_window(&fx, archive, None, Some(d(2026, 2, 15)), Some("site"));
+    expect(
+        "a silent in-window member",
+        Unknown,
+        Some(d(2026, 1, 31)),
+        None,
+    );
+    set_window(&fx, archive, None, Some(boundary), Some("site"));
+    expect(
+        "one succession again",
+        Complete,
+        Some(d(2026, 2, 28)),
+        some("0"),
+    );
+
+    // Two publishers whose accounts share the label form separate slots.
+    let other = add_account(&fx, fx.platform_id, fx.other_publisher_id);
+    set_window(&fx, other, Some(boundary), None, Some("site"));
+    sessions_asserted(&fx, other, boundary, end);
+    let mut two = input.clone();
+    two.selector.publisher_ids = Some(vec![fx.publisher_id, fx.other_publisher_id]);
+    let separate = read_both(&fx, &two, "two publishers sharing a label");
+    assert_eq!(
+        status_and_through(&separate, fx.sessions),
+        (Unknown, None),
+        "January needs the second publisher's own slot"
+    );
+    assert_eq!(
+        bucket_values(&separate, fx.sessions),
+        vec![some("3"), some("0")]
+    );
+}
+
+#[test]
+fn a_second_site_from_its_go_live_day_leaves_earlier_days_unknown_and_clips_its_evidence() {
+    let (_guard, fx) = setup();
+    let (start, go_live, end) = (d(2026, 1, 1), d(2026, 2, 1), d(2026, 3, 1));
+    let site = add_account(&fx, fx.platform_id, fx.publisher_id);
+    sessions_asserted(&fx, fx.account_id, start, end);
+    // The second site asserts from December, but its window starts on its
+    // go-live day; its only units run lies wholly before the window.
+    sessions_asserted(&fx, site, d(2025, 12, 1), end);
+    cover_account(
+        &fx,
+        site,
+        fx.units,
+        d(2025, 12, 1),
+        start,
+        "COMPLETE",
+        "COMPLETED",
+        "'2026-03-10T00:00:00Z'",
+        true,
+        true,
+    );
+    set_window(&fx, site, Some(go_live), None, None);
+    commit(
+        &fx,
+        fx.works[0],
+        fx.platform_id,
+        fx.sessions,
+        d(2026, 1, 20),
+        3,
+    );
+    apply_all(&fx.pool);
+    let input = request(
+        fx.publisher_id,
+        start,
+        end,
+        &[fx.platform_id],
+        &[fx.sessions],
+        Some(MetricTimelineGrain::Month),
+    );
+    let windowed = read_both(&fx, &input, "a second site");
+    assert_eq!(
+        status_and_through(&windowed, fx.sessions),
+        (MetricCoverageStatus::Unknown, None),
+        "the first site's complete January is not enough"
+    );
+    assert_eq!(
+        bucket_values(&windowed, fx.sessions),
+        vec![some("3"), some("0")]
+    );
+
+    // All time starts at the earliest clipped evidence, and a pair
+    // represented only by a run outside a window is not served.
+    let all = omitted_pairs(&all_time(&input));
+    let served = read_both(&fx, &all, "all time");
+    assert_eq!(served.start_date, start);
+    assert_eq!(served_pairs(&served), vec![(fx.platform_id, fx.sessions)]);
+
+    // OFF refuses a MONTH record exactly as before, windows or not.
+    native_record(
+        &fx,
+        fx.works[1],
+        fx.platform_id,
+        fx.sessions,
+        "MONTH",
+        start,
+        go_live,
+        Native::Active,
+    );
+    assert_eq!(
+        read_with(&fx, &input, MetricMonthServing::Off),
+        Err(MetricReadError::UnsupportedSourceGrain)
+    );
+    assert_eq!(
+        MetricReadError::UnsupportedSourceGrain.code(),
+        "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
+    );
 }

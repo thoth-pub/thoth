@@ -209,6 +209,324 @@ CloudFront collection driver, any list, search, delete or bulk source
 operation, any audit-history query, and any real source, account or platform
 row.
 
+#### Account windows, successions and native-month checks (`MET-WP4-MONTH-01`)
+
+`MET-WP4-MONTH-01` (thoth#1042) adds, additively, an optional date window and
+an optional succession to every source account, and the repair of the
+native-month projection of section 3.6:
+
+```graphql
+# MetricSourceAccount (output) and NewMetricSourceAccount (input) gain
+windowStart: Date
+windowEnd: Date
+succession: String
+
+# SUPERUSER only, authorized before any operation-specific read, lock or write
+updateMetricSourceAccountWindow(
+  code: String!
+  windowStart: Date
+  windowEnd: Date
+  succession: String
+): MetricSourceAccount!
+recomputeMetricNativeMonths(publisherId: Uuid!): MetricNativeMonthRecomputeResult!
+
+type MetricNativeMonthRecomputeResult {
+  works: Int!
+  rows: Int!
+}
+```
+
+- **Window.** Half-open, `[windowStart, windowEnd)`, either end optional,
+  `null` meaning unbounded. A window that does not end after it starts is
+  refused: "A metric source account window must end after it starts."
+- **Succession.** A label of 1 to 64 lowercase letters, digits and single
+  hyphens, or `null`; anything else is refused: "A metric source account
+  succession must be 1 to 64 lowercase letters, digits and single hyphens."
+  Each succession of one publisher and platform is one slot, and each account
+  without a succession is a slot of its own. A slot is keyed by publisher,
+  platform and label, so a label also used by another publisher or platform
+  is harmless.
+- `createMetricSourceAccount` validates the three optional fields before any
+  write, so the database checks `metric_source_account_window_check` and
+  `metric_source_account_succession_check`, which map to the same two
+  messages, never fire from the API.
+- `updateMetricSourceAccountWindow` is a complete replacement of
+  `windowStart`, `windowEnd` and `succession`, `null` clearing one. A request
+  that matches the stored values changes nothing and records no audit entry;
+  a real change records one `UPDATE` before/after entry in
+  `metric_source_registry_history`, atomically, and the audited account state
+  carries the three keys. An account whose stored configuration is
+  unsupported is neither updated nor audited, as by `updateMetricSourceAccount`.
+  `PatchMetricSourceAccount` is unchanged, so `updateMetricSourceAccount`
+  never touches the three fields.
+- A window limits only which days the account's coverage counts for. It does not restrict claims or collection, and it never hides a value. A window alone never lowers what a day requires: an account replaces another only inside a succession, which asserts that its members collect one source of traffic. Operators set a succession only for accounts that collect the same site, checked as for enabling another account.
+- `recomputeMetricNativeMonths` deletes and re-derives the native-month rows
+  of every work now under the publisher's imprints (section 3.6). An unknown
+  publisher fails as not found before any write. `works` is the number of
+  works recomputed and `rows` the number of rows written.
+
+**Months and days.** The reads serve the days and leave the month out where a
+`MONTH` record and `DAY` records share a base cell (section 4.1), so:
+
+- **Operator rule.** For each work, platform and measure, months imported as
+  `MONTH` and days collected as `DAY` never share a calendar month, and a
+  monthly account's window starts and ends on the first day of a month. So a
+  month in which a live `DAY` account starts stays out of the monthly history.
+- **Detection.** One stray day displaces a whole month's value, and nothing
+  refuses or alarms, so detection is a duty: V-CONFLICT and V-PLAN below, when
+  stated there. A history import checks its planned month keys against
+  V-CONFLICT's `day_live` as V-PLAN checks days. A hit is a `HOLD` for that
+  work and goes to the CTO.
+- **Repair.** The CTO decides which side is wrong. A wrong native side is
+  zeroed, by the history importer under its own grant, only if the days are
+  the month's whole value: its import's coverage still asserts the month, so
+  the days alone can read `COMPLETE`. Otherwise it is revised to its true
+  value or left, and the conflict stands. A wrong day side cannot be zeroed
+  today (a `DAY` revision must come from the record's winning account, and no
+  collection run revises a day to 0), so the conflict stands and the month is
+  `PARTIAL` in every read until a day-zeroing path exists. The CTO records
+  each standing cell (work, platform, measure, month) per environment, and
+  V-CONFLICT's gates except exactly those cells. The native side is never
+  zeroed just to clear a conflict: the stray days alone would read as a
+  `COMPLETE` month, an undercount no retraction can undo. Any other zeroing
+  needs the CTO's written acceptance of that outcome, per work and month. A
+  zero month record stays: it adds and conflicts with nothing, but still marks
+  the month cut wherever a cell cuts it.
+
+**Checks.** Four read-only checks, each run as written:
+
+**V-MONTH (PRE-1)**, before each deploy of a server at or after
+`MET-WP4-MONTH-01`, at each monthly-serving activation step and after every
+`MONTH` import chunk. `HOLD` unless `invalid_periods` and
+`inconsistent_pointers` are 0 for both grains and `non_additive` is 0 for
+`MONTH`; a grain with no row passes. `active` reports how many records a
+server with monthly serving `ON` serves (`MONTH`) or refuses on
+(`REPORTING_PERIOD`), and an `earliest` period before 2000-01-01 is a
+`HOLD`: it would refuse every all-time read of its scope, as any evidence
+before the floor does.
+
+```sql
+SELECT r.reporting_grain::text, count(*) AS records,
+  count(*) FILTER (WHERE v.status = 'CURRENT') AS active,
+  count(*) FILTER (WHERE r.reporting_grain = 'MONTH'
+  AND NOT (EXTRACT(DAY FROM r.period_start) = 1
+  AND r.period_end = (r.period_start + interval '1 month')::date)) AS invalid_periods,
+  count(*) FILTER (WHERE (v.status = 'CURRENT') IS NOT TRUE
+  AND NOT (COALESCE(v.status = 'RETRACTED', FALSE)
+  AND NOT EXISTS (SELECT 1 FROM metric_record_revision o
+  WHERE o.record_id = r.record_id AND o.status = 'CURRENT'))) AS inconsistent_pointers,
+  count(*) FILTER (WHERE v.status = 'CURRENT'
+  AND NOT (m.additive_across_time AND m.additive_across_works)) AS non_additive,
+  min(r.period_start) AS earliest  -- HOLD if before 2000-01-01 (MET-WP4-MONTH-01 section 9's preconditions)
+FROM metric_record r JOIN metric_measure m ON m.measure_id = r.measure_id
+LEFT JOIN metric_record_revision v
+  ON v.record_id = r.record_id AND v.record_revision_id = r.current_revision_id
+WHERE r.reporting_grain <> 'DAY' GROUP BY 1;
+```
+
+**V-NATIVE**, after each deploy, before each switch to `ON`, after every
+`MONTH` import chunk, at the interval the CTO sets at production activation,
+and after any time a server older than `MET-WP4-MONTH-01` ran. It derives the
+expected rows of the four native-month tables (section 3.6) from
+`metric_record` and its current revisions, in SQL that shares no text with the
+writer's, and returns, per table, the rows expected but absent (`missing`),
+present but not expected (`unexpected`) and differing in any column
+(`differing`). The twelve counts come from one statement, so from one
+snapshot, and must all be 0. It scans every non-`DAY` record, so it runs in a
+`READ ONLY` transaction under `SET LOCAL statement_timeout`. A non-zero count
+is a `HOLD`: `ON` is not switched on, or the CTO decides whether it stays on,
+until `recomputeMetricNativeMonths` for the publishers of those keys brings it
+to 0. A count that returns is a defect, not a repair.
+
+```sql
+WITH record AS (
+  SELECT r.work_id, r.platform_id, r.measure_id, r.period_start, r.period_end,
+    r.reporting_grain::text AS grain, r.country_code, r.institution_id, p.value,
+    CASE WHEN r.publication_id IS NULL THEN 0 ELSE 4 END
+      + CASE WHEN r.country_code IS NULL THEN 0 ELSE 2 END
+      + CASE WHEN r.institution_id IS NULL THEN 0 ELSE 1 END AS mask,
+    CASE
+      WHEN p.status = 'RETRACTED' AND NOT EXISTS (SELECT 1 FROM metric_record_revision c
+        WHERE c.record_id = r.record_id AND c.status = 'CURRENT') THEN 'WITHDRAWN'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'REPORTING_PERIOD' THEN 'ACTIVE'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'MONTH'
+        AND r.period_start = date_trunc('month', r.period_start::timestamp)::date
+        AND r.period_end = (date_trunc('month', r.period_start::timestamp)
+          + interval '1 month')::date
+        THEN 'SERVED'
+      ELSE 'INCONSISTENT'
+    END AS class
+  FROM metric_record r
+  LEFT JOIN metric_record_revision p
+    ON p.record_id = r.record_id AND p.record_revision_id = r.current_revision_id
+  WHERE r.reporting_grain <> 'DAY'),
+served AS (SELECT * FROM record WHERE class = 'SERVED'),
+cell AS (
+  SELECT work_id, platform_id, measure_id, period_start AS month_start,
+    array_agg(DISTINCT mask) AS masks, bool_or(value <> 0) AS live
+  FROM served GROUP BY work_id, platform_id, measure_id, period_start),
+choice AS (
+  SELECT cell.*,
+    CASE WHEN 0 = ANY (masks) THEN 0 WHEN cardinality(masks) = 1 THEN masks[1] END AS total_mask,
+    ARRAY(SELECT m FROM unnest(masks) AS m WHERE m & 2 = 2 AND NOT EXISTS (
+      SELECT 1 FROM unnest(masks) AS n WHERE n & 2 = 2 AND n <> m AND n & m = n)) AS country_minima,
+    ARRAY(SELECT m FROM unnest(masks) AS m WHERE m & 1 = 1 AND NOT EXISTS (
+      SELECT 1 FROM unnest(masks) AS n WHERE n & 1 = 1 AND n <> m AND n & m = n)) AS institution_minima
+  FROM cell),
+expected_month AS (
+  SELECT c.work_id, c.platform_id, c.measure_id, c.month_start,
+    (SELECT sum(s.value) FROM served s
+      WHERE (s.work_id, s.platform_id, s.measure_id, s.period_start)
+        = (c.work_id, c.platform_id, c.measure_id, c.month_start)
+        AND s.mask = c.total_mask)::bigint AS value,
+    c.live,
+    COALESCE(c.total_mask & 2 = 2, FALSE) AS requires_country_coverage,
+    COALESCE(c.total_mask & 1 = 1, FALSE) AS requires_institution_coverage,
+    cardinality(c.country_minima) > 1 AS country_ambiguous,
+    cardinality(c.institution_minima) > 1 AS institution_ambiguous
+  FROM choice c),
+expected_country AS (
+  SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.country_code,
+    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage
+  FROM served s JOIN choice c
+    ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start)
+  WHERE cardinality(c.country_minima) = 1 AND s.mask = c.country_minima[1]
+  GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.country_code),
+expected_institution AS (
+  SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.institution_id,
+    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage
+  FROM served s JOIN choice c
+    ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start)
+  WHERE cardinality(c.institution_minima) = 1 AND s.mask = c.institution_minima[1]
+  GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.institution_id),
+expected_refusal AS (
+  SELECT work_id, platform_id, measure_id, period_start, period_end,
+    bool_or(class = 'INCONSISTENT') AS inconsistent
+  FROM record WHERE class IN ('ACTIVE', 'INCONSISTENT')
+  GROUP BY work_id, platform_id, measure_id, period_start, period_end),
+diff AS (
+  SELECT 'metric_native_month' AS relation,
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END AS kind,
+    COALESCE(e.work_id, a.work_id) AS work_id, COALESCE(e.platform_id, a.platform_id) AS platform_id,
+    COALESCE(e.measure_id, a.measure_id) AS measure_id,
+    COALESCE(e.month_start, a.month_start) AS period_start, NULL::text AS detail
+  FROM expected_month e FULL JOIN metric_native_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.live, e.requires_country_coverage, e.requires_institution_coverage,
+        e.country_ambiguous, e.institution_ambiguous)
+      IS DISTINCT FROM (a.value, a.live, a.requires_country_coverage,
+        a.requires_institution_coverage, a.country_ambiguous, a.institution_ambiguous)
+  UNION ALL
+  SELECT 'metric_native_country_month',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.month_start, a.month_start),
+    COALESCE(e.country_code::text, a.country_code::text)
+  FROM expected_country e FULL JOIN metric_native_country_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.country_code::text)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.country_code::text)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.requires_institution_coverage)
+      IS DISTINCT FROM (a.value, a.requires_institution_coverage)
+  UNION ALL
+  SELECT 'metric_native_institution_month',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.month_start, a.month_start),
+    COALESCE(e.institution_id, a.institution_id)::text
+  FROM expected_institution e FULL JOIN metric_native_institution_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.institution_id)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.institution_id)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.requires_country_coverage)
+      IS DISTINCT FROM (a.value, a.requires_country_coverage)
+  UNION ALL
+  SELECT 'metric_native_refusal',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.period_start, a.period_start),
+    COALESCE(e.period_end, a.period_end)::text
+  FROM expected_refusal e FULL JOIN metric_native_refusal a
+    ON (a.work_id, a.platform_id, a.measure_id, a.period_start, a.period_end)
+      = (e.work_id, e.platform_id, e.measure_id, e.period_start, e.period_end)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL OR e.inconsistent IS DISTINCT FROM a.inconsistent)
+SELECT
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'missing') AS month_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'unexpected') AS month_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'differing') AS month_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'missing') AS country_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'unexpected') AS country_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'differing') AS country_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'missing') AS institution_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'unexpected') AS institution_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'differing') AS institution_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'missing') AS refusal_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'unexpected') AS refusal_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'differing') AS refusal_differing
+FROM diff;
+```
+
+V-NATIVE's key form lists the rows behind the counts, identifiers only: the
+same statement with its final `SELECT` replaced by
+
+```sql
+SELECT relation, kind, work_id, platform_id, measure_id, period_start, detail
+FROM diff
+ORDER BY relation, kind, work_id, platform_id, measure_id, period_start, detail;
+```
+
+**V-CONFLICT**, once rollups report `exhausted`: at the staging check of
+monthly history, before production `ON`, after every `MONTH` import chunk,
+after every `DAY` backfill or onboarding on a platform with monthly history,
+and, from production `ON`, after every scheduled production rollups run. The
+number of base cells where both sides are live (section 4.1); it must be 0, or
+its key list must hold only the standing cells the CTO has recorded. It reads
+the canonical records, not the projection, and scans three monthly tables, so
+it runs under a `statement_timeout`. To locate a hit, the same query selects
+the key columns (identifiers only).
+
+```sql
+WITH native_live AS (
+  SELECT DISTINCT r.work_id, r.platform_id, r.measure_id, r.period_start AS month_start
+  FROM metric_record r JOIN metric_record_revision v
+  ON v.record_id = r.record_id AND v.record_revision_id = r.current_revision_id
+  WHERE r.reporting_grain <> 'DAY' AND r.reporting_grain = 'MONTH'
+  AND v.status = 'CURRENT' AND v.value <> 0),
+day_live AS (
+  SELECT work_id, platform_id, measure_id, month_start FROM metric_rollup_work_month WHERE value <> 0
+  UNION SELECT work_id, platform_id, measure_id, month_start FROM metric_rollup_work_country_month WHERE value <> 0
+  UNION SELECT work_id, platform_id, measure_id, month_start FROM metric_rollup_work_institution_month WHERE value <> 0
+  UNION SELECT work_id, platform_id, measure_id, month_start FROM metric_rollup_work_month_ambiguity)
+SELECT count(*) FROM native_live JOIN day_live USING (work_id, platform_id, measure_id, month_start);
+```
+
+**V-PLAN**, with no `MONTH` import chunk in progress, before a `DAY` backfill
+or onboarding of a publisher (`$1`) on a platform (`$2`) over the days `$3` to
+`$4`, inclusive: V-CONFLICT's `native_live` restricted to that publisher
+(through `work` and `imprint`), that platform and those days. Its count must
+be 0.
+
+```sql
+WITH native_live AS (
+  SELECT DISTINCT r.work_id, r.platform_id, r.measure_id, r.period_start AS month_start
+  FROM metric_record r JOIN metric_record_revision v
+  ON v.record_id = r.record_id AND v.record_revision_id = r.current_revision_id
+  JOIN work w ON w.work_id = r.work_id JOIN imprint i ON i.imprint_id = w.imprint_id
+  WHERE r.reporting_grain <> 'DAY' AND r.reporting_grain = 'MONTH'
+  AND v.status = 'CURRENT' AND v.value <> 0
+  AND i.publisher_id = $1 AND r.platform_id = $2
+  AND r.period_start <= $4 AND r.period_end > $3)
+SELECT count(*) FROM native_live;
+```
+
 ## 3. Internal ingestion
 
 Thoth owns bounded claim/checkpoint/import/batch/rollup/export/reconciliation operations consumed by Sphinx.
@@ -296,6 +614,8 @@ Scope boundaries a consumer must not infer:
   `reporting_grain = DAY` spanning exactly one calendar day. Deltas of other
   grains are durable and pending, carry no position, and never block the
   work-day frontier; their projection and claim design is deferred.
+  `MONTH` deltas stay outside the stream under `MET-WP4-MONTH-01`; nothing
+  applies or reads them.
 - The two normal rollup operations above remain the orchestration surface:
   Sphinx claims a bounded batch and completes it, while Thoth applies the
   work-day changes and continuously recomputes the affected
@@ -874,10 +1194,10 @@ Contract properties a later consumer may rely on:
   reapplication the same gate applies again, because normal completion
   maintains only the months it subsequently touches, and reapplying takes
   fresh evidence the same way.
-- **No native MONTH or REPORTING_PERIOD serving.** These projections are
-  aggregations of resolved `DAY`-grain work-day rows. Canonical records of
-  any other grain remain outside the work-day stream and are not projected
-  here; native monthly serving of such records is separately specified.
+- **Only resolved `DAY` rows.** These projections remain aggregations of
+  resolved `DAY` rows only, and records of any other grain remain outside the
+  work-day stream. `MONTH` records reach the reads only through the separate
+  native-month projection below (`MET-WP4-MONTH-01`).
 
 Scope boundaries a consumer must not infer:
 
@@ -901,6 +1221,238 @@ Scope boundaries a consumer must not infer:
   remain Thoth-owned database operations. A verification
   mismatch must alert/HOLD rather than silently auto-rebuild; Thoth never
   invokes a rebuild on its own.
+
+#### Native-month projection (`MET-WP4-MONTH-01`)
+
+`MET-WP4-MONTH-01` (thoth#1042) adds four derived tables, created and
+populated by migration `20261116_v1.12.0`, with no foreign key, trigger or
+secondary index. Each primary key is the identity, work first:
+
+- `metric_native_month`: `work_id`, `platform_id`, `measure_id` and
+  `month_start` (the first day of a month), all `NOT NULL`, as the key;
+  `value bigint NULL` (`NULL`: total-ambiguous); `live`,
+  `requires_country_coverage`, `requires_institution_coverage`,
+  `country_ambiguous` and `institution_ambiguous`, each `boolean NOT NULL`;
+- `metric_native_country_month`: the same four and `country_code
+  character(2)` (two capital letters) as the key; `value bigint NOT NULL`,
+  `requires_institution_coverage boolean NOT NULL`;
+- `metric_native_institution_month`: the four and `institution_id` as the
+  key; `value bigint NOT NULL`, `requires_country_coverage boolean NOT NULL`;
+- `metric_native_refusal`: `work_id`, `platform_id`, `measure_id`,
+  `period_start` and `period_end` as the key; `inconsistent boolean NOT NULL`.
+
+The migration populates them from every non-`DAY` record by the rule below,
+in set-based statements, while it holds `metric_source_account` in `ACCESS
+EXCLUSIVE` mode to its commit, so no canonical write runs meanwhile and the
+tables are exact from their first commit.
+
+- **Keys.** A key is `(work, platform, measure, period_start)`: every non-`DAY`
+  record that starts on that day, whatever its end or grain (the columns of
+  `metric_record_native_grain_idx`). So a write to one period never removes
+  another period's rows. `apply_canonical_application` takes a set of keys and
+  adds the record's key on every `Winner` and `Revision` outcome of a
+  non-`DAY` record, so no caller can apply a candidate without one. Each
+  caller recomputes its set after its last canonical write and before it
+  commits: ingestion once per request, quarantine reconciliation once per row.
+  An empty set runs no statement.
+- **Recompute.** Eight statements, whatever the number of keys (passed as
+  parallel arrays): four delete the keys' rows from the four tables, and four
+  insert them again from the keys' records, read through
+  `metric_record_native_grain_idx` and each revision by its primary key. Each
+  record is classified by its pointer, as the native-grain check of section
+  4.2 does:
+  - *withdrawn* (the pointer names a `RETRACTED` revision and the record has
+    no `CURRENT` one): ignored;
+  - *active reporting period*: a `REPORTING_PERIOD` record whose pointer
+    names a `CURRENT` revision;
+  - *served month*: a `MONTH` record spanning exactly one calendar month whose
+    pointer names a `CURRENT` revision of that record; its value is that
+    revision's;
+  - *inconsistent*: anything else of either grain, a `MONTH` record of any
+    other period included.
+- **Rows.** Per key it writes:
+  - one `metric_native_refusal` row per period of the key that holds an
+    active reporting period or an inconsistent record, `inconsistent` true if
+    it holds an inconsistent one;
+  - one `metric_native_month` row if the key holds a served month: `live`
+    (some served record's value is not 0), and the cell resolved exactly as
+    03A resolves a day (Specification Amendment 6): the undimensioned row if
+    present, else the single represented mask, summed, else total-ambiguous
+    (`value` `NULL`, both dependency flags false); the two dependency flags of
+    the selected mask; and the two section-ambiguity flags (incomparable
+    minimal masks);
+  - the cell's country and institution rows: the rows of the unique least
+    target-bearing mask, summed per country or institution, with the
+    cross-dependency flag.
+- **Atomic and exact.** Sums are signed `bigint`; an overflow, or any failure,
+  fails the caller's transaction, so nothing commits. The recompute takes no
+  lock beyond its own rows, after every lock ingestion takes. Every canonical
+  write holds its work row `FOR UPDATE`, so writers of one key are serialized
+  and each recompute sees every committed record of its key; records and rows
+  commit together. A native row is a function of the current records of its
+  own key, so recomputing it is idempotent and needs no order.
+- **Other writers.** Any later path that changes a non-`DAY` record or its
+  revisions (a retraction path included) recomputes the key in the same
+  transaction, under the work row lock. A change made outside Thoth leaves the
+  tables stale until V-NATIVE finds it: under `ON` the projection, not the
+  records, decides a value and a refusal, so a missing row can read as a
+  justified `"0"`. V-NATIVE is therefore a safety gate (section 2.2).
+- **Whatever the switch.** The tables are maintained whatever
+  `THOTH_METRIC_MONTH_SERVING` says, and hold no frontier, watermark,
+  position, claim or lag. Only a server with monthly serving `ON` reads them
+  (sections 4.1 to 4.4), and its month/day conflict rule relies on the 03A
+  tables being exact (section 3.8).
+
+V-NATIVE, the same text as section 2.2 gives with when it runs; its key form
+is there too:
+
+```sql
+WITH record AS (
+  SELECT r.work_id, r.platform_id, r.measure_id, r.period_start, r.period_end,
+    r.reporting_grain::text AS grain, r.country_code, r.institution_id, p.value,
+    CASE WHEN r.publication_id IS NULL THEN 0 ELSE 4 END
+      + CASE WHEN r.country_code IS NULL THEN 0 ELSE 2 END
+      + CASE WHEN r.institution_id IS NULL THEN 0 ELSE 1 END AS mask,
+    CASE
+      WHEN p.status = 'RETRACTED' AND NOT EXISTS (SELECT 1 FROM metric_record_revision c
+        WHERE c.record_id = r.record_id AND c.status = 'CURRENT') THEN 'WITHDRAWN'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'REPORTING_PERIOD' THEN 'ACTIVE'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'MONTH'
+        AND r.period_start = date_trunc('month', r.period_start::timestamp)::date
+        AND r.period_end = (date_trunc('month', r.period_start::timestamp)
+          + interval '1 month')::date
+        THEN 'SERVED'
+      ELSE 'INCONSISTENT'
+    END AS class
+  FROM metric_record r
+  LEFT JOIN metric_record_revision p
+    ON p.record_id = r.record_id AND p.record_revision_id = r.current_revision_id
+  WHERE r.reporting_grain <> 'DAY'),
+served AS (SELECT * FROM record WHERE class = 'SERVED'),
+cell AS (
+  SELECT work_id, platform_id, measure_id, period_start AS month_start,
+    array_agg(DISTINCT mask) AS masks, bool_or(value <> 0) AS live
+  FROM served GROUP BY work_id, platform_id, measure_id, period_start),
+choice AS (
+  SELECT cell.*,
+    CASE WHEN 0 = ANY (masks) THEN 0 WHEN cardinality(masks) = 1 THEN masks[1] END AS total_mask,
+    ARRAY(SELECT m FROM unnest(masks) AS m WHERE m & 2 = 2 AND NOT EXISTS (
+      SELECT 1 FROM unnest(masks) AS n WHERE n & 2 = 2 AND n <> m AND n & m = n)) AS country_minima,
+    ARRAY(SELECT m FROM unnest(masks) AS m WHERE m & 1 = 1 AND NOT EXISTS (
+      SELECT 1 FROM unnest(masks) AS n WHERE n & 1 = 1 AND n <> m AND n & m = n)) AS institution_minima
+  FROM cell),
+expected_month AS (
+  SELECT c.work_id, c.platform_id, c.measure_id, c.month_start,
+    (SELECT sum(s.value) FROM served s
+      WHERE (s.work_id, s.platform_id, s.measure_id, s.period_start)
+        = (c.work_id, c.platform_id, c.measure_id, c.month_start)
+        AND s.mask = c.total_mask)::bigint AS value,
+    c.live,
+    COALESCE(c.total_mask & 2 = 2, FALSE) AS requires_country_coverage,
+    COALESCE(c.total_mask & 1 = 1, FALSE) AS requires_institution_coverage,
+    cardinality(c.country_minima) > 1 AS country_ambiguous,
+    cardinality(c.institution_minima) > 1 AS institution_ambiguous
+  FROM choice c),
+expected_country AS (
+  SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.country_code,
+    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage
+  FROM served s JOIN choice c
+    ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start)
+  WHERE cardinality(c.country_minima) = 1 AND s.mask = c.country_minima[1]
+  GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.country_code),
+expected_institution AS (
+  SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.institution_id,
+    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage
+  FROM served s JOIN choice c
+    ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start)
+  WHERE cardinality(c.institution_minima) = 1 AND s.mask = c.institution_minima[1]
+  GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.institution_id),
+expected_refusal AS (
+  SELECT work_id, platform_id, measure_id, period_start, period_end,
+    bool_or(class = 'INCONSISTENT') AS inconsistent
+  FROM record WHERE class IN ('ACTIVE', 'INCONSISTENT')
+  GROUP BY work_id, platform_id, measure_id, period_start, period_end),
+diff AS (
+  SELECT 'metric_native_month' AS relation,
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END AS kind,
+    COALESCE(e.work_id, a.work_id) AS work_id, COALESCE(e.platform_id, a.platform_id) AS platform_id,
+    COALESCE(e.measure_id, a.measure_id) AS measure_id,
+    COALESCE(e.month_start, a.month_start) AS period_start, NULL::text AS detail
+  FROM expected_month e FULL JOIN metric_native_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.live, e.requires_country_coverage, e.requires_institution_coverage,
+        e.country_ambiguous, e.institution_ambiguous)
+      IS DISTINCT FROM (a.value, a.live, a.requires_country_coverage,
+        a.requires_institution_coverage, a.country_ambiguous, a.institution_ambiguous)
+  UNION ALL
+  SELECT 'metric_native_country_month',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.month_start, a.month_start),
+    COALESCE(e.country_code::text, a.country_code::text)
+  FROM expected_country e FULL JOIN metric_native_country_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.country_code::text)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.country_code::text)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.requires_institution_coverage)
+      IS DISTINCT FROM (a.value, a.requires_institution_coverage)
+  UNION ALL
+  SELECT 'metric_native_institution_month',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.month_start, a.month_start),
+    COALESCE(e.institution_id, a.institution_id)::text
+  FROM expected_institution e FULL JOIN metric_native_institution_month a
+    ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.institution_id)
+      = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.institution_id)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL
+    OR (e.value, e.requires_country_coverage)
+      IS DISTINCT FROM (a.value, a.requires_country_coverage)
+  UNION ALL
+  SELECT 'metric_native_refusal',
+    CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
+      ELSE 'differing' END,
+    COALESCE(e.work_id, a.work_id), COALESCE(e.platform_id, a.platform_id),
+    COALESCE(e.measure_id, a.measure_id), COALESCE(e.period_start, a.period_start),
+    COALESCE(e.period_end, a.period_end)::text
+  FROM expected_refusal e FULL JOIN metric_native_refusal a
+    ON (a.work_id, a.platform_id, a.measure_id, a.period_start, a.period_end)
+      = (e.work_id, e.platform_id, e.measure_id, e.period_start, e.period_end)
+  WHERE a.work_id IS NULL OR e.work_id IS NULL OR e.inconsistent IS DISTINCT FROM a.inconsistent)
+SELECT
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'missing') AS month_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'unexpected') AS month_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_month' AND kind = 'differing') AS month_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'missing') AS country_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'unexpected') AS country_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_country_month' AND kind = 'differing') AS country_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'missing') AS institution_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'unexpected') AS institution_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_institution_month' AND kind = 'differing') AS institution_differing,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'missing') AS refusal_missing,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'unexpected') AS refusal_unexpected,
+  count(*) FILTER (WHERE relation = 'metric_native_refusal' AND kind = 'differing') AS refusal_differing
+FROM diff;
+```
+
+**Repair.** `recomputeMetricNativeMonths(publisherId: Uuid!):
+MetricNativeMonthRecomputeResult!` is **SUPERUSER only**, authorized before
+any operation-specific read, lock or write. For the works now under the
+publisher's imprints, in ascending id and in chunks of at most 50, each chunk
+one transaction, it locks the works `FOR UPDATE`, deletes their rows from the
+four tables and inserts them again by the rule above. `works` is the number of
+works recomputed and `rows` the number of rows written. It is idempotent, it
+writes no canonical row and no audit entry, and it runs beside ingestion and
+reads. A failed chunk (a deadlock with a publisher or imprint change included)
+leaves the earlier ones committed and exact, and is retried by calling it
+again. An unknown publisher fails as not found before any write.
 
 ### 3.7 Protected monthly verification and rebuild contract (`MET-WP4-03A-OPS-02`)
 
@@ -1132,6 +1684,9 @@ serving-activation gate may cite (section 3.6). The section 3.7 pair is
 unchanged: its SDL, SQL text, bounds and behaviour. Thoth runs nothing on its
 own: there is no worker, queue, lease, scheduler or timer, and the caller
 drives every step.
+
+A damaged 03A can hide a month/day conflict from reads, which then count both
+sides, until it is rebuilt (`MET-WP4-MONTH-01`, section 4.1).
 
 Object, created empty by migration `20261112_v1.10.0`, with no lock on any
 existing table:
@@ -2040,8 +2595,9 @@ Contract properties consumers may rely on:
   `COMPLETE` to `PARTIAL`. A day without an assertion is `UNKNOWN`. Across
   accounts and publishers, a day of a served platform and measure is
   asserted only if every represented publisher has an eligible account on
-  that platform and every such account asserts the day. It is then the worst
-  of those assertions, and includes a dimension only if every one of them
+  that platform and every slot has its required streams asserting the day.
+  It is then the worst of those assertions, and includes a dimension only if
+  every one of them
   does. Otherwise it is `UNKNOWN`. Enabling another account therefore makes
   its publisher's coverage on that platform `UNKNOWN` for every day the new
   account has not asserted, until its history is collected; values do not
@@ -2073,7 +2629,52 @@ Contract properties consumers may rely on:
   platform are therefore known to give correct values when no two of them
   report the same work, platform, measure and day; in practice, each work's
   files are on one site. Operators check this before enabling another
-  account. The read cannot tell a lost value from no traffic.
+  account. The read cannot tell a lost value from no traffic. Only a
+  succession (section 2.2) lets accounts stand in for each other; a window
+  alone never does.
+- **Native months (`MET-WP4-MONTH-01`).** A server with monthly serving `ON`
+  (`THOTH_METRIC_MONTH_SERVING`, default `OFF`, read once at process start)
+  serves `MONTH` records; with it `OFF` they refuse as section 4.2 says. A
+  month is never split into days: for a cell `[from, to)`, a served month
+  `[M, M + 1 month)` adds its value only if it lies wholly inside the cell. A
+  month that a cell cuts adds nothing to that cell, and its days are treated
+  like `PARTIAL` days: zero is not justified there, the pair's status is at
+  worst `PARTIAL`, `PARTIAL_COVERAGE` is raised and `dataThrough` stops
+  before them. A served month is cut when it is conflicted, or unless it lies
+  wholly inside the range and wholly inside the bucket that contains its
+  first day: on a `DAY` timeline every served month is cut, and on `MONTH`
+  and `YEAR` timelines exactly the conflicted months and those the range
+  cuts. Zero day rows of a cut month still show `"0"`, as `PARTIAL`. For one
+  work, platform, measure and month, the native side is live when any served
+  month record of it has a value other than 0, and the day side is live when
+  any 03A monthly total, country or institution row of that key has a value
+  other than 0, or a 03A ambiguity row exists for it. When both are live the
+  cell is conflicted: the days are served as they would be without the month,
+  the month adds no value, section row, dependency flag or ambiguity, and it
+  is cut for that pair in every cell, so its days are never `COMPLETE`.
+  Nothing is refused. When every 03A row of the key is 0, the two sides add
+  with nothing counted twice, whatever the measure's sign. A conflict is
+  decided in each read and stored nowhere; a repaired month (one side zeroed,
+  section 2.2) stays cut wherever a cell cuts it. `AUTO` is resolved first, so
+  a short `AUTO` request resolves to `DAY` and shows its monthly pairs as
+  `null` buckets and `PARTIAL`. A native month is read from its projection in
+  the read's own snapshot: it is as of `asOf`, raises no `ROLLUP_LAG`, and
+  `rollupWatermark` says nothing about it.
+- **Account windows and successions (`MET-WP4-MONTH-01`, under either switch
+  value).** An eligible account's window `[windowStart, windowEnd)` (section
+  2.2) limits where its runs and terminal-import coverage count: each run is
+  clipped to the window and dropped if empty, and only then is same-stream
+  overlap refused, so an overlap outside a window refuses nothing. Per
+  publisher and platform, each succession is one slot and each account
+  without one is a slot of its own. On a day `d` a platform requires, per
+  represented publisher, one stream if the publisher has no eligible account
+  on it, and otherwise, per slot, `max(1, members whose window contains d)`.
+  Outside every member's window a slot still requires one stream that no
+  clipped run supplies, so the day stays `UNKNOWN`. With no window and no
+  succession this is the rule above. The represented scope and the all-time
+  start count a run or a terminal-import coverage row only where it
+  intersects its account's window, from the later of its start and the
+  window start. A window never hides a value: values carry no account.
 - **One snapshot.** Everything is read on one connection in one
   `READ ONLY, REPEATABLE READ` transaction: entitlement, the `MET-WP4-01`
   frontier, represented scope, projection, coverage, outstanding rollup work
@@ -2124,6 +2725,10 @@ Contract properties consumers may rely on:
 
 Scope boundaries a consumer must not infer:
 
+- Under `ON`, `MET-WP4-MONTH-01` serves requests that a `MONTH` record
+  overlaps, which `OFF` refuses, and judges each pair of an all-time read from
+  its own start. With no `MONTH` record and no account window or succession,
+  every other response is unchanged apart from `asOf`.
 - Countries, institutions, works sections, pagination, the deferred selector
   dimensions (`imprintIds`, `seriesIds`, `workIds`, `dois`, `workTypes`,
   `languages`, funding and affiliation institutions, `includeDescendants`),
@@ -2321,8 +2926,14 @@ Contract properties consumers may rely on:
   section, so requesting an incompletely covered section can make them more
   conservative without changing any total or timeline value.
   `countryCoverage` and `institutionCoverage` remain the combined dimension
-  facts.
-- **Native grains.** The projections serve `DAY` canonical records only. If
+  facts. With monthly serving `ON` (`MET-WP4-MONTH-01`), the days of a served
+  month that is cut or conflicted (section 4.1) are added, clipped to the
+  range, to each served combination's unjustified days and to its first
+  break, for the totals, the timeline and every returned section, and a
+  combination with such a day in a segment whose shared status is `COMPLETE`
+  is `PARTIAL`. Nothing else changes, so an `UNKNOWN` day stays `UNKNOWN`.
+- **Native grains.** With monthly serving `OFF` (`MET-WP4-MONTH-01`, section
+  4.1), as follows. The projections serve `DAY` canonical records only. If
   a canonical record of `MONTH` or `REPORTING_PERIOD` grain for a resolved
   work, served platform and served measure overlaps `[startDate, endDate)`
   (with `startDate` omitted, starts before `endDate`) and its
@@ -2334,6 +2945,25 @@ Contract properties consumers may rely on:
   revision, or a `RETRACTED` pointer beside a `CURRENT` revision — fails
   closed as `INTERNAL_ERROR`. The check's predicate matches the partial
   index `metric_record_native_grain_idx`, which changes only its cost.
+  With monthly serving `ON`, `MONTH` records are served from the native-month
+  projection (section 3.6), which alone decides a value and a refusal, and no
+  read touches a non-`DAY` record: an active `REPORTING_PERIOD` record refuses
+  with the same code and fixed message, a projected inconsistency of either
+  grain (a `MONTH` record of any other period included) is `INTERNAL_ERROR`,
+  and a month/day conflict refuses nothing (section 4.1).
+- **Descriptions (`MET-WP4-MONTH-01`)** are static and hold under both switch
+  values. The last sentence of `metricDashboard`'s is "A request intersecting
+  Metrics reported for a reporting period fails with
+  METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN, and so does one intersecting Metrics
+  reported for a whole month unless this server serves monthly Metrics; a
+  served month counts only in a value whose dates contain all of it, and where
+  days of that month are also reported the days are served and the month is
+  marked incomplete". `MetricCoverageItem` and its `status`, `dataThrough`,
+  `countryCoverage` and `institutionCoverage`, and the widget's
+  `MetricWidgetPairCoverage` `status`, `dataThrough` and `countryCoverage` and
+  `MetricWidgetSection.isPartial`, end with "With startDate omitted on a
+  server that serves monthly Metrics, each platform and measure is judged from
+  its own first evidence, not from the served startDate".
 - **Lag scope.** `ROLLUP_LAG` and the lag part of `dataThrough` count only
   unapplied work-day deltas above the frontier for the resolved works,
   range, served platforms and served measures. Identifier quality does not
@@ -2364,6 +2994,29 @@ Contract properties consumers may rely on:
   looked up individually. Section 4.3 gives the ceiling of each request form.
   Coverage is read as eligible coverage runs clipped to the served range: no
   statement expands the days of the range.
+  With monthly serving `ON` (`MET-WP4-MONTH-01`), step 3b, `NATIVE_MONTHS_SQL`,
+  runs once per read on the same snapshot, after the works are known and
+  before platforms and measures are resolved, whenever the resolved works are
+  non-empty. It reads, through their primary keys, the `metric_native_month`
+  and `metric_native_refusal` rows of the resolved works and of the explicit
+  platform and measure filters (every one when a filter is not given) whose
+  period overlaps the range. It settles conflicts in one set-based pass over
+  the 03A monthly total and ambiguity rows of the works that hold a live cell,
+  reading the country and institution rows only for cells whose total rows are
+  all 0 and that have no ambiguity row, and returns rows per platform and
+  measure, never per work. Every pair with a served month joins the
+  represented platforms and measures, so a monthly-only pair is served, and
+  native rows are read before the combination and cell limits are checked. A
+  boolean parameter folds `CANONICAL_SQL`'s native-grain branch away; in its
+  place, in the same order, a projected inconsistency on a served platform
+  and measure fails as `INTERNAL_ERROR`, then an active reporting period as
+  `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`. Then come the 03A monthly
+  ambiguity, the native ambiguity (`MOM1_DIMENSION_SCOPE_AMBIGUOUS`), and the
+  day and dimension-cell ambiguity. `PAIR_STARTS_SQL` runs after the
+  canonical statement when `startDate` is omitted and two or more pairs are
+  served (section 4.3). The longest request path is then twenty statements,
+  nineteen excluding the pool's checkout. With it `OFF`, neither statement
+  runs.
 - **Snapshot protection and contention.** PostgreSQL's `TRUNCATE` is not
   MVCC-safe: a `REPEATABLE READ` snapshot frozen before a concurrent
   `rebuildMetricRollupMonths` truncate would see the projection tables it had
@@ -2412,8 +3065,10 @@ Scope boundaries a consumer must not infer:
 - `dois`, `includeDescendants`, works sections and pagination and
   entity-level Metrics fields remain deferred. `metricWidget` is not part of
   this protected contract; it is the public widget read of section 4.4.
-- No native `MONTH` or `REPORTING_PERIOD` serving is implemented; such
-  records only fail an intersecting request.
+- With monthly serving `OFF`, no native `MONTH` or `REPORTING_PERIOD`
+  serving is implemented; such records only fail an intersecting request.
+  With it `ON` (`MET-WP4-MONTH-01`), `MONTH` records are served as section
+  4.1 says and `REPORTING_PERIOD` records still fail an intersecting request.
 - The read writes nothing: no projection, monthly row, delta, frontier or
   coverage is repaired or recorded, and no external service is called.
 
@@ -2503,17 +3158,49 @@ Contract properties consumers may rely on:
   served range. `startDate` cannot be omitted with a `DAY`
   timeline (`METRIC_QUERY_INVALID`). A successful all-time response equals
   the explicit request over the served range at the served grain.
+  Under either monthly serving value (`MET-WP4-MONTH-01`), an eligible
+  coverage run or terminal-import coverage row is evidence only where it
+  intersects its account's window, from the later of its start and the
+  window start. With monthly serving `ON`, the evidence also includes the
+  first day of the earliest served month of a served pair before `endDate`;
+  the first fail-closed rule is a projected refusal (an active reporting
+  period, or an inconsistency of either grain) anywhere before `endDate`;
+  native ambiguity applies to all history before `endDate`; a read serving
+  two or more pairs whose earliest pair start (below) is not its served start
+  fails closed as `INTERNAL_ERROR`; and the equality above holds apart from
+  the coverage fields of the pair-start rule: an item's `status`,
+  `dataThrough`, `countryCoverage` and `institutionCoverage`, and the
+  top-level `status`, `dataThrough`, `warnings` and `isPartial`.
 - **Filtered start.** With explicit platforms or measures, the start is the
   earliest evidence of the selected pairs. It is found from the monthly
   identity keys and at most one month of work-day rows per work, without
   reading a monthly value or scanning a monthly projection. Evidence of a
   platform or measure that is not selected never moves it.
-- **All-time coverage.** An all-time response reports the worst coverage
-  over its whole served history. With several platforms or measures, an
-  item whose evidence starts after the served `startDate` is `UNKNOWN` for
-  its leading days, its `dataThrough` is `null`, and so is the top-level
-  `dataThrough`. Clients must not present `dataThrough` as "data up to" for
-  all-time views.
+- **All-time coverage.** With monthly serving `OFF`: an all-time response
+  reports the worst coverage over its whole served history. With several
+  platforms or measures, an item whose evidence starts after the served
+  `startDate` is `UNKNOWN` for its leading days, its `dataThrough` is `null`,
+  and so is the top-level `dataThrough`. Clients must not present
+  `dataThrough` as "data up to" for all-time views.
+  With it `ON` (`MET-WP4-MONTH-01`), an all-time read judges each pair from
+  its own start. The served `startDate`, the buckets and every value are as
+  above, but a pair's `status`, `dataThrough` and two coverage flags are
+  derived only from the days on or after its start `S`: the earlier of the
+  pair's own earliest evidence (the evidence above, per platform and measure)
+  and its earliest served month, and never before the served start. An item
+  without evidence is judged from the served start. Zero is justified as
+  before, over the whole range: a bucket before `S` stays `null` unless
+  coverage asserts it. So the rule adds no `"0"` and changes no value, and
+  each item equals the item of the same all-time read restricted to its
+  pair, at the same grain. An item's `dataThrough` is `null` when its first
+  break is on or before `S`; the top-level `dataThrough` is the earliest of
+  the items', and `null` unless every item has one. The response carries no
+  pair start: a pair can be `COMPLETE` with a `dataThrough` under a served
+  `startDate` years before its own start, and the bucket that holds its start
+  is a part-period value with no mark. Clients must not present
+  `dataThrough` as "data up to" for all-time views, and must not present a
+  status or `dataThrough` as holding from `startDate`. An explicit
+  `startDate` changes nothing.
 - **Coverage runs.** Coverage is read from the eligible
   `metric_coverage_run` runs, clipped to the served range, with the
   semantics of sections 4.1 and 4.2 unchanged. Eligibility is checked at
@@ -2574,13 +3261,20 @@ Contract properties consumers may rely on:
   Amendment 3 section 4A (issue #980) defines them:
 
   ```text
-  aligned MONTH or YEAR                      <= 14
-  aligned DAY                                <= 15
-  aligned DAY with a base cell to resolve    <= 16
-  clipped / omitted-section                  <= 16
-  clipped MONTH or YEAR with sections        <= 17
-  clipped DAY with sections                  <= 17
+  form                                       OFF      ON
+  aligned MONTH or YEAR                      <= 14    <= 15
+  aligned DAY                                <= 15    <= 16
+  aligned DAY with a base cell to resolve    <= 16    <= 17
+  clipped / omitted-section                  <= 16    <= 17
+  clipped MONTH or YEAR with sections        <= 17    <= 18
+  clipped DAY with sections                  <= 17    <= 18
   ```
+
+  The `ON` column is monthly serving `ON` (`MET-WP4-MONTH-01`): every form
+  gains one statement, `NATIVE_MONTHS_SQL`, and an all-time request serving
+  two or more pairs one more, `PAIR_STARTS_SQL`. The longest path under
+  `ON` is twenty statements, nineteen excluding the checkout: the eighteen
+  below, native months after works, and pair starts after canonical state.
 
   The two DAY rows at 16 and 17 run the same day reads as the other form
   with the same ceiling.
@@ -2829,8 +3523,33 @@ is additive: `startDate` became nullable, and `timelineGrain` and
   native history ends; a refusal of either section refuses the whole request.
   Two overlapping coverage runs of one stream on a served pair refuse the read
   as `INTERNAL_ERROR`, as they refuse the single-pair `metricDashboard` read
-  of that pair. Native-grain records are never served. Each engine run's
-  frontier must equal the labels statement's (`INTERNAL_ERROR` otherwise).
+  of that pair. With monthly serving `OFF`, native-grain records are never
+  served. Each engine run's frontier must equal the labels statement's
+  (`INTERNAL_ERROR` otherwise).
+- **Monthly serving `ON` (`MET-WP4-MONTH-01`).** `METRIC_WIDGET_PAIRS_SQL` and
+  `METRIC_WIDGET_HISTORY_PAIRS_SQL` (with the month's first day) also read the
+  `metric_native_month` rows of the section's works, with the same range and
+  eligibility joins; each stays one text, with one boolean parameter that
+  folds that branch away under `OFF`. So a monthly-only pair is served, and
+  native months move the all-history served start like any served value.
+  Pair mode runs `NATIVE_MONTHS_SQL` as step 3b, right after
+  `PUBLISHERS_SQL`, and an all-history read of a section with a served pair
+  also runs `PAIR_STARTS_SQL`: at most eight engine statements per section,
+  and at most 23 named statements per read (26 captured). In an all-history
+  read each pair is judged by section 4.3's pair-start rule, with `S` its
+  first evidence, not its first value month, or the served start if that is
+  later: so an `UNKNOWN` day between a pair's first run and its first value
+  counts, and a pair whose coverage starts mid-month is judged from that day.
+  The all-history equality above and the pair-mode equality with the
+  single-pair `metricDashboard` read hold apart from that rule's coverage
+  fields (a pair's `status`, `dataThrough` and `countryCoverage`, and the
+  section's `dataThrough` and `isPartial`). A conflicted month shows as a
+  `PARTIAL` pair with `isPartial`, never as a refusal. The over-refusal above
+  and the refusal table below name an active `REPORTING_PERIOD` record
+  instead of a `MONTH` one, and inconsistent native-grain state is a projected
+  inconsistency. Under `OFF`: the same statements apart from that parameter,
+  the same counts and refusals, no pair start, and neither new statement is
+  ever run.
 - **Empty sections.** A section with no served pair runs no engine statement
   and returns empty lists, `dataThrough: null` and `isPartial: true`. `asOf`
   and `rollupWatermark` always come from the labels statement.
@@ -2906,9 +3625,14 @@ is additive: `startDate` became nullable, and `timelineGrain` and
   an agreed sample), reporting the share refused by class (native-grain
   overlap, over 40 pairs, over 500 children, the 2000-01-01 floor,
   ambiguity) and latency, accepted by the CTO or answered by a client
-  fallback. A response cache must key an all-history response on the rollup
-  frontier, as every widget response. The switch takes effect only on
-  restart.
+  fallback. A response cache keyed on the rollup frontier alone is not
+  enough. Under `ON`, served months change a response without the frontier
+  moving; under either value, so do account windows, successions and the
+  coverage of imports that apply no `DAY` delta. No stamp exists for them, so
+  a cache must expire within a bound the CTO accepts. The switch takes effect
+  only on restart. Monthly serving (`THOTH_METRIC_MONTH_SERVING`,
+  `MET-WP4-MONTH-01`) is a separate server switch, also read only at process
+  start, `OFF` until its own activation grant per environment.
 
 Scope boundaries a consumer must not infer:
 
@@ -2928,9 +3652,13 @@ Scope boundaries a consumer must not infer:
   null `dataThrough`, whatever the `endDate`; `countryCoverage: false` means
   only that some served day lacks complete country coverage, never that the
   pair has no country breakdown. As in section 4.3, clients must not present
-  an all-history `dataThrough` as "data up to".
-- Native-grain history (for example OPERAS-imported monthly data) is not
-  served, and a work with an active native-grain record on a served platform
+  an all-history `dataThrough` as "data up to". With monthly serving `ON`
+  that note applies from the pair's own first evidence, not from the served
+  start.
+- With monthly serving `OFF`, native-grain history (for example
+  OPERAS-imported monthly data) is not served; with it `ON`, `MONTH` history
+  is served as section 4.1 says and `REPORTING_PERIOD` history is not. A work
+  with an active record of an unserved native grain on a served platform
   x served measure that overlaps the served range is unavailable; for an
   all-history read, that is any such record ending after the served start.
   On `METRIC_WIDGET_UNAVAILABLE` or the 2000-01-01 refusal from the

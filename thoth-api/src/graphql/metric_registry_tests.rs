@@ -721,6 +721,7 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "updateMetricSource",
         "createMetricSourceAccount",
         "updateMetricSourceAccount",
+        "updateMetricSourceAccountWindow",
     ];
     let wp4_02_query_fields = ["metricDashboard", "metricMeasures", "metricPlatforms"];
     let wp4_widget_01_query_fields = ["metricWidget"];
@@ -992,14 +993,15 @@ fn the_resolvers_authorize_before_reaching_a_coordinator() {
         );
     }
     // The six registry mutations plus the four `MET-WP1-13` source/source-account
-    // mutations share the one guard; the WP1-13 call sites are proven
-    // individually in `metric_source_registry_tests`.
+    // mutations and the two `MET-WP4-MONTH-01` mutations share the one guard;
+    // the source-account call sites are proven individually in
+    // `metric_source_registry_tests`.
     assert_eq!(
         mutation_source
             .matches("authorize_metric_registry_admin(context)")
             .count(),
-        10,
-        "each of the ten Metrics administration mutations must call the guard exactly once"
+        12,
+        "each of the twelve Metrics administration mutations must call the guard exactly once"
     );
     assert_eq!(
         mutation_source

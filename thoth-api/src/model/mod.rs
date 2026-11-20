@@ -914,6 +914,8 @@ pub mod metric_ingestion;
 #[cfg(feature = "backend")]
 pub mod metric_ingestion_lifecycle;
 pub mod metric_measure;
+#[cfg(feature = "backend")]
+pub mod metric_native_month;
 pub mod metric_operas_export;
 pub mod metric_operas_import;
 pub mod metric_operas_mapping;

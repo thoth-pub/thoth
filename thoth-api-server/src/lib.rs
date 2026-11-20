@@ -19,7 +19,10 @@ use thoth_api::{
     graphql::{
         create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
     },
-    model::{distribution_job::DistributionJobCreation, metric_widget::MetricWidgetSwitch},
+    model::{
+        distribution_job::DistributionJobCreation, metric_dashboard::MetricMonthServing,
+        metric_widget::MetricWidgetSwitch,
+    },
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
 use zitadel::{
@@ -100,6 +103,7 @@ async fn graphql(
     guard_mode: Data<MutationGuardMode>,
     distribution_job_creation: Data<DistributionJobCreation>,
     metric_widget: Data<MetricWidgetSwitch>,
+    metric_month_serving: Data<MetricMonthServing>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
@@ -111,6 +115,9 @@ async fn graphql(
     // The public widget read's switch (`MET-WP4-WIDGET-01`) also reaches the
     // resolver, through the request context; it is read once at start.
     let metric_widget = *metric_widget.into_inner().as_ref();
+    // Whether both Metrics reads serve `MONTH` records (`MET-WP4-MONTH-01`),
+    // read once at start like the widget switch.
+    let metric_month_serving = *metric_month_serving.into_inner().as_ref();
 
     // Both paths produce ONE `GraphQLResponse`, which then flows through the
     // single existing status branch below. A guard rejection is an ordinary
@@ -137,7 +144,8 @@ async fn graphql(
                 cloudfront_client.into_inner(),
                 job_creation,
             )
-            .with_metric_widget(metric_widget);
+            .with_metric_widget(metric_widget)
+            .with_metric_month_serving(metric_month_serving);
             data.execute(&st, &ctx).await
         }
     };
@@ -164,6 +172,7 @@ pub async fn start_server(
     mutation_guard_mode: MutationGuardMode,
     distribution_job_creation: DistributionJobCreation,
     metric_widget: MetricWidgetSwitch,
+    metric_month_serving: MetricMonthServing,
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_region: String,
@@ -208,6 +217,7 @@ pub async fn start_server(
             .app_data(Data::new(mutation_guard_mode))
             .app_data(Data::new(distribution_job_creation))
             .app_data(Data::new(metric_widget))
+            .app_data(Data::new(metric_month_serving))
             .service(index)
             .service(graphql_index)
             .service(graphql)
@@ -285,6 +295,9 @@ mod tests {
                 // `MET-WP4-WIDGET-01`: the public widget read's switch, at its
                 // default `OFF`, so no widget request here reaches the database.
                 .app_data(Data::new(MetricWidgetSwitch::default()))
+                // `MET-WP4-MONTH-01`: the monthly serving switch, at its
+                // default `OFF`.
+                .app_data(Data::new(MetricMonthServing::default()))
                 .service(graphql),
         )
         .await

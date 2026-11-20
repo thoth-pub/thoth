@@ -876,14 +876,16 @@ fn the_sdl_exposes_exactly_the_six_approved_operations() {
         "updateMetricSource(data:PatchMetricSource!):MetricSource!",
         "createMetricSourceAccount(data:NewMetricSourceAccount!):MetricSourceAccount!",
         "updateMetricSourceAccount(data:PatchMetricSourceAccount!):MetricSourceAccount!",
+        "updateMetricSourceAccountWindow(code:String!,windowStart:Date,windowEnd:Date,succession:String):MetricSourceAccount!",
     ] {
         assert!(
             mutation.contains(operation),
             "missing `{operation}` in MutationRoot"
         );
     }
-    // Exactly two source-family query fields and four source-family
-    // administration mutation fields: no list, search, delete, bulk or
+    // Exactly two source-family query fields and five source-family
+    // administration mutation fields (`MET-WP4-MONTH-01` adds the window
+    // mutation): no list, search, delete, bulk or
     // checkpoint administration operation. The separately approved `MET-WP2-02`
     // lifecycle mutation `updateMetricSourceCheckpoint` (#908) shares the
     // `updateMetricSource` prefix but is not source administration; it is
@@ -904,7 +906,7 @@ fn the_sdl_exposes_exactly_the_six_approved_operations() {
                     && !line.starts_with("updateMetricSourceCheckpoint(")
             })
             .count(),
-        4
+        5
     );
     // The MET-WP2-02 lifecycle surface that touches source checkpoints is
     // exactly its two approved machine-service mutations, each declared once,
@@ -996,7 +998,7 @@ fn the_typed_configuration_sdl_matches_amendment_1_exactly() {
         ),
         (
             "input NewMetricSourceAccount {",
-            "code:String!sourceCode:String!platformCode:String!externalKey:String!expectedPublisherId:Uuidconfiguration:MetricSourceAccountConfigurationInput!enabled:Boolean!",
+            "code:String!sourceCode:String!platformCode:String!externalKey:String!expectedPublisherId:Uuidconfiguration:MetricSourceAccountConfigurationInput!enabled:Boolean!windowStart:DatewindowEnd:Datesuccession:String",
         ),
         (
             "input PatchMetricSourceAccount {",
@@ -1008,7 +1010,7 @@ fn the_typed_configuration_sdl_matches_amendment_1_exactly() {
         ),
         (
             "type MetricSourceAccount {",
-            "sourceAccountId:Uuid!code:String!sourceId:Uuid!platformId:Uuid!externalKey:String!expectedPublisherId:Uuidconfiguration:MetricSourceAccountConfiguration!enabled:Boolean!",
+            "sourceAccountId:Uuid!code:String!sourceId:Uuid!platformId:Uuid!externalKey:String!expectedPublisherId:Uuidconfiguration:MetricSourceAccountConfiguration!enabled:Boolean!windowStart:DatewindowEnd:Datesuccession:String",
         ),
     ] {
         assert_eq!(
@@ -1083,6 +1085,7 @@ fn the_resolvers_authorize_before_reaching_a_coordinator() {
         "update_metric_source",
         "create_metric_source_account",
         "update_metric_source_account",
+        "update_metric_source_account_window",
     ] {
         let guarded_call = format!(
             "authorize_metric_registry_admin(context) .and_then(|actor| {coordinator}(&context.db, actor, &data))"
