@@ -2974,8 +2974,10 @@ fn ingested_months_and_rolled_up_days_read_equal_to_an_independent_oracle() {
                 (expected.status, expected.data_through),
                 "{label} {measure}"
             );
-            if expected.status == MetricCoverageStatus::Partial {
-                bump("served pairs PARTIAL from a cut");
+            match expected.status {
+                MetricCoverageStatus::Partial => bump("served pairs PARTIAL from a cut"),
+                MetricCoverageStatus::Complete => bump("served pairs COMPLETE"),
+                MetricCoverageStatus::Unknown => {}
             }
             if expected.buckets.iter().any(Option::is_none) {
                 bump("served pairs with a null bucket");
@@ -3318,6 +3320,7 @@ fn ingested_months_and_rolled_up_days_read_equal_to_an_independent_oracle() {
         "refused reads",
         "served reads",
         "served pairs PARTIAL from a cut",
+        "served pairs COMPLETE",
         "served pairs with a null bucket",
         "refused widget reads",
         "served widget reads",
