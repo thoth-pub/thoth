@@ -67,11 +67,21 @@ Out-of-scope changes made: NONE
 - `3a732bff4c87ea063956ff0488c14a8319bdaa02` - MET-WP4-MONTH-01: Record
   native monthly serving and account windows (`decisions.md`, the
   repository map, `CHANGELOG.md`)
-- the commit that carries this report
+- `2a05ee188255c1680865425cd215b5fbc6aeb9fd` - MET-WP4-MONTH-01: Add the
+  implementation report (its first version)
+- `ada5b121a40bbc611836e94fb0e32e59507c4ab0` - MET-WP4-MONTH-01: Complete
+  the acceptance tests (the tests the first version of this report listed
+  as missing or partial: the three test files, and in
+  `metric_native_month/mod.rs` only the `#[cfg(test)]` module's
+  visibility; see section 9)
+- `6bbba388a01e3d27e21c1fabb9b213f33d522f4d` - MET-WP4-MONTH-01: Count
+  COMPLETE pairs in T14 (one counter in T14)
+- the commit that carries this revision of the report
 
 Every commit is authored and committed by the repository maintainer's
-identity, with no trailers. The code and its tests are one commit, so every
-commit builds and tests.
+identity, with no trailers. The code and its tests are one commit, and the
+later test commit changes no production code, so every commit builds and
+tests.
 
 ## 4. Files changed
 
@@ -165,9 +175,12 @@ never give a false `COMPLETE` or `"0"`, a double count, or a change under
 8. The pair start `S` is the pair's first evidence (values, native months,
    or clipped coverage), never earlier than the served start. Segments
    before `S` are skipped for status, `dataThrough` and the two dimension
-   flags but stay unjustified, so buckets before `S` are `null`. Cut days are
-   unjustified wherever they fall, and on or after `S` they break the run
-   and make a `COMPLETE` segment `PARTIAL`.
+   flags but stay unjustified. `S` changes no value: a bucket before `S` is
+   `null` because its days hold no contribution and are unjustified, which
+   in a database read they always are, `S` being the first evidence (T8's
+   oracle states the rule the same way). Cut days are unjustified wherever
+   they fall, and on or after `S` they break the run and make a `COMPLETE`
+   segment `PARTIAL`.
 9. `apply_native` fails closed (`INTERNAL_ERROR`) if the statement's
    wholly-inside flag disagrees with the engine's own window and buckets,
    and a read whose earliest pair start is not its served start fails the
@@ -245,7 +258,9 @@ disposable UTF-8 PostgreSQL 16 test database and a local Redis, with
 - `cargo clippy -p thoth-api -p thoth-errors -p thoth-api-server -p thoth
   --all-targets --all-features -- -D warnings`: clean, after two findings in
   this change were fixed (a type alias for the requirement slot key, and a
-  `clone` of a `Copy` timestamp in a test helper).
+  `clone` of a `Copy` timestamp in a test helper). Clean again with the
+  completed acceptance tests, after two findings in them were fixed (a type
+  alias for one served pair's answer, and iterating a map's values).
 - `git diff --check`: clean.
 
 ### Targeted tests
@@ -273,6 +288,13 @@ disposable UTF-8 PostgreSQL 16 test database and a local Redis, with
 - `cargo test -p thoth-errors`: 16 passed.
 - `cargo test -p thoth` (T13, the switch control matrix and the other
   controls): 54 passed.
+- With the completed acceptance tests, `cargo test -p thoth-api --features
+  backend --lib` filtered to each module whose tests changed:
+  `metric_native_month::tests` 12 passed; `metric_widget::tests` 97 passed;
+  `metric_dashboard::tests` 127 passed, 1 ignored (the plan and latency
+  evidence test above, not changed since). T11's plan test passed three
+  runs in a row (under two seconds each). T14 was then given its `COMPLETE`
+  counter, and `metric_native_month::tests` passed again (12 passed).
 
 ### New tests
 
@@ -303,6 +325,118 @@ disposable UTF-8 PostgreSQL 16 test database and a local Redis, with
   before any read, no-op without audit, one audited change, `null` clearing,
   an unsupported stored configuration, the two `CHECK` messages).
 - `src/bin/thoth.rs`: T13.
+
+The acceptance tests completed after the first version of this report
+(commit `ada5b121a40bbc611836e94fb0e32e59507c4ab0`, and
+`6bbba388a01e3d27e21c1fabb9b213f33d522f4d` for T14's `COMPLETE` counter),
+by file, name and what each asserts:
+
+- `metric_dashboard/tests.rs`:
+  - T8, `the_interval_engine_equals_the_oracle_with_native_months_windows_and_pair_starts`:
+    480 seeded fixtures of the interval engine (the existing generator plus
+    native months that are zero, cut, conflicted or wholly inside, at every
+    grain and on ranges with no complete month; windows and successions,
+    unbounded, open-ended, with gaps, two accounts of one succession with
+    adjacent or overlapping windows, one label shared by two publishers, a
+    window without a succession, runs outside windows; and a start per pair:
+    none, the served start, later, inside an `UNKNOWN` segment) equal an
+    engine-independent day oracle in totals, buckets, statuses,
+    `dataThrough`, both dimension flags and warnings, and every outcome T8
+    names is reached at least once.
+  - T9, `windows_alone_never_raise_a_status_or_justify_a_zero_over_the_t8_fixtures`:
+    over T8's generator, seed and traps, no setting of windows alone, on any
+    account, raises any day's status or justifies a zero that was not
+    justified.
+  - T6, `every_dimension_variant_in_either_order_serves_the_day_side_alone`:
+    each of the seven native variants of 4.2 (undimensioned, country only,
+    an aggregate with a country, institution only, all three dimensions,
+    total-ambiguous, country-ambiguous) meets an undimensioned, a country and
+    an institution day side, native first and day first (42 months), beside
+    another work's month: the total, the `MONTH` and `YEAR` buckets and both
+    sections are the day side plus the other work's month, nothing refuses,
+    a `DAY` read cutting a month serves the day side alone, `OFF` refuses as
+    today, and over this database V-NATIVE is 0, V-CONFLICT 42, V-PLAN
+    non-zero exactly on plans whose first or last day lies in a live month,
+    and V-MONTH clear.
+  - T6, `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds`:
+    a 03A ambiguity row with zero values, an undimensioned 0 beside a country
+    row, a signed month whose countries net to 0 and a zero total beside an
+    institution row each conflict their month (served from its days, never
+    `COMPLETE`); a signed month whose every 03A row nets to 0 is not live and
+    both sides add, each once; V-CONFLICT counts exactly the four live day
+    sides.
+  - T6, `country_only_native_rows_give_their_sum_and_a_country_dependency`:
+    country-only native rows give their sum and a country dependency
+    (`PARTIAL` without country coverage); an aggregate beside country rows
+    gives the aggregate, no dependency, and the country rows as the section.
+  - T6, `projected_contradictions_are_internal_and_a_withdrawn_month_is_not_served`:
+    a withdrawn month is not served and the read equals `OFF`'s; each
+    contradictory pointer (a superseded revision, no pointer, a retracted
+    pointer beside a current revision) and a non-calendar `MONTH` record,
+    once projected, are `INTERNAL_ERROR` under `ON` (the pointers under `OFF`
+    too, as today); a non-additive measure represented only by months
+    refuses; V-MONTH is non-zero exactly on these fixtures, V-NATIVE and
+    V-CONFLICT 0.
+  - T5, `named_day_only_reads_are_equal_under_on_and_off`: named `DAY`-only
+    reads at every grain with both sections, the `YEAR` composition and
+    all-time reads (unfiltered, filtered, pairs omitted) equal `OFF` apart
+    from `asOf`; a pair starting after the served start keeps `OFF`'s values
+    and its coverage equals T16's oracle.
+  - T5, `every_refusing_fixture_refuses_alike_under_on_and_off`: every
+    request limit, the combination, cell, implicit-platform, institution and
+    resolved-work limits, evidence before the floor, and an active or
+    contradictory `REPORTING_PERIOD` record refuse with the same error under
+    both switch values.
+  - T11, `the_native_reads_plan_through_their_keys_and_on_holds_no_native_grain_branch`:
+    JSON `EXPLAIN` plans (no `ANALYZE` option) with sequential and bitmap
+    scans off, on a fixture where one work has three years of daily rows on
+    another platform: `NATIVE_MONTHS_SQL` reads the four native tables only
+    through their primary keys and no record or revision row; each 03A scan
+    of its conflict pass is an index scan of the table's identity key with
+    the work in its condition, never on the inner side of a nested loop;
+    `CANONICAL_SQL` under `ON` reads no `metric_record` or revision row,
+    while under `OFF` it reads `metric_record`; `PAIR_STARTS_SQL` reads
+    work-day rows only through `metric_rollup_work_day_work_id_day_idx`
+    within one month per probe. It runs in under two seconds, so it is not
+    ignored.
+- `metric_widget/tests.rs`:
+  - T6, `under_on_a_contradictory_or_non_calendar_month_is_internal_and_a_withdrawn_one_is_not_served`:
+    through the widget, a withdrawn month is served as before it existed and
+    as under `OFF`; each contradictory pointer is `INTERNAL_ERROR` under both
+    values, and a non-calendar `MONTH` record is unavailable under `OFF` and
+    `INTERNAL_ERROR` under `ON`, each `ON` failure logged with the
+    engine-unavailable reason.
+- `metric_native_month/tests.rs`:
+  - T1's `ON` part, `under_on_ingested_months_are_served_at_once_with_no_lag_and_the_same_watermark`:
+    `MONTH` records just ingested, with no rollup run since, are served at
+    once by `metricDashboard` and the widget, `COMPLETE`, with no
+    `ROLLUP_LAG` and the `rollupWatermark` of a read made before them;
+    `OFF` refuses as today.
+  - T2, `mixed_month_and_day_records_leave_03a_equal_to_the_per_day_oracle`:
+    with `MONTH` and `DAY` records mixed (every mask, both measures, three
+    works, revisions up, down and to 0) and rolled up through the real claim
+    and completion, the work-day rows are exactly the `DAY` records' current
+    values, the 03A and yearly tables equal the existing per-day oracles, no
+    section row lacks a total or ambiguity row of its cell, and
+    `verifyMetricRollupMonths` reports a match.
+  - T14, `ingested_months_and_rolled_up_days_read_equal_to_an_independent_oracle`:
+    a seeded plan over twelve months, three works and both measures (`MONTH`
+    records over all eight masks and `DAY` records, a third revised up, down
+    or to 0, eleven designed cells for conflicts, zero sides, a zero total
+    beside a non-zero section row, signed months netting to 0 and ambiguity
+    on either side) ingested through the real coordinator and rolled up;
+    `NATIVE_MONTHS_SQL`'s `TOTAL` rows carry the oracle's sums and conflict
+    flags; `metricDashboard` under `ON` (every grain, aligned and clipped
+    ranges, filtered works, explicit and omitted starts, 43 reads) and the
+    widget in pair mode (12 reads) equal an oracle from plain reads of
+    `metric_record`, its current revisions and `metric_rollup_work_day` in
+    totals, buckets, sections, statuses, `dataThrough` and refusals; over
+    this database V-NATIVE is 0, V-CONFLICT the oracle's conflicted cells,
+    V-MONTH clear and V-PLAN the oracle's live native cells for four plans;
+    and each of its 22 counters is non-zero. With its seed: 14 conflicted
+    cells, 28 served and 15 refused dashboard reads, 50 `PARTIAL` and 6
+    `COMPLETE` served pairs, 27 pairs with a `null` bucket, 8 served and 4
+    refused widget reads, and revisions up, down and to 0 of both grains.
 
 ### Edited existing tests (old and new pinned values)
 
@@ -355,44 +489,98 @@ Every other edit to an existing test is a signature or struct-literal update
 passing `MetricMonthServing::Off` or an empty windows map, which the annex
 allows without listing; no `DAY`-only expectation changed.
 
+With the completed acceptance tests (commit
+`ada5b121a40bbc611836e94fb0e32e59507c4ab0`), existing tests and helpers
+changed as follows; no expected value changed:
+
+- `metric_dashboard/tests.rs`:
+  - `the_interval_engine_equals_the_day_oracle_on_random_fixtures` (T5):
+    each fixture is also assembled as `ON` builds it (no native month, each
+    pair starting at the served start, every account's window spelled out
+    as unbounded) and must equal the `OFF` result.
+  - `assert_serving_matches_the_day_oracle` (T5): the all-time read of each
+    grain is also compared under `ON` with `OFF` (the explicit-range hook of
+    the first version stays).
+  - The day oracle of the randomized engine test (`day_oracle`,
+    `oracle_assertions` and the new `oracle_pair_days`, `oracle_slots` and
+    `oracle_in_window`) and `EngineCase` (three new fields, empty in the
+    existing fixtures) gain windows, successions, native months and pair
+    starts for T8; on the existing fixtures they compute what they computed
+    before, and the existing randomized test passes unchanged.
+  - `Native` and `native_record` become `pub(crate)`, for the widget's T6
+    test.
+- `metric_widget/tests.rs`: `assert_year_oracle` (T5) takes the request and
+  ends by comparing it under `ON` with `OFF`: equal apart from `asOf` with
+  an explicit start; for an all-history read, equal apart from each
+  section's coverage, `dataThrough` and `isPartial`, each coverage item then
+  equal to its pair's own all-time `ON` dashboard read, and the section's
+  `dataThrough` and `isPartial` their minimum and OR. Its six callers pass
+  the request.
+- `metric_native_month/tests.rs`: the register-check helpers `v_native`,
+  `v_native_total`, `v_month`, `v_conflict` and `v_plan` become
+  `pub(crate)`, and `metric_native_month/mod.rs` declares its test module
+  `pub(crate)`, so T6's tests run the checks as the register gives them.
+
 ## 10. Known limitations and deferred work
 
-Acceptance tests of R4.3 section 6 not implemented, or implemented in part.
-None is a `HOLD`: none needs a path or a change outside the budget, and the
-code paths they would exercise are the ones the named tests below cover.
+Every acceptance test of R4.3 section 6, with the annex's T1 and T2, is
+implemented (section 9), and the register's checks run over T6's, T14's and
+T15's databases. The first version of this report listed T8, T9's property
+test, T14, T11's `EXPLAIN` evidence, T1's `ON` part, T2, part of T5 and part
+of T6 as missing; they are the tests of commit
+`ada5b121a40bbc611836e94fb0e32e59507c4ab0`.
 
-- **T8** (randomized engine test with native months, windows, successions
-  and pair starts, its oracle and its new counters): not implemented. The
-  engine's native, window and pair-start paths are covered by the named
-  database tests of T6, T7, T9, T10 and T16 and by T12's size case, not by a
-  randomized oracle. T9's property test over T8's cases (windows alone never
-  raise a status or justify a zero) is missing with it.
-- **T14** (randomized database-level native test, all eight masks, through
-  the reads): not implemented. T15's randomized test proves the projection
-  rows and V-NATIVE, not the reads.
-- **T11**: the captured statement counts are asserted for every listed form
-  under `OFF` and `ON`; the `EXPLAIN` evidence (`NATIVE_MONTHS_SQL` through
-  the native primary keys, no native-grain branch in `CANONICAL_SQL` under
-  `ON`, the conflict pass's 03A index scans, `PAIR_STARTS_SQL`'s work-day
-  probes) is not implemented.
-- **T1**: the stream part is covered (`MONTH` deltas `PENDING` and
-  unpositioned, the stream state unchanged, a claim takes only the `DAY`
-  delta); "served at once under `ON` with no `ROLLUP_LAG` and the same
-  `rollupWatermark`" has no dedicated test.
-- **T2** (03A and yearly tables equal the per-day oracle with `MONTH` and
-  `DAY` records mixed): no new test. The stage changes no stream or 03A code,
-  and the existing rollup suites run unchanged on CI.
-- **T5**: the hook covers every caller of
-  `assert_serving_matches_the_day_oracle`, and the new tests compare `ON`
-  with `OFF` on named `DAY`-only reads; the fixtures of the existing
-  randomized dashboard test, the widget tests using `assert_year_oracle` and
-  the refusing fixtures are not all re-run under `ON`.
-- **T6**: values, conflicts (either side zeroed), lag, cut months, projected
-  refusals and ambiguity are covered; not every dimension variant of either
-  side, both arrival orders, signed net-zero months or a contradictory
-  pointer read through the dashboard.
-- **The checks** run over T15's database (V-NATIVE after every request,
-  V-MONTH, V-CONFLICT and V-PLAN on its fixtures), not over T6's or T14's.
+Readings taken in the tests, each the one that cannot hide a false
+`COMPLETE` or `"0"`, a double count or a change under `OFF`:
+
+1. T2 is written as a new test, because the annex requires it, although the
+   stage changes no stream or 03A code.
+2. Ingestion refuses a record whose exact dimensional cell already holds an
+   overlapping period (`OVERLAPPING_PERIOD`), so a `MONTH` record and `DAY`
+   records naming the same publication, country and institution cannot both
+   exist. T2's and T14's generator redraws a cell until its two sides share
+   no dimension tuple, and both tests assert that every row was a winner or
+   a revision. T6's dashboard tests write `MONTH` records directly, so they
+   also hold the undimensioned-beside-undimensioned pairing that ingestion
+   cannot produce; the read serves the day side there too.
+3. T11's fixture adds, beside the long daily history R4.3 names, four
+   hundred works outside every request with three daily rows on each pair,
+   and runs the `ANALYZE` statistics command (the plans are still `EXPLAIN`
+   without its `ANALYZE` option). On the fixture's three works alone, the
+   planner probed `PAIR_STARTS_SQL`'s work-day rows through
+   `(measure_id, platform_id, day)`, still within one month per probe; with
+   a work as selective as in production it uses `(work_id, day)`, which the
+   test asserts. Under `OFF` the test asserts only that `CANONICAL_SQL`
+   reads `metric_record`, through whichever index the planner picks, as the
+   contrast that makes the `ON` assertion meaningful.
+4. `AGGREGATE_OUT_OF_RANGE` needs a sum beyond the `i128` range, which no
+   database of `BIGINT` values within the read limits can produce, so T5's
+   refusing fixtures cannot include it; the existing engine test of it runs
+   the code both switch values share.
+5. The widget always reads countries and never institutions, so T14
+   compares institution sections through `metricDashboard` only.
+
+Mutation evidence for the new tests: each mutation below was applied alone
+to the production code, the tests were rebuilt and run, and the file was
+restored with `git checkout`.
+
+| Mutation of the production code | What it would let through | New tests that fail |
+|---|---|---|
+| A conflicted cell's native total is summed (`TOTAL` without its `NOT conflict` filter) | a double count | T14; T6 `every_dimension_variant_in_either_order_serves_the_day_side_alone` and `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` |
+| A day side live only through a non-zero section row is not seen | a double count | T14; T6 `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` |
+| A 03A ambiguity row no longer makes the day side live | a double count | T6 `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` (T14 holds no day side live only through an ambiguity row) |
+| Any 03A total row, even 0, makes the day side live | a native month dropped | T14; T6 `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` |
+| A cut day no longer makes its pair `PARTIAL` | a false `COMPLETE` | T8; T14; T6 `every_dimension_variant_in_either_order_serves_the_day_side_alone` and `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` |
+| Native month totals are never added | a month not served | T8; T14; T1's `ON` part; T6 `every_dimension_variant_in_either_order_serves_the_day_side_alone`, `a_day_side_is_live_by_any_03a_row_and_a_month_netting_to_zero_everywhere_adds` and `country_only_native_rows_give_their_sum_and_a_country_dependency` |
+| A month running past the range's end counts as wholly inside | native sections and ambiguity beyond the range | T14 |
+| Account windows are ignored | coverage outside a window counted | T8; T9's property test |
+| Succession labels are ignored | the accounts of one succession required as separate slots | T8 |
+| The pair start is ignored | a status or `dataThrough` judged from the served start | T8 |
+
+T8 and T9 ran in a first pass over the engine mutations, and the database
+tests (T1's `ON` part, T6's four dashboard tests, T6's widget test and T14)
+in a second; the widget's T6 test, about pointers and periods, fails under
+none of them, as expected.
 
 Operational limits are those of R4.3 (sections 3.3, 4.8): one stray day
 displaces a whole month's value until the CTO's repair rule resolves the
