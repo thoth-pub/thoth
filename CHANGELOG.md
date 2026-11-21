@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-23
+## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-21
 ### Added
   - [1042](https://github.com/thoth-pub/thoth/issues/1042) - Serve `MONTH` Metrics records in `metricDashboard` and `metricWidget` behind `THOTH_METRIC_MONTH_SERVING` (default `OFF`), from a native-month projection with its `recomputeMetricNativeMonths` repair, and add source-account windows and successions
 
