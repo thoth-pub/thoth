@@ -5,7 +5,10 @@ use thoth::{
     api::{
         async_worker::{launch, WorkerArgs},
         graphql::MutationGuardMode,
-        model::{distribution_job::DistributionJobCreation, metric_widget::MetricWidgetSwitch},
+        model::{
+            distribution_job::DistributionJobCreation, metric_dashboard::MetricMonthServing,
+            metric_widget::MetricWidgetSwitch,
+        },
     },
     api_server,
     errors::{ThothError, ThothResult},
@@ -31,6 +34,7 @@ lazy_static! {
                 .arg(arguments::mutation_guard_mode())
                 .arg(arguments::distribution_job_creation())
                 .arg(arguments::metric_widget())
+                .arg(arguments::metric_month_serving())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -123,6 +127,25 @@ pub(crate) fn metric_widget(arguments: &ArgMatches) -> ThothResult<MetricWidgetS
         .map_err(ThothError::InternalError)
 }
 
+/// Resolve the effective monthly serving switch from parsed arguments
+/// (`MET-WP4-MONTH-01`).
+///
+/// This is the single accessor every command path uses, so a command that
+/// dispatches here must register [`arguments::metric_month_serving`]. Both
+/// `start graphql-api` and `init` do.
+///
+/// Defaults to `OFF`; `clap`'s `value_parser` has already restricted the string
+/// to the two accepted values, so an invalid value fails during parsing rather
+/// than reaching this function.
+pub(crate) fn metric_month_serving(arguments: &ArgMatches) -> ThothResult<MetricMonthServing> {
+    arguments
+        .get_one::<String>("metric-month-serving")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<MetricMonthServing>()
+        .map_err(ThothError::InternalError)
+}
+
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();
@@ -138,6 +161,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let mutation_guard_mode = mutation_guard_mode(arguments)?;
     let distribution_job_creation = distribution_job_creation(arguments)?;
     let metric_widget = metric_widget(arguments)?;
+    let metric_month_serving = metric_month_serving(arguments)?;
 
     api_server(
         database_url,
@@ -151,6 +175,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         mutation_guard_mode,
         distribution_job_creation,
         metric_widget,
+        metric_month_serving,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

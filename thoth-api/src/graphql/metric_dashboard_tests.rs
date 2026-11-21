@@ -1326,12 +1326,16 @@ fn every_changed_dashboard_description_is_rendered_exactly() {
             Some("dataThrough"),
             "The last day of the unbroken run from the served startDate in which every day is \
              completely covered and untouched by outstanding rollup work, or null when the \
-             first day is not",
+             first day is not. With startDate omitted on a server that serves monthly Metrics, \
+             each platform and measure is judged from its own first evidence, not from the \
+             served startDate",
         ),
         (
             "type MetricCoverageItem {",
             None,
-            "Coverage of one platform and measure over the served range",
+            "Coverage of one platform and measure over the served range. With startDate \
+             omitted on a server that serves monthly Metrics, each platform and measure is \
+             judged from its own first evidence, not from the served startDate",
         ),
         (
             "input MetricSelectorInput {",
@@ -1431,7 +1435,7 @@ fn every_read_resolver_authorizes_through_the_read_service_guard_first() {
         .collect::<Vec<_>>()
         .join(" ");
     for read in [
-        "metric_dashboard(&context.db, &input)",
+        "read_metric_dashboard(&context.db, &input, context.metric_month_serving)",
         "list_metric_measures(&context.db)",
         "list_metric_platforms(&context.db)",
     ] {

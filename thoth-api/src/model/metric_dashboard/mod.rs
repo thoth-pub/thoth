@@ -80,6 +80,19 @@
 //! intervals. No statement and no structure of this module expands the days
 //! of a range, so the cost of coverage does not grow with its length.
 //!
+//! # Native months and account windows (`MET-WP4-MONTH-01`)
+//!
+//! With [`MetricMonthServing::On`] the read also serves `MONTH` records,
+//! from the native-month projection ([`crate::model::metric_native_month`])
+//! read in its own snapshot by [`NATIVE_MONTHS_SQL`]; it never reads a
+//! record of a grain other than `DAY`. A month counts only in a value whose
+//! dates contain all of it, and the days of a month that a cell cuts, or
+//! whose days are also reported, are never `COMPLETE`. An all-time read then
+//! judges each platform and measure from its own first evidence
+//! ([`PAIR_STARTS_SQL`]). Under either value, a source account's coverage
+//! counts only inside its window, and the accounts of one succession stand in
+//! for each other.
+//!
 //! # Bounded concurrency
 //!
 //! At most [`METRIC_DASHBOARD_MAX_CONCURRENT_READS`] reads run at once in one
@@ -90,13 +103,15 @@
 //! # Deliberately absent
 //!
 //! Works response sections, pagination, `dois`, `includeDescendants`,
-//! entity-level Metrics fields, native `MONTH` and `REPORTING_PERIOD`
-//! serving, a response cache and any call to OPERAS. The public widget read
+//! entity-level Metrics fields, native `REPORTING_PERIOD` serving, native
+//! `MONTH` serving while [`MetricMonthServing`] is `OFF`, a response cache
+//! and any call to OPERAS. The public widget read
 //! is not part of this contract: it is [`crate::model::metric_widget`], which
 //! runs this engine in pair mode ([`metric_pair_read`]).
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::str::FromStr;
 use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::{Duration as StdDuration, Instant};
 
@@ -171,6 +186,47 @@ pub const METRIC_DASHBOARD_READ_DEADLINE: StdDuration = StdDuration::from_secs(2
 
 /// The one managed acquisition type MOM-1 treats as operational coverage.
 const DRIVER_ACQUISITION: &str = "DRIVER";
+
+/// Whether the two Metrics reads serve `MONTH` records
+/// (`THOTH_METRIC_MONTH_SERVING`, `MET-WP4-MONTH-01`).
+///
+/// Read once at process start; there is no reload path. `Off`, the default,
+/// keeps every response as before this switch existed, apart from `asOf`:
+/// a request that a `MONTH` record overlaps is refused as
+/// `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`. `On` serves `MONTH` records from
+/// the native-month projection and judges each pair of an all-time read from
+/// its own first evidence. The projection is maintained whatever the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetricMonthServing {
+    #[default]
+    Off,
+    On,
+}
+
+impl FromStr for MetricMonthServing {
+    type Err = String;
+
+    /// Accepts exactly `OFF` and `ON` and fails on anything else, so an
+    /// unparseable value stops the process rather than resolving to either.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "OFF" => Ok(MetricMonthServing::Off),
+            "ON" => Ok(MetricMonthServing::On),
+            other => Err(format!(
+                "Invalid metric month serving setting: {other}. Expected OFF or ON."
+            )),
+        }
+    }
+}
+
+impl std::fmt::Display for MetricMonthServing {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            MetricMonthServing::Off => "OFF",
+            MetricMonthServing::On => "ON",
+        })
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Input
@@ -576,7 +632,9 @@ pub struct MetricDashboardCoverage {
 #[cfg_attr(
     feature = "backend",
     derive(juniper::GraphQLObject),
-    graphql(description = "Coverage of one platform and measure over the served range")
+    graphql(
+        description = "Coverage of one platform and measure over the served range. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
+    )
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetricCoverageItem {
@@ -585,28 +643,28 @@ pub struct MetricCoverageItem {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "COMPLETE only when every day is effectively COMPLETE for every returned section; UNKNOWN when any day is UNKNOWN; otherwise PARTIAL"
+            description = "COMPLETE only when every day is effectively COMPLETE for every returned section; UNKNOWN when any day is UNKNOWN; otherwise PARTIAL. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub status: MetricCoverageStatus,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The last day of the unbroken run from the served startDate in which every day is completely covered and untouched by outstanding rollup work, or null when the first day is not"
+            description = "The last day of the unbroken run from the served startDate in which every day is completely covered and untouched by outstanding rollup work, or null when the first day is not. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub data_through: Option<NaiveDate>,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "True only when every day of the range has a current coverage assertion that includes the country dimension"
+            description = "True only when every day of the range has a current coverage assertion that includes the country dimension. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub country_coverage: bool,
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "True only when every day of the range has a current coverage assertion that includes the institution dimension"
+            description = "True only when every day of the range has a current coverage assertion that includes the institution dimension. With startDate omitted on a server that serves monthly Metrics, each platform and measure is judged from its own first evidence, not from the served startDate"
         )
     )]
     pub institution_coverage: bool,
@@ -686,8 +744,9 @@ pub enum MetricReadError {
     /// `MOM1_DIMENSION_SCOPE_AMBIGUOUS`.
     DimensionScopeAmbiguous,
     /// `METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN`: an active canonical record
-    /// of a native `MONTH` or `REPORTING_PERIOD` grain intersects the
-    /// request, and this read serves only `DAY` records.
+    /// of the native `REPORTING_PERIOD` grain intersects the request, or,
+    /// while [`MetricMonthServing`] is `OFF`, one of the native `MONTH`
+    /// grain. The message is the same under both values.
     UnsupportedSourceGrain,
     /// An unexpected database or pool failure, internally inconsistent
     /// committed canonical or derived state, or a read past its whole-read
@@ -1173,6 +1232,8 @@ pub(crate) struct MetricPairRead {
     request: ValidatedRequest,
     capability: PublisherCapability,
     scope: PairScope,
+    month_serving: MetricMonthServing,
+    all_history: bool,
 }
 
 impl MetricPairRead {
@@ -1211,7 +1272,23 @@ impl MetricPairRead {
                 works: works.into_iter().collect(),
                 pairs: pairs.into_iter().collect(),
             },
+            month_serving: MetricMonthServing::Off,
+            all_history: false,
         }
+    }
+
+    /// Serve `MONTH` records, or not (`OFF`, the default).
+    pub(crate) fn with_month_serving(mut self, month_serving: MetricMonthServing) -> Self {
+        self.month_serving = month_serving;
+        self
+    }
+
+    /// Mark the read as the caller's read of all history, whose start is the
+    /// caller's earliest served month: under `ON`, each pair is then judged
+    /// from its own first evidence, or from the start if that is later.
+    pub(crate) fn with_all_history(mut self, all_history: bool) -> Self {
+        self.all_history = all_history;
+        self
     }
 
     /// Use the timeline bucket size `grain`.
@@ -1246,6 +1323,10 @@ struct EngineRun<'a> {
     request: &'a ValidatedRequest,
     capability: PublisherCapability,
     pairs: Option<&'a PairScope>,
+    month_serving: MetricMonthServing,
+    /// Whether the read covers all history: an omitted `startDate`, or a
+    /// pair-mode caller's all-history read.
+    all_history: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1323,6 +1404,73 @@ struct AccountRow {
     platform_id: Uuid,
     #[diesel(sql_type = SqlUuid)]
     source_account_id: Uuid,
+    #[diesel(sql_type = Nullable<Date>)]
+    window_start: Option<NaiveDate>,
+    #[diesel(sql_type = Nullable<Date>)]
+    window_end: Option<NaiveDate>,
+    #[diesel(sql_type = Nullable<Text>)]
+    succession: Option<String>,
+}
+
+/// One row of [`NATIVE_MONTHS_SQL`] (step 3b): a pair's flags (`PAIR`), a
+/// month's total (`TOTAL`), a country or institution value, or a pair's
+/// ambiguity (`AMBIGUITY`). Columns a kind does not use are `NULL` or false.
+#[derive(diesel::QueryableByName)]
+struct NativeRow {
+    #[diesel(sql_type = Text)]
+    kind: String,
+    #[diesel(sql_type = SqlUuid)]
+    platform_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    measure_id: Uuid,
+    #[diesel(sql_type = Nullable<Date>)]
+    month_start: Option<NaiveDate>,
+    #[diesel(sql_type = Nullable<Text>)]
+    country_code: Option<String>,
+    #[diesel(sql_type = Nullable<SqlUuid>)]
+    institution_id: Option<Uuid>,
+    #[diesel(sql_type = Nullable<Text>)]
+    institution_name: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    ror: Option<Ror>,
+    /// `SUM(bigint)` read as text, as [`SectionRow::total`].
+    #[diesel(sql_type = Nullable<Text>)]
+    total: Option<String>,
+    #[diesel(sql_type = Bool)]
+    requires_country: bool,
+    #[diesel(sql_type = Bool)]
+    requires_institution: bool,
+    #[diesel(sql_type = Bool)]
+    total_ambiguous: bool,
+    #[diesel(sql_type = Bool)]
+    country_ambiguous: bool,
+    #[diesel(sql_type = Bool)]
+    institution_ambiguous: bool,
+    #[diesel(sql_type = Bool)]
+    wholly_inside: bool,
+    #[diesel(sql_type = Bool)]
+    conflict: bool,
+    #[diesel(sql_type = Bool)]
+    has_month: bool,
+    #[diesel(sql_type = Bool)]
+    active_reporting_period: bool,
+    #[diesel(sql_type = Bool)]
+    inconsistent: bool,
+    #[diesel(sql_type = Bool)]
+    additive_across_time: bool,
+    #[diesel(sql_type = Bool)]
+    additive_across_works: bool,
+}
+
+/// One row of [`PAIR_STARTS_SQL`]: a pair's earliest evidence.
+#[derive(diesel::QueryableByName)]
+struct PairStartRow {
+    #[diesel(sql_type = SqlUuid)]
+    platform_id: Uuid,
+    #[diesel(sql_type = SqlUuid)]
+    measure_id: Uuid,
+    #[diesel(sql_type = Date)]
+    day: NaiveDate,
 }
 
 #[derive(diesel::QueryableByName)]
@@ -1643,6 +1791,11 @@ pub(crate) const KNOWN_SQL: &str = "SELECT 'PLATFORM' AS kind, p.platform_id AS 
 /// and `$3` are `NULL`: every lower date bound is then switched off by its
 /// `IS NULL` guard — never replaced by a sentinel date — and the leading edge
 /// is empty, so the pairs are those of all history before `$5`.
+///
+/// A run or terminal coverage row counts only where it intersects its
+/// account's window (`MET-WP4-MONTH-01`): the row, the window and the range
+/// must pairwise overlap, which for intervals is exactly a non-empty common
+/// part. An account without a window is unbounded, as before.
 pub(crate) const REPRESENTED_SQL: &str = "SELECT represented.platform_id, represented.measure_id, \
                     m.additive_across_time, m.additive_across_works \
                  FROM ( \
@@ -1684,6 +1837,10 @@ pub(crate) const REPRESENTED_SQL: &str = "SELECT represented.platform_id, repres
                        AND s.acquisition_type::text = $9 \
                        AND run.run_start < $5 \
                        AND ($2::date IS NULL OR run.run_end > $2) \
+                       AND (sa.window_start IS NULL OR run.run_end > sa.window_start) \
+                       AND (sa.window_end IS NULL OR run.run_start < sa.window_end) \
+                       AND (sa.window_start IS NULL OR sa.window_start < $5) \
+                       AND ($2::date IS NULL OR sa.window_end IS NULL OR sa.window_end > $2) \
                        AND (cardinality($6::uuid[]) = 0 OR run.platform_id = ANY($6)) \
                        AND (cardinality($7::uuid[]) = 0 OR run.measure_id = ANY($7)) \
                      UNION \
@@ -1706,6 +1863,10 @@ pub(crate) const REPRESENTED_SQL: &str = "SELECT represented.platform_id, repres
                        AND mi.completed_at IS NULL \
                        AND c.period_start < $5 \
                        AND ($2::date IS NULL OR c.period_end > $2) \
+                       AND (sa.window_start IS NULL OR c.period_end > sa.window_start) \
+                       AND (sa.window_end IS NULL OR c.period_start < sa.window_end) \
+                       AND (sa.window_start IS NULL OR sa.window_start < $5) \
+                       AND ($2::date IS NULL OR sa.window_end IS NULL OR sa.window_end > $2) \
                        AND (cardinality($6::uuid[]) = 0 OR c.platform_id = ANY($6)) \
                        AND (cardinality($7::uuid[]) = 0 OR c.measure_id = ANY($7)) \
                      UNION \
@@ -1728,10 +1889,10 @@ pub(crate) const REPRESENTED_SQL: &str = "SELECT represented.platform_id, repres
 /// Step 5: every eligible managed source account of each represented
 /// publisher on each served platform. A publisher may have any number on a
 /// platform (`MET-WP4-MULTI-ACCOUNT-01`); the interval engine combines their
-/// coverage.
+/// coverage, each only inside its window and by slot (`MET-WP4-MONTH-01`).
 pub(crate) const ACCOUNTS_SQL: &str =
     "SELECT sa.expected_publisher_id AS publisher_id, sa.platform_id, \
-                    sa.source_account_id \
+                    sa.source_account_id, sa.window_start, sa.window_end, sa.succession \
              FROM public.metric_source_account sa \
              JOIN public.metric_source s ON s.source_id = sa.source_id \
              WHERE sa.expected_publisher_id = ANY($1) \
@@ -1758,6 +1919,11 @@ pub(crate) const ACCOUNTS_SQL: &str =
 /// applies), and classifies each by following `current_revision_id` to its
 /// revision:
 ///
+/// It is folded away by the custom plan when `$14` says the read serves
+/// `MONTH` records (`MET-WP4-MONTH-01`): step 3b's [`NATIVE_MONTHS_SQL`]
+/// then settles native grains from the projection, and this statement reads
+/// no record of a grain other than `DAY`. Otherwise:
+///
 /// - the pointer names a `CURRENT` revision: an active unsupported
 ///   observation (`ACTIVE_NATIVE_GRAIN`);
 /// - the pointer names a `RETRACTED` revision and the record has no
@@ -1782,9 +1948,12 @@ pub(crate) const ACCOUNTS_SQL: &str =
 ///   every work-day row lies in a month that has such an entry, so no row
 ///   outside that one month per work is read;
 /// - an eligible coverage run of the accounts step 5 returned, passed as the
-///   parallel arrays `$10`, `$11`, `$12`, through the run primary key;
+///   parallel arrays `$10`, `$11`, `$12` with their windows `$15` and `$16`,
+///   through the run primary key, where it intersects its account's window,
+///   from the later of its start and the window's;
 /// - the same accounts' coverage from a terminal import without a completion
-///   time, through `metric_import_terminal_without_completion_idx`;
+///   time, through `metric_import_terminal_without_completion_idx`, clipped
+///   to the window the same way;
 /// - identifier-unresolved quarantine of the represented publishers (`$13`)
 ///   in the [`IDENTIFIER_QUALITY_SQL`] scope;
 /// - the earliest `LAG` day above.
@@ -1821,6 +1990,7 @@ pub(crate) const CANONICAL_SQL: &str = "WITH lag AS ( \
                AND ($4::date IS NULL OR r.period_end > $4) \
                AND r.reporting_grain <> 'DAY' \
                AND r.reporting_grain IN ('MONTH', 'REPORTING_PERIOD') \
+               AND NOT $14 \
                AND NOT (COALESCE(v.status = 'RETRACTED', FALSE) \
                         AND NOT EXISTS (SELECT 1 FROM public.metric_record_revision o \
                                         WHERE o.record_id = r.record_id \
@@ -1868,18 +2038,21 @@ pub(crate) const CANONICAL_SQL: &str = "WITH lag AS ( \
                       LIMIT 1 \
                   ) first_row \
                   WHERE $9), \
-                 (SELECT MIN(run.run_start) \
-                  FROM unnest($10::uuid[], $11::uuid[], $12::uuid[]) \
-                       AS sa(source_account_id, platform_id, publisher_id) \
+                 (SELECT MIN(GREATEST(run.run_start, sa.window_start)) \
+                  FROM unnest($10::uuid[], $11::uuid[], $12::uuid[], $15::date[], $16::date[]) \
+                       AS sa(source_account_id, platform_id, publisher_id, window_start, window_end) \
                   JOIN public.metric_coverage_run run \
                     ON run.source_account_id = sa.source_account_id \
                    AND run.platform_id = sa.platform_id \
                    AND run.publisher_id = sa.publisher_id \
                   WHERE run.measure_id = ANY($7) \
-                    AND run.run_start < $5), \
-                 (SELECT MIN(c.period_start) \
-                  FROM unnest($10::uuid[], $11::uuid[], $12::uuid[]) \
-                       AS sa(source_account_id, platform_id, publisher_id) \
+                    AND run.run_start < $5 \
+                    AND (sa.window_start IS NULL OR run.run_end > sa.window_start) \
+                    AND (sa.window_end IS NULL OR run.run_start < sa.window_end) \
+                    AND (sa.window_start IS NULL OR sa.window_start < $5)), \
+                 (SELECT MIN(GREATEST(c.period_start, sa.window_start)) \
+                  FROM unnest($10::uuid[], $11::uuid[], $12::uuid[], $15::date[], $16::date[]) \
+                       AS sa(source_account_id, platform_id, publisher_id, window_start, window_end) \
                   JOIN public.metric_import mi \
                     ON mi.source_account_id = sa.source_account_id \
                    AND mi.publisher_id = sa.publisher_id \
@@ -1891,7 +2064,10 @@ pub(crate) const CANONICAL_SQL: &str = "WITH lag AS ( \
                                       'COMPLETED_WITH_ERRORS'::public.metric_import_status) \
                     AND mi.completed_at IS NULL \
                     AND c.measure_id = ANY($7) \
-                    AND c.period_start < $5), \
+                    AND c.period_start < $5 \
+                    AND (sa.window_start IS NULL OR c.period_end > sa.window_start) \
+                    AND (sa.window_end IS NULL OR c.period_start < sa.window_end) \
+                    AND (sa.window_start IS NULL OR sa.window_start < $5)), \
                  (SELECT MIN(q.period_start) \
                   FROM public.metric_identifier_quarantine q \
                   JOIN public.metric_record_provenance p \
@@ -1906,6 +2082,326 @@ pub(crate) const CANONICAL_SQL: &str = "WITH lag AS ( \
                     AND rc.resolved_at IS NULL) \
              ) \
              WHERE $8";
+
+/// Step 3b (`MET-WP4-MONTH-01`, switch `ON` only): the native months, their
+/// conflicts and the native refusals of the resolved works (`$1`), the
+/// explicit platform and measure filters (`$2`, `$3`, empty when omitted; in
+/// pair mode the pairs' platforms and measures) and the range, from the
+/// native-month projection alone, through its primary keys. A month or
+/// refusal period is in scope when it starts before `$5` and ends after `$4`,
+/// or before `$5` at all when `$4` is `NULL`; "wholly inside" is starting on
+/// or after `$4` (any day when `NULL`) and ending on or before `$5`.
+///
+/// It first settles which `live` cells are conflicted, in one set-based pass:
+/// the `MET-WP4-03A` monthly total and ambiguity rows of the works that hold a
+/// `live` cell, restricted to the native platforms, measures and months, are
+/// collected once (each scan an identity-key scan with the works as one
+/// array) and joined to the cells. A cell is conflicted when it has an
+/// ambiguity row or a total row with a value other than 0; the country and
+/// institution rows are read, the same way, only for cells whose total rows
+/// are all 0 and that have no ambiguity row, and a value other than 0 there
+/// conflicts the cell too. A conflicted cell then adds nothing but its
+/// month's presence and the `conflict` flag. It returns, per platform and
+/// measure and never per work:
+///
+/// - `PAIR`: whether the pair has a cell, an active reporting period or an
+///   inconsistent record in scope, and the measure's two additivity flags;
+/// - `TOTAL`: per month holding any cell, the sum of its unconflicted cells'
+///   values (`NULL` when none has one), the OR of their dependency flags,
+///   whether the month lies wholly inside the range, and whether some cell of
+///   it is conflicted;
+/// - `COUNTRY` (when `$6`) and `INSTITUTION` (when `$7`, with name and ROR,
+///   stopping after `$8` rows): the unconflicted cells' section rows over the
+///   months wholly inside the range, summed, with their cross-dependency
+///   flags;
+/// - `AMBIGUITY`: per pair, whether a month wholly inside the range has an
+///   unconflicted cell that is total-ambiguous, or country- or
+///   institution-ambiguous in a requested section; only pairs where one is.
+pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
+                 SELECT n.work_id, n.platform_id, n.measure_id, n.month_start, n.value, n.live, \
+                        n.requires_country_coverage, n.requires_institution_coverage, \
+                        n.country_ambiguous, n.institution_ambiguous, \
+                        (($4::date IS NULL OR n.month_start >= $4) \
+                         AND (n.month_start + interval '1 month')::date <= $5) AS wholly_inside \
+                 FROM public.metric_native_month n \
+                 WHERE n.work_id = ANY($1) \
+                   AND (cardinality($2::uuid[]) = 0 OR n.platform_id = ANY($2)) \
+                   AND (cardinality($3::uuid[]) = 0 OR n.measure_id = ANY($3)) \
+                   AND n.month_start < $5 \
+                   AND ($4::date IS NULL OR (n.month_start + interval '1 month')::date > $4) \
+             ), \
+             live_keys AS MATERIALIZED ( \
+                 SELECT array_agg(DISTINCT c.work_id) AS works, \
+                        array_agg(DISTINCT c.platform_id) AS platforms, \
+                        array_agg(DISTINCT c.measure_id) AS measures, \
+                        array_agg(DISTINCT c.month_start) AS months \
+                 FROM cells c \
+                 WHERE c.live \
+             ), \
+             day_rows AS MATERIALIZED ( \
+                 SELECT mm.work_id, mm.platform_id, mm.measure_id, mm.month_start, \
+                        mm.value <> 0 AS live, TRUE AS has_total \
+                 FROM public.metric_rollup_work_month mm \
+                 WHERE mm.work_id = ANY((SELECT k.works FROM live_keys k)::uuid[]) \
+                   AND mm.platform_id = ANY((SELECT k.platforms FROM live_keys k)::uuid[]) \
+                   AND mm.measure_id = ANY((SELECT k.measures FROM live_keys k)::uuid[]) \
+                   AND mm.month_start = ANY((SELECT k.months FROM live_keys k)::date[]) \
+                 UNION ALL \
+                 SELECT a.work_id, a.platform_id, a.measure_id, a.month_start, TRUE, FALSE \
+                 FROM public.metric_rollup_work_month_ambiguity a \
+                 WHERE a.work_id = ANY((SELECT k.works FROM live_keys k)::uuid[]) \
+                   AND a.platform_id = ANY((SELECT k.platforms FROM live_keys k)::uuid[]) \
+                   AND a.measure_id = ANY((SELECT k.measures FROM live_keys k)::uuid[]) \
+                   AND a.month_start = ANY((SELECT k.months FROM live_keys k)::date[]) \
+             ), \
+             day_cells AS MATERIALIZED ( \
+                 SELECT c.work_id, c.platform_id, c.measure_id, c.month_start, \
+                        bool_or(d.live) AS live, bool_or(d.has_total) AS has_total \
+                 FROM cells c \
+                 JOIN day_rows d \
+                   ON d.work_id = c.work_id AND d.platform_id = c.platform_id \
+                  AND d.measure_id = c.measure_id AND d.month_start = c.month_start \
+                 WHERE c.live \
+                 GROUP BY c.work_id, c.platform_id, c.measure_id, c.month_start \
+             ), \
+             zero_keys AS MATERIALIZED ( \
+                 SELECT array_agg(DISTINCT z.work_id) AS works, \
+                        array_agg(DISTINCT z.platform_id) AS platforms, \
+                        array_agg(DISTINCT z.measure_id) AS measures, \
+                        array_agg(DISTINCT z.month_start) AS months \
+                 FROM day_cells z \
+                 WHERE z.has_total AND NOT z.live \
+             ), \
+             section_rows AS MATERIALIZED ( \
+                 SELECT cm.work_id, cm.platform_id, cm.measure_id, cm.month_start \
+                 FROM public.metric_rollup_work_country_month cm \
+                 WHERE cm.work_id = ANY((SELECT k.works FROM zero_keys k)::uuid[]) \
+                   AND cm.platform_id = ANY((SELECT k.platforms FROM zero_keys k)::uuid[]) \
+                   AND cm.measure_id = ANY((SELECT k.measures FROM zero_keys k)::uuid[]) \
+                   AND cm.month_start = ANY((SELECT k.months FROM zero_keys k)::date[]) \
+                   AND cm.value <> 0 \
+                 UNION ALL \
+                 SELECT im.work_id, im.platform_id, im.measure_id, im.month_start \
+                 FROM public.metric_rollup_work_institution_month im \
+                 WHERE im.work_id = ANY((SELECT k.works FROM zero_keys k)::uuid[]) \
+                   AND im.platform_id = ANY((SELECT k.platforms FROM zero_keys k)::uuid[]) \
+                   AND im.measure_id = ANY((SELECT k.measures FROM zero_keys k)::uuid[]) \
+                   AND im.month_start = ANY((SELECT k.months FROM zero_keys k)::date[]) \
+                   AND im.value <> 0 \
+             ), \
+             conflicted AS MATERIALIZED ( \
+                 SELECT d.work_id, d.platform_id, d.measure_id, d.month_start \
+                 FROM day_cells d \
+                 WHERE d.live \
+                 UNION \
+                 SELECT z.work_id, z.platform_id, z.measure_id, z.month_start \
+                 FROM day_cells z \
+                 JOIN section_rows s \
+                   ON s.work_id = z.work_id AND s.platform_id = z.platform_id \
+                  AND s.measure_id = z.measure_id AND s.month_start = z.month_start \
+                 WHERE z.has_total AND NOT z.live \
+             ), \
+             resolved AS MATERIALIZED ( \
+                 SELECT c.work_id, c.platform_id, c.measure_id, c.month_start, c.value, \
+                        c.requires_country_coverage, c.requires_institution_coverage, \
+                        c.country_ambiguous, c.institution_ambiguous, c.wholly_inside, \
+                        k.work_id IS NOT NULL AS conflict \
+                 FROM cells c \
+                 LEFT JOIN conflicted k \
+                   ON k.work_id = c.work_id AND k.platform_id = c.platform_id \
+                  AND k.measure_id = c.measure_id AND k.month_start = c.month_start \
+             ) \
+             SELECT 'PAIR' AS kind, p.platform_id, p.measure_id, NULL::date AS month_start, \
+                    NULL::text AS country_code, NULL::uuid AS institution_id, \
+                    NULL::text AS institution_name, NULL::text AS ror, NULL::text AS total, \
+                    FALSE AS requires_country, FALSE AS requires_institution, \
+                    FALSE AS total_ambiguous, FALSE AS country_ambiguous, \
+                    FALSE AS institution_ambiguous, FALSE AS wholly_inside, FALSE AS conflict, \
+                    bool_or(p.has_month) AS has_month, \
+                    bool_or(p.active_reporting_period) AS active_reporting_period, \
+                    bool_or(p.inconsistent) AS inconsistent, \
+                    m.additive_across_time, m.additive_across_works \
+             FROM ( \
+                 SELECT c.platform_id, c.measure_id, TRUE AS has_month, \
+                        FALSE AS active_reporting_period, FALSE AS inconsistent \
+                 FROM cells c \
+                 UNION ALL \
+                 SELECT f.platform_id, f.measure_id, FALSE, NOT f.inconsistent, f.inconsistent \
+                 FROM public.metric_native_refusal f \
+                 WHERE f.work_id = ANY($1) \
+                   AND (cardinality($2::uuid[]) = 0 OR f.platform_id = ANY($2)) \
+                   AND (cardinality($3::uuid[]) = 0 OR f.measure_id = ANY($3)) \
+                   AND f.period_start < $5 \
+                   AND ($4::date IS NULL OR f.period_end > $4) \
+             ) p \
+             JOIN public.metric_measure m ON m.measure_id = p.measure_id \
+             GROUP BY p.platform_id, p.measure_id, m.additive_across_time, m.additive_across_works \
+             UNION ALL \
+             SELECT 'TOTAL', r.platform_id, r.measure_id, r.month_start, NULL::text, NULL::uuid, \
+                    NULL::text, NULL::text, (SUM(r.value) FILTER (WHERE NOT r.conflict))::text, \
+                    COALESCE(bool_or(r.requires_country_coverage) FILTER (WHERE NOT r.conflict), FALSE), \
+                    COALESCE(bool_or(r.requires_institution_coverage) \
+                             FILTER (WHERE NOT r.conflict), FALSE), \
+                    FALSE, FALSE, FALSE, bool_and(r.wholly_inside), bool_or(r.conflict), \
+                    FALSE, FALSE, FALSE, FALSE, FALSE \
+             FROM resolved r \
+             GROUP BY r.platform_id, r.measure_id, r.month_start \
+             UNION ALL \
+             SELECT 'COUNTRY', nc.platform_id, nc.measure_id, NULL::date, nc.country_code::text, \
+                    NULL::uuid, NULL::text, NULL::text, SUM(nc.value)::text, FALSE, \
+                    bool_or(nc.requires_institution_coverage), FALSE, FALSE, FALSE, FALSE, FALSE, \
+                    FALSE, FALSE, FALSE, FALSE, FALSE \
+             FROM resolved r \
+             JOIN public.metric_native_country_month nc \
+               ON nc.work_id = r.work_id AND nc.platform_id = r.platform_id \
+              AND nc.measure_id = r.measure_id AND nc.month_start = r.month_start \
+             WHERE $6 AND r.wholly_inside AND NOT r.conflict \
+             GROUP BY nc.platform_id, nc.measure_id, nc.country_code \
+             UNION ALL \
+             SELECT 'INSTITUTION', v.platform_id, v.measure_id, NULL::date, NULL::text, \
+                    v.institution_id, i.institution_name, i.ror, v.total, v.requires_country, \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE \
+             FROM ( \
+                 SELECT ni.platform_id, ni.measure_id, ni.institution_id, \
+                        SUM(ni.value)::text AS total, \
+                        bool_or(ni.requires_country_coverage) AS requires_country \
+                 FROM resolved r \
+                 JOIN public.metric_native_institution_month ni \
+                   ON ni.work_id = r.work_id AND ni.platform_id = r.platform_id \
+                  AND ni.measure_id = r.measure_id AND ni.month_start = r.month_start \
+                 WHERE $7 AND r.wholly_inside AND NOT r.conflict \
+                 GROUP BY ni.platform_id, ni.measure_id, ni.institution_id \
+                 LIMIT $8 \
+             ) v \
+             JOIN public.institution i ON i.institution_id = v.institution_id \
+             UNION ALL \
+             SELECT 'AMBIGUITY', r.platform_id, r.measure_id, NULL::date, NULL::text, NULL::uuid, \
+                    NULL::text, NULL::text, NULL::text, FALSE, FALSE, \
+                    bool_or(r.value IS NULL), bool_or($6 AND r.country_ambiguous), \
+                    bool_or($7 AND r.institution_ambiguous), FALSE, FALSE, \
+                    FALSE, FALSE, FALSE, FALSE, FALSE \
+             FROM resolved r \
+             WHERE r.wholly_inside AND NOT r.conflict \
+             GROUP BY r.platform_id, r.measure_id \
+             HAVING bool_or(r.value IS NULL \
+                            OR ($6 AND r.country_ambiguous) \
+                            OR ($7 AND r.institution_ambiguous))";
+
+/// After step 6 (`MET-WP4-MONTH-01`, switch `ON` only): each pair's
+/// earliest evidence before `$4`, for an all-time read of two or more pairs
+/// and for each section of the widget's all-history read. It is
+/// [`CANONICAL_SQL`]'s `START` per pair, over the same evidence, bounds and
+/// window clipping, each branch grouped by platform and measure: the `LAG`
+/// days (`$1`, `$2`); the work-day rows of the resolved works (`$3`) on the
+/// served platforms (`$5`) and measures (`$6`), found as `START`'s filtered
+/// form per pair — the pair's earliest month in the two monthly identity
+/// keys, then its earliest row in that month through `(work_id, day)`,
+/// probing only the works that hold an entry of that month; the coverage
+/// runs and terminal coverage of the accounts step 5 returned (`$7` to `$9`,
+/// windows `$10` and `$11`), clipped to their windows; and the represented
+/// publishers' (`$12`) unresolved quarantine. One row per pair with any
+/// evidence.
+pub(crate) const PAIR_STARTS_SQL: &str = "WITH lag AS ( \
+                 SELECT DISTINCT r.platform_id, r.measure_id, r.period_start AS day \
+                 FROM public.metric_rollup_delta d \
+                 JOIN public.metric_record r ON r.record_id = d.record_id \
+                 WHERE $1 \
+                   AND d.work_day_sequence > $2 \
+                   AND r.work_id = ANY($3) \
+                   AND r.period_start < $4 \
+                   AND r.platform_id = ANY($5) \
+                   AND r.measure_id = ANY($6) \
+             ), \
+             month_entries AS MATERIALIZED ( \
+                 SELECT mm.work_id, mm.platform_id, mm.measure_id, mm.month_start \
+                 FROM public.metric_rollup_work_month mm \
+                 WHERE mm.work_id = ANY($3) \
+                   AND mm.platform_id = ANY($5) \
+                   AND mm.measure_id = ANY($6) \
+                   AND mm.month_start < $4 \
+                 UNION ALL \
+                 SELECT a.work_id, a.platform_id, a.measure_id, a.month_start \
+                 FROM public.metric_rollup_work_month_ambiguity a \
+                 WHERE a.work_id = ANY($3) \
+                   AND a.platform_id = ANY($5) \
+                   AND a.measure_id = ANY($6) \
+                   AND a.month_start < $4 \
+             ), \
+             first_months AS MATERIALIZED ( \
+                 SELECT e.platform_id, e.measure_id, MIN(e.month_start) AS month_start \
+                 FROM month_entries e \
+                 GROUP BY e.platform_id, e.measure_id \
+             ), \
+             probes AS MATERIALIZED ( \
+                 SELECT DISTINCT e.work_id, e.platform_id, e.measure_id, e.month_start \
+                 FROM month_entries e \
+                 JOIN first_months f \
+                   ON f.platform_id = e.platform_id AND f.measure_id = e.measure_id \
+                  AND f.month_start = e.month_start \
+             ) \
+             SELECT evidence.platform_id, evidence.measure_id, MIN(evidence.day) AS day \
+             FROM ( \
+                 SELECT lag.platform_id, lag.measure_id, lag.day FROM lag \
+                 UNION ALL \
+                 SELECT p.platform_id, p.measure_id, first_row.day \
+                 FROM probes p \
+                 CROSS JOIN LATERAL ( \
+                     SELECT r.day FROM public.metric_rollup_work_day r \
+                     WHERE r.work_id = p.work_id \
+                       AND r.day >= p.month_start \
+                       AND r.day < LEAST((p.month_start + interval '1 month')::date, $4) \
+                       AND r.platform_id = p.platform_id \
+                       AND r.measure_id = p.measure_id \
+                     ORDER BY r.day \
+                     LIMIT 1 \
+                 ) first_row \
+                 UNION ALL \
+                 SELECT run.platform_id, run.measure_id, GREATEST(run.run_start, sa.window_start) \
+                 FROM unnest($7::uuid[], $8::uuid[], $9::uuid[], $10::date[], $11::date[]) \
+                      AS sa(source_account_id, platform_id, publisher_id, window_start, window_end) \
+                 JOIN public.metric_coverage_run run \
+                   ON run.source_account_id = sa.source_account_id \
+                  AND run.platform_id = sa.platform_id \
+                  AND run.publisher_id = sa.publisher_id \
+                 WHERE run.measure_id = ANY($6) \
+                   AND run.run_start < $4 \
+                   AND (sa.window_start IS NULL OR run.run_end > sa.window_start) \
+                   AND (sa.window_end IS NULL OR run.run_start < sa.window_end) \
+                   AND (sa.window_start IS NULL OR sa.window_start < $4) \
+                 UNION ALL \
+                 SELECT c.platform_id, c.measure_id, GREATEST(c.period_start, sa.window_start) \
+                 FROM unnest($7::uuid[], $8::uuid[], $9::uuid[], $10::date[], $11::date[]) \
+                      AS sa(source_account_id, platform_id, publisher_id, window_start, window_end) \
+                 JOIN public.metric_import mi \
+                   ON mi.source_account_id = sa.source_account_id \
+                  AND mi.publisher_id = sa.publisher_id \
+                 JOIN public.metric_coverage c \
+                   ON c.import_id = mi.import_id \
+                  AND c.source_account_id = sa.source_account_id \
+                  AND c.platform_id = sa.platform_id \
+                 WHERE mi.status IN ('COMPLETED'::public.metric_import_status, \
+                                     'COMPLETED_WITH_ERRORS'::public.metric_import_status) \
+                   AND mi.completed_at IS NULL \
+                   AND c.measure_id = ANY($6) \
+                   AND c.period_start < $4 \
+                   AND (sa.window_start IS NULL OR c.period_end > sa.window_start) \
+                   AND (sa.window_end IS NULL OR c.period_start < sa.window_end) \
+                   AND (sa.window_start IS NULL OR sa.window_start < $4) \
+                 UNION ALL \
+                 SELECT q.platform_id, q.measure_id, q.period_start \
+                 FROM public.metric_identifier_quarantine q \
+                 JOIN public.metric_record_provenance p \
+                   ON p.record_provenance_id = q.record_provenance_id \
+                 JOIN public.metric_import mi ON mi.import_id = p.import_id \
+                 LEFT JOIN public.metric_identifier_quarantine_reconciliation rc \
+                   ON rc.identifier_quarantine_id = q.identifier_quarantine_id \
+                 WHERE mi.publisher_id = ANY($12) \
+                   AND q.period_start < $4 \
+                   AND q.platform_id = ANY($5) \
+                   AND q.measure_id = ANY($6) \
+                   AND rc.resolved_at IS NULL \
+             ) evidence \
+             GROUP BY evidence.platform_id, evidence.measure_id";
 
 // Step 7: the complete months, from the `MET-WP4-03A` monthly projections,
 // and for a `MONTH` or `YEAR` timeline the complete calendar years of the
@@ -2705,16 +3201,19 @@ pub(crate) struct ReadControls<'a> {
 /// 2. read the `MET-WP4-01` frontier `W`, `next_sequence` and `watermark_at`,
 ///    together with the transaction timestamp;
 /// 3. check every explicit selector ID and resolve the works, and with them
-///    the represented publishers;
+///    the represented publishers; under [`MetricMonthServing::On`], (3b)
+///    read the native months, their conflicts and the native refusals of
+///    those works ([`NATIVE_MONTHS_SQL`]);
 /// 4. resolve and bound the platform/measure scope, and require every served
 ///    measure to be additive across time and works; with an explicit start,
 ///    fix the served grain and bound the timeline;
 /// 5. resolve every eligible managed source account of each represented
 ///    publisher on each served platform;
-/// 6. refuse active native-grain canonical records, find unapplied work-day
-///    deltas above `W`, and, when `startDate` was omitted, find where the
-///    scope's evidence starts, then fix the served grain and bound the
-///    timeline;
+/// 6. refuse active native-grain canonical records (under
+///    [`MetricMonthServing::On`], the projected refusals step 3b read), find
+///    unapplied work-day deltas above `W`, and, when `startDate` was omitted,
+///    find where the scope's evidence starts, then fix the served grain and
+///    bound the timeline;
 /// 7. read the complete months from the monthly projections, and for a
 ///    `MONTH` or `YEAR` timeline the complete calendar years of the sections
 ///    from the yearly projections;
@@ -2731,15 +3230,33 @@ pub(crate) struct ReadControls<'a> {
 /// statements does not depend on how many publishers, works, days, months,
 /// years, countries, institutions or rows are involved: at most seventeen,
 /// including transaction control, run for any request, and eighteen counting
-/// the pool's own connection check on checkout.
+/// the pool's own connection check on checkout. Under
+/// [`MetricMonthServing::On`] every request runs one more statement (step
+/// 3b), and an all-time request serving two or more pairs one more again
+/// ([`PAIR_STARTS_SQL`]): at most nineteen, and twenty with the checkout.
+///
+/// This entry point does not serve `MONTH` records: it is
+/// [`metric_dashboard_with_month_serving`] with [`MetricMonthServing::Off`].
+#[cfg(test)]
 pub(crate) fn metric_dashboard(
     db: &PgPool,
     input: &MetricDashboardInput,
 ) -> Result<MetricDashboard, MetricReadError> {
-    metric_dashboard_with_statement_timeout(db, input, STATEMENT_TIMEOUT_SQL)
+    metric_dashboard_with_month_serving(db, input, MetricMonthServing::Off)
 }
 
-/// [`metric_dashboard`] with an explicit per-statement timeout statement.
+/// [`metric_dashboard`] under the server's `THOTH_METRIC_MONTH_SERVING`
+/// value.
+pub(crate) fn metric_dashboard_with_month_serving(
+    db: &PgPool,
+    input: &MetricDashboardInput,
+    month_serving: MetricMonthServing,
+) -> Result<MetricDashboard, MetricReadError> {
+    metric_dashboard_with_statement_timeout(db, input, month_serving, STATEMENT_TIMEOUT_SQL)
+}
+
+/// [`metric_dashboard_with_month_serving`] with an explicit per-statement
+/// timeout statement.
 ///
 /// The production entry point passes [`STATEMENT_TIMEOUT_SQL`]. Tests pass a
 /// far shorter timeout to prove the lock-contention failure path without
@@ -2748,11 +3265,13 @@ pub(crate) fn metric_dashboard(
 fn metric_dashboard_with_statement_timeout(
     db: &PgPool,
     input: &MetricDashboardInput,
+    month_serving: MetricMonthServing,
     statement_timeout_sql: &'static str,
 ) -> Result<MetricDashboard, MetricReadError> {
     metric_dashboard_with_controls(
         db,
         input,
+        month_serving,
         &ReadControls {
             statement_timeout_sql,
             guard: &METRIC_DASHBOARD_READS,
@@ -2763,9 +3282,9 @@ fn metric_dashboard_with_statement_timeout(
     )
 }
 
-/// [`metric_dashboard`] under explicit [`ReadControls`]: the internal entry
-/// point, through which tests use a private guard, short durations and a
-/// fixed date.
+/// [`metric_dashboard_with_month_serving`] under explicit [`ReadControls`]:
+/// the internal entry point, through which tests use a private guard, short
+/// durations and a fixed date.
 ///
 /// A request refused by [`validate`] takes no slot. The slot is taken before
 /// the pooled connection, so a waiting request holds no connection and the
@@ -2776,6 +3295,7 @@ fn metric_dashboard_with_statement_timeout(
 pub(crate) fn metric_dashboard_with_controls(
     db: &PgPool,
     input: &MetricDashboardInput,
+    month_serving: MetricMonthServing,
     controls: &ReadControls<'_>,
 ) -> Result<MetricDashboard, MetricReadError> {
     let request = validate(input, controls.today)?;
@@ -2791,6 +3311,7 @@ pub(crate) fn metric_dashboard_with_controls(
             evaluate(
                 connection,
                 &request,
+                month_serving,
                 controls.statement_timeout_sql,
                 &deadline,
             )
@@ -2836,6 +3357,8 @@ pub(crate) fn metric_pair_read(
             request: &read.request,
             capability: read.capability,
             pairs: Some(&read.scope),
+            month_serving: read.month_serving,
+            all_history: read.all_history,
         },
         deadline,
     )
@@ -2850,6 +3373,7 @@ struct WorkScope {
 fn evaluate(
     connection: &mut PgConnection,
     request: &ValidatedRequest,
+    month_serving: MetricMonthServing,
     statement_timeout_sql: &'static str,
     deadline: &ReadDeadline,
 ) -> Result<MetricDashboard, MetricReadError> {
@@ -2870,6 +3394,8 @@ fn evaluate(
             request,
             capability: PublisherCapability::MetricsDashboard,
             pairs: None,
+            month_serving,
+            all_history: request.start.is_none(),
         },
         deadline,
     )
@@ -2927,13 +3453,23 @@ fn read_from_publishers(
         return Err(MetricReadError::Unauthorised);
     }
 
-    let (scope, combinations, platforms, measures) = match run.pairs {
+    let serving = run.month_serving == MetricMonthServing::On;
+    let (scope, combinations, platforms, measures, native) = match run.pairs {
         None => {
             // 3. The metadata selector.
             let scope = resolve_works(connection, request, deadline)?;
 
+            // 3b. Native months and refusals of the resolved works, before
+            // the platforms and measures are resolved.
+            let native = if serving && !scope.works.is_empty() {
+                read_native(connection, request, &scope.works, deadline)?
+            } else {
+                Vec::new()
+            };
+
             // 4. Platforms and measures.
-            let (platforms, measures) = resolve_scope(connection, request, &scope, deadline)?;
+            let (platforms, measures) =
+                resolve_scope(connection, request, &scope, &native, deadline)?;
             let combinations: Vec<(Uuid, Uuid)> = platforms
                 .iter()
                 .flat_map(|platform_id| {
@@ -2945,7 +3481,7 @@ fn read_from_publishers(
             if combinations.len() > METRIC_DASHBOARD_MAX_COMBINATIONS {
                 return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS));
             }
-            (scope, combinations, platforms, measures)
+            (scope, combinations, platforms, measures, native)
         }
         // Pair mode: the caller's works and publisher, and exactly its pairs
         // as the combinations. No selector, registry or represented-scope
@@ -2971,7 +3507,18 @@ fn read_from_publishers(
                 .iter()
                 .map(|(_, measure_id)| *measure_id)
                 .collect();
-            (scope, pairs.pairs.clone(), platforms, measures)
+            // 3b, right after the publishers. A value or ambiguity row of a
+            // pair the caller does not hold is dropped as it is read; the
+            // refusal flags keep the cross product.
+            let mut native = if serving && !scope.works.is_empty() {
+                read_native(connection, request, &scope.works, deadline)?
+            } else {
+                Vec::new()
+            };
+            native.retain(|row| {
+                row.kind == "PAIR" || pairs.pairs.contains(&(row.platform_id, row.measure_id))
+            });
+            (scope, pairs.pairs.clone(), platforms, measures, native)
         }
     };
     // Pair mode drops the rows of every pair it does not hold as they are
@@ -2994,6 +3541,7 @@ fn read_from_publishers(
     let mut sections = Sections::default();
     let mut runs: Vec<CoverageRun> = Vec::new();
     let mut eligible: BTreeSet<EligibleAccount> = BTreeSet::new();
+    let mut windows: BTreeMap<EligibleAccount, AccountWindow> = BTreeMap::new();
     let window = if combinations.is_empty() {
         // Nothing is served, so nothing can start the history: an omitted
         // start serves the month before endDate.
@@ -3023,10 +3571,38 @@ fn read_from_publishers(
                     platform_id: row.platform_id,
                 })
                 .collect();
+            // Only an account with a window or a succession is held; any
+            // other is unbounded and its own slot, as before either existed.
+            windows = accounts
+                .iter()
+                .filter(|row| {
+                    row.window_start.is_some()
+                        || row.window_end.is_some()
+                        || row.succession.is_some()
+                })
+                .map(|row| {
+                    (
+                        EligibleAccount {
+                            source_account_id: row.source_account_id,
+                            publisher_id: row.publisher_id,
+                            platform_id: row.platform_id,
+                        },
+                        AccountWindow {
+                            start: row.window_start,
+                            end: row.window_end,
+                            succession: row.succession.clone(),
+                        },
+                    )
+                })
+                .collect();
         }
         let account_ids: Vec<Uuid> = accounts.iter().map(|row| row.source_account_id).collect();
         let account_platforms: Vec<Uuid> = accounts.iter().map(|row| row.platform_id).collect();
         let account_publishers: Vec<Uuid> = accounts.iter().map(|row| row.publisher_id).collect();
+        let window_starts: Vec<Option<NaiveDate>> =
+            accounts.iter().map(|row| row.window_start).collect();
+        let window_ends: Vec<Option<NaiveDate>> =
+            accounts.iter().map(|row| row.window_end).collect();
 
         // 6. Unsupported native grains, outstanding rollup work and, when
         // startDate was omitted, the start of the scope's history.
@@ -3050,6 +3626,9 @@ fn read_from_publishers(
                 .bind::<Array<SqlUuid>, _>(&account_platforms)
                 .bind::<Array<SqlUuid>, _>(&account_publishers)
                 .bind::<Array<SqlUuid>, _>(&scope.publishers)
+                .bind::<Bool, _>(serving)
+                .bind::<Array<Nullable<Date>>, _>(&window_starts)
+                .bind::<Array<Nullable<Date>>, _>(&window_ends)
                 .load(connection)?;
             // Contradictory canonical state is never classified as either
             // served or withdrawn.
@@ -3063,6 +3642,24 @@ fn read_from_publishers(
                 .iter()
                 .any(|row| row.kind == "ACTIVE_NATIVE_GRAIN")
             {
+                return Err(MetricReadError::UnsupportedSourceGrain);
+            }
+            // Under ON the grain branch above is folded away, and the
+            // projected refusals step 3b read take its place, in its order
+            // and over its scope: the cross product of the served platforms
+            // and measures.
+            let refusals: Vec<&NativeRow> = native
+                .iter()
+                .filter(|row| {
+                    row.kind == "PAIR"
+                        && platforms.contains(&row.platform_id)
+                        && measures.contains(&row.measure_id)
+                })
+                .collect();
+            if refusals.iter().any(|row| row.inconsistent) {
+                return Err(MetricReadError::Unavailable);
+            }
+            if refusals.iter().any(|row| row.active_reporting_period) {
                 return Err(MetricReadError::UnsupportedSourceGrain);
             }
             let mut starts = 0;
@@ -3082,6 +3679,19 @@ fn read_from_publishers(
                 return Err(MetricReadError::Unavailable);
             }
         }
+        // Under ON an all-time read also starts no later than the earliest
+        // native month of a served pair.
+        let native_first = native
+            .iter()
+            .filter(|row| {
+                row.kind == "TOTAL" && facts.contains_key(&(row.platform_id, row.measure_id))
+            })
+            .filter_map(|row| row.month_start)
+            .min();
+        let earliest = match (earliest, native_first) {
+            (Some(day), Some(month)) => Some(day.min(month)),
+            (day, month) => day.or(month),
+        };
         let window = match explicit_window {
             Some(window) => window,
             None => serve(
@@ -3091,6 +3701,68 @@ fn read_from_publishers(
             )?,
         };
         fold_lag(&mut facts, lag, &window);
+
+        // Under ON, each pair of an all-time read is judged from its own
+        // start: the earlier of its first evidence and its first native
+        // month, never before the served start. In pair mode the caller's
+        // all-history start is its first value month, so every section with
+        // a pair runs this; the dashboard runs it for two or more pairs.
+        let judged = serving
+            && run.all_history
+            && !scope.works.is_empty()
+            && (run.pairs.is_some() || combinations.len() >= 2);
+        if judged {
+            let starts = read_pair_starts(
+                connection,
+                (
+                    frontier.applied_through_sequence < frontier.next_sequence - 1,
+                    frontier.applied_through_sequence,
+                ),
+                &scope,
+                &platform_ids,
+                &measure_ids,
+                request.end,
+                &accounts,
+                deadline,
+            )?;
+            let mut evidence: BTreeMap<(Uuid, Uuid), NaiveDate> = BTreeMap::new();
+            let firsts = starts
+                .iter()
+                .map(|row| ((row.platform_id, row.measure_id), row.day))
+                .chain(
+                    native
+                        .iter()
+                        .filter(|row| row.kind == "TOTAL")
+                        .filter_map(|row| {
+                            row.month_start
+                                .map(|month| ((row.platform_id, row.measure_id), month))
+                        }),
+                );
+            for (key, day) in firsts {
+                evidence
+                    .entry(key)
+                    .and_modify(|first| *first = (*first).min(day))
+                    .or_insert(day);
+            }
+            for (key, pair) in facts.iter_mut() {
+                pair.start = evidence
+                    .get(key)
+                    .map(|day| (*day).max(window.start))
+                    .filter(|day| *day > window.start);
+            }
+            // A pair start that no pair of a multi-pair all-time dashboard
+            // read shares with the served start means the evidence
+            // statements disagree: fail closed.
+            if run.pairs.is_none()
+                && facts
+                    .values()
+                    .map(|pair| pair.start.unwrap_or(window.start))
+                    .min()
+                    != Some(window.start)
+            {
+                return Err(MetricReadError::Unavailable);
+            }
+        }
 
         if !scope.works.is_empty() {
             // 7. Complete months, and complete calendar years of the
@@ -3106,6 +3778,12 @@ fn read_from_publishers(
                     deadline,
                 )?;
                 apply_sections(rows, &window, &mut facts, &mut sections, held_only)?;
+            }
+
+            // 7b. Native months, after the monthly ambiguity check and before
+            // the day reads' (MET-WP4-MONTH-01 error precedence).
+            if serving {
+                apply_native(native, &window, &mut facts, &mut sections)?;
             }
 
             // 8. Day values.
@@ -3222,6 +3900,7 @@ fn read_from_publishers(
             combinations: &combinations,
             publishers: &scope.publishers,
             accounts: &eligible,
+            windows: &windows,
             include_countries: request.include_countries,
             include_institutions: request.include_institutions,
             facts: &facts,
@@ -3230,6 +3909,163 @@ fn read_from_publishers(
         frontier,
         sections,
     )
+}
+
+/// Step 3b: [`NATIVE_MONTHS_SQL`] for the resolved works, the explicit
+/// platform and measure filters (in pair mode, the pairs' platforms and
+/// measures) and the requested range.
+fn read_native(
+    connection: &mut PgConnection,
+    request: &ValidatedRequest,
+    works: &[Uuid],
+    deadline: &ReadDeadline,
+) -> Result<Vec<NativeRow>, MetricReadError> {
+    let platform_filter: Vec<Uuid> = request.platforms.iter().flatten().copied().collect();
+    let measure_filter: Vec<Uuid> = request.measures.iter().flatten().copied().collect();
+    deadline.check()?;
+    deadline.record("NATIVE_MONTHS_SQL");
+    Ok(diesel::sql_query(NATIVE_MONTHS_SQL)
+        .bind::<Array<SqlUuid>, _>(works)
+        .bind::<Array<SqlUuid>, _>(&platform_filter)
+        .bind::<Array<SqlUuid>, _>(&measure_filter)
+        .bind::<Nullable<Date>, _>(request.start)
+        .bind::<Date, _>(request.end)
+        .bind::<Bool, _>(request.include_countries)
+        .bind::<Bool, _>(request.include_institutions)
+        .bind::<SqlBigInt, _>(institution_read_limit())
+        .load(connection)?)
+}
+
+/// [`PAIR_STARTS_SQL`] over the served platforms and measures, before `end`.
+/// `lag` is whether the frontier lags, and the frontier.
+#[allow(clippy::too_many_arguments)]
+fn read_pair_starts(
+    connection: &mut PgConnection,
+    lag: (bool, i64),
+    scope: &WorkScope,
+    platform_ids: &[Uuid],
+    measure_ids: &[Uuid],
+    end: NaiveDate,
+    accounts: &[AccountRow],
+    deadline: &ReadDeadline,
+) -> Result<Vec<PairStartRow>, MetricReadError> {
+    let account_ids: Vec<Uuid> = accounts.iter().map(|row| row.source_account_id).collect();
+    let account_platforms: Vec<Uuid> = accounts.iter().map(|row| row.platform_id).collect();
+    let account_publishers: Vec<Uuid> = accounts.iter().map(|row| row.publisher_id).collect();
+    let window_starts: Vec<Option<NaiveDate>> =
+        accounts.iter().map(|row| row.window_start).collect();
+    let window_ends: Vec<Option<NaiveDate>> = accounts.iter().map(|row| row.window_end).collect();
+    deadline.check()?;
+    deadline.record("PAIR_STARTS_SQL");
+    Ok(diesel::sql_query(PAIR_STARTS_SQL)
+        .bind::<Bool, _>(lag.0)
+        .bind::<SqlBigInt, _>(lag.1)
+        .bind::<Array<SqlUuid>, _>(&scope.works)
+        .bind::<Date, _>(end)
+        .bind::<Array<SqlUuid>, _>(platform_ids)
+        .bind::<Array<SqlUuid>, _>(measure_ids)
+        .bind::<Array<SqlUuid>, _>(&account_ids)
+        .bind::<Array<SqlUuid>, _>(&account_platforms)
+        .bind::<Array<SqlUuid>, _>(&account_publishers)
+        .bind::<Array<Nullable<Date>>, _>(&window_starts)
+        .bind::<Array<Nullable<Date>>, _>(&window_ends)
+        .bind::<Array<SqlUuid>, _>(&scope.publishers)
+        .load(connection)?)
+}
+
+/// Fold step 3b's value rows into the per-pair facts and the sections
+/// (`MET-WP4-MONTH-01`), after the monthly ambiguity check of step 7.
+///
+/// A native ambiguity refuses first. Each `TOTAL` row adds its month to the
+/// pair's set `N`, with its total and conflict flag; its dependency flags
+/// count only for a month wholly inside the range, and the statement's own
+/// "wholly inside" must agree with the served range or the read fails
+/// closed. The country and institution rows add to the sections per pair and
+/// key, before the institution limit is checked.
+fn apply_native(
+    rows: Vec<NativeRow>,
+    window: &Window,
+    facts: &mut BTreeMap<(Uuid, Uuid), PairFacts>,
+    sections: &mut Sections,
+) -> Result<(), MetricReadError> {
+    let parse = |total: Option<String>| -> Result<BigInt, MetricReadError> {
+        let total = total.ok_or(MetricReadError::Unavailable)?;
+        BigInt::parse_canonical(&total)
+            .ok_or(MetricReadError::QueryLimitExceeded(AGGREGATE_OUT_OF_RANGE))
+    };
+    let add = |current: Option<BigInt>, value: BigInt| -> Result<BigInt, MetricReadError> {
+        current
+            .unwrap_or(BigInt::ZERO)
+            .checked_add(value)
+            .ok_or(MetricReadError::QueryLimitExceeded(AGGREGATE_OUT_OF_RANGE))
+    };
+    if rows.iter().any(|row| {
+        row.kind == "AMBIGUITY"
+            && (row.total_ambiguous || row.country_ambiguous || row.institution_ambiguous)
+    }) {
+        return Err(MetricReadError::DimensionScopeAmbiguous);
+    }
+    for row in rows {
+        let key = (row.platform_id, row.measure_id);
+        match row.kind.as_str() {
+            "PAIR" | "AMBIGUITY" => {}
+            "TOTAL" => {
+                let month = row
+                    .month_start
+                    .filter(|month| month.day() == 1)
+                    .ok_or(MetricReadError::Unavailable)?;
+                let inside = month >= window.start && next_month(month) <= window.end;
+                if inside != row.wholly_inside {
+                    return Err(MetricReadError::Unavailable);
+                }
+                let total = match row.total {
+                    Some(total) => Some(parse(Some(total))?),
+                    None => None,
+                };
+                if let Some(pair) = facts.get_mut(&key) {
+                    pair.native.insert(
+                        month,
+                        NativeMonth {
+                            total,
+                            conflict: row.conflict,
+                        },
+                    );
+                    if inside {
+                        pair.depends_on_country |= row.requires_country;
+                        pair.depends_on_institution |= row.requires_institution;
+                    }
+                }
+            }
+            "COUNTRY" => {
+                let code = row.country_code.ok_or(MetricReadError::Unavailable)?;
+                let value = parse(row.total)?;
+                let section_key = (row.platform_id, row.measure_id, code);
+                let current = sections.countries.get(&section_key).copied();
+                sections.countries.insert(section_key, add(current, value)?);
+                if let Some(pair) = facts.get_mut(&key) {
+                    pair.country_depends_on_institution |= row.requires_institution;
+                }
+            }
+            "INSTITUTION" => {
+                let institution_id = row.institution_id.ok_or(MetricReadError::Unavailable)?;
+                let name = row.institution_name.ok_or(MetricReadError::Unavailable)?;
+                let value = parse(row.total)?;
+                let section_key = (row.platform_id, row.measure_id, institution_id);
+                let current = sections.institutions.get(&section_key).map(|entry| entry.2);
+                sections
+                    .institutions
+                    .insert(section_key, (name, row.ror, add(current, value)?));
+                if let Some(pair) = facts.get_mut(&key) {
+                    pair.institution_depends_on_country |= row.requires_country;
+                }
+            }
+            _ => return Err(MetricReadError::Unavailable),
+        }
+    }
+    if sections.institutions.len() > METRIC_DASHBOARD_MAX_INSTITUTIONS {
+        return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_INSTITUTIONS));
+    }
+    Ok(())
 }
 
 /// The row bound each institution branch stops after: one more than the
@@ -3305,10 +4141,15 @@ fn resolve_works(
 /// is explicit. With no resolved work there is no represented publisher, so
 /// nothing, quarantine included, is represented. Every served measure,
 /// however selected, must be additive across both time and works.
+///
+/// Under `ON`, every pair with a native month in step 3b's scope (`native`,
+/// already restricted by an explicit dimension) is represented too, with
+/// its measure's additivity; a pair with only native refusals is not.
 fn resolve_scope(
     connection: &mut PgConnection,
     request: &ValidatedRequest,
     scope: &WorkScope,
+    native: &[NativeRow],
     deadline: &ReadDeadline,
 ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), MetricReadError> {
     let platform_filter: Vec<Uuid> = request.platforms.iter().flatten().copied().collect();
@@ -3386,12 +4227,30 @@ fn resolve_scope(
                     row.additive_across_time && row.additive_across_works,
                 );
             }
-            let platforms = explicit_platforms
-                .clone()
-                .unwrap_or_else(|| represented.iter().map(|row| row.platform_id).collect());
-            let measures = explicit_measures
-                .clone()
-                .unwrap_or_else(|| represented.iter().map(|row| row.measure_id).collect());
+            let months: Vec<&NativeRow> = native
+                .iter()
+                .filter(|row| row.kind == "PAIR" && row.has_month)
+                .collect();
+            for row in &months {
+                additivity.insert(
+                    row.measure_id,
+                    row.additive_across_time && row.additive_across_works,
+                );
+            }
+            let platforms = explicit_platforms.clone().unwrap_or_else(|| {
+                represented
+                    .iter()
+                    .map(|row| row.platform_id)
+                    .chain(months.iter().map(|row| row.platform_id))
+                    .collect()
+            });
+            let measures = explicit_measures.clone().unwrap_or_else(|| {
+                represented
+                    .iter()
+                    .map(|row| row.measure_id)
+                    .chain(months.iter().map(|row| row.measure_id))
+                    .collect()
+            });
             (platforms, measures)
         }
     };
@@ -3984,12 +4843,31 @@ struct PairFacts {
     /// Whether any institution value was taken from rows also broken down by
     /// country.
     institution_depends_on_country: bool,
+    /// The native months overlapping the range (`MET-WP4-MONTH-01`), by
+    /// month start: the set `N`, each with its unconflicted total. Empty
+    /// unless the read serves `MONTH` records.
+    native: BTreeMap<NaiveDate, NativeMonth>,
+    /// The pair's own start `S` when it is later than the served start: an
+    /// all-time read under `ON` judges the pair's coverage from it.
+    start: Option<NaiveDate>,
+}
+
+/// One native month of one pair, from step 3b's `TOTAL` row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NativeMonth {
+    /// The sum of the month's unconflicted cells, or `None` when none of
+    /// them has a value: the month then adds only its presence to `N`.
+    total: Option<BigInt>,
+    /// Whether some cell of the month is conflicted: its days are also
+    /// reported, so the month is cut in every cell.
+    conflict: bool,
 }
 
 impl PairFacts {
     /// The value of `[from, to)` inside the window: each complete month of
-    /// the interior wholly inside it from the monthly projection, and every
-    /// other day of it from the work-day projection.
+    /// the interior wholly inside it from the monthly projection, every
+    /// other day of it from the work-day projection, and every native month
+    /// wholly inside it, whose total is a contribution even when it is 0.
     ///
     /// Projected rows win: their exact sum is the value. With no rows, zero
     /// is returned only when zero is justified over every day of the range;
@@ -4011,7 +4889,44 @@ impl PairFacts {
             .range(from..months_from)
             .chain(self.days.range(months_to..to))
             .map(|(_, value)| value);
-        combine(months.chain(days), || coverage.justified(from, to))
+        let native = self
+            .native
+            .range(from..to)
+            .filter(move |(month, _)| next_month(**month) <= to)
+            .filter_map(|(_, month)| month.total.as_ref());
+        combine(months.chain(days).chain(native), || {
+            coverage.justified(from, to)
+        })
+    }
+
+    /// The cut set `S_cut` over the window (`MET-WP4-MONTH-01`): the days of
+    /// every native month that is conflicted, or that does not lie wholly
+    /// inside both the range and the bucket holding its first day, clipped
+    /// to the range. On a `DAY` timeline every native month is cut.
+    fn cut(&self, window: &Window) -> Vec<(NaiveDate, NaiveDate)> {
+        self.native
+            .iter()
+            .filter(|(month, native)| {
+                let end = next_month(**month);
+                let whole = **month >= window.start
+                    && end <= window.end
+                    && window
+                        .buckets
+                        .iter()
+                        .find(|(bucket_start, bucket_end)| {
+                            *bucket_start <= **month && **month < *bucket_end
+                        })
+                        .is_some_and(|(_, bucket_end)| end <= *bucket_end);
+                native.conflict || !whole
+            })
+            .map(|(month, _)| {
+                (
+                    (*month).max(window.start),
+                    next_month(*month).min(window.end),
+                )
+            })
+            .filter(|(from, to)| from < to)
+            .collect()
     }
 }
 
@@ -4117,8 +5032,13 @@ impl Tally {
 }
 
 /// Group the runs by served platform and measure, keeping only the runs of
-/// eligible accounts of the represented publishers, and refuse same-stream
-/// overlap (#980 Amendment 2 section 5, `MET-WP4-MULTI-ACCOUNT-01`).
+/// eligible accounts of the represented publishers, clipped to their
+/// accounts' windows, and refuse same-stream overlap (#980 Amendment 2
+/// section 5, `MET-WP4-MULTI-ACCOUNT-01`, `MET-WP4-MONTH-01`).
+///
+/// A kept run is clipped to its account's window and dropped when nothing
+/// is left, before the overlap check, so an overlap outside a window refuses
+/// nothing.
 ///
 /// A run is kept only if its whole `(source_account_id, publisher_id,
 /// platform_id)` triple is an eligible account and its publisher is
@@ -4133,19 +5053,29 @@ fn coverage_streams(
     runs: &[CoverageRun],
     publishers: &[Uuid],
     accounts: &BTreeSet<EligibleAccount>,
+    windows: &BTreeMap<EligibleAccount, AccountWindow>,
 ) -> Result<BTreeMap<(Uuid, Uuid), Vec<CoverageRun>>, MetricReadError> {
     let represented: BTreeSet<&Uuid> = publishers.iter().collect();
     let mut ordered: Vec<CoverageRun> = runs
         .iter()
-        .filter(|run| {
-            represented.contains(&run.publisher_id)
-                && accounts.contains(&EligibleAccount {
-                    source_account_id: run.source_account_id,
-                    publisher_id: run.publisher_id,
-                    platform_id: run.platform_id,
-                })
+        .filter_map(|run| {
+            let account = EligibleAccount {
+                source_account_id: run.source_account_id,
+                publisher_id: run.publisher_id,
+                platform_id: run.platform_id,
+            };
+            if !represented.contains(&run.publisher_id) || !accounts.contains(&account) {
+                return None;
+            }
+            let window = windows.get(&account);
+            let start = window
+                .and_then(|window| window.start)
+                .map_or(run.start, |start| start.max(run.start));
+            let end = window
+                .and_then(|window| window.end)
+                .map_or(run.end, |end| end.min(run.end));
+            (start < end).then_some(CoverageRun { start, end, ..*run })
         })
-        .copied()
         .collect();
     ordered.sort_by_key(|run| {
         (
@@ -4183,12 +5113,13 @@ fn coverage_streams(
 
 /// Tile `[start, end)` with maximal segments of constant combined coverage
 /// from one pair's runs, which are already clipped to it, by one sweep over
-/// their boundaries; a day is asserted only when `required` runs cover it.
+/// their boundaries and the platform's window boundaries; a day is asserted
+/// only when the streams `requirement` asks of that day cover it.
 fn segments(
     start: NaiveDate,
     end: NaiveDate,
     runs: &[CoverageRun],
-    required: usize,
+    requirement: &Requirement,
 ) -> Vec<Segment> {
     // A run closing on a day is applied before one opening on it, so the
     // counts never go below zero.
@@ -4203,9 +5134,11 @@ fn segments(
         .collect();
     events.sort_by_key(|(day, opens, _)| (*day, *opens));
     record_size("events", events.len());
+    record_sparse("boundaries", requirement.boundaries.len());
     let mut tally = Tally::default();
     let mut segments: Vec<Segment> = Vec::new();
     let mut next_event = 0;
+    let mut next_boundary = 0;
     let mut cursor = start;
     while cursor < end {
         while let Some((day, opens, coverage)) = events.get(next_event) {
@@ -4215,10 +5148,23 @@ fn segments(
             tally.apply(*opens, *coverage);
             next_event += 1;
         }
+        while requirement
+            .boundaries
+            .get(next_boundary)
+            .is_some_and(|day| *day <= cursor)
+        {
+            next_boundary += 1;
+        }
         let segment_end = events
             .get(next_event)
-            .map_or(end, |(day, _, _)| (*day).min(end));
-        let coverage = tally.combined(required);
+            .map_or(end, |(day, _, _)| (*day).min(end))
+            .min(
+                requirement
+                    .boundaries
+                    .get(next_boundary)
+                    .map_or(end, |day| (*day).min(end)),
+            );
+        let coverage = tally.combined(requirement.at(cursor));
         match segments.last_mut() {
             Some(last) if last.coverage == coverage => last.end = segment_end,
             _ => segments.push(Segment {
@@ -4277,6 +5223,9 @@ struct PairCoverage {
     identifier_incomplete: bool,
     country_coverage: bool,
     institution_coverage: bool,
+    /// The day the pair is judged from: its own start `S` under
+    /// `MET-WP4-MONTH-01`'s all-time rule, otherwise the served start.
+    start: NaiveDate,
 }
 
 impl PairCoverage {
@@ -4292,6 +5241,13 @@ impl PairCoverage {
     /// the returned sections, so an omitted section cannot downgrade it
     /// through its own dimension, and a returned one never changes a total
     /// or timeline value.
+    ///
+    /// The unjustified intervals come from every segment, as do the cut
+    /// days `S_cut`, which are unjustified, break the run and make a
+    /// `COMPLETE` segment `PARTIAL`. Every other derivation (`unknown`,
+    /// `partial`, the first break and the two dimension flags) skips the days
+    /// before the pair's start `S` (`MET-WP4-MONTH-01`), which is the served
+    /// start unless an all-time read under `ON` set a later one.
     fn of(
         evaluation: &Evaluation<'_>,
         platform_id: Uuid,
@@ -4303,15 +5259,31 @@ impl PairCoverage {
             window.start,
             window.end,
             runs,
-            evaluation.required_streams(platform_id),
+            &evaluation.requirement(platform_id),
         );
+        let start = facts
+            .start
+            .map_or(window.start, |start| start.max(window.start));
         let lag = merge_intervals(clipped(&facts.lag, window.start, window.end));
         let quarantine = clipped(&facts.quarantine, window.start, window.end);
+        let cut = merge_intervals(facts.cut(window));
         record_size("lag", lag.len());
         record_size("quarantine", quarantine.len());
+        record_sparse("cut", cut.len());
         let mut unjustified: Vec<(NaiveDate, NaiveDate)> =
-            Vec::with_capacity(segments.len() + lag.len() + quarantine.len());
-        let mut first_break = lag.first().map(|(start, _)| *start);
+            Vec::with_capacity(segments.len() + lag.len() + quarantine.len() + cut.len());
+        // The first day on or after the start of the first interval that
+        // reaches past it.
+        let from_start = |intervals: &[(NaiveDate, NaiveDate)]| {
+            intervals
+                .iter()
+                .find(|(_, end)| *end > start)
+                .map(|(from, _)| (*from).max(start))
+        };
+        let mut first_break = [from_start(&lag), from_start(&cut)]
+            .into_iter()
+            .flatten()
+            .min();
         let mut coverage = PairCoverage {
             unjustified: Vec::new(),
             first_break: None,
@@ -4321,6 +5293,7 @@ impl PairCoverage {
             identifier_incomplete: !quarantine.is_empty(),
             country_coverage: true,
             institution_coverage: true,
+            start,
         };
         for segment in &segments {
             let total = effective(
@@ -4344,8 +5317,18 @@ impl PairCoverage {
             if total != MetricCoverageStatus::Complete {
                 unjustified.push((segment.start, segment.end));
             }
+            if segment.end <= start {
+                continue;
+            }
+            let from = segment.start.max(start);
             if shared != MetricCoverageStatus::Complete {
-                first_break = Some(first_break.map_or(segment.start, |day| day.min(segment.start)));
+                first_break = Some(first_break.map_or(from, |day| day.min(from)));
+            } else if cut
+                .iter()
+                .any(|(cut_from, cut_to)| (*cut_from).max(from) < (*cut_to).min(segment.end))
+            {
+                // A cut day is at worst PARTIAL: zero is not justified there.
+                coverage.partial = true;
             }
             coverage.unknown |= shared == MetricCoverageStatus::Unknown;
             coverage.partial |= shared == MetricCoverageStatus::Partial;
@@ -4354,6 +5337,7 @@ impl PairCoverage {
         }
         unjustified.extend(lag);
         unjustified.extend(quarantine);
+        unjustified.extend(cut);
         coverage.unjustified = merge_intervals(unjustified);
         record_size("unjustified", coverage.unjustified.len());
         coverage.first_break = first_break;
@@ -4382,6 +5366,59 @@ struct EligibleAccount {
     platform_id: Uuid,
 }
 
+/// One eligible account's window `[start, end)`, either end optional, and
+/// succession (`MET-WP4-MONTH-01`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct AccountWindow {
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+    succession: Option<String>,
+}
+
+impl AccountWindow {
+    fn contains(&self, day: NaiveDate) -> bool {
+        self.start.is_none_or(|start| start <= day) && self.end.is_none_or(|end| day < end)
+    }
+
+    fn is_unbounded(&self) -> bool {
+        self.start.is_none() && self.end.is_none()
+    }
+}
+
+/// What each day of one platform requires (`MET-WP4-MONTH-01`):
+/// `required(P, d)`, the sum over the represented publishers of 1 for one
+/// without an eligible account on `P`, and otherwise, over its slots on `P`
+/// (each succession, and each account without one), of the slot's members
+/// whose window contains `d`, at least 1. It is constant between the window
+/// boundaries.
+#[derive(Debug, Default)]
+struct Requirement {
+    /// The streams every day requires: publishers without an account, and
+    /// slots none of whose members has a window.
+    constant: usize,
+    /// The member windows of every other slot.
+    windowed: Vec<Vec<AccountWindow>>,
+    /// The windowed slots' window boundaries, sorted and distinct.
+    boundaries: Vec<NaiveDate>,
+}
+
+impl Requirement {
+    fn at(&self, day: NaiveDate) -> usize {
+        self.constant
+            + self
+                .windowed
+                .iter()
+                .map(|members| {
+                    members
+                        .iter()
+                        .filter(|window| window.contains(day))
+                        .count()
+                        .max(1)
+                })
+                .sum::<usize>()
+    }
+}
+
 /// Everything the interval engine evaluates for one read.
 struct Evaluation<'a> {
     window: &'a Window,
@@ -4392,33 +5429,75 @@ struct Evaluation<'a> {
     /// The eligible accounts of the represented publishers on the served
     /// platforms, any number per publisher and platform.
     accounts: &'a BTreeSet<EligibleAccount>,
+    /// The window and succession of each eligible account that has either;
+    /// an account absent here is unbounded and its own slot.
+    windows: &'a BTreeMap<EligibleAccount, AccountWindow>,
     include_countries: bool,
     include_institutions: bool,
     facts: &'a BTreeMap<(Uuid, Uuid), PairFacts>,
     runs: &'a [CoverageRun],
 }
 
+/// A requirement slot (`MET-WP4-MONTH-01`): a publisher and either a
+/// succession label or the one account without a label.
+type SlotKey<'a> = (Uuid, Option<&'a str>, Option<Uuid>);
+
 impl Evaluation<'_> {
-    /// `required(P)`: the number of streams that must assert a day of
-    /// platform `P` for it to be asserted, the sum over the represented
-    /// publishers of the number of their distinct eligible accounts on `P`,
-    /// or 1 for a publisher with none, whose one stream never asserts, so
-    /// `P` stays `UNKNOWN`. With no represented publisher it is 0 and
-    /// nothing is asserted.
-    fn required_streams(&self, platform_id: Uuid) -> usize {
-        let mut accounts: BTreeMap<Uuid, BTreeSet<Uuid>> = BTreeMap::new();
+    /// `required(P, d)`: the number of streams that must assert a day `d` of
+    /// platform `P` for it to be asserted ([`Requirement`]). A publisher with
+    /// no eligible account on `P` requires one stream that never asserts, so
+    /// `P` stays `UNKNOWN`. With no window and no succession it is the number
+    /// of distinct eligible accounts per publisher, or 1 for one with none,
+    /// on every day; with no represented publisher it is 0 and nothing is
+    /// asserted.
+    fn requirement(&self, platform_id: Uuid) -> Requirement {
+        // A slot is keyed by publisher and either a succession label or the
+        // one account without a label.
+        let mut slots: BTreeMap<SlotKey<'_>, Vec<AccountWindow>> = BTreeMap::new();
         for account in self.accounts {
-            if account.platform_id == platform_id {
-                accounts
-                    .entry(account.publisher_id)
-                    .or_default()
-                    .insert(account.source_account_id);
+            if account.platform_id != platform_id {
+                continue;
+            }
+            let window = self.windows.get(account).cloned().unwrap_or_default();
+            let label = self
+                .windows
+                .get(account)
+                .and_then(|window| window.succession.as_deref());
+            let key = match label {
+                Some(label) => (account.publisher_id, Some(label), None),
+                None => (account.publisher_id, None, Some(account.source_account_id)),
+            };
+            slots.entry(key).or_default().push(window);
+        }
+        let mut requirement = Requirement::default();
+        for publisher_id in self.publishers {
+            let own: Vec<&Vec<AccountWindow>> = slots
+                .iter()
+                .filter(|((publisher, _, _), _)| publisher == publisher_id)
+                .map(|(_, members)| members)
+                .collect();
+            if own.is_empty() {
+                requirement.constant += 1;
+                continue;
+            }
+            for members in own {
+                if members.iter().all(AccountWindow::is_unbounded) {
+                    requirement.constant += members.len().max(1);
+                } else {
+                    for window in members {
+                        for boundary in [window.start, window.end].into_iter().flatten() {
+                            if self.window.start < boundary && boundary < self.window.end {
+                                requirement.boundaries.push(boundary);
+                            }
+                        }
+                    }
+                    requirement.windowed.push(members.clone());
+                }
             }
         }
-        self.publishers
-            .iter()
-            .map(|publisher_id| accounts.get(publisher_id).map_or(1, |ids| ids.len().max(1)))
-            .sum()
+        requirement.boundaries.sort_unstable();
+        requirement.boundaries.dedup();
+        requirement
     }
 }
 
@@ -4436,6 +5515,15 @@ fn record_size(structure: &'static str, len: usize) {
 #[cfg(not(test))]
 fn record_size(_structure: &'static str, _len: usize) {}
 
+/// [`record_size`] for a structure that only some reads hold (native months,
+/// windows): recorded only when it is not empty, so a read without them
+/// records exactly what it recorded before they existed.
+fn record_sparse(structure: &'static str, len: usize) {
+    if len > 0 {
+        record_size(structure, len);
+    }
+}
+
 #[cfg(test)]
 thread_local! {
     /// The largest element count each internal structure reached on this
@@ -4451,7 +5539,12 @@ fn assemble(
 ) -> Result<MetricDashboard, MetricReadError> {
     let window = evaluation.window;
     let combinations = evaluation.combinations;
-    let streams = coverage_streams(evaluation.runs, evaluation.publishers, evaluation.accounts)?;
+    let streams = coverage_streams(
+        evaluation.runs,
+        evaluation.publishers,
+        evaluation.accounts,
+        evaluation.windows,
+    )?;
     record_size("buckets", window.buckets.len());
     let mut totals = Vec::with_capacity(combinations.len());
     let mut timeline = Vec::with_capacity(combinations.len() * window.buckets.len());
@@ -4467,6 +5560,7 @@ fn assemble(
         let facts = evaluation.facts.get(&key).unwrap_or(&no_facts);
         record_size("months", facts.months.len());
         record_size("days", facts.days.len());
+        record_sparse("native", facts.native.len());
         let runs = streams.get(&key).map_or(&[][..], Vec::as_slice);
         let coverage = PairCoverage::of(evaluation, *platform_id, facts, runs);
 
@@ -4497,8 +5591,10 @@ fn assemble(
         } else {
             MetricCoverageStatus::Complete
         };
+        // Under MET-WP4-MONTH-01's all-time rule a pair is judged from its
+        // own start; otherwise that is the served start.
         let data_through = match coverage.first_break {
-            Some(day) if day <= window.start => None,
+            Some(day) if day <= coverage.start => None,
             Some(day) => day.pred_opt(),
             None => window.end.pred_opt(),
         };

@@ -126,6 +126,31 @@ pub fn metric_widget() -> Arg {
         .num_args(1)
 }
 
+/// Whether `metricDashboard` and `metricWidget` serve `MONTH` records
+/// (`MET-WP4-MONTH-01`).
+///
+/// ```text
+/// OFF  a request that a MONTH record overlaps is refused as today, and every
+///      other response is unchanged apart from asOf (the default)
+/// ON   MONTH records are served from the native-month projection, and an
+///      all-time read judges each platform and measure from its own start
+/// ```
+///
+/// The value is read once at process start; there is no reload path. The
+/// projection is maintained whatever the value. Turning it on in a deployed
+/// environment is a separately authorized activation, not a deployment
+/// detail.
+pub fn metric_month_serving() -> Arg {
+    Arg::new("metric-month-serving")
+        .long("metric-month-serving")
+        .value_name("THOTH_METRIC_MONTH_SERVING")
+        .env("THOTH_METRIC_MONTH_SERVING")
+        .default_value("OFF")
+        .value_parser(["OFF", "ON"])
+        .help("Monthly Metrics serving in metricDashboard and metricWidget: OFF or ON")
+        .num_args(1)
+}
+
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')

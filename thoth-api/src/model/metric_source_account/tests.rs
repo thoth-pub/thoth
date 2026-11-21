@@ -581,9 +581,11 @@ fn metric_source_account_carries_exactly_the_expected_code_constraints() {
         vec![
             "metric_source_account_code_check",
             "metric_source_account_external_key_check",
+            "metric_source_account_succession_check",
+            "metric_source_account_window_check",
         ],
-        "metric_source_account must carry exactly the original external_key check \
-         and the one MET-WP2-01A code check"
+        "metric_source_account must carry exactly the original external_key check, \
+         the one MET-WP2-01A code check and the two MET-WP4-MONTH-01 checks"
     );
     assert_eq!(
         scalar_i64(
@@ -705,6 +707,9 @@ fn new_account(
         expected_publisher_id: Some(FIXTURE_PUBLISHER_ID),
         configuration,
         enabled: true,
+        window_start: None,
+        window_end: None,
+        succession: None,
     }
 }
 
@@ -1369,34 +1374,48 @@ fn update_replaces_exactly_configuration_and_enabled_and_audits_persisted_states
         serde_json::to_value(&updated).expect("serialize")
     );
 
-    // Structural immutability: the patch type has exactly three members and the
-    // one UPDATE statement sets exactly the two mutable columns.
+    // Structural immutability: the patch type has exactly three members, the
+    // patch UPDATE sets exactly the two mutable columns and the window UPDATE
+    // (`MET-WP4-MONTH-01`) exactly the three window columns.
     let PatchMetricSourceAccount {
         code: _,
         configuration: _,
         enabled: _,
     } = patch_account("x", empty(), true);
     let source = include_str!("crud.rs");
-    let set_clause = source
-        .split_once("diesel::update(metric_source_account::table.find(current.source_account_id))")
-        .expect("one update statement")
-        .1
-        .split_once(".returning(")
-        .expect("returning")
-        .0;
-    for immutable in [
-        "metric_source_account::code.eq",
-        "metric_source_account::source_id.eq",
-        "metric_source_account::platform_id.eq",
-        "metric_source_account::external_key.eq",
-        "metric_source_account::expected_publisher_id.eq",
-    ] {
-        assert!(
-            !set_clause.contains(immutable),
-            "SET must not write `{immutable}`"
-        );
+    let set_clauses: Vec<&str> = source
+        .split("diesel::update(metric_source_account::table.find(current.source_account_id))")
+        .skip(1)
+        .map(|rest| rest.split_once(".returning(").expect("returning").0)
+        .collect();
+    assert_eq!(set_clauses.len(), 2, "two update statements");
+    for set_clause in &set_clauses {
+        for immutable in [
+            "metric_source_account::code.eq",
+            "metric_source_account::source_id.eq",
+            "metric_source_account::platform_id.eq",
+            "metric_source_account::external_key.eq",
+            "metric_source_account::expected_publisher_id.eq",
+        ] {
+            assert!(
+                !set_clause.contains(immutable),
+                "SET must not write `{immutable}`"
+            );
+        }
     }
-    assert_eq!(source.matches("diesel::update(").count(), 1);
+    let written = |set_clause: &str| -> Vec<String> {
+        set_clause
+            .split("metric_source_account::")
+            .skip(1)
+            .map(|column| column.split_once(".eq").expect("a column").0.to_string())
+            .collect()
+    };
+    assert_eq!(written(set_clauses[0]), ["configuration", "enabled"]);
+    assert_eq!(
+        written(set_clauses[1]),
+        ["window_start", "window_end", "succession"]
+    );
+    assert_eq!(source.matches("diesel::update(").count(), 2);
 }
 
 #[test]
@@ -1726,10 +1745,12 @@ fn two_competing_updates_serialise_and_their_audit_chain_matches_commit_order() 
 #[test]
 fn the_coordinator_takes_exactly_one_application_row_lock() {
     let source = include_str!("crud.rs");
+    // Two coordinators lock, the patch and the window update
+    // (`MET-WP4-MONTH-01`), each exactly once.
     assert_eq!(
         source.matches(".for_update()").count(),
-        1,
-        "the account coordinator must request exactly one row lock"
+        2,
+        "each account coordinator must request exactly one row lock"
     );
     for forbidden in FORBIDDEN_JOIN_CONSTRUCTS {
         assert!(
@@ -1737,21 +1758,23 @@ fn the_coordinator_takes_exactly_one_application_row_lock() {
             "a joined multi-table FOR UPDATE is prohibited: found `{forbidden}`"
         );
     }
-    let (before_lock, after_lock) = source.split_once(".for_update()").expect("one lock");
-    let opening: String = before_lock
-        .rsplit("let current")
-        .next()
-        .expect("the lock belongs to the current-state read")
-        .split_whitespace()
-        .collect();
-    assert!(
-        opening.contains(
-            "metric_source_account::table.filter(metric_source_account::code.eq(&data.code))"
-        ),
-        "the one lock must be taken on the canonical metric_source_account row selected by \
-         exact code, found: {opening}"
-    );
-    assert!(!after_lock.contains("for_update"));
+    let parts: Vec<&str> = source.split(".for_update()").collect();
+    for before_lock in &parts[..parts.len() - 1] {
+        let opening: String = before_lock
+            .rsplit("let current")
+            .next()
+            .expect("the lock belongs to the current-state read")
+            .split_whitespace()
+            .collect();
+        assert!(
+            opening.contains(
+                "metric_source_account::table.filter(metric_source_account::code.eq(&data.code))"
+            ),
+            "each lock must be taken on the canonical metric_source_account row selected by \
+             exact code, found: {opening}"
+        );
+    }
+    assert!(!parts[parts.len() - 1].contains("for_update"));
 }
 
 #[test]
@@ -1828,4 +1851,316 @@ fn an_account_update_does_not_wait_for_locks_on_its_source_platform_or_publisher
     release_tx.send(()).expect("release the holder");
     holder.join().expect("holder thread");
     assert_eq!(updated.configuration["logging"]["bucket"], "b2");
+}
+
+// --------------------------------------------------------------------------
+// `MET-WP4-MONTH-01`: account windows and successions
+// --------------------------------------------------------------------------
+
+use super::crud::update_metric_source_account_window;
+use super::{MetricSourceAccountWindow, SUCCESSION_FORMAT_MESSAGE, WINDOW_ORDER_MESSAGE};
+
+fn window_day(year: i32, month: u32, day: u32) -> chrono::NaiveDate {
+    chrono::NaiveDate::from_ymd_opt(year, month, day).expect("a valid date")
+}
+
+/// `(windowStart, windowEnd, succession)`.
+type WindowFields = (
+    Option<chrono::NaiveDate>,
+    Option<chrono::NaiveDate>,
+    Option<String>,
+);
+
+/// Malformed windows and successions, each with its fixed refusal.
+fn refused_windows() -> Vec<(WindowFields, &'static str)> {
+    let (first, second) = (window_day(2026, 2, 1), window_day(2026, 2, 2));
+    let label = |text: &str| -> WindowFields { (None, None, Some(text.to_string())) };
+    vec![
+        ((Some(first), Some(first), None), WINDOW_ORDER_MESSAGE),
+        ((Some(second), Some(first), None), WINDOW_ORDER_MESSAGE),
+        (label(""), SUCCESSION_FORMAT_MESSAGE),
+        (label("Site"), SUCCESSION_FORMAT_MESSAGE),
+        (label("-site"), SUCCESSION_FORMAT_MESSAGE),
+        (label("site-"), SUCCESSION_FORMAT_MESSAGE),
+        (label("a--b"), SUCCESSION_FORMAT_MESSAGE),
+        (label("site_a"), SUCCESSION_FORMAT_MESSAGE),
+        (label("site a"), SUCCESSION_FORMAT_MESSAGE),
+        (label("caf\u{e9}"), SUCCESSION_FORMAT_MESSAGE),
+        (label(&"a".repeat(65)), SUCCESSION_FORMAT_MESSAGE),
+    ]
+}
+
+fn window_update(code: &str, fields: WindowFields) -> MetricSourceAccountWindow {
+    let (window_start, window_end, succession) = fields;
+    MetricSourceAccountWindow {
+        code: code.to_string(),
+        window_start,
+        window_end,
+        succession,
+    }
+}
+
+fn account_audits(pool: &PgPool, action: &str) -> usize {
+    source_audit_rows(pool)
+        .iter()
+        .filter(|row| row.entity == "SOURCE_ACCOUNT" && row.action == action)
+        .count()
+}
+
+#[test]
+fn create_refuses_a_malformed_window_or_succession_before_any_read_and_stores_valid_ones() {
+    let (_guard, pool) = setup_registry_db();
+    fixture_sources_and_platform(&pool);
+    for ((window_start, window_end, succession), message) in refused_windows() {
+        let label = format!("{window_start:?} {window_end:?} {succession:?}");
+        // An unknown source as well: the window is refused before any read.
+        for source_code in ["cf_source", "no_such_source"] {
+            let mut data = new_account("cf", source_code, HOST, cloudfront(HOST, "b", "p"));
+            data.window_start = window_start;
+            data.window_end = window_end;
+            data.succession = succession.clone();
+            let error = create_metric_source_account(&pool, "actor-1", &data).expect_err(&label);
+            expect_constraint_message(&error, message, &label);
+        }
+    }
+    assert_eq!(
+        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_source_account)"),
+        0
+    );
+    assert_eq!(account_audits(&pool, "CREATE"), 0);
+
+    // Valid values round-trip and are audited with the account.
+    let mut data = new_account("cf", "cf_source", HOST, cloudfront(HOST, "b", "p"));
+    let longest = format!("site-{}", "a".repeat(59));
+    assert_eq!(longest.len(), 64);
+    data.window_start = Some(window_day(2015, 1, 1));
+    data.window_end = Some(window_day(2024, 3, 1));
+    data.succession = Some(longest.clone());
+    let created = create_metric_source_account(&pool, "actor-1", &data).expect("create");
+    assert_eq!(
+        (
+            created.window_start,
+            created.window_end,
+            created.succession.clone()
+        ),
+        (data.window_start, data.window_end, Some(longest.clone()))
+    );
+    assert_eq!(
+        metric_source_account_by_code(&pool, "cf").expect("read"),
+        created
+    );
+    let rows = source_audit_rows(&pool);
+    let create = rows
+        .iter()
+        .find(|row| row.entity == "SOURCE_ACCOUNT" && row.action == "CREATE")
+        .expect("the create audit");
+    assert_eq!(create.after_state["windowStart"], "2015-01-01");
+    assert_eq!(create.after_state["windowEnd"], "2024-03-01");
+    assert_eq!(create.after_state["succession"], longest.as_str());
+
+    // Either end alone, or neither, is a window; a label of digits and single
+    // hyphens is a succession.
+    for (code, window_start, window_end, succession) in [
+        (
+            "open-end",
+            Some(window_day(2024, 3, 1)),
+            None,
+            Some("2024-site"),
+        ),
+        ("open-start", None, Some(window_day(2024, 3, 1)), None),
+        ("unbounded", None, None, Some("a1-b2-c3")),
+    ] {
+        let mut data = new_account(code, "admin_source", code, empty());
+        data.window_start = window_start;
+        data.window_end = window_end;
+        data.succession = succession.map(str::to_string);
+        let created = create_metric_source_account(&pool, "actor-1", &data).expect(code);
+        assert_eq!(
+            (created.window_start, created.window_end, created.succession),
+            (window_start, window_end, succession.map(str::to_string)),
+            "{code}"
+        );
+    }
+}
+
+#[test]
+fn the_window_update_replaces_only_its_three_fields_and_audits_only_a_real_change() {
+    let (_guard, pool) = setup_registry_db();
+    fixture_sources_and_platform(&pool);
+    let created = create_metric_source_account(
+        &pool,
+        "actor-1",
+        &new_account("cf", "cf_source", HOST, cloudfront(HOST, "b", "p")),
+    )
+    .expect("create");
+    let audits = source_audit_rows(&pool).len();
+
+    // Refused before any read, an unknown code included, and nothing changes.
+    for (fields, message) in refused_windows() {
+        let label = format!("{fields:?}");
+        for code in ["cf", "no-such-account"] {
+            let error = update_metric_source_account_window(
+                &pool,
+                "actor-2",
+                &window_update(code, fields.clone()),
+            )
+            .expect_err(&label);
+            expect_constraint_message(&error, message, &label);
+        }
+    }
+    assert_eq!(
+        metric_source_account_by_code(&pool, "cf").expect("read"),
+        created
+    );
+    assert_eq!(source_audit_rows(&pool).len(), audits);
+
+    // A request equal to the stored values changes and audits nothing.
+    let unchanged = update_metric_source_account_window(
+        &pool,
+        "actor-2",
+        &window_update("cf", (None, None, None)),
+    )
+    .expect("a no-op");
+    assert_eq!(unchanged, created);
+    assert_eq!(source_audit_rows(&pool).len(), audits);
+
+    // A real change sets exactly the three fields and records one UPDATE
+    // entry with the exact before and after states.
+    let fields: WindowFields = (Some(window_day(2024, 3, 1)), None, Some("site".to_string()));
+    let updated =
+        update_metric_source_account_window(&pool, "actor-2", &window_update("cf", fields.clone()))
+            .expect("the update");
+    assert_eq!(
+        updated,
+        MetricSourceAccount {
+            window_start: fields.0,
+            window_end: fields.1,
+            succession: fields.2.clone(),
+            ..created.clone()
+        }
+    );
+    assert_eq!(account_audits(&pool, "UPDATE"), 1);
+    let rows = source_audit_rows(&pool);
+    let update = rows
+        .iter()
+        .find(|row| row.entity == "SOURCE_ACCOUNT" && row.action == "UPDATE")
+        .expect("the update audit");
+    assert_eq!(update.actor, "actor-2");
+    assert_eq!(update.entity_id, created.source_account_id);
+    assert_eq!(
+        update.before_state.as_ref().expect("before"),
+        &serde_json::to_value(&created).expect("serialize")
+    );
+    assert_eq!(
+        update.after_state,
+        serde_json::to_value(&updated).expect("serialize")
+    );
+    assert_eq!(update.after_state["windowStart"], "2024-03-01");
+    assert!(update.after_state["windowEnd"].is_null());
+    assert_eq!(update.after_state["succession"], "site");
+    // The same request again is a no-op.
+    assert_eq!(
+        update_metric_source_account_window(&pool, "actor-2", &window_update("cf", fields))
+            .expect("a repeated request"),
+        updated
+    );
+    assert_eq!(account_audits(&pool, "UPDATE"), 1);
+
+    // updateMetricSourceAccount never touches the three fields.
+    let patched = update_metric_source_account(
+        &pool,
+        "actor-3",
+        &patch_account("cf", cloudfront(HOST, "b2", "p2"), false),
+    )
+    .expect("the patch");
+    assert_eq!(
+        (
+            patched.window_start,
+            patched.window_end,
+            patched.succession.clone()
+        ),
+        (
+            updated.window_start,
+            updated.window_end,
+            updated.succession.clone()
+        )
+    );
+    // Null clears each field.
+    let cleared = update_metric_source_account_window(
+        &pool,
+        "actor-4",
+        &window_update("cf", (None, None, None)),
+    )
+    .expect("the clearing update");
+    assert_eq!(
+        (cleared.window_start, cleared.window_end, cleared.succession),
+        (None, None, None)
+    );
+    assert_eq!(account_audits(&pool, "UPDATE"), 3);
+
+    // An account whose stored configuration is unsupported is neither
+    // updated nor audited.
+    plant_stored_configuration(&pool, "cf", "{}");
+    let audits = source_audit_rows(&pool).len();
+    let error = update_metric_source_account_window(
+        &pool,
+        "actor-5",
+        &window_update("cf", (Some(window_day(2024, 1, 1)), None, None)),
+    )
+    .expect_err("an unsupported stored configuration");
+    expect_constraint_message(
+        &error,
+        ConfigurationError::UnsupportedStored.message(),
+        "unsupported",
+    );
+    assert_eq!(source_audit_rows(&pool).len(), audits);
+    assert_eq!(
+        scalar_i64(
+            &pool,
+            "(SELECT COUNT(*) FROM metric_source_account WHERE window_start IS NOT NULL)"
+        ),
+        0
+    );
+}
+
+#[test]
+fn a_direct_write_violating_either_check_maps_to_its_message() {
+    let (_guard, pool) = setup_registry_db();
+    fixture_sources_and_platform(&pool);
+    create_metric_source_account(
+        &pool,
+        "actor-1",
+        &new_account("cf", "cf_source", HOST, cloudfront(HOST, "b", "p")),
+    )
+    .expect("create");
+    let mut connection = pool.get().expect("Failed to get DB connection");
+    for (statement, message) in [
+        (
+            "UPDATE metric_source_account SET window_start = '2026-02-01', \
+             window_end = '2026-02-01' WHERE code = 'cf'",
+            WINDOW_ORDER_MESSAGE,
+        ),
+        (
+            "UPDATE metric_source_account SET window_start = '2026-02-02', \
+             window_end = '2026-02-01' WHERE code = 'cf'",
+            WINDOW_ORDER_MESSAGE,
+        ),
+        (
+            "UPDATE metric_source_account SET succession = 'Site' WHERE code = 'cf'",
+            SUCCESSION_FORMAT_MESSAGE,
+        ),
+        (
+            "UPDATE metric_source_account SET succession = '' WHERE code = 'cf'",
+            SUCCESSION_FORMAT_MESSAGE,
+        ),
+        (
+            "UPDATE metric_source_account SET succession = repeat('a', 65) WHERE code = 'cf'",
+            SUCCESSION_FORMAT_MESSAGE,
+        ),
+    ] {
+        let error = sql_query(statement)
+            .execute(&mut connection)
+            .expect_err(statement);
+        expect_constraint_message(&ThothError::from(error), message, statement);
+    }
 }

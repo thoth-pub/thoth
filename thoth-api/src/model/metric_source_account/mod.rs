@@ -23,6 +23,7 @@
 //! deliberately non-cascading, and nothing here administers
 //! `metric_source_checkpoint`.
 
+use chrono::NaiveDate;
 use serde::Serialize;
 use serde_json::{json, Map, Value as JsonValue};
 use uuid::Uuid;
@@ -54,6 +55,12 @@ pub const CLOUDFRONT_DRIVER_KEY: &str = "cloudfront";
 /// The row serializes to camel case so that an audit `before_state` /
 /// `after_state` records exactly the persisted canonical state, including the
 /// canonical (already decoder-validated) configuration.
+///
+/// `window_start`, `window_end` and `succession` (`MET-WP4-MONTH-01`) are the
+/// account's optional half-open coverage window `[window_start, window_end)`
+/// and its succession label. They are read-time coverage rules only: a window
+/// limits which days the account's coverage counts for, and accounts of one
+/// publisher and platform that share a label stand in for each other.
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -66,6 +73,9 @@ pub struct MetricSourceAccount {
     pub expected_publisher_id: Option<Uuid>,
     pub configuration: JsonValue,
     pub enabled: bool,
+    pub window_start: Option<NaiveDate>,
+    pub window_end: Option<NaiveDate>,
+    pub succession: Option<String>,
 }
 
 /// The closed set of typed configuration representations.
@@ -192,6 +202,27 @@ pub struct NewMetricSourceAccount {
     pub expected_publisher_id: Option<Uuid>,
     pub configuration: MetricSourceAccountConfigurationInput,
     pub enabled: bool,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "First day on which the account's coverage counts, if bounded (MET-WP4-MONTH-01)"
+        )
+    )]
+    pub window_start: Option<NaiveDate>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "First day on which the account's coverage no longer counts, if bounded; it must be after windowStart"
+        )
+    )]
+    pub window_end: Option<NaiveDate>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Succession label shared by accounts of one publisher and platform that collect one source of traffic: 1 to 64 lowercase letters, digits and single hyphens"
+        )
+    )]
+    pub succession: Option<String>,
 }
 
 /// A complete replacement of a metric source account's mutable fields
@@ -213,6 +244,64 @@ pub struct PatchMetricSourceAccount {
     pub code: String,
     pub configuration: MetricSourceAccountConfigurationInput,
     pub enabled: bool,
+}
+
+/// A complete replacement of a metric source account's window and succession
+/// (`MET-WP4-MONTH-01`), selected by its stable code. `None` clears a field.
+///
+/// It is built from the arguments of `updateMetricSourceAccountWindow`;
+/// [`PatchMetricSourceAccount`] never carries these fields, so
+/// `updateMetricSourceAccount` never touches them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetricSourceAccountWindow {
+    pub code: String,
+    pub window_start: Option<NaiveDate>,
+    pub window_end: Option<NaiveDate>,
+    pub succession: Option<String>,
+}
+
+/// The fixed refusal of a window that does not end after it starts. It is
+/// byte-identical to the message `metric_source_account_window_check` maps
+/// to, so the application boundary and the database CHECK are
+/// indistinguishable to a client.
+pub const WINDOW_ORDER_MESSAGE: &str = "A metric source account window must end after it starts.";
+
+/// The fixed refusal of a malformed succession label, byte-identical to the
+/// message `metric_source_account_succession_check` maps to.
+pub const SUCCESSION_FORMAT_MESSAGE: &str =
+    "A metric source account succession must be 1 to 64 lowercase letters, digits and single hyphens.";
+
+/// Whether `label` is a well-formed succession: 1 to 64 characters matching
+/// `^[a-z0-9]+(-[a-z0-9]+)*$`, exactly the database CHECK.
+pub fn is_valid_succession(label: &str) -> bool {
+    !label.is_empty()
+        && label.chars().count() <= 64
+        && label
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !label.starts_with('-')
+        && !label.ends_with('-')
+        && !label.contains("--")
+}
+
+/// Validate a window and succession before any write, so the two CHECKs never
+/// fire from the API. Returns the fixed refusal message.
+pub fn validate_window(
+    window_start: Option<NaiveDate>,
+    window_end: Option<NaiveDate>,
+    succession: Option<&str>,
+) -> Result<(), &'static str> {
+    if let (Some(start), Some(end)) = (window_start, window_end) {
+        if end <= start {
+            return Err(WINDOW_ORDER_MESSAGE);
+        }
+    }
+    if let Some(label) = succession {
+        if !is_valid_succession(label) {
+            return Err(SUCCESSION_FORMAT_MESSAGE);
+        }
+    }
+    Ok(())
 }
 
 /// Why a typed or stored configuration was refused.

@@ -1,7 +1,7 @@
 # Thoth Metrics Decision Summary
 
 Status: ACTIVE SUMMARY
-Last updated: 2026-10-30
+Last updated: 2026-11-20
 Owner: CTO
 
 The approved technical design and approved ADRs remain authoritative.
@@ -46,6 +46,44 @@ The target is daily country-level `title_sessions` using GET 200/206 requests, D
 ### OPERAS
 
 Outbound uses durable Thoth claims. Sphinx delivers idempotently. Direct mappings are excluded inbound. Local corrections after remote delivery create divergence issues. Inbound completeness is not guaranteed without cursor, replication or complete snapshots.
+
+### Native monthly serving and account windows (`MET-WP4-MONTH-01`)
+
+CTO decisions of 2026-11-17: D1, the Metrics reads serve `MONTH` records; D3,
+source accounts carry date windows with a start and an end. Of 2026-11-20
+(thoth#1042, spec R4.3): every publisher will have monthly data, so `MONTH`
+records reach the reads through a projection, and an all-time read judges each
+pair from its own start. In detail:
+
+- **Projection (3.1).** Non-`DAY` records are projected into four derived
+  native-month tables, recomputed from the canonical records by the
+  transaction that writes them, under the work row lock every canonical write
+  holds. A native row is a function of its key's current records, so the
+  recompute is idempotent and needs no stream, frontier or lag. The rollup
+  stream, its trigger and the 03A tables are untouched, and `MONTH` deltas stay
+  outside the stream.
+- **A month counts only in a cell that contains it (3.2).** A month that a
+  cell cuts adds nothing to that cell.
+- **Days win a shared base cell (3.3).** Where a live month and live days share
+  a work, platform, measure and month, the days are served, the month adds
+  nothing and is treated as cut, and nothing is refused. Imported months and
+  collected days never share a calendar month; a conflict is detected by the
+  operator checks and goes to the CTO, and the native side is never zeroed
+  just to clear one.
+- **Incomplete, not a new status (3.4).** The days of a cut or conflicted month
+  are treated as `PARTIAL` days. No warning code, status, field or error code
+  is added.
+- **A server switch for serving (3.5).** `THOTH_METRIC_MONTH_SERVING` (`OFF` |
+  `ON`, default `OFF`), read at process start; `OFF` keeps today's responses
+  apart from `asOf`, and the projection is maintained whatever the switch.
+- **Windows and successions (3.6, 3.7).** A window `[window_start,
+  window_end)` limits where an account's coverage counts and never lowers what
+  a day requires; a succession groups accounts of one publisher and platform
+  that collect one source of traffic, and only a succession lets accounts
+  stand in for each other. Archive accounts are ordinary eligible accounts.
+- **Pair starts (3.8).** Under `ON`, an all-time read judges each pair's
+  coverage from its own first evidence; values and buckets do not change.
+- `REPORTING_PERIOD` records stay refused.
 
 ## 2. Shared decisions
 
@@ -215,3 +253,5 @@ Select report types and metric mappings only after representative reports are su
 13. An existing canonical record's reporting grain is immutable for its v1
     identity; mismatched later evidence is rejected or blocked, never silently
     accepted, and never changes the record.
+14. A month is never split into days: it counts only in a value whose dates
+    contain all of it.

@@ -3,16 +3,18 @@
 //!
 //! [`Crud`] is deliberately **not** implemented for source accounts: there is
 //! no generic create/update/delete surface, no `all`/`count` listing and no
-//! delete at all. The two supported writes are [`create_metric_source_account`]
-//! and [`update_metric_source_account`], and they are the only places in the
+//! delete at all. The three supported writes are
+//! [`create_metric_source_account`], [`update_metric_source_account`] and, for
+//! the window and succession of `MET-WP4-MONTH-01`,
+//! [`update_metric_source_account_window`]; they are the only places in the
 //! repository that commit a change to a `metric_source_account` row.
 //!
-//! Neither function makes an authorization decision. Authorization is the
+//! None of them makes an authorization decision. Authorization is the
 //! caller's responsibility and happens before any of this module is reached.
 //!
 //! **Lock topology.** Source and platform codes are resolved with ordinary
-//! non-locking reads. The single application-requested `FOR UPDATE` lock is
-//! taken on the account row alone. The referenced `metric_source`,
+//! non-locking reads. Each update takes a single application-requested
+//! `FOR UPDATE` lock, on the account row alone. The referenced `metric_source`,
 //! `metric_platform` and `publisher` rows are never locked by this module, and
 //! no joined multi-table `FOR UPDATE` exists anywhere in it.
 //!
@@ -31,9 +33,9 @@ use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 use thoth_errors::{ThothError, ThothResult};
 
 use super::{
-    check_source_compatibility, ConfigurationError, MetricSourceAccount,
-    MetricSourceAccountConfiguration, MetricSourceAccountConfigurationKind, NewMetricSourceAccount,
-    PatchMetricSourceAccount,
+    check_source_compatibility, validate_window, ConfigurationError, MetricSourceAccount,
+    MetricSourceAccountConfiguration, MetricSourceAccountConfigurationKind,
+    MetricSourceAccountWindow, NewMetricSourceAccount, PatchMetricSourceAccount,
 };
 use crate::db::PgPool;
 use crate::model::metric_platform::crud::by_code as platform_by_code;
@@ -91,10 +93,23 @@ pub(crate) fn metric_source_account_by_code(
     Ok(account)
 }
 
+/// Refuse a window or succession the database CHECKs would refuse, with the
+/// same fixed message, before any write.
+fn check_window(
+    window_start: Option<chrono::NaiveDate>,
+    window_end: Option<chrono::NaiveDate>,
+    succession: Option<&str>,
+) -> ThothResult<()> {
+    validate_window(window_start, window_end, succession)
+        .map_err(|message| ThothError::DatabaseConstraintError(Cow::Borrowed(message)))
+}
+
 /// Create one metric source account and its `CREATE` audit row atomically.
 ///
 /// One transaction on one connection:
 ///
+/// 0. refuse a window that does not end after it starts, or a malformed
+///    succession (`MET-WP4-MONTH-01`), before any read or write;
 /// 1. resolve the exact `source_code` and `platform_code` with ordinary
 ///    non-locking reads; an unknown code fails here as `EntityNotFound`;
 /// 2. enforce the closed compatibility matrix against the resolved source's
@@ -115,6 +130,11 @@ pub(crate) fn create_metric_source_account(
     actor: &str,
     data: &NewMetricSourceAccount,
 ) -> ThothResult<MetricSourceAccount> {
+    check_window(
+        data.window_start,
+        data.window_end,
+        data.succession.as_deref(),
+    )?;
     let mut connection = db.get()?;
     connection.transaction(|connection| {
         let source = source_by_code(connection, &data.source_code)?;
@@ -136,6 +156,9 @@ pub(crate) fn create_metric_source_account(
                 metric_source_account::expected_publisher_id.eq(data.expected_publisher_id),
                 metric_source_account::configuration.eq(&configuration),
                 metric_source_account::enabled.eq(data.enabled),
+                metric_source_account::window_start.eq(data.window_start),
+                metric_source_account::window_end.eq(data.window_end),
+                metric_source_account::succession.eq(data.succession.as_deref()),
             ))
             .returning(metric_source_account::all_columns)
             .get_result(connection)?;
@@ -198,6 +221,79 @@ pub(crate) fn update_metric_source_account(
                 .set((
                     metric_source_account::configuration.eq(&configuration),
                     metric_source_account::enabled.eq(data.enabled),
+                ))
+                .returning(metric_source_account::all_columns)
+                .get_result(connection)?;
+
+        record_update(
+            connection,
+            MetricSourceRegistryHistoryEntity::SourceAccount,
+            updated.source_account_id,
+            actor,
+            &current,
+            &updated,
+        )?;
+
+        Ok(updated)
+    })
+}
+
+/// Replace one metric source account's window and succession
+/// (`MET-WP4-MONTH-01`) and audit the change atomically.
+///
+/// A complete replacement of `window_start`, `window_end` and `succession`,
+/// `None` clearing one. One transaction on one connection, under `serialized
+/// last-write-wins`:
+///
+/// 1. refuse a window that does not end after it starts, or a malformed
+///    succession, with the fixed message its database CHECK maps to, before
+///    any read or write;
+/// 2. resolve and lock **exactly one** row — the `metric_source_account` row
+///    named by the exact `code` — with `FOR UPDATE`;
+/// 3. read the account's immutable source with an ordinary non-locking read
+///    and decode the current stored configuration; an unsupported stored value
+///    stops here, before any write and before anything is copied into audit
+///    history, exactly as [`update_metric_source_account`];
+/// 4. if the requested values equal the stored ones, return the current row
+///    unchanged: no `UPDATE` runs and no audit row is written;
+/// 5. otherwise update **only** the three window columns and append exactly
+///    one `UPDATE` audit row carrying the exact before and after states.
+///
+/// A window limits only which days the account's coverage counts for; it
+/// restricts no claim or collection and never hides a value.
+pub(crate) fn update_metric_source_account_window(
+    db: &PgPool,
+    actor: &str,
+    data: &MetricSourceAccountWindow,
+) -> ThothResult<MetricSourceAccount> {
+    check_window(
+        data.window_start,
+        data.window_end,
+        data.succession.as_deref(),
+    )?;
+    let mut connection = db.get()?;
+    connection.transaction(|connection| {
+        let current: MetricSourceAccount = metric_source_account::table
+            .filter(metric_source_account::code.eq(&data.code))
+            .for_update()
+            .first::<MetricSourceAccount>(connection)?;
+
+        let source = source_by_id(connection, current.source_id)?;
+        ensure_supported(&current, &source)?;
+
+        if current.window_start == data.window_start
+            && current.window_end == data.window_end
+            && current.succession == data.succession
+        {
+            return Ok(current);
+        }
+
+        let updated: MetricSourceAccount =
+            diesel::update(metric_source_account::table.find(current.source_account_id))
+                .set((
+                    metric_source_account::window_start.eq(data.window_start),
+                    metric_source_account::window_end.eq(data.window_end),
+                    metric_source_account::succession.eq(data.succession.as_deref()),
                 ))
                 .returning(metric_source_account::all_columns)
                 .get_result(connection)?;

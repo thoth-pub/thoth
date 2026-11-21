@@ -129,6 +129,7 @@ use crate::model::metric_import::{MetricImport, MetricImportStatus};
 use crate::model::metric_import_batch::MetricImportBatch;
 use crate::model::metric_import_error::MetricImportErrorSeverity;
 use crate::model::metric_measure::MetricMeasure;
+use crate::model::metric_native_month::{self, NativeMonthKey, NativeMonthKeys};
 use crate::model::metric_platform::MetricPlatform;
 use crate::model::metric_platform_measure::{MetricPlatformMeasure, MetricReportingGrain};
 use crate::model::metric_record::MetricRecord;
@@ -701,6 +702,7 @@ fn run_attempt(
         .get_result(connection)?;
 
     let mut counters = Counters::default();
+    let mut native_keys = NativeMonthKeys::default();
     let mut outcomes = Vec::with_capacity(rows.len());
     for (index, plan) in rows.into_iter().enumerate() {
         let observation = &batch.observations[index];
@@ -731,10 +733,13 @@ fn run_attempt(
                 row_index,
                 &candidate,
                 &mut counters,
+                &mut native_keys,
             )?,
         };
         outcomes.push(outcome);
     }
+    // `MET-WP4-MONTH-01`: after the last canonical write, before commit.
+    metric_native_month::recompute(connection, &native_keys)?;
 
     for planned in &planned_coverage {
         diesel::insert_into(metric_coverage::table)
@@ -1520,10 +1525,16 @@ fn write_rejected(
 /// by ordinary ingestion and quarantine reconciliation. It intentionally does
 /// not write provenance or import counters. The caller's surrounding
 /// transaction owns those route-specific ledgers.
+///
+/// Every `Winner` and `Revision` of a non-`DAY` record adds its key to
+/// `native_keys` (`MET-WP4-MONTH-01`); the caller passes the set to
+/// [`metric_native_month::recompute`] after its last canonical write and
+/// before it commits.
 pub(crate) fn apply_canonical_application(
     connection: &mut PgConnection,
     candidate: &CanonicalApplicationCandidate,
     chronology: CanonicalChronology,
+    native_keys: &mut NativeMonthKeys,
 ) -> Result<CanonicalApplicationOutcome, CanonicalApplicationError> {
     let existing: Option<MetricRecord> = metric_record::table
         .filter(metric_record::identity_hash.eq(&candidate.identity_hash))
@@ -1568,6 +1579,7 @@ pub(crate) fn apply_canonical_application(
             .set(metric_record::current_revision_id.eq(revision_id))
             .execute(connection)?;
         insert_delta(connection, record_id, revision_id, candidate.value)?;
+        note_native_key(native_keys, candidate);
         return Ok(CanonicalApplicationOutcome::Winner {
             record_id,
             record_revision_id: revision_id,
@@ -1645,10 +1657,23 @@ pub(crate) fn apply_canonical_application(
         .set(metric_record::current_revision_id.eq(revision_id))
         .execute(connection)?;
     insert_delta(connection, record.record_id, revision_id, delta_value)?;
+    note_native_key(native_keys, candidate);
     Ok(CanonicalApplicationOutcome::Revision {
         record_id: record.record_id,
         record_revision_id: revision_id,
     })
+}
+
+/// Add the native-month key of a non-`DAY` candidate just written.
+fn note_native_key(native_keys: &mut NativeMonthKeys, candidate: &CanonicalApplicationCandidate) {
+    if candidate.reporting_grain != MetricReportingGrain::Day {
+        native_keys.insert(NativeMonthKey {
+            work_id: candidate.identity.work_id,
+            platform_id: candidate.identity.platform_id,
+            measure_id: candidate.identity.measure_id,
+            period_start: candidate.identity.period_start,
+        });
+    }
 }
 
 /// Apply one ordinary ingestion candidate through the shared canonical
@@ -1661,6 +1686,7 @@ fn apply_candidate(
     row_index: i64,
     candidate: &Candidate<'_>,
     counters: &mut Counters,
+    native_keys: &mut NativeMonthKeys,
 ) -> Result<MetricIngestionRowOutcome, AttemptError> {
     let observation = candidate.input.observation;
     let shared = CanonicalApplicationCandidate {
@@ -1672,13 +1698,18 @@ fn apply_candidate(
         import_id: scope.import.import_id,
         value: observation.value,
     };
-    let outcome = apply_canonical_application(connection, &shared, CanonicalChronology::Arrival)
-        .map_err(|error| match error {
-            CanonicalApplicationError::Database(error) => AttemptError::Database(error),
-            CanonicalApplicationError::InternalStateInconsistency => {
-                AttemptError::Request(Code::InternalStateInconsistency)
-            }
-        })?;
+    let outcome = apply_canonical_application(
+        connection,
+        &shared,
+        CanonicalChronology::Arrival,
+        native_keys,
+    )
+    .map_err(|error| match error {
+        CanonicalApplicationError::Database(error) => AttemptError::Database(error),
+        CanonicalApplicationError::InternalStateInconsistency => {
+            AttemptError::Request(Code::InternalStateInconsistency)
+        }
+    })?;
 
     let successful = |classification, record_id| MetricIngestionRowOutcome {
         batch_row_index: row_index,
