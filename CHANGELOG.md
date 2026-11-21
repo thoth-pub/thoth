@@ -5,10 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-23
 ### Added
   - [1042](https://github.com/thoth-pub/thoth/issues/1042) - Serve `MONTH` Metrics records in `metricDashboard` and `metricWidget` behind `THOTH_METRIC_MONTH_SERVING` (default `OFF`), from a native-month projection with its `recomputeMetricNativeMonths` repair, and add source-account windows and successions
 
-## [[1.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.11.0) - 2026-11-18
+## [[1.11.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.11.0) - 2026-11-17
 ### Added
   - [1026](https://github.com/thoth-pub/thoth/issues/1026) - Add the shared asynchronous job engine and its protected GraphQL API, inert until a job kind is registered, and leave async job request bodies out of the access log
   - [1039](https://github.com/thoth-pub/thoth/issues/1039) - Add `thoth start worker` and `thoth worker health`; the worker stays idle unless `ASYNC_WORKER_KINDS` lists a job kind
