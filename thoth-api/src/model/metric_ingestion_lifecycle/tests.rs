@@ -6163,6 +6163,31 @@ fn a_missing_registry_pair_row_fails_rule_b_closed_and_leaves_rule_a_rows_accept
 }
 
 #[test]
+fn a_day_unit_is_accepted_although_its_own_registry_pair_row_is_gone() {
+    // CloudFront is judged by the day rule alone, whatever the registry holds:
+    // with every mapping removed after ingest the coverage row is still read
+    // (the registry is joined with `LEFT JOIN`), and the unit still advances.
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f.run_unit(
+        claim.lease_token,
+        "report-1",
+        day(1),
+        vec![complete_day(day(1))],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    f.sql("DELETE FROM metric_platform_measure");
+    assert_eq!(f.count("metric_platform_measure", "TRUE"), 0);
+    let checkpoint = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, Some(day(2)));
+    assert_eq!(
+        checkpoint.cursor,
+        Some(cursor_json(&[(day(1), DIGEST.to_string())]))
+    );
+    assert_eq!(checkpoint.lease_owner, None);
+}
+
+#[test]
 fn a_registry_change_after_the_import_changes_the_replay_in_both_directions_and_never_writes() {
     let (_guard, f) = month_setup(OAPEN);
     let complete_downloads = [(DOWNLOADS, MetricCoverageStatus::Complete)];

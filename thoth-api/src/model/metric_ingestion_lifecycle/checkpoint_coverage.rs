@@ -323,10 +323,23 @@ mod tests {
         envelope_start: NaiveDate,
         rule_b_enabled: bool,
     ) -> (bool, bool) {
-        let total = groups.iter().map(|group| group.rows).sum();
-        let verdict = judge_coverage(groups, total, envelope(envelope_start), rule_b_enabled)
-            .expect("consistent evidence");
-        (verdict.accepted, verdict.strict_day)
+        let judge = |groups: &[CoverageGroup]| {
+            let total = groups.iter().map(|group| group.rows).sum();
+            let verdict = judge_coverage(groups, total, envelope(envelope_start), rule_b_enabled)
+                .expect("consistent evidence");
+            (verdict.accepted, verdict.strict_day)
+        };
+        let forward = judge(groups);
+        // The grouped query returns its groups in an unspecified order, so the
+        // verdict must not depend on it.
+        let mut reversed = groups.to_vec();
+        reversed.reverse();
+        assert_eq!(
+            judge(&reversed),
+            forward,
+            "the verdict depends on the order of the groups"
+        );
+        forward
     }
 
     #[test]

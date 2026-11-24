@@ -1453,8 +1453,9 @@ fn quarantine_evidence(
 /// made again on the registry as it is then, so a registry change after the
 /// import can turn a recorded success into a judged failure (the recorded
 /// checkpoint is still returned) or an unrecorded failure into a judged
-/// success (the repeat is then `STALE_SOURCE_CLAIM` until a fresh claim records
-/// it). Any other call without the live claim changes nothing.
+/// success (the repeat is then `STALE_SOURCE_CLAIM`, while the checkpoint has
+/// not reached the import's period end, until a fresh claim records it). Any
+/// other call without the live claim changes nothing.
 pub fn update_metric_source_checkpoint(
     db: &PgPool,
     input: &UpdateMetricSourceCheckpointInput,

@@ -819,10 +819,11 @@ Contract:
   is already recorded; otherwise it is `STALE_SOURCE_CLAIM`. The repeat judges
   the import again on the registry as it is then, so a registry change after
   the import can flip the judgement either way: a recorded success that is now
-  judged unsuccessful still returns the recorded checkpoint, and an unrecorded
-  import that is now judged successful is `STALE_SOURCE_CLAIM` until a fresh
-  claim re-runs `beginMetricImport` (which returns the terminal import
-  unchanged) and the update, which then advances. The published descriptions of
+  judged unsuccessful still returns the recorded checkpoint, and an import
+  that is now judged successful, while the checkpoint has not reached its
+  period end, is `STALE_SOURCE_CLAIM` until a fresh claim re-runs
+  `beginMetricImport` (which returns the terminal import unchanged) and the
+  update, which then advances. The published descriptions of
   `lastSuccessfulPeriodEnd` ("successfully and completely collected") and of the
   `updateMetricSourceCheckpoint` mutation ("all of which cover exactly the
   import period completely") predate rule B and are unchanged; this paragraph

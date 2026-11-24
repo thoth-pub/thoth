@@ -12,7 +12,7 @@ PR target: `develop`
 Programme integration branch: None
 Task branch: `feature/metrics-history/met-hist-01-ckpt` (the namespace preflight was re-run with `git ls-remote origin 'refs/heads/feature/metrics-history*'`: no ref)
 Head commit: recorded on the pull request; the PR head is the authority. The commits are listed in section 3, and `064c40446e106e3fa055e81b9f4d8125f056b092` is the last change to code, tests and documentation
-Pull request: not opened by the implementation; the author opens it
+Pull request: opened by the author, not by the implementation; its number and state are on GitHub
 Expected branch deletion after merge: YES
 Final programme PR required: NO
 Implementing model: not recorded in this file (standing CTO rule for repository files)
@@ -51,15 +51,15 @@ Authorized new-file paths:
 
 Actual files changed (added/removed lines against the base, `git diff --numstat`):
 
-- `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` (+89/-32)
+- `thoth-api/src/model/metric_ingestion_lifecycle/mod.rs` (+90/-32)
   - reason: one `mod checkpoint_coverage;` line and its import; the equality `COUNT(*) FILTER` query and `CoverageEvidence` replaced by one grouped query with `LEFT JOIN`s and the call to the pure function; `rule_b_enabled` derived from the locked source's driver key; `successful` and the quarantine-only exception fed from the two verdict parts; module and function documentation updated
   - behavioural effect: MONTH units and the two allowlisted PARTIAL months of non-CloudFront sources advance the checkpoint and the cursor; nothing else changes
   - within authorized write budget: YES
-- `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` (+921/-1)
-  - reason: 12 new database tests and their helpers (appended as a new section); the one removed line is the `chrono` import, which gains `Datelike`
+- `thoth-api/src/model/metric_ingestion_lifecycle/tests.rs` (+946/-1)
+  - reason: 13 new database tests and their helpers (appended as a new section); the one removed line is the `chrono` import, which gains `Datelike`
   - behavioural effect: none (tests); no existing test or expectation changed
   - within authorized write budget: YES
-- `docs/metrics/contract-register.md` (+54/-20)
+- `docs/metrics/contract-register.md` (+55/-20)
   - reason: the three passages that state the predicate (checkpoint progress in section 3.2, the cursor paragraph of section 3.3, the quarantine paragraph of section 3.4)
   - behavioural effect: none
   - within authorized write budget: YES
@@ -69,7 +69,7 @@ Actual files changed (added/removed lines against the base, `git diff --numstat`
 
 Actual new files created:
 
-- `thoth-api/src/model/metric_ingestion_lifecycle/checkpoint_coverage.rs` (910 lines: the pure function, the allowlist, the grouped-row types and 10 unit tests) - within authorized new-file list: YES
+- `thoth-api/src/model/metric_ingestion_lifecycle/checkpoint_coverage.rs` (923 lines: the pure function, the allowlist, the grouped-row types and 10 unit tests) - within authorized new-file list: YES
 - `docs/engineering/ai-delivery/tasks/MET-HIST-01-CKPT.md` (321 lines) - within authorized new-file list: YES
 - `docs/engineering/ai-delivery/implementation-reports/MET-HIST-01-CKPT-implementation-report.md` (this file) - within authorized new-file list: YES
 
@@ -189,14 +189,14 @@ cargo test -p thoth-api --features backend --lib metric_ingestion_lifecycle
 Result (this filter also selects `graphql::metric_ingestion_lifecycle_tests`):
 
 ```text
-test result: ok. 95 passed; 0 failed; 0 ignored; 0 measured; 2683 filtered out; finished in 69.05s
-  model::metric_ingestion_lifecycle:          83 (61 existing, 10 pure-function, 12 new database tests)
+test result: ok. 96 passed; 0 failed; 0 ignored; 0 measured; 2683 filtered out; finished in 84.91s
+  model::metric_ingestion_lifecycle:          84 (61 existing, 10 pure-function, 13 new database tests)
   graphql::metric_ingestion_lifecycle_tests:  12 (all existing)
 ```
 
 The same filter was run once before any new test existed, against the new code: 83 passed (the 73 existing and the 10 pure-function tests), so the existing tests pass unchanged.
 
-The 12 new database tests:
+The 13 new database tests:
 
 - `a_perfect_month_unit_advances_the_checkpoint_to_its_second_day_and_the_next_month_follows`
 - `monthly_cursor_entries_are_evicted_by_period_across_the_sixty_four_bound`
@@ -208,6 +208,7 @@ The 12 new database tests:
 - `a_month_unit_with_zero_coverage_rows_never_advances`
 - `a_cloudfront_unit_is_judged_by_the_day_rule_alone_whatever_the_registry_lists`
 - `a_missing_registry_pair_row_fails_rule_b_closed_and_leaves_rule_a_rows_accepted`
+- `a_day_unit_is_accepted_although_its_own_registry_pair_row_is_gone`
 - `a_registry_change_after_the_import_changes_the_replay_in_both_directions_and_never_writes`
 - `an_allowlisted_partial_month_reads_as_one_partial_coverage_run_until_a_complete_import_replaces_it`
 
@@ -253,8 +254,8 @@ Evidence link/screenshot/log reference: none.
 
 ## 11. CI
 
-CI status: NOT AVAILABLE (no pull request exists; a push to the task branch starts no workflow, see section 4.3)
-Checks: none yet.
+CI status: recorded on the pull request, which is the authority (a push to the task branch alone starts no workflow, see section 4.3; opening the pull request starts the checks)
+Checks: see the pull request.
 Failures or warnings: none observed locally.
 
 ## 12. Rollout and rollback
@@ -271,7 +272,7 @@ Monitoring required: the section 12 read-backs of the specification, as future s
 3. before the first MONTH import (that stage's own grant): the read-back of the registry codes `oapen` and `downloads` and of the pair's `MONTH` grain (D2), and the evidence that the emitted MONTH coverage rows are exactly `[1st, next 1st)` (section 5);
 4. pilot: the first MONTH unit imported alone, then `metricSourceCheckpoint(X).lastSuccessfulPeriodEnd` equals the imported month's 1st plus one day and the driver summary's `next` equals the 1st of the next month.
 
-None of these has been done.
+These are read-backs and steps of later stages, each under its own grant; none belongs to this change.
 
 ## 13. Known limitations and deferred work
 

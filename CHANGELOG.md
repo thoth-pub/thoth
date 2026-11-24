@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
-  - [1052](https://github.com/thoth-pub/thoth/issues/1052) - Advance a source's `lastSuccessfulPeriodEnd` and period-manifest cursor for a `COMPLETED` monthly import whose coverage rows are `COMPLETE` for the calendar month starting on the import's day on a `MONTH`-capable platform-measure pair, and for the `PARTIAL` months 2026-01 and 2026-08 of `oapen` `downloads`; a CloudFront source is judged as before
+  - [1053](https://github.com/thoth-pub/thoth/pull/1053) - Advance a source's `lastSuccessfulPeriodEnd` and period-manifest cursor for a `COMPLETED` monthly import whose coverage rows are `COMPLETE` for the calendar month starting on the import's day on a `MONTH`-capable platform-measure pair, and for the `PARTIAL` months 2026-01 and 2026-08 of `oapen` `downloads`; a CloudFront source is judged as before
 
 ## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-21
 ### Added
