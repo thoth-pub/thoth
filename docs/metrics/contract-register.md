@@ -792,14 +792,42 @@ Contract:
 - **Checkpoint progress.** `updateMetricSourceCheckpoint` accepts only a
   terminal one-day managed import. It moves `last_completed_at` forward to the
   import's `completed_at` and releases the lease. It moves
-  `last_successful_period_end` forward to the import's period end only when
-  the import is `COMPLETED` **and** has at least one coverage row **and** every
-  coverage row covers exactly the import's period **and** is `COMPLETE`. Zero
-  coverage rows, a mismatched period, `PARTIAL`, `UNKNOWN` or
-  `COMPLETED_WITH_ERRORS` never advance it. Neither value moves backwards. A
-  repeat after the lease was already released returns the checkpoint without
-  writing when this import's progress is already recorded; otherwise it is
-  `STALE_SOURCE_CLAIM`.
+  `last_successful_period_end` forward to the import's period end (the second
+  day of the month for a MONTH unit) only when the import is `COMPLETED`
+  **and** has at least one coverage row **and** every coverage row is
+  accepted. A coverage row is accepted by one of two rules. Rule A, judged from
+  the row alone: it is `COMPLETE` and covers exactly the import's one-day
+  period. Rule B, evaluated only for a source whose driver key is not
+  `cloudfront`: the registry lists `MONTH` for the row's platform-measure pair,
+  the row's period is the calendar month that starts on the import's day (from
+  the 1st to the next 1st), and the row is `COMPLETE`, or `PARTIAL` for exactly
+  one of the two months of the `PARTIAL` allowlist. The allowlist is a code
+  constant: platform `oapen`, measure `downloads`, 2026-01 and 2026-08, whose
+  figures are estimated; codes compare exactly, and extending the list is a
+  code change under its own release. A registry pair row that is missing is not
+  `MONTH`-capable, and no coverage row drops out of the judgement. Zero
+  coverage rows, any `UNKNOWN` row, any row neither rule accepts and
+  `COMPLETED_WITH_ERRORS` never advance it, and a CloudFront source is judged
+  by rule A alone whatever the registry holds. Coverage evidence that
+  contradicts itself (group counts that do not add up to the row count, a row
+  with no platform or measure, an unknown status) fails as
+  `INTERNAL_STATE_INCONSISTENCY` with no write. Neither value moves backwards,
+  and `last_successful_period_end` stays a high-water mark: a later month moves
+  it past an unimported earlier one, so the driver's expected-start rule, not
+  Thoth, keeps months from being skipped. A repeat after the lease was already
+  released returns the checkpoint without writing when this import's progress
+  is already recorded; otherwise it is `STALE_SOURCE_CLAIM`. The repeat judges
+  the import again on the registry as it is then, so a registry change after
+  the import can flip the judgement either way: a recorded success that is now
+  judged unsuccessful still returns the recorded checkpoint, and an import
+  that is now judged successful, while the checkpoint has not reached its
+  period end, is `STALE_SOURCE_CLAIM` until a fresh claim re-runs
+  `beginMetricImport` (which returns the terminal import unchanged) and the
+  update, which then advances. The published descriptions of
+  `lastSuccessfulPeriodEnd` ("successfully and completely collected") and of the
+  `updateMetricSourceCheckpoint` mutation ("all of which cover exactly the
+  import period completely") predate rule B and are unchanged; this paragraph
+  is the authority for them.
 - **Errors.** Lifecycle failures use `extensions.type` from exactly
   `SOURCE_NOT_FOUND`, `SOURCE_ACCOUNT_NOT_FOUND`, `SOURCE_NOT_ELIGIBLE`,
   `METRICS_COLLECT_NOT_ENTITLED`, `STALE_SOURCE_CLAIM`, `IMPORT_NOT_FOUND`,
@@ -870,16 +898,21 @@ Contract:
 - **Server-derived advancement.** No caller supplies cursor state, and
   `UpdateMetricSourceCheckpointInput` remains exactly `importId` and
   `leaseToken`. When the live holder records an import that satisfies the
-  section 3.2 successful-period predicate, the single `UPDATE` that records
-  progress and releases the lease also inserts or replaces the entry for the
-  import's `period_start`, using the `manifestDigest` of its strict
-  `thoth-managed-driver-import/1` envelope, and evicts the chronologically
-  oldest entries beyond 64. `COMPLETED_WITH_ERRORS`, zero coverage rows, a
-  mismatched period, `PARTIAL` and `UNKNOWN` leave the cursor unchanged, with
-  the single narrow exception of the section 3.4 CloudFront quarantine-only
-  import; non-terminal and `FAILED` imports and stale, expired, reclaimed or
-  foreign tokens change nothing. Successful reprocessing of an older period may
-  replace its digest and never moves `last_successful_period_end` backwards.
+  section 3.2 successful-period predicate (rule A for a day; for a source that
+  is not CloudFront also rule B, a `MONTH` unit or an allowlisted `PARTIAL`
+  month), the single `UPDATE` that records progress and releases the lease also
+  inserts or replaces the entry for the import's `period_start`, using the
+  `manifestDigest` of its strict `thoth-managed-driver-import/1` envelope, and
+  evicts the chronologically oldest entries beyond 64. For a `MONTH` account an
+  entry is one month, so the 64 entries are the newest 64 months and older
+  months are evicted by period, as days are. `COMPLETED_WITH_ERRORS`, zero
+  coverage rows and any row that neither rule accepts (a mismatched period, a
+  `PARTIAL` row outside the allowlist, any `UNKNOWN` row) leave the cursor
+  unchanged, with the single narrow exception of the section 3.4 CloudFront
+  quarantine-only import; non-terminal and `FAILED` imports and stale, expired,
+  reclaimed or foreign tokens change nothing. Successful reprocessing of an
+  older period may replace its digest and never moves
+  `last_successful_period_end` backwards.
 - **Replay.** A repeat after release stays read-only. It returns the checkpoint
   without writing when progress is already recorded, the cursor plays no part in
   that decision, and an entry evicted later is never resurrected.
@@ -932,8 +965,10 @@ Contract:
   its rejected, `UNKNOWN_DOI`, quarantine and quarantined-`UNKNOWN_DOI` counts
   from provenance and quarantine rows. When nothing conflicted, every invalid
   row is a quarantined `UNKNOWN_DOI` rejection, and every coverage row is
-  `COMPLETE` for exactly the import's one-day period, the update records
-  `last_completed_at`, records or replaces that period's entry in the
+  `COMPLETE` for exactly the import's one-day period (rule A of section 3.2,
+  the strict day test: rule B, the `MONTH` rule, never applies to this
+  exception, so month-shaped coverage leaves the import ineligible), the update
+  records `last_completed_at`, records or replaces that period's entry in the
   section 3.3 cursor under its unchanged rules, and releases the lease, while
   the import remains canonically unsuccessful and `last_successful_period_end`
   does not move. Coverage keeps describing source evidence, so

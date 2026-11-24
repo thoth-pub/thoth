@@ -6,7 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-23
+## [[1.12.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.1) - 2026-11-24
+### Changed
+  - [1053](https://github.com/thoth-pub/thoth/pull/1053) - Advance a source's `lastSuccessfulPeriodEnd` and period-manifest cursor for a `COMPLETED` monthly import whose coverage rows are `COMPLETE` for the calendar month starting on the import's day on a `MONTH`-capable platform-measure pair, and for the `PARTIAL` months 2026-01 and 2026-08 of `oapen` `downloads`; a CloudFront source is judged as before
+
+## [[1.12.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.0) - 2026-11-21
 ### Added
   - [1042](https://github.com/thoth-pub/thoth/issues/1042) - Serve `MONTH` Metrics records in `metricDashboard` and `metricWidget` behind `THOTH_METRIC_MONTH_SERVING` (default `OFF`), from a native-month projection with its `recomputeMetricNativeMonths` repair, and add source-account windows and successions
 
