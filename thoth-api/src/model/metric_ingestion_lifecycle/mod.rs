@@ -51,6 +51,38 @@
 //! quarantine-only exception below, in the one `UPDATE` that also records
 //! progress and releases the claim.
 //!
+//! # Successful period (`MET-HIST-01-CKPT`)
+//!
+//! A managed import is exactly one day, its *envelope* `[e0, e1)`, but its
+//! coverage rows carry their own periods. A `COMPLETED` import with at least
+//! one coverage row advances `last_successful_period_end` to `e1` (and records
+//! its manifest in the cursor) only when every coverage row is *accepted*, and
+//! a row is accepted by one of two rules, evaluated by the pure function in
+//! `checkpoint_coverage`:
+//!
+//! - **Rule A**, the day rule, judged from the row alone: status `COMPLETE` and
+//!   period exactly `[e0, e1)`.
+//! - **Rule B**, the MONTH rule, evaluated only when the locked source's
+//!   `driver_key` is not `cloudfront`: the registry pair
+//!   (`metric_platform_measure`) for the row's platform and measure exists and
+//!   lists `MONTH`, the row's period is the calendar month that starts on the
+//!   envelope day, and the status is `COMPLETE`, or `PARTIAL` for exactly the
+//!   platform, measure and month of a constant allowlist (OAPEN downloads in
+//!   2026-01 and 2026-08, whose figures are estimated). A missing pair row
+//!   reads as not `MONTH`-capable, and no coverage row can drop out of the
+//!   evidence.
+//!
+//! A MONTH unit therefore moves the checkpoint to the 2nd of its month, so
+//! discovery against the checkpoint finds the next month next. The checkpoint
+//! stays a high-water mark (`GREATEST`): Thoth does not enforce import order,
+//! for months as it never did for days; the driver's expected-start rule is the
+//! fence against skipping. Zero rows, any `UNKNOWN` row, any row neither rule
+//! accepts and every `COMPLETED_WITH_ERRORS` import leave both values where
+//! they were. Units of a CloudFront source are judged by rule A alone, whatever
+//! the registry holds. Group counts that do not add up to the plain row count,
+//! a coverage row with no platform or measure code, and an unknown status fail
+//! as `INTERNAL_STATE_INCONSISTENCY` with no write.
+//!
 //! # CloudFront quarantine-only manifest acceptance (`MET-WP7-PREREQ-02`)
 //!
 //! A `COMPLETED_WITH_ERRORS` import is never canonically successful and never
@@ -74,10 +106,11 @@
 //!   cursor, no successful period.
 //! - **Quarantine-only**: nothing conflicted, every invalid row is a
 //!   quarantined `UNKNOWN_DOI` rejection and coverage is exactly `COMPLETE`
-//!   for the one-day period. The update records `last_completed_at`, records
-//!   or replaces the period's manifest digest under the unchanged cursor
-//!   rules, and releases the claim, but still never advances
-//!   `last_successful_period_end`.
+//!   for the one-day period (rule A of the section above; the MONTH rule never
+//!   applies here, because this exception is CloudFront's). The update records
+//!   `last_completed_at`, records or replaces the period's manifest digest
+//!   under the unchanged cursor rules, and releases the claim, but still never
+//!   advances `last_successful_period_end`.
 //!
 //! The whole predicate is derived before the live/released split, so a
 //! released replay stays read-only and recognizes recorded completion from
@@ -185,7 +218,9 @@ use crate::schema::{
     metric_import, metric_import_batch, metric_platform, metric_source, metric_source_account,
     metric_source_checkpoint, publisher,
 };
+use checkpoint_coverage::{judge_coverage, CoverageGroup, CoverageGroupRow};
 
+mod checkpoint_coverage;
 #[cfg(test)]
 pub(crate) mod tests;
 
@@ -1258,14 +1293,6 @@ pub fn complete_metric_import(
     })
 }
 
-#[derive(diesel::QueryableByName)]
-struct CoverageEvidence {
-    #[diesel(sql_type = BigInt)]
-    total: i64,
-    #[diesel(sql_type = BigInt)]
-    complete_for_period: i64,
-}
-
 /// One group of an import's `REJECTED` provenance rows sharing one stored
 /// reason: its JSON type and text, the row count, and how many of those rows
 /// have a quarantine row.
@@ -1391,8 +1418,15 @@ fn quarantine_evidence(
 /// `last_completed_at` moves forward to the import's `completed_at` and never
 /// back. `last_successful_period_end` moves forward to the import's period end
 /// only for a `COMPLETED` import with at least one coverage row, every one of
-/// which covers exactly the import's one-day period and is `COMPLETE`; it
-/// never moves back. Zero coverage rows are not evidence of success.
+/// which is accepted; it never moves back. A coverage row is accepted when it
+/// is `COMPLETE` and covers exactly the import's one-day period (rule A), or,
+/// for a source whose driver key is not `cloudfront` only, when it is the exact
+/// calendar month that starts on the import's day, the registry lists `MONTH`
+/// for its platform-measure pair, and it is `COMPLETE` or an allowlisted
+/// `PARTIAL` (rule B; the module documentation has the full rule). Zero
+/// coverage rows are not evidence of success. Group counts that do not add up
+/// to the plain row count, a missing platform or measure code and an unknown
+/// status fail as `INTERNAL_STATE_INCONSISTENCY` with no write.
 ///
 /// Under exactly that successful-period predicate, the same `UPDATE` also
 /// records the import's `period_start` and the `manifestDigest` of its strict
@@ -1408,13 +1442,19 @@ fn quarantine_evidence(
 /// `last_successful_period_end` does not move. Its evidence is derived only
 /// when the locked source's `driver_key` is exactly `cloudfront`, and provably
 /// inconsistent evidence fails as `INTERNAL_STATE_INCONSISTENCY` with no write
-/// at all. Locks are taken in the fixed order checkpoint `FOR UPDATE`, import
-/// `FOR SHARE`, source account `FOR SHARE`, source `FOR SHARE`.
+/// at all. That exception requires its coverage to satisfy rule A (the strict
+/// one-day test), never rule B. Locks are taken in the fixed order checkpoint
+/// `FOR UPDATE`, import `FOR SHARE`, source account `FOR SHARE`, source
+/// `FOR SHARE`; the coverage and registry reads take no lock.
 ///
 /// A repeat after the claim was already released returns the checkpoint
 /// unchanged when this import's progress is already recorded on it; it never
-/// writes, and the cursor plays no part in that decision. Any other call
-/// without the live claim changes nothing.
+/// writes, and the cursor plays no part in that decision. The judgement is
+/// made again on the registry as it is then, so a registry change after the
+/// import can turn a recorded success into a judged failure (the recorded
+/// checkpoint is still returned) or an unrecorded failure into a judged
+/// success (the repeat is then `STALE_SOURCE_CLAIM` until a fresh claim records
+/// it). Any other call without the live claim changes nothing.
 pub fn update_metric_source_checkpoint(
     db: &PgPool,
     input: &UpdateMetricSourceCheckpointInput,
@@ -1471,28 +1511,45 @@ pub fn update_metric_source_checkpoint(
             .for_share()
             .first(connection)?;
 
-        let evidence: CoverageEvidence = sql_query(
-            "SELECT COUNT(*) AS total, \
-                    COUNT(*) FILTER (WHERE coverage_status = 'COMPLETE' \
-                                       AND period_start = $2 \
-                                       AND period_end = $3) AS complete_for_period \
-               FROM metric_coverage \
-              WHERE import_id = $1",
+        // The coverage of the terminal import, grouped, with the registry's
+        // verdict on each pair's MONTH grain. Every join is a LEFT JOIN, so no
+        // coverage row can drop out of the evidence, and the plain row count
+        // comes from `metric_coverage` itself in the same statement. A pair
+        // row that is missing reads as not MONTH-capable. No lock is taken.
+        let rows: Vec<CoverageGroupRow> = sql_query(
+            "SELECT p.code AS platform_code, \
+                    m.code AS measure_code, \
+                    c.period_start, \
+                    c.period_end, \
+                    c.coverage_status::text AS status, \
+                    COALESCE('MONTH' = ANY(pm.supported_grains), false) AS month_supported, \
+                    COUNT(*) AS rows, \
+                    (SELECT COUNT(*) FROM metric_coverage WHERE import_id = $1) AS total \
+               FROM metric_coverage c \
+               LEFT JOIN metric_platform p ON p.platform_id = c.platform_id \
+               LEFT JOIN metric_measure m ON m.measure_id = c.measure_id \
+               LEFT JOIN metric_platform_measure pm \
+                 ON pm.platform_id = c.platform_id AND pm.measure_id = c.measure_id \
+              WHERE c.import_id = $1 \
+              GROUP BY 1, 2, 3, 4, 5, 6",
         )
         .bind::<SqlUuid, _>(import.import_id)
-        .bind::<SqlDate, _>(period_start)
-        .bind::<SqlDate, _>(period_end)
-        .get_result(connection)?;
-        let complete_coverage =
-            evidence.total >= 1 && evidence.complete_for_period == evidence.total;
-        let successful = import.status == MetricImportStatus::Completed && complete_coverage;
+        .load(connection)?;
+        let total = rows.first().map_or(0, CoverageGroupRow::total);
+        let groups: Vec<CoverageGroup> = rows.into_iter().map(CoverageGroup::from).collect();
+        // Rule B (the MONTH rule) never applies to a CloudFront source, so its
+        // units are judged by the day rule alone, whatever the registry holds.
+        let rule_b_enabled = source.driver_key.as_deref() != Some(CLOUDFRONT_DRIVER_KEY);
+        let coverage = judge_coverage(&groups, total, (period_start, period_end), rule_b_enabled)
+            .map_err(|_| MetricIngestionErrorCode::InternalStateInconsistency)?;
+        let successful = import.status == MetricImportStatus::Completed && coverage.accepted;
         // Derived before the live/released split: inconsistent evidence fails
         // closed on either side, and a released replay stays read-only.
         let quarantine_only = if import.status == MetricImportStatus::CompletedWithErrors
             && source.driver_key.as_deref() == Some(CLOUDFRONT_DRIVER_KEY)
         {
             let quarantine = quarantine_evidence(connection, &import)?;
-            complete_coverage && quarantine.is_quarantine_only(&import)
+            coverage.strict_day && quarantine.is_quarantine_only(&import)
         } else {
             false
         };

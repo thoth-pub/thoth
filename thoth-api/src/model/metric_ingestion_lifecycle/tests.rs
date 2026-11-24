@@ -26,7 +26,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use chrono::{Days, NaiveDate};
+use chrono::{Datelike, Days, NaiveDate};
 use diesel::pg::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use diesel::{sql_query, Connection, RunQueryDsl};
@@ -5372,4 +5372,924 @@ fn authority_drift_retries_run_on_the_reserved_coordinator_connection_without_a_
     .expect("retry");
     assert!(!retry.replayed);
     assert_eq!(retry.rows[0].classification, Class::Winner);
+}
+
+// --------------------------------------------------------------------------
+// MET-HIST-01-CKPT: MONTH units and the OAPEN PARTIAL months
+// --------------------------------------------------------------------------
+//
+// The pure judgement is table-tested in `checkpoint_coverage`. These tests
+// observe it through the real lifecycle: the persisted checkpoint, cursor and
+// lease after `updateMetricSourceCheckpoint`, for a source that is not
+// CloudFront (rule B available), and for CloudFront (rule A alone).
+
+/// The platform and measure codes of the allowlist. No migration seeds them,
+/// so every test that needs them creates them.
+const OAPEN: &str = "oapen";
+const DOWNLOADS: &str = "downloads";
+/// A second measure that is not on the allowlist.
+const VIEWS: &str = "views";
+
+/// The first day of the month after `month`'s month.
+fn month_end(month: NaiveDate) -> NaiveDate {
+    if month.month() == 12 {
+        date(month.year() + 1, 1, 1)
+    } else {
+        date(month.year(), month.month() + 1, 1)
+    }
+}
+
+/// The `index`th month from 2021-01 (0 is 2021-01, 64 is 2026-05).
+fn month_at(index: u32) -> NaiveDate {
+    date(2021 + (index / 12) as i32, 1 + index % 12, 1)
+}
+
+/// A `MONTH`-grain observation of `month` for `platform` and `measure`.
+fn month_observation(
+    platform: &str,
+    measure: &str,
+    month: NaiveDate,
+) -> NormalizedMetricObservationInput {
+    NormalizedMetricObservationInput {
+        platform_code: platform.into(),
+        measure_code: measure.into(),
+        period_start: month,
+        period_end: month_end(month),
+        reporting_grain: MetricReportingGrain::Month,
+        source_row_number: None,
+        ..observation("10", month)
+    }
+}
+
+/// A coverage assertion for `platform` and `measure` over `[start, end)`.
+fn coverage_of(
+    platform: &str,
+    measure: &str,
+    status: MetricCoverageStatus,
+    start: NaiveDate,
+    end: NaiveDate,
+) -> NormalizedMetricCoverageAssertionInput {
+    NormalizedMetricCoverageAssertionInput {
+        platform_code: platform.into(),
+        measure_code: measure.into(),
+        ..coverage(status, start, end)
+    }
+}
+
+/// A `DAY`-grain `title_sessions` observation of `day` for `platform`.
+fn day_observation(platform: &str, day: NaiveDate) -> NormalizedMetricObservationInput {
+    NormalizedMetricObservationInput {
+        platform_code: platform.into(),
+        ..observation("10", day)
+    }
+}
+
+impl Fixture {
+    /// Create an enabled, directly collected measure `code` with no mapping.
+    fn add_measure(&self, code: &str) {
+        self.sql(&format!("INSERT INTO metric_measure (code, display_name, category, unit, allow_negative, additive_across_time, additive_across_works, definition, enabled) VALUES ('{code}', '{code}', 'USAGE', 'COUNT', FALSE, TRUE, TRUE, 'Test measure {code}', TRUE)"));
+    }
+
+    /// Map measure `code` onto the fixture's platform with `grains`, such as
+    /// `'DAY','MONTH'`.
+    fn add_pair(&self, code: &str, grains: &str) {
+        self.sql(&format!("INSERT INTO metric_platform_measure (platform_id, measure_id, supported_grains, supports_country, supports_institution, supports_publication, direct_collection, enabled) SELECT '{}', measure_id, ARRAY[{grains}]::metric_reporting_grain[], FALSE, FALSE, FALSE, TRUE, TRUE FROM metric_measure WHERE code = '{code}'", self.platform_id));
+    }
+
+    /// Replace the grains of the fixture platform's mapping for measure `code`.
+    fn set_grains(&self, code: &str, grains: &str) {
+        self.sql(&format!("UPDATE metric_platform_measure SET supported_grains = ARRAY[{grains}]::metric_reporting_grain[] WHERE platform_id = '{}' AND measure_id = (SELECT measure_id FROM metric_measure WHERE code = '{code}')", self.platform_id));
+    }
+
+    /// Claim account A and run one unit whose envelope is the day `start`,
+    /// with `observations` and `coverage`, returning the claim token and the
+    /// terminal import.
+    fn month_unit_with(
+        &self,
+        upstream: &str,
+        start: NaiveDate,
+        seed: u64,
+        observations: Vec<NormalizedMetricObservationInput>,
+        coverage: Vec<NormalizedMetricCoverageAssertionInput>,
+    ) -> (Uuid, MetricImport) {
+        let claim = self.claim_a();
+        let import = self.run_batch_unit(
+            claim.lease_token,
+            upstream,
+            start,
+            &digest(seed),
+            observations,
+            coverage,
+        );
+        (claim.lease_token, import)
+    }
+
+    /// `month_unit_with` for one coverage row per entry of `rows`, each
+    /// covering exactly `month` and observed once per distinct measure.
+    fn month_unit(
+        &self,
+        platform: &str,
+        upstream: &str,
+        month: NaiveDate,
+        seed: u64,
+        rows: &[(&str, MetricCoverageStatus)],
+    ) -> (Uuid, MetricImport) {
+        let mut measures: Vec<&str> = rows.iter().map(|(measure, _)| *measure).collect();
+        measures.sort_unstable();
+        measures.dedup();
+        self.month_unit_with(
+            upstream,
+            month,
+            seed,
+            measures
+                .into_iter()
+                .map(|measure| month_observation(platform, measure, month))
+                .collect(),
+            rows.iter()
+                .map(|(measure, status)| {
+                    coverage_of(platform, measure, *status, month, month_end(month))
+                })
+                .collect(),
+        )
+    }
+
+    /// Run a `COMPLETED` `month_unit` and record it.
+    fn record_month(
+        &self,
+        platform: &str,
+        upstream: &str,
+        month: NaiveDate,
+        seed: u64,
+        rows: &[(&str, MetricCoverageStatus)],
+    ) -> (Uuid, MetricImport, MetricSourceCheckpoint) {
+        let (token, import) = self.month_unit(platform, upstream, month, seed, rows);
+        assert_eq!(import.status, MetricImportStatus::Completed, "{upstream}");
+        let checkpoint = self
+            .update(import.import_id, token)
+            .unwrap_or_else(|error| panic!("{upstream}: {error:?}"));
+        (token, import, checkpoint)
+    }
+}
+
+/// A managed DRIVER source that is not CloudFront (rule B is available), whose
+/// account is on a platform with code `platform`, and two `MONTH`-capable
+/// measures, `downloads` and `views`. The fixture's `title_sessions` mapping
+/// stays `DAY`-only.
+fn month_setup(platform: &str) -> (TestDbGuard, Fixture) {
+    let (guard, f) = setup();
+    f.sql("UPDATE metric_source SET driver_key = 'archive'");
+    f.sql("UPDATE metric_source_account SET configuration = '{}'::jsonb");
+    f.sql(&format!(
+        "UPDATE metric_platform SET code = '{platform}' WHERE platform_id = '{}'",
+        f.platform_id
+    ));
+    for measure in [DOWNLOADS, VIEWS] {
+        f.add_measure(measure);
+        f.add_pair(measure, "'DAY','MONTH'");
+    }
+    (guard, f)
+}
+
+/// One MONTH unit of a table: its envelope month, its coverage rows (each
+/// exactly that month) and whether it advances the checkpoint.
+struct MonthCase {
+    label: &'static str,
+    month: NaiveDate,
+    rows: Vec<(&'static str, MetricCoverageStatus)>,
+    advances: bool,
+}
+
+/// Run each case on a fresh checkpoint and assert the persisted outcome: an
+/// advance moves the checkpoint to the 2nd of the month and records the
+/// cursor entry; anything else records progress and releases the claim and
+/// writes neither.
+fn assert_month_cases(f: &Fixture, platform: &str, cases: Vec<MonthCase>) {
+    for (index, case) in cases.into_iter().enumerate() {
+        let label = case.label;
+        let seed = 100 + index as u64;
+        f.sql("DELETE FROM metric_source_checkpoint");
+        let (token, import) = f.month_unit(
+            platform,
+            &format!("report-{index}"),
+            case.month,
+            seed,
+            &case.rows,
+        );
+        assert_eq!(import.status, MetricImportStatus::Completed, "{label}");
+        let checkpoint = f
+            .update(import.import_id, token)
+            .unwrap_or_else(|error| panic!("{label}: {error:?}"));
+        assert_eq!(checkpoint.last_completed_at, import.completed_at, "{label}");
+        assert_eq!(
+            (checkpoint.lease_owner, checkpoint.lease_expires_at),
+            (None, None),
+            "{label}: released"
+        );
+        assert_eq!(
+            checkpoint.last_successful_period_end,
+            case.advances.then(|| case.month.succ_opt().unwrap()),
+            "{label}"
+        );
+        let expected_cursor = case
+            .advances
+            .then(|| cursor_json(&[(case.month, digest(seed))]));
+        assert_eq!(checkpoint.cursor, expected_cursor, "{label}");
+        assert_eq!(f.stored_cursor(f.account_a), expected_cursor, "{label}");
+    }
+}
+
+#[test]
+fn a_perfect_month_unit_advances_the_checkpoint_to_its_second_day_and_the_next_month_follows() {
+    let (_guard, f) = month_setup(OAPEN);
+    let (jan, feb) = (date(2026, 1, 1), date(2026, 2, 1));
+    let complete = [(DOWNLOADS, MetricCoverageStatus::Complete)];
+
+    let (token_jan, import_jan, after_jan) =
+        f.record_month(OAPEN, "report-2026-01", jan, 1, &complete);
+    assert_eq!(
+        (import_jan.period_start, import_jan.period_end),
+        (Some(jan), Some(date(2026, 1, 2))),
+        "the managed import is the one-day envelope"
+    );
+    assert_eq!(
+        f.count(
+            "metric_coverage",
+            &format!(
+                "import_id = '{}' AND period_start = '2026-01-01' AND period_end = '2026-02-01' AND coverage_status = 'COMPLETE'",
+                import_jan.import_id
+            )
+        ),
+        1,
+        "the coverage row is exactly the calendar month"
+    );
+    assert_eq!(after_jan.last_successful_period_end, Some(date(2026, 1, 2)));
+    assert_eq!(after_jan.last_completed_at, import_jan.completed_at);
+    assert_eq!(
+        (after_jan.lease_owner, after_jan.lease_expires_at),
+        (None, None)
+    );
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(jan, digest(1))]))
+    );
+    assert_eq!(after_jan.cursor, f.stored_cursor(f.account_a));
+
+    // The next month: the checkpoint moves to its 2nd, and the cursor holds
+    // both months.
+    let (_, _, after_feb) = f.record_month(OAPEN, "report-2026-02", feb, 2, &complete);
+    assert_eq!(after_feb.last_successful_period_end, Some(date(2026, 2, 2)));
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(jan, digest(1)), (feb, digest(2))]))
+    );
+
+    // A released replay of the first month is read-only and returns the
+    // checkpoint as recorded.
+    let settled = f.snapshot();
+    assert_eq!(
+        f.update(import_jan.import_id, token_jan).unwrap(),
+        after_feb
+    );
+    assert_eq!(f.snapshot(), settled);
+}
+
+#[test]
+fn monthly_cursor_entries_are_evicted_by_period_across_the_sixty_four_bound() {
+    let (_guard, f) = month_setup(OAPEN);
+    let complete = [(DOWNLOADS, MetricCoverageStatus::Complete)];
+
+    // 64 retained months, 2021-01 to 2026-05 without 2023-07: a gap that the
+    // next accepted unit fills.
+    f.claim_a();
+    reset_leases(&f);
+    let gap = 30;
+    let mut retained: Vec<(NaiveDate, String)> = (0..=64)
+        .filter(|index| *index != gap)
+        .map(|index| (month_at(index), digest(index as u64)))
+        .collect();
+    assert_eq!(retained.len(), 64);
+    f.store_cursor(f.account_a, &cursor_json(&retained));
+
+    // A month inserted in the middle is the 65th entry and evicts the
+    // chronologically oldest, not an entry by insertion order.
+    let (_, _, filled) = f.record_month(OAPEN, "report-gap", month_at(gap), 3000, &complete);
+    retained.insert(gap as usize, (month_at(gap), digest(3000)));
+    retained.remove(0);
+    assert_eq!(retained.len(), 64);
+    assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&retained)));
+    assert_eq!(
+        filled.last_successful_period_end,
+        Some(month_at(gap).succ_opt().unwrap())
+    );
+
+    // A month older than every retained one is inserted and evicted at once:
+    // absence means unknown, never unchanged.
+    let before = f.stored_cursor_text(f.account_a);
+    let (_, _, older) = f.record_month(OAPEN, "report-older", date(2020, 12, 1), 4000, &complete);
+    assert_eq!(f.stored_cursor_text(f.account_a), before);
+    assert_eq!(
+        older.last_successful_period_end, filled.last_successful_period_end,
+        "an older month never moves the checkpoint backwards"
+    );
+
+    // The newest month evicts the oldest retained one.
+    let (_, _, newest) = f.record_month(OAPEN, "report-newest", month_at(65), 5000, &complete);
+    retained.remove(0);
+    retained.push((month_at(65), digest(5000)));
+    assert_eq!(f.stored_cursor(f.account_a), Some(cursor_json(&retained)));
+    assert_eq!(
+        newest.last_successful_period_end,
+        Some(month_at(65).succ_opt().unwrap())
+    );
+}
+
+#[test]
+fn a_month_unit_with_several_measures_needs_every_row_accepted() {
+    use MetricCoverageStatus::{Complete, Partial, Unknown};
+    let (_guard, f) = month_setup(OAPEN);
+    assert_month_cases(
+        &f,
+        OAPEN,
+        vec![
+            MonthCase {
+                label: "two measures, both COMPLETE",
+                month: date(2026, 3, 1),
+                rows: vec![(DOWNLOADS, Complete), (VIEWS, Complete)],
+                advances: true,
+            },
+            MonthCase {
+                label: "one COMPLETE, one UNKNOWN",
+                month: date(2026, 4, 1),
+                rows: vec![(DOWNLOADS, Complete), (VIEWS, Unknown)],
+                advances: false,
+            },
+            MonthCase {
+                label: "one COMPLETE, one PARTIAL outside the allowlist",
+                month: date(2026, 5, 1),
+                rows: vec![(DOWNLOADS, Complete), (VIEWS, Partial)],
+                advances: false,
+            },
+            MonthCase {
+                label: "allowlisted PARTIAL beside a COMPLETE row of another measure",
+                month: date(2026, 1, 1),
+                rows: vec![(DOWNLOADS, Partial), (VIEWS, Complete)],
+                advances: true,
+            },
+            MonthCase {
+                label: "allowlisted PARTIAL beside a PARTIAL row outside the allowlist",
+                month: date(2026, 8, 1),
+                rows: vec![(DOWNLOADS, Partial), (VIEWS, Partial)],
+                advances: false,
+            },
+            MonthCase {
+                label: "allowlisted PARTIAL beside an UNKNOWN row",
+                month: date(2026, 8, 1),
+                rows: vec![(DOWNLOADS, Partial), (VIEWS, Unknown)],
+                advances: false,
+            },
+            MonthCase {
+                label: "COMPLETE and PARTIAL rows of one measure",
+                month: date(2026, 1, 1),
+                rows: vec![(DOWNLOADS, Complete), (DOWNLOADS, Partial)],
+                advances: true,
+            },
+        ],
+    );
+}
+
+#[test]
+fn partial_coverage_advances_the_checkpoint_only_for_oapen_downloads_in_the_two_named_months() {
+    use MetricCoverageStatus::{Complete, Partial, Unknown};
+    let (_guard, f) = month_setup(OAPEN);
+    let case = |label, month, rows, advances| MonthCase {
+        label,
+        month,
+        rows,
+        advances,
+    };
+    assert_month_cases(
+        &f,
+        OAPEN,
+        vec![
+            case(
+                "downloads PARTIAL in 2026-01",
+                date(2026, 1, 1),
+                vec![(DOWNLOADS, Partial)],
+                true,
+            ),
+            case(
+                "downloads PARTIAL in 2026-08",
+                date(2026, 8, 1),
+                vec![(DOWNLOADS, Partial)],
+                true,
+            ),
+            case(
+                "downloads PARTIAL in 2026-02",
+                date(2026, 2, 1),
+                vec![(DOWNLOADS, Partial)],
+                false,
+            ),
+            case(
+                "downloads PARTIAL in 2026-07",
+                date(2026, 7, 1),
+                vec![(DOWNLOADS, Partial)],
+                false,
+            ),
+            case(
+                "downloads PARTIAL in 2026-09",
+                date(2026, 9, 1),
+                vec![(DOWNLOADS, Partial)],
+                false,
+            ),
+            case(
+                "downloads PARTIAL in 2025-01",
+                date(2025, 1, 1),
+                vec![(DOWNLOADS, Partial)],
+                false,
+            ),
+            case(
+                "downloads PARTIAL in 2027-01",
+                date(2027, 1, 1),
+                vec![(DOWNLOADS, Partial)],
+                false,
+            ),
+            case(
+                "another measure PARTIAL in 2026-01",
+                date(2026, 1, 1),
+                vec![(VIEWS, Partial)],
+                false,
+            ),
+            case(
+                "downloads UNKNOWN in 2026-01",
+                date(2026, 1, 1),
+                vec![(DOWNLOADS, Unknown)],
+                false,
+            ),
+            case(
+                "downloads COMPLETE in 2026-02",
+                date(2026, 2, 1),
+                vec![(DOWNLOADS, Complete)],
+                true,
+            ),
+        ],
+    );
+
+    // A one-day PARTIAL row inside an allowlisted month is not that month.
+    f.sql("DELETE FROM metric_source_checkpoint");
+    let jan = date(2026, 1, 1);
+    let (token, import) = f.month_unit_with(
+        "report-one-day",
+        jan,
+        200,
+        vec![month_observation(OAPEN, DOWNLOADS, jan)],
+        vec![coverage_of(
+            OAPEN,
+            DOWNLOADS,
+            Partial,
+            jan,
+            jan.succ_opt().unwrap(),
+        )],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(checkpoint.cursor, None);
+    assert_eq!(checkpoint.lease_owner, None);
+
+    // A PARTIAL month on a COMPLETED_WITH_ERRORS import: the import is not
+    // successful, so neither value moves, with the allowlisted month too.
+    f.sql("DELETE FROM metric_source_checkpoint");
+    let (token, import) = f.month_unit_with(
+        "report-errors",
+        jan,
+        201,
+        vec![
+            month_observation(OAPEN, DOWNLOADS, jan),
+            NormalizedMetricObservationInput {
+                work_doi: "https://doi.org/10.12345/unknown".into(),
+                ..month_observation(OAPEN, DOWNLOADS, jan)
+            },
+        ],
+        vec![coverage_of(OAPEN, DOWNLOADS, Partial, jan, month_end(jan))],
+    );
+    assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(checkpoint.cursor, None);
+    assert_eq!(checkpoint.lease_owner, None);
+}
+
+#[test]
+fn the_allowlist_names_the_platform_so_the_same_partial_month_on_another_platform_never_advances() {
+    use MetricCoverageStatus::{Complete, Partial};
+    let (_guard, f) = month_setup("ojs");
+    assert_month_cases(
+        &f,
+        "ojs",
+        vec![
+            MonthCase {
+                label: "downloads PARTIAL in 2026-01 on another platform",
+                month: date(2026, 1, 1),
+                rows: vec![(DOWNLOADS, Partial)],
+                advances: false,
+            },
+            MonthCase {
+                label: "downloads PARTIAL in 2026-08 on another platform",
+                month: date(2026, 8, 1),
+                rows: vec![(DOWNLOADS, Partial)],
+                advances: false,
+            },
+            MonthCase {
+                label: "downloads COMPLETE in 2026-01 on another platform",
+                month: date(2026, 1, 1),
+                rows: vec![(DOWNLOADS, Complete)],
+                advances: true,
+            },
+        ],
+    );
+}
+
+#[test]
+fn the_checkpoint_is_a_high_water_mark_so_a_later_month_moves_it_past_an_unimported_earlier_one() {
+    let (_guard, f) = month_setup(OAPEN);
+    let complete = [(DOWNLOADS, MetricCoverageStatus::Complete)];
+    let (jan, mar) = (date(2026, 1, 1), date(2026, 3, 1));
+    f.record_month(OAPEN, "report-2026-01", jan, 1, &complete);
+    // February is never imported.
+    let (_, _, after_mar) = f.record_month(OAPEN, "report-2026-03", mar, 3, &complete);
+    assert_eq!(after_mar.last_successful_period_end, Some(date(2026, 3, 2)));
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(jan, digest(1)), (mar, digest(3))]))
+    );
+    // The earlier month, imported afterwards, never moves it back.
+    let (_, _, after_feb) = f.record_month(OAPEN, "report-2026-02", date(2026, 2, 1), 2, &complete);
+    assert_eq!(after_feb.last_successful_period_end, Some(date(2026, 3, 2)));
+}
+
+#[test]
+fn a_month_row_that_is_not_the_calendar_month_starting_on_the_envelope_day_never_advances() {
+    let (_guard, f) = month_setup(OAPEN);
+    // Each unit's envelope is one day; its one coverage row is COMPLETE, on a
+    // MONTH-capable pair, and not the calendar month that starts on that day.
+    let cases = [
+        (
+            "the previous month",
+            date(2026, 3, 1),
+            (date(2026, 2, 1), date(2026, 3, 1)),
+        ),
+        (
+            "the next month",
+            date(2026, 3, 1),
+            (date(2026, 4, 1), date(2026, 5, 1)),
+        ),
+        (
+            "two months wide",
+            date(2026, 3, 1),
+            (date(2026, 3, 1), date(2026, 5, 1)),
+        ),
+        (
+            "ending a day early",
+            date(2026, 3, 1),
+            (date(2026, 3, 1), date(2026, 3, 31)),
+        ),
+        (
+            "the month that contains the envelope day but starts before it",
+            date(2026, 3, 2),
+            (date(2026, 3, 1), date(2026, 4, 1)),
+        ),
+        (
+            "a month wide that does not start on the 1st",
+            date(2026, 3, 2),
+            (date(2026, 3, 2), date(2026, 4, 2)),
+        ),
+        (
+            "the calendar month of the next day",
+            date(2026, 3, 31),
+            (date(2026, 4, 1), date(2026, 5, 1)),
+        ),
+    ];
+    for (index, (label, envelope, (start, end))) in cases.into_iter().enumerate() {
+        f.sql("DELETE FROM metric_source_checkpoint");
+        let (token, import) = f.month_unit_with(
+            &format!("report-{index}"),
+            envelope,
+            index as u64,
+            vec![day_observation(OAPEN, envelope)],
+            vec![coverage_of(
+                OAPEN,
+                DOWNLOADS,
+                MetricCoverageStatus::Complete,
+                start,
+                end,
+            )],
+        );
+        assert_eq!(import.status, MetricImportStatus::Completed, "{label}");
+        let checkpoint = f
+            .update(import.import_id, token)
+            .unwrap_or_else(|error| panic!("{label}: {error:?}"));
+        assert_eq!(checkpoint.last_completed_at, import.completed_at, "{label}");
+        assert_eq!(checkpoint.last_successful_period_end, None, "{label}");
+        assert_eq!(checkpoint.cursor, None, "{label}");
+        assert_eq!(checkpoint.lease_owner, None, "{label}: released");
+    }
+}
+
+#[test]
+fn a_month_unit_with_zero_coverage_rows_never_advances() {
+    let (_guard, f) = month_setup(OAPEN);
+    let jan = date(2026, 1, 1);
+    let (token, import) = f.month_unit_with(
+        "report-no-coverage",
+        jan,
+        1,
+        vec![month_observation(OAPEN, DOWNLOADS, jan)],
+        vec![],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    assert_eq!(f.count("metric_coverage", "TRUE"), 0);
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(checkpoint.cursor, None);
+    assert_eq!(checkpoint.lease_owner, None);
+}
+
+#[test]
+fn a_cloudfront_unit_is_judged_by_the_day_rule_alone_whatever_the_registry_lists() {
+    let (_guard, f) = setup();
+    // The CloudFront source keeps its driver key; its platform now has a
+    // MONTH-capable mapping next to the DAY-only one.
+    f.add_measure(DOWNLOADS);
+    f.add_pair(DOWNLOADS, "'DAY','MONTH'");
+    let exact_month = |month: NaiveDate| {
+        coverage_of(
+            "cf",
+            DOWNLOADS,
+            MetricCoverageStatus::Complete,
+            month,
+            month_end(month),
+        )
+    };
+
+    // A COMPLETED unit with the exact month row alone, and with a day row
+    // beside it: nothing advances, and no manifest is accepted.
+    for (index, (label, with_day_row)) in [
+        ("month row alone", false),
+        ("month row beside a day row", true),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        f.sql("DELETE FROM metric_source_checkpoint");
+        let month = date(2026, 3 + index as u32, 1);
+        let mut coverage = vec![exact_month(month)];
+        let mut observations = vec![month_observation("cf", DOWNLOADS, month)];
+        if with_day_row {
+            coverage.push(complete_day(month));
+            observations.push(observation("10", month));
+        }
+        let (token, import) = f.month_unit_with(
+            &format!("report-{index}"),
+            month,
+            10 + index as u64,
+            observations,
+            coverage,
+        );
+        assert_eq!(import.status, MetricImportStatus::Completed, "{label}");
+        let checkpoint = f.update(import.import_id, token).unwrap();
+        assert_eq!(checkpoint.last_completed_at, import.completed_at, "{label}");
+        assert_eq!(checkpoint.last_successful_period_end, None, "{label}");
+        assert_eq!(checkpoint.cursor, None, "{label}");
+        assert_eq!(checkpoint.lease_owner, None, "{label}: released");
+    }
+
+    // A quarantine-only unit whose coverage is month-shaped stays ineligible:
+    // progress and release, no manifest.
+    f.sql("DELETE FROM metric_source_checkpoint");
+    let month = date(2026, 6, 1);
+    let (token, import) = f.month_unit_with(
+        "report-quarantine-month",
+        month,
+        20,
+        vec![unresolved(UNRESOLVED_DOI, month)],
+        vec![exact_month(month)],
+    );
+    assert_eq!(import.status, MetricImportStatus::CompletedWithErrors);
+    assert_eq!(f.quarantined(import.import_id), 1);
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(
+        checkpoint.cursor, None,
+        "no manifest for month-shaped coverage"
+    );
+    assert_eq!(checkpoint.lease_owner, None);
+
+    // The same registry leaves the eligible quarantine-only unit as it was.
+    f.sql("DELETE FROM metric_source_checkpoint");
+    let (token, import) = f.quarantine_only_unit("report-quarantine-day", day(5), &digest(30));
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(
+        checkpoint.cursor,
+        Some(cursor_json(&[(day(5), digest(30))]))
+    );
+}
+
+#[test]
+fn a_missing_registry_pair_row_fails_rule_b_closed_and_leaves_rule_a_rows_accepted() {
+    let (_guard, f) = month_setup(OAPEN);
+    let (jan, mar) = (date(2026, 1, 1), date(2026, 3, 1));
+
+    // A unit with a rule A row (a DAY mapping) and a rule B row. The pair of
+    // the month row is deleted after ingest: the unit is not accepted, and
+    // the update neither fails nor writes a manifest.
+    let (token, import) = f.month_unit_with(
+        "report-pair-missing",
+        jan,
+        1,
+        vec![
+            day_observation(OAPEN, jan),
+            month_observation(OAPEN, DOWNLOADS, jan),
+        ],
+        vec![
+            coverage_of(
+                OAPEN,
+                "title_sessions",
+                MetricCoverageStatus::Complete,
+                jan,
+                jan.succ_opt().unwrap(),
+            ),
+            coverage_of(
+                OAPEN,
+                DOWNLOADS,
+                MetricCoverageStatus::Complete,
+                jan,
+                month_end(jan),
+            ),
+        ],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    f.sql("DELETE FROM metric_platform_measure WHERE measure_id = (SELECT measure_id FROM metric_measure WHERE code = 'downloads')");
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(checkpoint.last_completed_at, import.completed_at);
+    assert_eq!(checkpoint.last_successful_period_end, None);
+    assert_eq!(checkpoint.cursor, None);
+    assert_eq!(checkpoint.lease_owner, None);
+
+    // A unit of rule A rows alone is accepted although the pair is missing.
+    let (token, import) = f.month_unit_with(
+        "report-day-only",
+        mar,
+        2,
+        vec![day_observation(OAPEN, mar)],
+        vec![coverage_of(
+            OAPEN,
+            "title_sessions",
+            MetricCoverageStatus::Complete,
+            mar,
+            mar.succ_opt().unwrap(),
+        )],
+    );
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    let checkpoint = f.update(import.import_id, token).unwrap();
+    assert_eq!(
+        checkpoint.last_successful_period_end,
+        Some(date(2026, 3, 2))
+    );
+    assert_eq!(checkpoint.cursor, Some(cursor_json(&[(mar, digest(2))])));
+}
+
+#[test]
+fn a_registry_change_after_the_import_changes_the_replay_in_both_directions_and_never_writes() {
+    let (_guard, f) = month_setup(OAPEN);
+    let complete_downloads = [(DOWNLOADS, MetricCoverageStatus::Complete)];
+
+    // MONTH removed from the pair after a successful import: the replay now
+    // judges the import unsuccessful, and still returns the checkpoint that
+    // recorded it.
+    let jan = date(2026, 1, 1);
+    let (token, import, recorded) =
+        f.record_month(OAPEN, "report-2026-01", jan, 1, &complete_downloads);
+    assert_eq!(recorded.last_successful_period_end, Some(date(2026, 1, 2)));
+    f.set_grains(DOWNLOADS, "'DAY'");
+    let settled = f.snapshot();
+    assert_eq!(f.update(import.import_id, token).unwrap(), recorded);
+    assert_eq!(f.snapshot(), settled);
+    f.set_grains(DOWNLOADS, "'DAY','MONTH'");
+
+    // MONTH added to the pair after an unsuccessful import. The unit's month
+    // row is for a pair that is DAY-only while the unit runs, so it is judged
+    // unsuccessful: progress and release, nothing else.
+    let mar = date(2026, 3, 1);
+    f.set_grains(VIEWS, "'DAY'");
+    let digest_mar = digest(3);
+    let claim = f.claim_a();
+    let begin = BeginMetricImportInput {
+        expected_batch_keys: vec!["only".into()],
+        manifest_digest: digest_mar.clone(),
+        ..begin_input(claim.lease_token, "report-2026-03", mar)
+    };
+    let import = begin_metric_import(&f.pool, ACTOR, &begin).expect("begin");
+    f.ingest(
+        import.import_id,
+        claim.lease_token,
+        "only",
+        vec![day_observation(OAPEN, mar)],
+        vec![coverage_of(
+            OAPEN,
+            VIEWS,
+            MetricCoverageStatus::Complete,
+            mar,
+            month_end(mar),
+        )],
+    )
+    .expect("batch");
+    let import = f
+        .complete(import.import_id, claim.lease_token)
+        .expect("complete");
+    assert_eq!(import.status, MetricImportStatus::Completed);
+    let unrecorded = f.update(import.import_id, claim.lease_token).unwrap();
+    assert_eq!(unrecorded.last_completed_at, import.completed_at);
+    assert_eq!(
+        unrecorded.last_successful_period_end,
+        Some(date(2026, 1, 2)),
+        "the unit did not advance the checkpoint"
+    );
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(jan, digest(1))])),
+        "and recorded no manifest"
+    );
+
+    // Now the pair is MONTH-capable. A released replay judges the import
+    // successful, finds no progress recorded for it and is stale; nothing is
+    // written.
+    f.set_grains(VIEWS, "'DAY','MONTH'");
+    let settled = f.snapshot();
+    assert_eq!(
+        f.update(import.import_id, claim.lease_token),
+        Err(E::StaleSourceClaim)
+    );
+    assert_eq!(f.snapshot(), settled);
+
+    // A fresh claim re-runs begin, which returns the terminal import
+    // unchanged, and the update now advances.
+    let fresh = f.claim_a();
+    let begin = BeginMetricImportInput {
+        lease_token: fresh.lease_token,
+        ..begin
+    };
+    assert_eq!(
+        begin_metric_import(&f.pool, ACTOR, &begin).expect("begin again"),
+        import
+    );
+    let advanced = f.update(import.import_id, fresh.lease_token).unwrap();
+    assert_eq!(advanced.last_successful_period_end, Some(date(2026, 3, 2)));
+    assert_eq!(
+        f.stored_cursor(f.account_a),
+        Some(cursor_json(&[(jan, digest(1)), (mar, digest_mar)]))
+    );
+    assert_eq!(advanced.lease_owner, None);
+}
+
+#[test]
+fn an_allowlisted_partial_month_reads_as_one_partial_coverage_run_until_a_complete_import_replaces_it(
+) {
+    let (_guard, f) = month_setup(OAPEN);
+    let (jan, feb) = (date(2026, 1, 1), date(2026, 2, 1));
+    assert!(coverage_runs(&f).is_empty());
+
+    // The allowlisted PARTIAL unit advances the checkpoint, and its month
+    // reads as one PARTIAL run `[1st, next 1st)`.
+    let (_, _, after) = f.record_month(
+        OAPEN,
+        "report-partial",
+        jan,
+        1,
+        &[(DOWNLOADS, MetricCoverageStatus::Partial)],
+    );
+    assert_eq!(after.last_successful_period_end, Some(date(2026, 1, 2)));
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, jan, feb, "PARTIAL", "COMPLETED")]
+    );
+    assert_account_a_exact(&f, 1);
+
+    // A later import for the same month with COMPLETE coverage wins by the
+    // coverage-run rule and leaves one COMPLETE run.
+    f.record_month(
+        OAPEN,
+        "report-complete",
+        jan,
+        2,
+        &[(DOWNLOADS, MetricCoverageStatus::Complete)],
+    );
+    assert_eq!(
+        coverage_runs(&f),
+        vec![expected_run(&f, jan, feb, "COMPLETE", "COMPLETED")]
+    );
+    assert_account_a_exact(&f, 1);
 }
