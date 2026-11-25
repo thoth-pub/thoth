@@ -1059,7 +1059,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Set or clear the public URL of a publisher's metrics dashboard. Superuser only. Pass null to clear. The URL must be an https URL with a host, no user information, no whitespace or control characters, and at most 2048 characters; it is stored exactly as given. Setting it does not grant the METRICS_DASHBOARD capability, which comes from the subscription package alone."
+        description = "Set or clear the public URL of a publisher's metrics dashboard. Superuser only. Pass null to clear; leaving the argument out is the same as null. The URL must be an https URL with a host, no user information, no whitespace or control characters, and at most 2048 characters; it is stored exactly as given. Setting it does not grant the METRICS_DASHBOARD capability, which comes from the subscription package alone."
     )]
     fn set_publisher_metrics_dashboard_url(
         context: &Context,
@@ -1072,7 +1072,7 @@ impl MutationRoot {
 
         publisher
             .set_metrics_dashboard_url(context, metrics_dashboard_url.as_deref())
-            .map_err(Into::into)
+            .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Update an existing imprint with the specified values")]

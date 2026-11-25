@@ -1058,6 +1058,42 @@ mod metrics_dashboard_url_db {
         assert_eq!(history_count(&pool, publisher.publisher_id), before + 3);
         let fetched = Publisher::from_id(pool.as_ref(), &publisher.publisher_id).unwrap();
         assert_eq!(fetched.metrics_dashboard_url, None);
+
+        // Each history row snapshots the publisher as it was before the write,
+        // exactly as `updatePublisher` does: the first has no URL, the second
+        // the first URL, the third the replacement.
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let snapshots: Vec<String> = publisher_history::table
+            .filter(publisher_history::publisher_id.eq(publisher.publisher_id))
+            .order(publisher_history::timestamp.asc())
+            .select(publisher_history::data)
+            .load::<serde_json::Value>(&mut connection)
+            .expect("Failed to load history")
+            .into_iter()
+            .map(|v| v.as_str().unwrap_or_default().to_string())
+            .collect();
+        let tail = &snapshots[snapshots.len() - 3..];
+        assert!(!tail[0].contains(URL));
+        assert!(tail[1].contains(URL));
+        assert!(tail[2].contains(other));
+    }
+
+    #[test]
+    fn database_check_accepts_2048_characters_and_rejects_2049() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let prefix = "https://example.org/";
+        let at_limit = format!("{prefix}{}", "a".repeat(2048 - prefix.len()));
+        for (value, ok) in [(at_limit.clone(), true), (format!("{at_limit}a"), false)] {
+            let result = sql_query(
+                "UPDATE publisher SET metrics_dashboard_url = $1 WHERE publisher_id = $2",
+            )
+            .bind::<Text, _>(value)
+            .bind::<diesel::sql_types::Uuid, _>(publisher.publisher_id)
+            .execute(&mut connection);
+            assert_eq!(result.is_ok(), ok);
+        }
     }
 
     #[test]

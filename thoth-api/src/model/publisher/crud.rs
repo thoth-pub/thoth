@@ -142,13 +142,9 @@ impl Publisher {
         use diesel::Connection;
 
         if let Some(url) = url {
-            // The reason text names the rules but is not shown, and the value is
-            // never repeated in the error.
-            super::validate_metrics_dashboard_url(url).map_err(|_| {
-                thoth_errors::ThothError::InvalidMetadataSpecification(
-                    "metrics dashboard URL".to_string(),
-                )
-            })?;
+            // The error text is fixed and never repeats the value.
+            super::validate_metrics_dashboard_url(url)
+                .map_err(|_| thoth_errors::ThothError::InvalidMetricsDashboardUrl)?;
         }
         let user_id = ctx.user_id()?;
         let mut connection = ctx.db().get()?;
