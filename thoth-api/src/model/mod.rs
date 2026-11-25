@@ -895,6 +895,8 @@ pub mod file;
 pub mod funding;
 pub mod imprint;
 pub mod institution;
+#[cfg(feature = "backend")]
+pub mod isbn_lookup;
 pub mod issue;
 pub mod language;
 pub mod locale;
