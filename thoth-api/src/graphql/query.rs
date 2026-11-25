@@ -32,6 +32,7 @@ use crate::model::{
     funding::Funding,
     imprint::{Imprint, ImprintOrderBy},
     institution::{Institution, InstitutionOrderBy, RorStatus},
+    isbn_lookup::{work_isbn_matches, IsbnWorkMatch},
     issue::Issue,
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
@@ -169,6 +170,23 @@ impl QueryRoot {
         #[graphql(description = "Thoth work ID to search on")] work_id: Uuid,
     ) -> FieldResult<Work> {
         Work::from_id(&context.db, &work_id).map_err(Into::into)
+    }
+
+    #[graphql(
+        description = "Resolve platform-reported ISBNs (ISBN-10 or ISBN-13, any hyphenation) to the Thoth work that owns the matching publication, of any type. Returns one entry per input, in input order. At most 500 ISBNs per call. Several publications of one work are one match; different works are AMBIGUOUS; a work with no DOI is NO_DOI"
+    )]
+    fn work_isbn_matches(
+        context: &Context,
+        #[graphql(description = "ISBNs as the platform wrote them: 1 to 500 entries")] isbns: Vec<
+            String,
+        >,
+        #[graphql(
+            default = vec![],
+            description = "If set, only works of these publishers are considered"
+        )]
+        publishers: Option<Vec<Uuid>>,
+    ) -> FieldResult<Vec<IsbnWorkMatch>> {
+        work_isbn_matches(&context.db, &isbns, &publishers.unwrap_or_default()).map_err(Into::into)
     }
 
     #[graphql(description = "Query a single work using its DOI")]
