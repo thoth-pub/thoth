@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [1061](https://github.com/thoth-pub/thoth/issues/1061) - Add a publisher's public metrics dashboard URL: `Publisher.metricsDashboardUrl`, set or cleared only by superusers with `setPublisherMetricsDashboardUrl`, independent of the subscription package
   - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Add the public read-only `workIsbnMatches` query, which resolves up to 500 platform-reported ISBNs (ISBN-10 or ISBN-13, any hyphenation) to the work that owns the matching publication of any type, with unknown, ambiguous, invalid and no-DOI outcomes
 
 ## [[1.12.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.12.1) - 2026-11-24

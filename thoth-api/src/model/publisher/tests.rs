@@ -893,3 +893,253 @@ mod crud {
         }
     }
 }
+
+mod metrics_dashboard_url {
+    use super::*;
+
+    #[test]
+    fn accepts_https_urls_with_host_port_and_path() {
+        for url in [
+            "https://metrics.example.org",
+            "https://metrics.example.org/",
+            "https://metrics.example.org:8443/dash?x=1#top",
+            "https://metrics.example.org/a/b",
+            "https://münchen.example/dash",
+        ] {
+            assert!(validate_metrics_dashboard_url(url).is_ok(), "{url}");
+        }
+    }
+
+    #[test]
+    fn rejects_other_schemes_missing_hosts_and_user_information() {
+        for url in [
+            "",
+            "http://metrics.example.org",
+            "HTTPS://metrics.example.org",
+            "ftp://metrics.example.org",
+            "metrics.example.org",
+            "//metrics.example.org",
+            "https://",
+            "https:///path",
+            "https://user@metrics.example.org",
+            "https://user:pw@metrics.example.org/",
+            "https://metrics.example.org?x=1",
+            "https://metrics.example.org#top",
+        ] {
+            assert!(validate_metrics_dashboard_url(url).is_err(), "{url}");
+        }
+    }
+
+    #[test]
+    fn rejects_whitespace_and_control_characters() {
+        for url in [
+            " https://metrics.example.org",
+            "https://metrics.example.org ",
+            "https://metrics .example.org",
+            "https://metrics.example.org/a b",
+            "https://metrics.example.org/\n",
+            "https://metrics.example.org/\t",
+            "https://metrics.example.org/\u{7}",
+        ] {
+            assert!(validate_metrics_dashboard_url(url).is_err(), "{url:?}");
+        }
+    }
+
+    #[test]
+    fn enforces_the_length_bound_in_characters() {
+        let prefix = "https://example.org/";
+        let at_limit = format!(
+            "{prefix}{}",
+            "a".repeat(METRICS_DASHBOARD_URL_MAX_CHARS - prefix.len())
+        );
+        assert_eq!(at_limit.chars().count(), METRICS_DASHBOARD_URL_MAX_CHARS);
+        assert!(validate_metrics_dashboard_url(&at_limit).is_ok());
+        assert!(validate_metrics_dashboard_url(&format!("{at_limit}a")).is_err());
+    }
+
+    #[test]
+    fn publisher_json_without_the_field_remains_readable() {
+        let legacy = r#"{
+            "publisherId": "00000000-0000-0000-0000-000000000001",
+            "publisherName": "Legacy Press",
+            "publisherShortname": null,
+            "publisherUrl": null,
+            "zitadelId": null,
+            "accessibilityStatement": null,
+            "accessibilityReportUrl": null,
+            "createdAt": "1970-01-01T00:00:00Z",
+            "updatedAt": "1970-01-01T00:00:00Z"
+        }"#;
+        let publisher: Publisher = serde_json::from_str(legacy).unwrap();
+        assert_eq!(publisher.metrics_dashboard_url, None);
+    }
+}
+
+#[cfg(feature = "backend")]
+mod metrics_dashboard_url_db {
+    use super::*;
+    use diesel::prelude::*;
+    use diesel::sql_query;
+    use diesel::sql_types::Text;
+
+    use crate::model::publisher::policy::PublisherPolicy;
+    use crate::model::tests::db::{
+        create_publisher, setup_test_db, test_context_with_user, test_superuser,
+        test_user_with_role,
+    };
+    use crate::model::Crud;
+    use crate::policy::Role;
+    use crate::schema::publisher_history;
+
+    const URL: &str = "https://metrics.example.org/dash";
+
+    fn history_count(pool: &crate::db::PgPool, id: Uuid) -> i64 {
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        publisher_history::table
+            .filter(publisher_history::publisher_id.eq(id))
+            .count()
+            .get_result(&mut connection)
+            .expect("Failed to count history")
+    }
+
+    #[test]
+    fn column_starts_null_for_a_new_publisher() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        assert_eq!(publisher.metrics_dashboard_url, None);
+    }
+
+    #[test]
+    fn only_a_superuser_passes_the_write_policy() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let org_id = publisher.zitadel_id.clone().expect("zitadel id");
+
+        let super_ctx = test_context_with_user(pool.clone(), test_superuser("dash-super"));
+        assert!(PublisherPolicy::can_set_metrics_dashboard_url(&super_ctx).is_ok());
+
+        for role in [Role::PublisherAdmin, Role::PublisherUser] {
+            let user = test_user_with_role("dash-user", role, &org_id);
+            let ctx = test_context_with_user(pool.clone(), user);
+            assert!(PublisherPolicy::can_set_metrics_dashboard_url(&ctx).is_err());
+        }
+    }
+
+    #[test]
+    fn set_replace_and_clear_write_history_each_time() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let ctx = test_context_with_user(pool.clone(), test_superuser("dash-super"));
+        let before = history_count(&pool, publisher.publisher_id);
+
+        let set = publisher
+            .set_metrics_dashboard_url(&ctx, Some(URL))
+            .expect("set");
+        assert_eq!(set.metrics_dashboard_url.as_deref(), Some(URL));
+        // Nothing else changed.
+        assert_eq!(set.subscription_package, publisher.subscription_package);
+        assert_eq!(
+            set.service_configuration_updated_at,
+            publisher.service_configuration_updated_at
+        );
+        assert_eq!(set.publisher_name, publisher.publisher_name);
+
+        let other = "https://dash.example.net";
+        let replaced = set
+            .set_metrics_dashboard_url(&ctx, Some(other))
+            .expect("replace");
+        assert_eq!(replaced.metrics_dashboard_url.as_deref(), Some(other));
+
+        let cleared = replaced
+            .set_metrics_dashboard_url(&ctx, None)
+            .expect("clear");
+        assert_eq!(cleared.metrics_dashboard_url, None);
+
+        assert_eq!(history_count(&pool, publisher.publisher_id), before + 3);
+        let fetched = Publisher::from_id(pool.as_ref(), &publisher.publisher_id).unwrap();
+        assert_eq!(fetched.metrics_dashboard_url, None);
+    }
+
+    #[test]
+    fn an_invalid_value_is_refused_without_a_write_or_history_row() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let ctx = test_context_with_user(pool.clone(), test_superuser("dash-super"));
+        let before = history_count(&pool, publisher.publisher_id);
+
+        for bad in [
+            "http://metrics.example.org",
+            "https://u@metrics.example.org",
+            "",
+        ] {
+            let err = publisher
+                .set_metrics_dashboard_url(&ctx, Some(bad))
+                .expect_err("must refuse");
+            // The message never repeats the value.
+            assert!(!format!("{err}").contains(bad) || bad.is_empty());
+        }
+        assert_eq!(history_count(&pool, publisher.publisher_id), before);
+        let fetched = Publisher::from_id(pool.as_ref(), &publisher.publisher_id).unwrap();
+        assert_eq!(fetched.metrics_dashboard_url, None);
+    }
+
+    #[test]
+    fn update_publisher_neither_sets_nor_clears_the_url() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let ctx = test_context_with_user(pool.clone(), test_superuser("dash-super"));
+        let with_url = publisher
+            .set_metrics_dashboard_url(&ctx, Some(URL))
+            .expect("set");
+
+        let patch = PatchPublisher {
+            publisher_id: with_url.publisher_id,
+            publisher_name: format!("Renamed {}", Uuid::new_v4()),
+            publisher_shortname: None,
+            publisher_url: None,
+            zitadel_id: with_url.zitadel_id.clone(),
+            accessibility_statement: None,
+            accessibility_report_url: None,
+        };
+        let updated = with_url.update(&ctx, &patch).expect("update");
+        assert_eq!(updated.metrics_dashboard_url.as_deref(), Some(URL));
+    }
+
+    #[test]
+    fn database_check_rejects_values_the_api_would_refuse() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(pool.as_ref());
+        let mut connection = pool.get().expect("Failed to get DB connection");
+
+        for bad in [
+            "http://metrics.example.org",
+            "https://",
+            "https://u@metrics.example.org",
+            "https://metrics.example.org/a b",
+            "https://metrics.example.org/\u{7}",
+        ] {
+            let result = sql_query(
+                "UPDATE publisher SET metrics_dashboard_url = $1 WHERE publisher_id = $2",
+            )
+            .bind::<Text, _>(bad)
+            .bind::<diesel::sql_types::Uuid, _>(publisher.publisher_id)
+            .execute(&mut connection);
+            assert!(result.is_err(), "{bad:?}");
+        }
+        let long = format!("https://example.org/{}", "a".repeat(2048));
+        assert!(sql_query(
+            "UPDATE publisher SET metrics_dashboard_url = $1 WHERE publisher_id = $2"
+        )
+        .bind::<Text, _>(long)
+        .bind::<diesel::sql_types::Uuid, _>(publisher.publisher_id)
+        .execute(&mut connection)
+        .is_err());
+        assert!(sql_query(
+            "UPDATE publisher SET metrics_dashboard_url = $1 WHERE publisher_id = $2"
+        )
+        .bind::<Text, _>(URL)
+        .bind::<diesel::sql_types::Uuid, _>(publisher.publisher_id)
+        .execute(&mut connection)
+        .is_ok());
+    }
+}

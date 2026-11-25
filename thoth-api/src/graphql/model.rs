@@ -1339,6 +1339,13 @@ impl Publisher {
         self.accessibility_report_url.as_ref()
     }
 
+    #[graphql(
+        description = "Public URL of the publisher's metrics dashboard, if one is set. Set by superusers only. A publisher may hold a URL whatever its package; holding one grants no access to metrics features, which come from the subscription package alone"
+    )]
+    pub fn metrics_dashboard_url(&self) -> Option<&String> {
+        self.metrics_dashboard_url.as_ref()
+    }
+
     #[graphql(description = "Date and time at which the publisher record was created")]
     pub fn created_at(&self) -> Timestamp {
         self.created_at
