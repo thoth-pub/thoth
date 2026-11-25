@@ -204,6 +204,7 @@ mod db {
         assert_eq!(out[5].status, IsbnMatchStatus::Unknown);
         assert!(out[5].normalised_isbn.is_some());
         assert_eq!(out[6].status, IsbnMatchStatus::Invalid);
+        assert_eq!(out[0].work_type, Some(WorkType::Monograph));
         assert_eq!(out[6].normalised_isbn, None);
         // Duplicate input gives a duplicate entry (hyphenated and plain).
         assert_eq!(out[7].work_id, out[0].work_id);
@@ -259,24 +260,5 @@ mod db {
             work_isbn_matches(&pool, &exactly, &[]).unwrap().len(),
             ISBN_LOOKUP_MAX_INPUTS
         );
-    }
-
-    #[test]
-    fn unhyphenated_storage_still_matches() {
-        let (_guard, pool) = setup_test_db();
-        let publisher = create_publisher(&pool);
-        let imprint = create_imprint(&pool, &publisher);
-        let w = create_work(&pool, &imprint);
-        set_doi(&pool, w.work_id, "https://doi.org/10.1234/raw");
-        let isbn = isbn13("978178374520");
-        add_publication(&pool, w.work_id, PublicationType::Pdf, Some(&isbn));
-        let mut c = pool.get().unwrap();
-        sql_query("UPDATE publication SET isbn = replace(isbn, '-', '') WHERE work_id = $1")
-            .bind::<SqlUuid, _>(w.work_id)
-            .execute(&mut c)
-            .ok();
-        drop(c);
-        let out = work_isbn_matches(&pool, &[isbn], &[]).unwrap();
-        assert_eq!(out[0].status, IsbnMatchStatus::Matched);
     }
 }

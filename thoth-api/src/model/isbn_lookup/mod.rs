@@ -8,8 +8,9 @@
 //! - One result per input element, in input order; duplicates give duplicates.
 //! - Normalisation is [`normalise_isbn`]: ISBN-10 and ISBN-13 with or without
 //!   hyphens, spaces or an `ISBN` prefix, check digit validated.
-//! - Matching compares digits only, against publications of every type, so the
-//!   stored hyphenation never causes a miss.
+//! - Matching compares the hyphenated ISBN-13 (the only form the database
+//!   accepts, `octet_length(isbn) = 17`) so the existing `isbn` index is used,
+//!   against publications of every type.
 //! - Several publications of one work are one match. Publications of different
 //!   works are `AMBIGUOUS`. A work with no DOI is `NO_DOI`.
 //!
@@ -193,7 +194,7 @@ SELECT replace(p.isbn, '-', '') AS digits, w.work_id, w.doi, w.work_type, \
   FROM publication p \
   JOIN work w ON w.work_id = p.work_id \
   JOIN imprint i ON i.imprint_id = w.imprint_id \
- WHERE replace(p.isbn, '-', '') = ANY($1) \
+ WHERE p.isbn = ANY($1) \
    AND (cardinality($2::uuid[]) = 0 OR i.publisher_id = ANY($2))";
 
 /// Resolve a batch of ISBNs; see the module documentation.
@@ -203,7 +204,7 @@ pub fn work_isbn_matches(
     publishers: &[Uuid],
 ) -> ThothResult<Vec<IsbnWorkMatch>> {
     if isbns.len() > ISBN_LOOKUP_MAX_INPUTS {
-        return Err(ThothError::InternalError(format!(
+        return Err(ThothError::RequestError(format!(
             "at most {ISBN_LOOKUP_MAX_INPUTS} ISBNs per call"
         )));
     }
@@ -211,7 +212,7 @@ pub fn work_isbn_matches(
     let mut wanted: Vec<String> = normalised
         .iter()
         .flatten()
-        .map(|n| n.digits.clone())
+        .map(|n| n.display.clone())
         .collect();
     wanted.sort();
     wanted.dedup();
@@ -228,26 +229,28 @@ pub fn work_isbn_matches(
         }
     }
 
-    Ok(isbns
+    isbns
         .iter()
         .zip(normalised)
         .map(|(raw, norm)| build_match(raw, norm, &found))
-        .collect())
+        .collect()
 }
 
 fn build_match(
     raw: &str,
     norm: Option<NormalisedIsbn>,
     found: &BTreeMap<String, Vec<MatchRow>>,
-) -> IsbnWorkMatch {
-    let blank = |status, normalised_isbn| IsbnWorkMatch {
-        isbn: raw.to_string(),
-        normalised_isbn,
-        status,
-        work_id: None,
-        work_doi: None,
-        work_type: None,
-        publisher_id: None,
+) -> ThothResult<IsbnWorkMatch> {
+    let blank = |status, normalised_isbn| {
+        Ok(IsbnWorkMatch {
+            isbn: raw.to_string(),
+            normalised_isbn,
+            status,
+            work_id: None,
+            work_doi: None,
+            work_type: None,
+            publisher_id: None,
+        })
     };
     let Some(norm) = norm else {
         return blank(IsbnMatchStatus::Invalid, None);
@@ -262,12 +265,13 @@ fn build_match(
         return blank(IsbnMatchStatus::Ambiguous, Some(norm.display));
     }
     let row = &rows[0];
-    let doi = row
-        .doi
-        .as_deref()
-        .filter(|d| !d.trim().is_empty())
-        .and_then(|d| Doi::from_str(d).ok());
-    IsbnWorkMatch {
+    let doi = match row.doi.as_deref().filter(|d| !d.trim().is_empty()) {
+        None => None,
+        Some(d) => Some(Doi::from_str(d).map_err(|_| {
+            ThothError::InternalError("a stored work DOI could not be parsed".to_string())
+        })?),
+    };
+    Ok(IsbnWorkMatch {
         isbn: raw.to_string(),
         normalised_isbn: Some(norm.display),
         status: if doi.is_some() {
@@ -279,7 +283,7 @@ fn build_match(
         work_doi: doi,
         work_type: Some(row.work_type),
         publisher_id: Some(row.publisher_id),
-    }
+    })
 }
 
 #[cfg(test)]
