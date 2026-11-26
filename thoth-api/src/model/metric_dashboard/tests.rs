@@ -4361,7 +4361,7 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
             platform_id
         })
         .collect();
-    let measures: Vec<Uuid> = (0..6)
+    let measures: Vec<Uuid> = (0..10)
         .map(|index| insert_measure(&fx.pool, &format!("bound_measure_{index}"), true, true))
         .collect();
     let at = |days: i64, p: &[Uuid], m: &[Uuid], grain| {
@@ -4407,11 +4407,17 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
         ),
     );
     assert_eq!(months.timeline.len(), 25 * 13);
-    // 26 or more combinations are refused even for one day.
+    // 30 combinations (more than the former limit of 25) are served.
     assert_eq!(
-        metric_dashboard(&fx.pool, &at(1, &platforms[..6], &measures[..5], None)),
-        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS))
+        read(&fx, &at(1, &platforms[..6], &measures[..5], None))
+            .totals
+            .len(),
+        30
     );
+    // The new limit exactly: 10 platforms x 10 measures = 100 combinations over one day.
+    let hundred = read(&fx, &at(1, &platforms[..10], &measures[..10], None));
+    assert_eq!(hundred.totals.len(), 100);
+    assert_eq!(hundred.timeline.len(), 100);
     // Ten explicit platforms with one measure is within every bound.
     assert_eq!(
         read(&fx, &at(1, &platforms[..10], &measures[..1], None))
@@ -17104,11 +17110,12 @@ fn every_refusing_fixture_refuses_alike_under_on_and_off() {
             grain,
         )
     };
-    alike(
-        &fx.pool,
-        &at(1, &platforms[..6], &measures, None),
-        MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS),
-        "30 combinations",
+    assert_eq!(
+        metric_dashboard(&fx.pool, &at(1, &platforms[..6], &measures, None))
+            .expect("30 combinations are served")
+            .totals
+            .len(),
+        30
     );
     alike(
         &fx.pool,
@@ -18355,4 +18362,16 @@ fn a_second_site_from_its_go_live_day_leaves_earlier_days_unknown_and_clips_its_
         MetricReadError::UnsupportedSourceGrain.code(),
         "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
     );
+}
+
+#[test]
+fn the_combination_bound_is_one_hundred() {
+    assert_eq!(METRIC_DASHBOARD_MAX_COMBINATIONS, 100);
+    assert_eq!(check_combinations(0), Ok(()));
+    assert_eq!(check_combinations(100), Ok(()));
+    assert_eq!(
+        check_combinations(101),
+        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS))
+    );
+    assert!(TOO_MANY_COMBINATIONS.contains("100"));
 }
