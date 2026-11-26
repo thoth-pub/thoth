@@ -163,9 +163,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let distribution_job_creation = distribution_job_creation(arguments)?;
     let metric_widget = metric_widget(arguments)?;
     let metric_month_serving = metric_month_serving(arguments)?;
-    let ingest_pool_size = *arguments
-        .get_one::<u32>("ingest-pool-size")
-        .unwrap_or(&thoth_api::db::DEFAULT_INGEST_POOL_SIZE);
+    let ingest_pool_size = *arguments.get_one::<u32>("ingest-pool-size").unwrap();
 
     api_server(
         database_url,

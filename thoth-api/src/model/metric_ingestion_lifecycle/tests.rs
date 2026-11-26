@@ -4762,6 +4762,71 @@ fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exist
 }
 
 #[test]
+fn a_batch_waits_for_a_connection_released_within_the_timeout_and_then_commits() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-ip-wait", day(1))
+        .unwrap();
+    let input = batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
+
+    // Pool of three with two held elsewhere: the guard takes the last idle
+    // connection and waits for the coordinator's; one is released after 200 ms,
+    // inside a 5 s checkout timeout.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 3, None, Duration::from_secs(5));
+    let held_a = pool.get().unwrap();
+    let held_b = pool.get().unwrap();
+    let releaser = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(200));
+        drop(held_a);
+    });
+    let outcome = ingest_metric_batch_within(&pool, &input, Duration::from_secs(5))
+        .expect("a connection released inside the timeout admits the batch");
+    releaser.join().unwrap();
+    drop(held_b);
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn concurrent_batches_on_the_smallest_pool_are_never_refused_for_capacity() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-ip-conc", day(1))
+        .unwrap();
+
+    // Pool of two: each batch needs both connections. Two callers started
+    // together must be served one after another, none timing out on another
+    // caller that holds a single connection.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 2, None, Duration::from_secs(10));
+    let workers: Vec<_> = (1..=2)
+        .map(|n| {
+            let pool = pool.clone();
+            let input = batch_input(
+                import.import_id,
+                claim.lease_token,
+                &format!("b{n}"),
+                "10",
+                day(1),
+            );
+            thread::spawn(move || {
+                ingest_metric_batch_within(&pool, &input, Duration::from_secs(10))
+            })
+        })
+        .collect();
+    for worker in workers {
+        let result = worker.join().unwrap();
+        assert!(
+            !matches!(result, Err(E::Ingestion(Code::InternalDatabaseError))),
+            "no caller is refused for connection capacity: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn a_batch_establishes_missing_connections_within_the_pool_maximum() {
     let (_guard, f) = setup();
     let claim = f.claim_a();
