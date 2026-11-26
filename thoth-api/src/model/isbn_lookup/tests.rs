@@ -66,6 +66,19 @@ fn display_form_is_hyphenated_when_possible() {
     assert_eq!(n.display, "978-1-78374-500-5");
 }
 
+#[test]
+fn hyphenation_candidates_cover_every_inner_split() {
+    let c = hyphenation_candidates("9781776413485");
+    assert_eq!(c.len(), 28);
+    assert!(c.iter().all(|s| s.len() == 17));
+    assert!(c.contains(&"978-1-77-641348-5".to_string()));
+    assert!(c.contains(&"978-1-7764-1348-5".to_string()));
+    assert!(c.contains(&"978-1-77641-348-5".to_string()));
+    let unique: std::collections::BTreeSet<_> = c.iter().collect();
+    assert_eq!(unique.len(), 28);
+    assert!(hyphenation_candidates("978177641348").is_empty());
+}
+
 // ---------------------------------------------------------------------------
 // Matching (database)
 // ---------------------------------------------------------------------------
@@ -208,6 +221,61 @@ mod db {
         assert_eq!(out[6].normalised_isbn, None);
         // Duplicate input gives a duplicate entry (hyphenated and plain).
         assert_eq!(out[7].work_id, out[0].work_id);
+    }
+
+    fn add_publication_raw(pool: &PgPool, work_id: Uuid, kind: &str, stored_isbn: &str) {
+        let mut c = pool.get().unwrap();
+        sql_query(
+            "INSERT INTO publication (publication_type, work_id, isbn) \
+             VALUES ($1::publication_type, $2, $3)",
+        )
+        .bind::<Text, _>(kind)
+        .bind::<SqlUuid, _>(work_id)
+        .bind::<Text, _>(stored_isbn)
+        .execute(&mut c)
+        .expect("raw publication");
+    }
+
+    #[test]
+    fn matches_isbns_stored_with_other_hyphenation() {
+        let (_guard, pool) = setup_test_db();
+        let publisher = create_publisher(&pool);
+        let imprint = create_imprint(&pool, &publisher);
+        let w1 = create_work(&pool, &imprint);
+        let w2 = create_work(&pool, &imprint);
+        set_doi(&pool, w1.work_id, "https://doi.org/10.1234/h1");
+        set_doi(&pool, w2.work_id, "https://doi.org/10.1234/h2");
+
+        // 978-1-77-641348-5 is not the hyphenation the isbn crate chooses.
+        let odd = isbn13("978177641348");
+        let stored = format!(
+            "{}-{}-{}-{}-{}",
+            &odd[..3],
+            &odd[3..4],
+            &odd[4..6],
+            &odd[6..12],
+            &odd[12..]
+        );
+        assert_ne!(
+            normalise_isbn(&odd).unwrap().display,
+            stored,
+            "test needs a non-canonical stored form"
+        );
+        add_publication_raw(&pool, w1.work_id, "PDF", &stored);
+
+        // The same digits stored two ways on two works are ambiguous.
+        let dup = isbn13("978177641349");
+        let split_a = format!("978-1-7-7641349-{}", &dup[12..]);
+        let split_b = format!("978-1-7764-1349-{}", &dup[12..]);
+        add_publication_raw(&pool, w1.work_id, "Epub", &split_a);
+        add_publication_raw(&pool, w2.work_id, "Epub", &split_b);
+
+        let inputs = vec![odd.clone(), stored.clone(), dup.clone()];
+        let out = work_isbn_matches(&pool, &inputs, &[]).unwrap();
+        assert_eq!(out[0].status, IsbnMatchStatus::Matched);
+        assert_eq!(out[0].work_id, Some(w1.work_id));
+        assert_eq!(out[1].status, IsbnMatchStatus::Matched);
+        assert_eq!(out[2].status, IsbnMatchStatus::Ambiguous);
     }
 
     #[test]

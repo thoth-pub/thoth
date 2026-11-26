@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
 
+### Fixed
+  - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Match `workIsbnMatches` ISBNs stored with any hyphenation, not only the one the `isbn` crate chooses
+
 ## [[1.14.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.14.0) - 2026-11-26
 ### Added
   - [1069](https://github.com/thoth-pub/thoth/issues/1069) - Add the optional `includeChapters` selector flag to `metricDashboard`, so `workIds` can also select the book chapters whose parent work is listed
