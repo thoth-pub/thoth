@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [1069](https://github.com/thoth-pub/thoth/issues/1069) - Add the optional `includeChapters` selector flag to `metricDashboard`, so `workIds` can also select the book chapters whose parent work is listed
   - [1061](https://github.com/thoth-pub/thoth/issues/1061) - Add a publisher's public metrics dashboard URL: `Publisher.metricsDashboardUrl`, set or cleared only by superusers with `setPublisherMetricsDashboardUrl`, independent of the subscription package
 ### Fixed
   - [1065](https://github.com/thoth-pub/thoth/issues/1065) - Serve up to 100 platform and measure combinations in one `metricDashboard` read (was 25), so a publisher with a long history can open its all-time view
