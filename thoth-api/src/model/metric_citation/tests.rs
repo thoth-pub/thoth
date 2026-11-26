@@ -19,7 +19,7 @@ use crate::model::metric_source_account::tests::insert_account_row;
 use crate::model::tests::db::{create_imprint, create_publisher, create_work};
 use crate::schema::{metric_citation_link, metric_citation_work_state};
 
-const DOWN_SQL: &str = include_str!("../../../migrations/20261127_v1.14.0/down.sql");
+const DOWN_SQL: &str = include_str!("../../../migrations/20261127_v1.15.0/down.sql");
 
 struct Fixture {
     work_id: Uuid,
