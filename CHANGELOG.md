@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [[1.13.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.13.1) - 2026-11-26
+### Fixed
+  - Pin the RapiDoc script on the export server's documentation page to 9.3.8, because the unpinned latest (15.0.0) is an ES module and left the page blank
+
 ## [[1.13.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.13.0) - 2026-11-25
 ### Added
   - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Add the public read-only `workIsbnMatches` query, which resolves up to 500 platform-reported ISBNs (ISBN-10 or ISBN-13, any hyphenation) to the work that owns the matching publication of any type, with unknown, ambiguous, invalid and no-DOI outcomes
