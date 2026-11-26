@@ -10,7 +10,10 @@
 //!   hyphens, spaces or an `ISBN` prefix, check digit validated.
 //! - Matching compares the hyphenated ISBN-13 (the only form the database
 //!   accepts, `octet_length(isbn) = 17`) so the existing `isbn` index is used,
-//!   against publications of every type.
+//!   against publications of every type. Stored hyphenation is not always the
+//!   one the `isbn` crate would choose, so every placement of the three inner
+//!   hyphens is tried ([`hyphenation_candidates`]) and rows are grouped by
+//!   their digits.
 //! - Several publications of one work are one match. Publications of different
 //!   works are `AMBIGUOUS`. A work with no DOI is `NO_DOI`.
 //!
@@ -174,6 +177,29 @@ pub fn normalise_isbn(input: &str) -> Option<NormalisedIsbn> {
     })
 }
 
+/// Every hyphenated form a stored ISBN-13 can take: `978-` or `979-`, then the
+/// registration group, registrant and publication parts split anywhere
+/// (28 forms), then the check digit. The database holds exactly 17 characters.
+pub fn hyphenation_candidates(digits: &str) -> Vec<String> {
+    if digits.len() != 13 || !digits.is_ascii() {
+        return Vec::new();
+    }
+    let mut out = Vec::with_capacity(28);
+    for a in 4..=10 {
+        for b in (a + 1)..=11 {
+            out.push(format!(
+                "{}-{}-{}-{}-{}",
+                &digits[..3],
+                &digits[3..a],
+                &digits[a..b],
+                &digits[b..12],
+                &digits[12..]
+            ));
+        }
+    }
+    out
+}
+
 #[derive(QueryableByName)]
 struct MatchRow {
     #[diesel(sql_type = Text)]
@@ -212,7 +238,7 @@ pub fn work_isbn_matches(
     let mut wanted: Vec<String> = normalised
         .iter()
         .flatten()
-        .map(|n| n.display.clone())
+        .flat_map(|n| hyphenation_candidates(&n.digits))
         .collect();
     wanted.sort();
     wanted.dedup();
