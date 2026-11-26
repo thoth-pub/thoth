@@ -2493,7 +2493,17 @@ database access:
 metricDashboard(input: MetricDashboardInput!): MetricDashboard!
 metricMeasures: [MetricMeasure!]!
 metricPlatforms: [MetricPlatform!]!
+metricDataVersion: MetricDataVersion!
 ```
+
+`metricDataVersion` (`METRIC-DATA-VERSION-01`) takes no input and returns
+`version`, an opaque string equal for two reads exactly when the rollup
+frontier (`applied_through_sequence`, `watermark_at`) is the same, and
+`rollupWatermark`. It reads one row of `metric_rollup_work_day_state`, reads no
+publisher or value and uses no dashboard read slot. It is not a coverage or
+freshness claim: coverage and import status are read live by `metricDashboard`
+and the exceptional monthly rebuild does not move the frontier, so a consumer
+that caches by this version also keeps a maximum age.
 
 ```graphql
 scalar BigInt

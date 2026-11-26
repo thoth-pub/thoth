@@ -906,6 +906,8 @@ pub mod metric_coverage;
 pub mod metric_coverage_run;
 #[cfg(feature = "backend")]
 pub mod metric_dashboard;
+#[cfg(feature = "backend")]
+pub mod metric_data_version;
 pub mod metric_identifier_quarantine;
 pub mod metric_identifier_quarantine_reconciliation;
 pub mod metric_import;
