@@ -226,6 +226,16 @@ fn link_rules() {
             ", '{\"names\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\"], \"total\": 6}'",
         ),
         (", citing_authors", ", '[]'"),
+        (", citing_authors", ", '{\"names\": [1], \"total\": 1}'"),
+        (", citing_authors", ", '{\"names\": [null], \"total\": 1}'"),
+        (
+            ", citing_authors",
+            ", format('{\"names\": [\"%s\"], \"total\": 1}', repeat('n', 201))::jsonb",
+        ),
+        (
+            ", citing_authors",
+            ", '{\"names\": [\"A\"], \"total\": -1}'",
+        ),
         (", citing_type", ", repeat('t', 65)"),
         (", citing_title", ", repeat('t', 1001)"),
         (", citing_venue", ", repeat('v', 501)"),
@@ -235,6 +245,25 @@ fn link_rules() {
             "{cols} {vals} must be refused"
         );
     }
+    // Shape edge cases that are valid: no path, an `@` in the query, a name of
+    // exactly 200 characters, and several ACTIVE links with no DOI.
+    exec(
+        &pool,
+        &link_sql(&f, "Wq", ", citing_url", ", 'https://x.org?a=b@c'"),
+    )
+    .expect("query with @");
+    exec(
+        &pool,
+        &link_sql(
+            &f,
+            "Wn",
+            ", citing_authors",
+            ", format('{\"names\": [\"%s\"], \"total\": 1}', repeat('n', 200))::jsonb",
+        ),
+    )
+    .expect("200 characters");
+    exec(&pool, &link_sql(&f, "Wnull1", "", "")).expect("no doi");
+    exec(&pool, &link_sql(&f, "Wnull2", "", "")).expect("a second no doi");
     assert!(exec(&pool, &link_sql(&f, "   ", "", "")).is_err());
     assert!(exec(&pool, &link_sql(&f, &"x".repeat(201), "", "")).is_err());
     let mut connection = pool.get().unwrap();
@@ -242,10 +271,28 @@ fn link_rules() {
         .order(metric_citation_link::citing_external_id)
         .load(&mut connection)
         .expect("row model");
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 6);
     assert_eq!(rows[0].status, MetricCitationLinkStatus::Withdrawn);
-    assert_eq!(rows[1].status, MetricCitationLinkStatus::Active);
+    assert_eq!(rows[0].citing_external_id, "W1");
     assert!(rows[0].withdrawn_at.is_some());
+    assert!(rows[1..]
+        .iter()
+        .all(|r| r.status == MetricCitationLinkStatus::Active));
+    // Foreign keys do not cascade: neither the work nor the source can be
+    // deleted while a link names them.
+    assert!(exec(
+        &pool,
+        &format!("DELETE FROM work WHERE work_id = '{}'", f.work_id)
+    )
+    .is_err());
+    assert!(exec(
+        &pool,
+        &format!(
+            "DELETE FROM metric_source WHERE source_id = '{}'",
+            f.source_id
+        )
+    )
+    .is_err());
 }
 
 #[test]
@@ -290,7 +337,7 @@ fn refresh_seen_and_batch_rules() {
     );
     let seen = |id: &str| {
         format!(
-            "INSERT INTO metric_citation_refresh_seen VALUES ('{refresh_id}', '{}', '{id}')",
+            "INSERT INTO metric_citation_refresh_seen (refresh_id, work_id, citing_external_id) VALUES ('{refresh_id}', '{}', '{id}')",
             f.work_id
         )
     };
@@ -323,29 +370,92 @@ fn scalar_uuid(pool: &PgPool, query: &str) -> Uuid {
         .refresh_id
 }
 
-#[test]
-fn down_refuses_while_any_table_holds_a_row_and_succeeds_when_empty() {
-    let (_guard, pool) = setup_registry_db();
-    let f = fixture(&pool);
+const TABLES: [&str; 5] = [
+    "metric_citation_batch",
+    "metric_citation_refresh_seen",
+    "metric_citation_refresh",
+    "metric_citation_link",
+    "metric_citation_work_state",
+];
+
+/// Run `down.sql` in a transaction that is always rolled back; the result is
+/// its message when it refused, or `None` when it ran.
+fn run_down(pool: &PgPool) -> Option<String> {
     let mut connection = pool.get().unwrap();
-    // Empty: the script runs (then the transaction is rolled back).
-    let empty: Result<(), DieselError> = connection.transaction(|connection| {
+    let outcome: Result<(), DieselError> = connection.transaction(|connection| {
         connection.batch_execute(DOWN_SQL)?;
+        // Prove the tables are gone inside the transaction.
+        for table in TABLES {
+            let gone = connection
+                .batch_execute(&format!("SELECT 1 FROM public.{table}"))
+                .is_err();
+            assert!(gone, "{table} must be dropped by down.sql");
+        }
         Err(DieselError::RollbackTransaction)
     });
-    assert!(matches!(empty, Err(DieselError::RollbackTransaction)));
-    drop(connection);
-    exec(&pool, &link_sql(&f, "W1", "", "")).expect("link");
-    let mut connection = pool.get().unwrap();
-    let refused = connection.transaction::<(), DieselError, _>(|connection| {
-        connection.batch_execute(DOWN_SQL)?;
-        Ok(())
-    });
-    let message = format!("{:?}", refused.expect_err("down must refuse"));
-    assert!(message.contains("rollback refused"), "{message}");
-    // The tables are still there.
-    assert_eq!(
-        scalar_i64(&pool, "(SELECT COUNT(*) FROM metric_citation_link)"),
-        1
-    );
+    match outcome {
+        Err(DieselError::RollbackTransaction) => None,
+        Err(other) => Some(format!("{other:?}")),
+        Ok(()) => unreachable!(),
+    }
+}
+
+#[test]
+fn down_runs_when_empty_and_refuses_for_every_table_that_holds_a_row() {
+    let (_guard, pool) = setup_registry_db();
+    let f = fixture(&pool);
+    // Empty: the script runs and drops the five tables.
+    assert_eq!(run_down(&pool), None);
+    // One row in each table in turn: the script refuses.
+    let refresh = |id: Uuid| {
+        format!(
+            "INSERT INTO metric_citation_refresh (refresh_id, source_account_id, \
+             claim_token_hash) VALUES ('{id}', '{}', 'hash')",
+            f.account_id
+        )
+    };
+    let refresh_id = Uuid::new_v4();
+    let cases: Vec<(&str, Vec<String>)> = vec![
+        ("link", vec![link_sql(&f, "W1", "", "")]),
+        ("work_state", vec![state_sql(&f, "NOT_FOUND", "", "")]),
+        ("refresh", vec![refresh(refresh_id)]),
+        (
+            "seen",
+            vec![
+                refresh(refresh_id),
+                format!(
+                    "INSERT INTO metric_citation_refresh_seen (refresh_id, work_id, \
+                     citing_external_id) VALUES ('{refresh_id}', '{}', 'W1')",
+                    f.work_id
+                ),
+            ],
+        ),
+        (
+            "batch",
+            vec![
+                refresh(refresh_id),
+                format!(
+                    "INSERT INTO metric_citation_batch (refresh_id, batch_key, payload_hash, \
+                     outcome) VALUES ('{refresh_id}', 'b', 'h', '{{}}')"
+                ),
+            ],
+        ),
+    ];
+    for (name, statements) in cases {
+        for statement in &statements {
+            exec(&pool, statement).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        }
+        let message = run_down(&pool).unwrap_or_else(|| panic!("{name}: down must refuse"));
+        assert!(message.contains("rollback refused"), "{name}: {message}");
+        for table in ["metric_citation_batch", "metric_citation_refresh_seen"] {
+            exec(&pool, &format!("DELETE FROM {table}")).unwrap();
+        }
+        for table in [
+            "metric_citation_refresh",
+            "metric_citation_link",
+            "metric_citation_work_state",
+        ] {
+            exec(&pool, &format!("DELETE FROM {table}")).unwrap();
+        }
+    }
 }

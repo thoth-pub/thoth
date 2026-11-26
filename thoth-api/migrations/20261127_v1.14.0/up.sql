@@ -1,6 +1,6 @@
 -- CITATIONS-01 C1 (thoth-pub/thoth#1074): storage for citation links.
 --
--- Five new tables and two enum types; no existing table changes and nothing
+-- Five new tables and three enum types; no existing table changes and nothing
 -- is seeded. The registry (platform, source, source account) is created after
 -- deploy through the registry write path, so `metric_registry_history`
 -- records it. All foreign keys are non-cascading: a work with citation rows
@@ -103,7 +103,7 @@ CREATE TABLE public.metric_citation_link (
         CHECK (citing_venue IS NULL OR char_length(citing_venue) <= 500),
     CONSTRAINT metric_citation_link_citing_url_check
         CHECK (citing_url IS NULL
-               OR (citing_url ~ '^https://[^/@[:space:]]+(/[^[:space:]]*)?$'
+               OR (citing_url ~ '^https://[^/?#@[:space:]]+([/?#][^[:space:]]*)?$'
                    AND char_length(citing_url) <= 2048)),
     CONSTRAINT metric_citation_link_citing_authors_check
         CHECK (citing_authors IS NULL
@@ -113,6 +113,10 @@ CREATE TABLE public.metric_citation_link (
                    AND jsonb_typeof(citing_authors -> 'names') = 'array'
                    AND jsonb_array_length(citing_authors -> 'names') <= 5
                    AND jsonb_typeof(citing_authors -> 'total') = 'number'
+                   AND jsonb_path_exists(citing_authors, '$.total ? (@ >= 0)')
+                   AND NOT jsonb_path_exists(
+                       citing_authors,
+                       '$.names[*] ? (@.type() != "string" || @ like_regex "^.{201,}$" flag "s")')
                    AND pg_column_size(citing_authors) <= 2048)),
     CONSTRAINT metric_citation_link_withdrawn_check
         CHECK ((status = 'ACTIVE' AND withdrawn_at IS NULL)
@@ -177,14 +181,14 @@ CREATE INDEX metric_citation_refresh_account_started_idx
 -- deleted when its refresh reaches a terminal status.
 CREATE TABLE public.metric_citation_refresh_seen (
     refresh_id uuid NOT NULL,
-    cited_work_id uuid NOT NULL,
+    work_id uuid NOT NULL,
     citing_external_id text NOT NULL,
     CONSTRAINT metric_citation_refresh_seen_pkey
-        PRIMARY KEY (refresh_id, cited_work_id, citing_external_id),
+        PRIMARY KEY (refresh_id, work_id, citing_external_id),
     CONSTRAINT metric_citation_refresh_seen_refresh_id_fkey
         FOREIGN KEY (refresh_id) REFERENCES public.metric_citation_refresh(refresh_id),
-    CONSTRAINT metric_citation_refresh_seen_cited_work_id_fkey
-        FOREIGN KEY (cited_work_id) REFERENCES public.work(work_id),
+    CONSTRAINT metric_citation_refresh_seen_work_id_fkey
+        FOREIGN KEY (work_id) REFERENCES public.work(work_id),
     CONSTRAINT metric_citation_refresh_seen_citing_external_id_check
         CHECK (char_length(citing_external_id) <= 200)
 );

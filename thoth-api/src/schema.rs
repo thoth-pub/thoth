@@ -1184,9 +1184,9 @@ table! {
 table! {
     use diesel::sql_types::*;
 
-    metric_citation_refresh_seen (refresh_id, cited_work_id, citing_external_id) {
+    metric_citation_refresh_seen (refresh_id, work_id, citing_external_id) {
         refresh_id -> Uuid,
-        cited_work_id -> Uuid,
+        work_id -> Uuid,
         citing_external_id -> Text,
     }
 }
