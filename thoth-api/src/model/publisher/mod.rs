@@ -171,6 +171,37 @@ impl ThothPackage {
     }
 }
 
+/// The longest metrics dashboard URL a publisher may hold, in characters.
+pub const METRICS_DASHBOARD_URL_MAX_CHARS: usize = 2048;
+
+/// Check a publisher's metrics dashboard URL (`PUB-DASH-URL-01`).
+///
+/// The rules mirror the `publisher_metrics_dashboard_url_check` constraint,
+/// which stays the backstop: `https` only, lower-case scheme, a non-empty host,
+/// no user information, no query or fragment directly after the host, no
+/// whitespace or control character, at most
+/// [`METRICS_DASHBOARD_URL_MAX_CHARS`] characters. The value is stored exactly as
+/// given, so nothing here normalises it.
+///
+/// The error text is fixed and never repeats the value.
+pub fn validate_metrics_dashboard_url(url: &str) -> Result<(), &'static str> {
+    const INVALID: &str = "metrics dashboard URL must be an https URL with a host, no user information, no whitespace or control characters, and at most 2048 characters";
+
+    if url.chars().count() > METRICS_DASHBOARD_URL_MAX_CHARS
+        || url.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
+        return Err(INVALID);
+    }
+    let Some(rest) = url.strip_prefix("https://") else {
+        return Err(INVALID);
+    };
+    let authority = rest.split('/').next().unwrap_or("");
+    if authority.is_empty() || authority.contains(['@', '?', '#']) {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+
 #[cfg_attr(feature = "backend", derive(diesel::Queryable))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -192,6 +223,12 @@ pub struct Publisher {
     // deserialization must not require it, so the documented default applies.
     #[serde(default)]
     pub service_configuration_updated_at: Timestamp,
+    // Snapshots and API payloads serialized before PUB-DASH-URL-01 lack this
+    // field; deserialization must not require it. Written only by
+    // `setPublisherMetricsDashboardUrl` (superuser), never by `NewPublisher` or
+    // `PatchPublisher`.
+    #[serde(default)]
+    pub metrics_dashboard_url: Option<String>,
 }
 
 #[cfg_attr(

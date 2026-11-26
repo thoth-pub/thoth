@@ -1058,6 +1058,23 @@ impl MutationRoot {
         publisher.update(context, &data).map_err(Into::into)
     }
 
+    #[graphql(
+        description = "Set or clear the public URL of a publisher's metrics dashboard. Superuser only. Pass null to clear; leaving the argument out is the same as null. The URL must be an https URL with a host, no user information, no whitespace or control characters, and at most 2048 characters; it is stored exactly as given. Setting it does not grant the METRICS_DASHBOARD capability, which comes from the subscription package alone."
+    )]
+    fn set_publisher_metrics_dashboard_url(
+        context: &Context,
+        #[graphql(description = "Thoth ID of the publisher")] publisher_id: Uuid,
+        #[graphql(description = "The dashboard URL, or null to clear it")]
+        metrics_dashboard_url: Option<String>,
+    ) -> FieldResult<Publisher> {
+        PublisherPolicy::can_set_metrics_dashboard_url(context)?;
+        let publisher: Publisher = context.load_current(&publisher_id)?;
+
+        publisher
+            .set_metrics_dashboard_url(context, metrics_dashboard_url.as_deref())
+            .map_err(IntoFieldError::into_field_error)
+    }
+
     #[graphql(description = "Update an existing imprint with the specified values")]
     fn update_imprint(
         context: &Context,

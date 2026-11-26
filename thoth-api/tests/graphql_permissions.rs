@@ -800,3 +800,195 @@ query($imprintId: Uuid!) {
         Some("dist-roundtrip")
     );
 }
+
+const SET_DASHBOARD_URL: &str = r#"
+mutation($publisherId: Uuid!, $url: String) {
+  setPublisherMetricsDashboardUrl(publisherId: $publisherId, metricsDashboardUrl: $url) {
+    publisherId
+    metricsDashboardUrl
+  }
+}
+"#;
+
+const READ_DASHBOARD_URL: &str = r#"
+query($publisherId: Uuid!) {
+  publisher(publisherId: $publisherId) {
+    metricsDashboardUrl
+  }
+}
+"#;
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_set_metrics_dashboard_url_requires_superuser() {
+    let _guard = support::test_lock();
+    let pool = support::db_pool();
+    support::reset_db(&pool).expect("Failed to reset DB");
+
+    let org_id = format!("org-{}", Uuid::new_v4());
+    let publisher_id = create_publisher(pool.clone(), org_id.as_str()).await;
+    let variables = json!({
+        "publisherId": publisher_id,
+        "url": "https://metrics.example.org/dash",
+    });
+
+    let callers = [
+        None,
+        Some(support::user_with_roles("no-roles", &[])),
+        Some(support::user_with_roles(
+            "admin",
+            &[("PUBLISHER_ADMIN", org_id.as_str())],
+        )),
+        Some(support::user_with_roles(
+            "user",
+            &[("PUBLISHER_USER", org_id.as_str())],
+        )),
+        Some(support::user_with_roles(
+            "worker",
+            &[("DISSEMINATION_WORKER", org_id.as_str())],
+        )),
+        Some(support::user_with_roles(
+            "metrics-reader",
+            &[("METRICS_READ_SERVICE", org_id.as_str())],
+        )),
+    ];
+    for caller in callers {
+        let response = support::execute_graphql(
+            pool.clone(),
+            caller,
+            SET_DASHBOARD_URL,
+            Some(variables.clone()),
+        )
+        .await;
+        support::assert_no_access(&response);
+    }
+
+    // Nothing was written by any refused call.
+    let response = support::execute_graphql(
+        pool,
+        Some(support::superuser("super")),
+        READ_DASHBOARD_URL,
+        Some(json!({ "publisherId": publisher_id })),
+    )
+    .await;
+    support::assert_no_errors(&response);
+    assert!(response
+        .pointer("/data/publisher/metricsDashboardUrl")
+        .is_some_and(|v| v.is_null()));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_set_metrics_dashboard_url_round_trip_for_superuser() {
+    let _guard = support::test_lock();
+    let pool = support::db_pool();
+    support::reset_db(&pool).expect("Failed to reset DB");
+
+    let org_id = format!("org-{}", Uuid::new_v4());
+    let publisher_id = create_publisher(pool.clone(), org_id.as_str()).await;
+    let url = "https://metrics.example.org/dash";
+
+    let response = support::execute_graphql(
+        pool.clone(),
+        Some(support::superuser("super")),
+        SET_DASHBOARD_URL,
+        Some(json!({ "publisherId": publisher_id, "url": url })),
+    )
+    .await;
+    support::assert_no_errors(&response);
+    assert_eq!(
+        response
+            .pointer("/data/setPublisherMetricsDashboardUrl/metricsDashboardUrl")
+            .and_then(|v| v.as_str()),
+        Some(url)
+    );
+
+    // Anonymous callers read it, because dashboards are public.
+    let response = support::execute_graphql(
+        pool.clone(),
+        None,
+        READ_DASHBOARD_URL,
+        Some(json!({ "publisherId": publisher_id })),
+    )
+    .await;
+    support::assert_no_errors(&response);
+    assert_eq!(
+        response
+            .pointer("/data/publisher/metricsDashboardUrl")
+            .and_then(|v| v.as_str()),
+        Some(url)
+    );
+
+    // Null clears; so does leaving the argument out.
+    for variables in [
+        json!({ "publisherId": publisher_id, "url": null }),
+        json!({ "publisherId": publisher_id }),
+    ] {
+        let response = support::execute_graphql(
+            pool.clone(),
+            Some(support::superuser("super")),
+            SET_DASHBOARD_URL,
+            Some(json!({ "publisherId": publisher_id, "url": url })),
+        )
+        .await;
+        support::assert_no_errors(&response);
+        let response = support::execute_graphql(
+            pool.clone(),
+            Some(support::superuser("super")),
+            SET_DASHBOARD_URL,
+            Some(variables),
+        )
+        .await;
+        support::assert_no_errors(&response);
+        assert!(response
+            .pointer("/data/setPublisherMetricsDashboardUrl/metricsDashboardUrl")
+            .is_some_and(|v| v.is_null()));
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_set_metrics_dashboard_url_refuses_bad_values_and_unknown_publishers() {
+    let _guard = support::test_lock();
+    let pool = support::db_pool();
+    support::reset_db(&pool).expect("Failed to reset DB");
+
+    let org_id = format!("org-{}", Uuid::new_v4());
+    let publisher_id = create_publisher(pool.clone(), org_id.as_str()).await;
+
+    for bad in [
+        "http://metrics.example.org",
+        "https://u@metrics.example.org",
+        "",
+    ] {
+        let response = support::execute_graphql(
+            pool.clone(),
+            Some(support::superuser("super")),
+            SET_DASHBOARD_URL,
+            Some(json!({ "publisherId": publisher_id, "url": bad })),
+        )
+        .await;
+        assert_eq!(
+            support::first_error_type(&response),
+            Some("INVALID_METRICS_DASHBOARD_URL"),
+            "{response:?}"
+        );
+        // The error never repeats the value.
+        if !bad.is_empty() {
+            let message = support::first_error_message(&response).unwrap_or_default();
+            assert!(!message.contains(bad));
+        }
+    }
+
+    let response = support::execute_graphql(
+        pool,
+        Some(support::superuser("super")),
+        SET_DASHBOARD_URL,
+        Some(json!({
+            "publisherId": Uuid::new_v4(),
+            "url": "https://metrics.example.org",
+        })),
+    )
+    .await;
+    assert!(response
+        .get("errors")
+        .and_then(|e| e.as_array())
+        .is_some_and(|e| !e.is_empty()));
+}
