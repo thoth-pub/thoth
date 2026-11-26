@@ -152,7 +152,7 @@ pub const METRIC_DASHBOARD_MAX_MEASURES: usize = 10;
 /// The most unique platforms one dashboard request may select or resolve.
 pub const METRIC_DASHBOARD_MAX_PLATFORMS: usize = 10;
 /// The most platform/measure combinations one request may serve.
-pub const METRIC_DASHBOARD_MAX_COMBINATIONS: usize = 25;
+pub const METRIC_DASHBOARD_MAX_COMBINATIONS: usize = 100;
 /// The most timeline cells (combinations x buckets) one request may return.
 pub const METRIC_DASHBOARD_MAX_TIMELINE_CELLS: usize = 5000;
 /// The most rows `metricMeasures` or `metricPlatforms` may return.
@@ -879,7 +879,7 @@ pub(crate) const UNKNOWN_MEASURE: &str = "measures contains an unknown metric me
 pub(crate) const UNKNOWN_PLATFORM: &str = "platforms contains an unknown metric platform ID.";
 pub(crate) const NON_ADDITIVE_MEASURE: &str = "A served metric measure is not additive across both time and works, so this dashboard cannot sum it.";
 pub(crate) const TOO_MANY_COMBINATIONS: &str =
-    "At most 25 platform and measure combinations may be served in one request.";
+    "At most 100 platform and measure combinations may be served in one request.";
 pub(crate) const TOO_MANY_CELLS: &str = "The request would return more than 5000 timeline cells. Narrow the range, use a coarser timelineGrain, or serve fewer combinations.";
 pub(crate) const AGGREGATE_OUT_OF_RANGE: &str =
     "An aggregate value exceeds the supported numeric range. Narrow the request.";
@@ -3478,9 +3478,7 @@ fn read_from_publishers(
                         .map(move |measure_id| (*platform_id, *measure_id))
                 })
                 .collect();
-            if combinations.len() > METRIC_DASHBOARD_MAX_COMBINATIONS {
-                return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS));
-            }
+            check_combinations(combinations.len())?;
             (scope, combinations, platforms, measures, native)
         }
         // Pair mode: the caller's works and publisher, and exactly its pairs
@@ -4610,6 +4608,18 @@ fn bucket_count(start: NaiveDate, end: NaiveDate, grain: MetricTimelineGrain) ->
         MetricTimelineGrain::Year => i64::from(last.year() - start.year()) + 1,
     };
     usize::try_from(count).unwrap_or(usize::MAX)
+}
+
+/// Refuse a request that serves more than
+/// [`METRIC_DASHBOARD_MAX_COMBINATIONS`] platform/measure combinations. The
+/// ten-platform and ten-measure bounds already keep the cross product at or
+/// below that count, so this is a second line of defence; it is a function so
+/// the bound itself is tested.
+fn check_combinations(count: usize) -> Result<(), MetricReadError> {
+    if count > METRIC_DASHBOARD_MAX_COMBINATIONS {
+        return Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS));
+    }
+    Ok(())
 }
 
 /// Fix the served range `[start, request.end)` (#980 Amendment 3 sections 2

@@ -2577,7 +2577,7 @@ Contract properties consumers may rely on:
   `startDate < endDate`; at most 366 days for a `DAY` timeline, and no
   maximum range for a `MONTH` or `YEAR` timeline inside the date domain of
   section 4.3; at most 10 unique measures and 10 unique platforms, whether
-  explicit or resolved; at most 25 platform/measure combinations (the cross
+  explicit or resolved; at most 100 platform/measure combinations (the cross
   product of the served platforms and measures); at most 5,000 timeline cells
   (combinations x buckets). A bound is never met by truncation. Duplicate IDs
   are refused, and so is an explicit unknown measure or platform. Disabled
