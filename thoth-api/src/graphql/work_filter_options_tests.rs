@@ -839,6 +839,8 @@ fn works_sql_resolves(pool: &PgPool, publishers: &[Uuid], dimension: &Dimension)
         .bind::<Array<SqlUuid>, _>(&funding)
         .bind::<Array<SqlUuid>, _>(&affiliation)
         .bind::<SqlBigInt, _>(1_i64)
+        // `includeChapters` is off: this parity test asks which works the selector lists, not their chapters.
+        .bind::<diesel::sql_types::Bool, _>(false)
         .load(&mut pool.get().expect("a connection"))
         .expect("WORKS_SQL");
     rows.iter().any(|row| row.work_id.is_some())
