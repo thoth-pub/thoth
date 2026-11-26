@@ -28,7 +28,7 @@ pub fn rapidoc_source(openapi_spec: &str) -> String {
         <meta name="msapplication-TileColor" content="#fff3dc">
         <meta name="msapplication-TileImage" content="{favicon_base_url}/ms-icon-144x144.png">
         <meta name="theme-color" content="#fff3dc">
-        <script src="https://unpkg.com/rapidoc/dist/rapidoc-min.js"></script>
+        <script src="https://unpkg.com/rapidoc@9.3.8/dist/rapidoc-min.js"></script>
         <style>
             rapi-doc::part(anchor){{ color: #6e4f7f; }}
             rapi-doc::part(section-overview-title){{ color: #3c3c3b; }}
