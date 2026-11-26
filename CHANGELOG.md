@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+  - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
+
 ### Fixed
   - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Match `workIsbnMatches` ISBNs stored with any hyphenation, not only the one the `isbn` crate chooses
 

@@ -1337,8 +1337,9 @@ fn catalog(connection: &mut PgConnection) -> BTreeSet<String> {
     .flat_map(|statement| lines_on(connection, statement))
     // `revert` also reverts migrations that landed after this stage; the
     // schema of PUB-DASH-URL-01 is not this stage's and is left out of every
-    // comparison.
-    .filter(|line| !line.contains("metrics_dashboard_url"))
+    // comparison. The citation tables (CITATIONS-01 C1) are likewise a later
+    // migration's and are left out.
+    .filter(|line| !line.contains("metrics_dashboard_url") && !line.contains("metric_citation"))
     .collect()
 }
 
