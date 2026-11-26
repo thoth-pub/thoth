@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
+  - [1080](https://github.com/thoth-pub/thoth/issues/1080) - Run metric ingestion on its own database pool (`THOTH_INGEST_POOL_SIZE`, default 4), so bursts of read requests cannot fail ingestion batches
   - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Match `workIsbnMatches` ISBNs stored with any hyphenation, not only the one the `isbn` crate chooses
 
 ## [[1.14.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.14.0) - 2026-11-26

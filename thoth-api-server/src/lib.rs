@@ -15,7 +15,7 @@ use actix_web::{
 use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
 use thoth_api::{
-    db::{init_pool, PgPool},
+    db::{init_ingest_pool, init_pool, IngestPool, PgPool},
     graphql::{
         create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
     },
@@ -104,6 +104,7 @@ async fn graphql(
     distribution_job_creation: Data<DistributionJobCreation>,
     metric_widget: Data<MetricWidgetSwitch>,
     metric_month_serving: Data<MetricMonthServing>,
+    ingest_pool: Data<IngestPool>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
 ) -> Result<HttpResponse, Error> {
@@ -145,7 +146,8 @@ async fn graphql(
                 job_creation,
             )
             .with_metric_widget(metric_widget)
-            .with_metric_month_serving(metric_month_serving);
+            .with_metric_month_serving(metric_month_serving)
+            .with_ingest_pool(Arc::clone(&ingest_pool.0));
             data.execute(&st, &ctx).await
         }
     };
@@ -173,6 +175,7 @@ pub async fn start_server(
     distribution_job_creation: DistributionJobCreation,
     metric_widget: MetricWidgetSwitch,
     metric_month_serving: MetricMonthServing,
+    ingest_pool_size: u32,
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_region: String,
@@ -194,6 +197,9 @@ pub async fn start_server(
     let cloudfront_client =
         create_cloudfront_client(&aws_access_key_id, &aws_secret_access_key, &aws_region).await;
     let pool = Data::new(init_pool(&database_url));
+    // Metric ingestion runs on its own small pool, so read bursts cannot
+    // starve it and it cannot starve reads (`INGEST-POOL-01`).
+    let ingest_pool = Data::new(init_ingest_pool(&database_url, ingest_pool_size));
 
     HttpServer::new(move || {
         App::new()
@@ -211,6 +217,7 @@ pub async fn start_server(
             .app_data(auth.clone())
             .app_data(Data::new(ApiConfig::new(public_url.clone())))
             .app_data(pool.clone())
+            .app_data(ingest_pool.clone())
             .app_data(Data::new(s3_client.clone()))
             .app_data(Data::new(cloudfront_client.clone()))
             .app_data(Data::new(Arc::new(create_schema())))
@@ -284,6 +291,7 @@ mod tests {
         test::init_service(
             App::new()
                 .app_data(Data::new(test_pool()))
+                .app_data(Data::new(IngestPool(Arc::new(test_pool()))))
                 .app_data(Data::new(s3_client))
                 .app_data(Data::new(cloudfront_client))
                 .app_data(Data::new(Arc::new(create_schema())))

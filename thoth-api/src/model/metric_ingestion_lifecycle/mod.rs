@@ -154,6 +154,19 @@
 //! cannot replace the token while the coordinator runs. Nothing outside the
 //! local coordinator call happens inside the guard.
 //!
+//! # Dedicated pool and bounded checkouts (`INGEST-POOL-01`)
+//!
+//! The lifecycle resolvers run on a small pool of their own
+//! (`THOTH_INGEST_POOL_SIZE`, default 4), so read traffic cannot hold the
+//! connections a batch needs. A batch takes its guard and coordinator
+//! connections each with a bounded checkout of [`INGEST_CHECKOUT_TIMEOUT`]
+//! (5 s) instead of the non-blocking second checkout described below: with a
+//! pool of four, at most two connections are held by one caller and the pool
+//! holds more, so concurrent callers can only time out and fail closed, never
+//! deadlock. The H2 paragraphs below describe the guard order and the
+//! two-transaction seam, which are unchanged; where they say the second
+//! checkout is refused without waiting, read it as refused after the timeout.
+//!
 //! # Capacity admission and bounded guard waits (`MET-WP11-B-CORR-H2`)
 //!
 //! A caller never waits for pool capacity while it holds the guard. The batch
@@ -181,6 +194,7 @@
 
 use std::collections::BTreeSet;
 use std::str::FromStr;
+use std::time::Duration;
 
 use chrono::NaiveDate;
 use diesel::pg::PgConnection;
@@ -250,6 +264,11 @@ pub const MANAGED_IMPORT_MANIFEST_SCHEMA: &str = "thoth-managed-driver-import/1"
 /// the checkpoint row (`MET-WP11-B-CORR-H2`, #988). It bounds the guard's wait
 /// for a checkpoint held by another transaction; it is not a whole-request
 /// deadline.
+/// How long a batch call waits for each of its two connections
+/// (`INGEST-POOL-01`). The lifecycle runs on its own small pool, so the wait
+/// is only ever for another ingestion call, never for read traffic.
+pub(crate) const INGEST_CHECKOUT_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub(crate) const GUARD_LOCK_TIMEOUT_SQL: &str = "SET LOCAL lock_timeout = '1s'";
 
 // --------------------------------------------------------------------------
@@ -1204,17 +1223,25 @@ pub fn ingest_metric_batch_under_claim(
     db: &PgPool,
     input: &IngestMetricBatchInput,
 ) -> LifecycleResult<MetricBatchResult> {
+    ingest_metric_batch_within(db, input, INGEST_CHECKOUT_TIMEOUT)
+}
+
+/// [`ingest_metric_batch_under_claim`] with an explicit checkout timeout.
+pub(crate) fn ingest_metric_batch_within(
+    db: &PgPool,
+    input: &IngestMetricBatchInput,
+    checkout_timeout: Duration,
+) -> LifecycleResult<MetricBatchResult> {
     let batch = to_coordinator_batch(input)?;
 
-    let mut guard = db.get()?;
+    let mut guard = db.get_timeout(checkout_timeout)?;
     // Reserve the coordinator's connection before the guard transaction opens
-    // or any checkpoint lock is taken: one non-blocking checkout of an
-    // already-idle connection, refused rather than waited for.
-    let Some(mut canonical) = db.try_get() else {
+    // or any checkpoint lock is taken, with one bounded checkout.
+    let Ok(mut canonical) = db.get_timeout(checkout_timeout) else {
         drop(guard);
         log::error!(
-            "metric ingestion lifecycle found no idle database connection to reserve for the \
-             canonical coordinator"
+            "metric ingestion lifecycle found no database connection to reserve for the \
+             canonical coordinator within the checkout timeout"
         );
         return Err(MetricLifecycleError::Ingestion(
             MetricIngestionErrorCode::InternalDatabaseError,

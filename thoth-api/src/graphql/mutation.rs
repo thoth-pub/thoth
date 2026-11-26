@@ -669,7 +669,8 @@ impl MutationRoot {
         input: ClaimMetricSourceUnitsInput,
     ) -> FieldResult<Vec<MetricSourceUnitClaim>> {
         authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
-        claim_metric_source_units(&context.db, &input).map_err(IntoFieldError::into_field_error)
+        claim_metric_source_units(&context.ingest_db, &input)
+            .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(
@@ -681,7 +682,7 @@ impl MutationRoot {
         input: UpdateMetricSourceCheckpointInput,
     ) -> FieldResult<MetricSourceCheckpoint> {
         authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
-        update_metric_source_checkpoint(&context.db, &input)
+        update_metric_source_checkpoint(&context.ingest_db, &input)
             .map_err(IntoFieldError::into_field_error)
     }
 
@@ -695,7 +696,8 @@ impl MutationRoot {
     ) -> FieldResult<MetricImport> {
         let actor = authorize_metric_ingestion_lifecycle(context)
             .map_err(IntoFieldError::into_field_error)?;
-        begin_metric_import(&context.db, actor, &input).map_err(IntoFieldError::into_field_error)
+        begin_metric_import(&context.ingest_db, actor, &input)
+            .map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(
@@ -707,7 +709,7 @@ impl MutationRoot {
         input: IngestMetricBatchInput,
     ) -> FieldResult<MetricBatchResult> {
         authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
-        ingest_metric_batch_under_claim(&context.db, &input)
+        ingest_metric_batch_under_claim(&context.ingest_db, &input)
             .map_err(IntoFieldError::into_field_error)
     }
 
@@ -720,7 +722,7 @@ impl MutationRoot {
         input: CompleteMetricImportInput,
     ) -> FieldResult<MetricImport> {
         authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
-        complete_metric_import(&context.db, &input).map_err(IntoFieldError::into_field_error)
+        complete_metric_import(&context.ingest_db, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]

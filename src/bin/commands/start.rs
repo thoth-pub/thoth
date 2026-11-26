@@ -35,6 +35,7 @@ lazy_static! {
                 .arg(arguments::distribution_job_creation())
                 .arg(arguments::metric_widget())
                 .arg(arguments::metric_month_serving())
+                .arg(arguments::ingest_pool_size())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -162,6 +163,9 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let distribution_job_creation = distribution_job_creation(arguments)?;
     let metric_widget = metric_widget(arguments)?;
     let metric_month_serving = metric_month_serving(arguments)?;
+    let ingest_pool_size = *arguments
+        .get_one::<u32>("ingest-pool-size")
+        .unwrap_or(&thoth_api::db::DEFAULT_INGEST_POOL_SIZE);
 
     api_server(
         database_url,
@@ -176,6 +180,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         distribution_job_creation,
         metric_widget,
         metric_month_serving,
+        ingest_pool_size,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()
