@@ -1335,6 +1335,10 @@ fn catalog(connection: &mut PgConnection) -> BTreeSet<String> {
     ]
     .iter()
     .flat_map(|statement| lines_on(connection, statement))
+    // `revert` also reverts migrations that landed after this stage; the
+    // schema of PUB-DASH-URL-01 is not this stage's and is left out of every
+    // comparison.
+    .filter(|line| !line.contains("metrics_dashboard_url"))
     .collect()
 }
 
@@ -1417,16 +1421,28 @@ fn migration_lines() -> BTreeSet<String> {
     expected
 }
 
+/// Revert this stage's migration. Migrations that landed after it are reverted
+/// first (newest first), because `down.sql` of a newer migration never depends
+/// on this stage and this stage's `down.sql` must run against the schema it
+/// was written for.
 fn revert(connection: &mut PgConnection) -> Result<(), String> {
-    let reverted = connection
-        .revert_last_migration(MIGRATIONS)
-        .map_err(|error| error.to_string())?;
-    assert_eq!(
-        reverted.to_string(),
-        MIGRATION,
-        "this stage's migration is the latest"
-    );
-    Ok(())
+    loop {
+        let latest = connection
+            .applied_migrations()
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|version| version.to_string())
+            .max()
+            .expect("migrations are applied");
+        let reverted = connection
+            .revert_last_migration(MIGRATIONS)
+            .map_err(|error| error.to_string())?;
+        assert_eq!(reverted.to_string(), latest);
+        if latest.as_str() <= MIGRATION {
+            assert_eq!(latest, MIGRATION, "this stage's migration is reached");
+            return Ok(());
+        }
+    }
 }
 
 fn apply(connection: &mut PgConnection) {

@@ -38,3 +38,13 @@ impl DeletePolicy<Publisher> for PublisherPolicy {
         Ok(())
     }
 }
+
+impl PublisherPolicy {
+    /// Setting or clearing a publisher's metrics dashboard URL
+    /// (`PUB-DASH-URL-01`) is superuser only: no publisher-scoped role, however
+    /// broad, may write it, and it is denied before the database is touched.
+    pub(crate) fn can_set_metrics_dashboard_url<C: PolicyContext>(ctx: &C) -> ThothResult<()> {
+        ctx.require_superuser()?;
+        Ok(())
+    }
+}

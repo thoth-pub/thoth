@@ -4208,6 +4208,25 @@ fn the_public_publisher_type_exposes_no_package_capability_or_configuration_fiel
 }
 
 #[test]
+fn metrics_dashboard_url_is_public_on_publisher_and_writable_only_through_its_own_mutation() {
+    let schema = create_schema();
+    let sdl = schema.as_sdl();
+
+    let publisher_type = sdl_block(&sdl, "type Publisher {");
+    assert!(publisher_type.contains("metricsDashboardUrl: String"));
+    assert!(!publisher_type.contains("metricsDashboardUrl: String!"));
+
+    // The existing publisher inputs cannot carry it, so `updatePublisher` can
+    // neither set nor clear it.
+    for input in ["input NewPublisher {", "input PatchPublisher {"] {
+        assert!(!sdl_block(&sdl, input).contains("metricsDashboardUrl"));
+    }
+
+    let mutation_type = sdl_block(&sdl, "type MutationRoot {");
+    assert!(mutation_type.contains("setPublisherMetricsDashboardUrl("));
+}
+
+#[test]
 fn package_and_capability_enums_are_sdl_reachable_only_through_protected_configuration() {
     let schema = create_schema();
     let sdl = schema.as_sdl();
