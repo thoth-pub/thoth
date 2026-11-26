@@ -2577,7 +2577,7 @@ Contract properties consumers may rely on:
   `startDate < endDate`; at most 366 days for a `DAY` timeline, and no
   maximum range for a `MONTH` or `YEAR` timeline inside the date domain of
   section 4.3; at most 10 unique measures and 10 unique platforms, whether
-  explicit or resolved; at most 25 platform/measure combinations (the cross
+  explicit or resolved; at most 100 platform/measure combinations (the cross
   product of the served platforms and measures); at most 5,000 timeline cells
   (combinations x buckets). A bound is never met by truncation. Duplicate IDs
   are refused, and so is an explicit unknown measure or platform. Disabled
@@ -2816,6 +2816,7 @@ input MetricSelectorInput {
   languages: [LanguageCode!]
   fundingInstitutionIds: [Uuid!]
   affiliationInstitutionIds: [Uuid!]
+  includeChapters: Boolean
 }
 
 input MetricDashboardInput {
@@ -2861,6 +2862,12 @@ Contract properties consumers may rely on:
   language record of the work whatever its relation; any funding by a
   selected institution; any contribution affiliated with a selected
   institution. No metadata copy is stored for Metrics.
+- **`includeChapters` (MET-WP10-BOOKS-01A).** Optional, default false. When true, a
+  listed `workIds` entry also selects every `book-chapter` whose current
+  `is-child-of` parent it is; the chapter still has to belong to a selected
+  publisher and satisfy every other list. Without `workIds` it changes
+  nothing. `workIds` still counts listed books only; chapters count toward the
+  25,000 resolved-works bound.
 - **Selector bounds and validity.** `workIds` at most 500; `imprintIds`,
   `seriesIds`, `workTypes`, `languages`, `fundingInstitutionIds` and
   `affiliationInstitutionIds` at most 50 each (work types have only six

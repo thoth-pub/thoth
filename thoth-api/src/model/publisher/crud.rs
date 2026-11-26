@@ -127,6 +127,36 @@ impl Crud for Publisher {
 }
 
 impl Publisher {
+    /// Set or clear the publisher's metrics dashboard URL (`PUB-DASH-URL-01`).
+    ///
+    /// The caller has already passed
+    /// [`PublisherPolicy::can_set_metrics_dashboard_url`](super::policy::PublisherPolicy).
+    /// Validates the value, then updates only this column and records a history
+    /// entry in one transaction. It does not touch the subscription package or
+    /// the service configuration.
+    pub(crate) fn set_metrics_dashboard_url<C: crate::policy::PolicyContext>(
+        &self,
+        ctx: &C,
+        url: Option<&str>,
+    ) -> ThothResult<Publisher> {
+        use diesel::Connection;
+
+        if let Some(url) = url {
+            // The error text is fixed and never repeats the value.
+            super::validate_metrics_dashboard_url(url)
+                .map_err(|_| thoth_errors::ThothError::InvalidMetricsDashboardUrl)?;
+        }
+        let user_id = ctx.user_id()?;
+        let mut connection = ctx.db().get()?;
+        connection.transaction(|connection| {
+            let updated: Publisher = diesel::update(publisher::table.find(self.publisher_id))
+                .set(publisher::metrics_dashboard_url.eq(url))
+                .get_result(connection)?;
+            self.new_history_entry(user_id).insert(connection)?;
+            Ok::<_, thoth_errors::ThothError>(updated)
+        })
+    }
+
     /// Publishers with an **enabled** assignment for `platform`.
     ///
     /// One set-based join query. The composite assignment primary key

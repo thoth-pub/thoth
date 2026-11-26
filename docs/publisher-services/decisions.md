@@ -27,6 +27,8 @@ Publisher users may read their own package and its effective capability codes. O
 
 Package choice does not itself enable or disable distribution platforms.
 
+A publisher may also hold a public metrics dashboard URL (`Publisher.metricsDashboardUrl`, `PUB-DASH-URL-01`, thoth#1061). Only superusers set or clear it, through `setPublisherMetricsDashboardUrl`. It is not a capability: holding a URL grants nothing, and consumers must still check `METRICS_DASHBOARD` in the effective capabilities.
+
 ### Distribution assignments
 
 Every independently meaningful destination has its own `DistributionPlatform` value.

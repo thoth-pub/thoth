@@ -34,6 +34,8 @@ pub enum ThothError {
     IssueImprintsError,
     #[error("{0} is not a valid metadata specification")]
     InvalidMetadataSpecification(String),
+    #[error("The metrics dashboard URL must be an https URL with a host, no user information, no whitespace or control characters, and at most 2048 characters.")]
+    InvalidMetricsDashboardUrl,
     #[error("Invalid UUID supplied.")]
     InvalidUuid,
     #[error("Invalid timestamp supplied.")]
@@ -370,6 +372,12 @@ impl juniper::IntoFieldError for ThothError {
                     "type": "INVALID_SUBJECT_CODE"
                 }),
             ),
+            ThothError::InvalidMetricsDashboardUrl => juniper::FieldError::new(
+                self.to_string(),
+                graphql_value!({
+                    "type": "INVALID_METRICS_DASHBOARD_URL"
+                }),
+            ),
             ThothError::Unauthorised => juniper::FieldError::new(
                 "Unauthorized",
                 graphql_value!({
@@ -530,9 +538,9 @@ impl actix_web::error::ResponseError for ThothError {
                 HttpResponse::Unauthorized().json(self.to_string())
             }
             ThothError::EntityNotFound => HttpResponse::NotFound().json(self.to_string()),
-            ThothError::InvalidMetadataSpecification(_) | ThothError::InvalidUuid => {
-                HttpResponse::BadRequest().json(self.to_string())
-            }
+            ThothError::InvalidMetadataSpecification(_)
+            | ThothError::InvalidMetricsDashboardUrl
+            | ThothError::InvalidUuid => HttpResponse::BadRequest().json(self.to_string()),
             ThothError::DatabaseError { .. } => {
                 HttpResponse::InternalServerError().json("DB error")
             }

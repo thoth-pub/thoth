@@ -340,7 +340,59 @@ END $$;
             accessibility_report_url: None,
         };
 
-        Publisher::create(pool, &new_publisher).expect("Failed to create publisher in DB")
+        create_publisher_row(pool, new_publisher)
+    }
+
+    /// Create the publisher through the model, or, while a test has reverted
+    /// the schema below the migration that added a `publisher` column the
+    /// model selects, through raw SQL that names only the old columns. The
+    /// returned value carries the identity fields; the rest are defaults.
+    fn create_publisher_row(pool: &PgPool, new_publisher: NewPublisher) -> Publisher {
+        use diesel::sql_types::{Nullable, Uuid as SqlUuid};
+
+        #[derive(QueryableByName)]
+        struct Inserted {
+            #[diesel(sql_type = SqlUuid)]
+            publisher_id: Uuid,
+        }
+
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let model_columns_exist: bool = diesel::sql_query(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns \
+             WHERE table_schema = 'public' AND table_name = 'publisher' \
+             AND column_name = 'metrics_dashboard_url') AS present",
+        )
+        .get_result::<Present>(&mut connection)
+        .expect("Failed to read the publisher columns")
+        .present;
+        drop(connection);
+
+        if model_columns_exist {
+            return Publisher::create(pool, &new_publisher)
+                .expect("Failed to create publisher in DB");
+        }
+
+        let mut connection = pool.get().expect("Failed to get DB connection");
+        let inserted = diesel::sql_query(
+            "INSERT INTO publisher (publisher_name, zitadel_id) VALUES ($1, $2) \
+             RETURNING publisher_id",
+        )
+        .bind::<Text, _>(new_publisher.publisher_name.clone())
+        .bind::<Nullable<Text>, _>(new_publisher.zitadel_id.clone())
+        .get_result::<Inserted>(&mut connection)
+        .expect("Failed to create publisher in a reverted schema");
+        Publisher {
+            publisher_id: inserted.publisher_id,
+            publisher_name: new_publisher.publisher_name,
+            zitadel_id: new_publisher.zitadel_id,
+            ..Default::default()
+        }
+    }
+
+    #[derive(QueryableByName)]
+    struct Present {
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        present: bool,
     }
 
     pub(crate) fn create_imprint(pool: &PgPool, publisher: &Publisher) -> Imprint {

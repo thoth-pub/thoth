@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
 
+## [[1.14.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.14.0) - 2026-11-26
+### Added
+  - [1069](https://github.com/thoth-pub/thoth/issues/1069) - Add the optional `includeChapters` selector flag to `metricDashboard`, so `workIds` can also select the book chapters whose parent work is listed
+  - [1061](https://github.com/thoth-pub/thoth/issues/1061) - Add a publisher's public metrics dashboard URL: `Publisher.metricsDashboardUrl`, set or cleared only by superusers with `setPublisherMetricsDashboardUrl`, independent of the subscription package
+
+### Fixed
+  - [1065](https://github.com/thoth-pub/thoth/issues/1065) - Serve up to 100 platform and measure combinations in one `metricDashboard` read (was 25), so a publisher with a long history can open its all-time view
+
 ## [[1.13.1]](https://github.com/thoth-pub/thoth/releases/tag/v1.13.1) - 2026-11-26
 ### Fixed
   - Pin the RapiDoc script on the export server's documentation page to 9.3.8, because the unpinned latest (15.0.0) is an ES module and left the page blank

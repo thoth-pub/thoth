@@ -1794,6 +1794,7 @@ table! {
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
         service_configuration_updated_at -> Timestamptz,
+        metrics_dashboard_url -> Nullable<Text>,
     }
 }
 

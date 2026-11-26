@@ -1129,7 +1129,7 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
         ),
         (
             "input MetricSelectorInput {",
-            "publisherIds:[Uuid!]imprintIds:[Uuid!]seriesIds:[Uuid!]workIds:[Uuid!]workTypes:[WorkType!]languages:[LanguageCode!]fundingInstitutionIds:[Uuid!]affiliationInstitutionIds:[Uuid!]",
+            "publisherIds:[Uuid!]imprintIds:[Uuid!]seriesIds:[Uuid!]workIds:[Uuid!]workTypes:[WorkType!]languages:[LanguageCode!]fundingInstitutionIds:[Uuid!]affiliationInstitutionIds:[Uuid!]includeChapters:Boolean",
         ),
         (
             "type MetricDashboard {",

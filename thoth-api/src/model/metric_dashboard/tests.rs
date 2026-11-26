@@ -4245,6 +4245,7 @@ fn request_shape_is_validated_before_any_database_access() {
         languages: Some(distinct_languages(50)),
         funding_institution_ids: Some(ids(50)),
         affiliation_institution_ids: Some(ids(50)),
+        include_chapters: None,
     };
     assert_eq!(
         metric_dashboard(&unreachable, &input),
@@ -4361,7 +4362,7 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
             platform_id
         })
         .collect();
-    let measures: Vec<Uuid> = (0..6)
+    let measures: Vec<Uuid> = (0..10)
         .map(|index| insert_measure(&fx.pool, &format!("bound_measure_{index}"), true, true))
         .collect();
     let at = |days: i64, p: &[Uuid], m: &[Uuid], grain| {
@@ -4407,11 +4408,17 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
         ),
     );
     assert_eq!(months.timeline.len(), 25 * 13);
-    // 26 or more combinations are refused even for one day.
+    // 30 combinations (more than the former limit of 25) are served.
     assert_eq!(
-        metric_dashboard(&fx.pool, &at(1, &platforms[..6], &measures[..5], None)),
-        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS))
+        read(&fx, &at(1, &platforms[..6], &measures[..5], None))
+            .totals
+            .len(),
+        30
     );
+    // The new limit exactly: 10 platforms x 10 measures = 100 combinations over one day.
+    let hundred = read(&fx, &at(1, &platforms[..10], &measures[..10], None));
+    assert_eq!(hundred.totals.len(), 100);
+    assert_eq!(hundred.timeline.len(), 100);
     // Ten explicit platforms with one measure is within every bound.
     assert_eq!(
         read(&fx, &at(1, &platforms[..10], &measures[..1], None))
@@ -5088,6 +5095,82 @@ fn selected(
 
 fn sessions_total(fx: &Fixture, input: &MetricDashboardInput) -> Option<String> {
     total(&read(fx, input), fx.platform_id, fx.sessions)
+}
+
+#[test]
+fn include_chapters_adds_the_chapters_of_the_listed_works_only() {
+    let (_guard, fx) = setup();
+    let imprint = imprint_of(&fx, fx.works[0]);
+    let monograph = add_work(&fx, imprint, "monograph");
+    let other_book = add_work(&fx, imprint, "monograph");
+    let chapter = add_work(&fx, imprint, "book-chapter");
+    let other_chapter = add_work(&fx, imprint, "book-chapter");
+    let edited = add_work(&fx, imprint, "edited-book");
+    add_child_of(&fx, chapter, monograph, 1);
+    add_child_of(&fx, other_chapter, other_book, 1);
+    // Only a chapter follows its parent: a related edited book does not.
+    add_child_of(&fx, edited, monograph, 2);
+    // A chapter of the listed book that belongs to another publisher never
+    // reaches the selected publisher.
+    let foreign_chapter = add_work(&fx, imprint_of(&fx, fx.other_work), "book-chapter");
+    add_child_of(&fx, foreign_chapter, monograph, 3);
+    for (work_id, value) in [
+        (monograph, 1),
+        (chapter, 2),
+        (other_book, 4),
+        (other_chapter, 8),
+        (edited, 16),
+        (foreign_chapter, 1000),
+    ] {
+        commit(&fx, work_id, fx.platform_id, fx.sessions, day_n(1), value);
+    }
+    apply_all(&fx.pool);
+    let publisher = [fx.publisher_id];
+    let at = |edit: &dyn Fn(&mut MetricSelectorInput)| {
+        sessions_total(&fx, &selected(&fx, &publisher, |selector| edit(selector)))
+    };
+
+    assert_eq!(
+        at(&|s| s.work_ids = Some(vec![monograph])),
+        some("1"),
+        "the flag omitted selects exactly the listed works"
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(false);
+        }),
+        some("1")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(true);
+        }),
+        some("3"),
+        "the book and its chapter, not the edited book or a foreign chapter"
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph, other_book]);
+            s.include_chapters = Some(true);
+        }),
+        some("15")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(true);
+            s.work_types = Some(vec![WorkType::BookChapter]);
+        }),
+        some("2"),
+        "the other lists still apply to the chapters"
+    );
+    assert_eq!(
+        at(&|s| s.include_chapters = Some(true)),
+        at(&|_| {}),
+        "without workIds the flag changes nothing"
+    );
 }
 
 #[test]
@@ -17104,11 +17187,12 @@ fn every_refusing_fixture_refuses_alike_under_on_and_off() {
             grain,
         )
     };
-    alike(
-        &fx.pool,
-        &at(1, &platforms[..6], &measures, None),
-        MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS),
-        "30 combinations",
+    assert_eq!(
+        metric_dashboard(&fx.pool, &at(1, &platforms[..6], &measures, None))
+            .expect("30 combinations are served")
+            .totals
+            .len(),
+        30
     );
     alike(
         &fx.pool,
@@ -18355,4 +18439,16 @@ fn a_second_site_from_its_go_live_day_leaves_earlier_days_unknown_and_clips_its_
         MetricReadError::UnsupportedSourceGrain.code(),
         "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN"
     );
+}
+
+#[test]
+fn the_combination_bound_is_one_hundred() {
+    assert_eq!(METRIC_DASHBOARD_MAX_COMBINATIONS, 100);
+    assert_eq!(check_combinations(0), Ok(()));
+    assert_eq!(check_combinations(100), Ok(()));
+    assert_eq!(
+        check_combinations(101),
+        Err(MetricReadError::QueryLimitExceeded(TOO_MANY_COMBINATIONS))
+    );
+    assert!(TOO_MANY_COMBINATIONS.contains("100"));
 }
