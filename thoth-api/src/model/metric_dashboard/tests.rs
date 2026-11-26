@@ -4361,7 +4361,7 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
             platform_id
         })
         .collect();
-    let measures: Vec<Uuid> = (0..6)
+    let measures: Vec<Uuid> = (0..10)
         .map(|index| insert_measure(&fx.pool, &format!("bound_measure_{index}"), true, true))
         .collect();
     let at = |days: i64, p: &[Uuid], m: &[Uuid], grain| {
@@ -4414,6 +4414,10 @@ fn combination_timeline_and_resolved_dimension_limits_are_enforced_exactly() {
             .len(),
         30
     );
+    // The new limit exactly: 10 platforms x 10 measures = 100 combinations over one day.
+    let hundred = read(&fx, &at(1, &platforms[..10], &measures[..10], None));
+    assert_eq!(hundred.totals.len(), 100);
+    assert_eq!(hundred.timeline.len(), 100);
     // Ten explicit platforms with one measure is within every bound.
     assert_eq!(
         read(&fx, &at(1, &platforms[..10], &measures[..1], None))

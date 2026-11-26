@@ -153,6 +153,10 @@ pub const METRIC_DASHBOARD_MAX_MEASURES: usize = 10;
 pub const METRIC_DASHBOARD_MAX_PLATFORMS: usize = 10;
 /// The most platform/measure combinations one request may serve.
 pub const METRIC_DASHBOARD_MAX_COMBINATIONS: usize = 100;
+const _: () = assert!(
+    METRIC_DASHBOARD_MAX_COMBINATIONS
+        == METRIC_DASHBOARD_MAX_PLATFORMS * METRIC_DASHBOARD_MAX_MEASURES
+);
 /// The most timeline cells (combinations x buckets) one request may return.
 pub const METRIC_DASHBOARD_MAX_TIMELINE_CELLS: usize = 5000;
 /// The most rows `metricMeasures` or `metricPlatforms` may return.
