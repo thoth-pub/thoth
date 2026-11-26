@@ -26,7 +26,7 @@ use crate::model::Timestamp;
     feature = "backend",
     derive(juniper::GraphQLObject),
     graphql(
-        description = "The version of the Metrics data a dashboard read is served from: it changes when the rollup frontier moves"
+        description = "The rollup frontier: it changes when the rollup frontier moves. It does not cover every input of a dashboard read"
     )
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct MetricDataVersion {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "An opaque string that is equal for two reads exactly when the rollup frontier is the same. Compare it for equality only"
+            description = "An opaque string that is equal for two reads when the rollup frontier is the same. Compare it for equality only"
         )
     )]
     pub version: String,
