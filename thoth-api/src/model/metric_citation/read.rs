@@ -46,7 +46,7 @@ use uuid::Uuid;
 use super::MetricCitationsServing;
 use crate::db::PgPool;
 use crate::model::metric_dashboard::{
-    checkout, MetricReadError, ReadDeadline, METRIC_DASHBOARD_READS,
+    checkout, MetricReadError, ReadDeadline, CUSTOM_PLANS_SQL, METRIC_DASHBOARD_READS,
     METRIC_DASHBOARD_READ_DEADLINE, METRIC_DASHBOARD_SLOT_WAIT, STATEMENT_TIMEOUT_SQL,
     UNKNOWN_PUBLISHER,
 };
@@ -468,7 +468,7 @@ struct LinkRow {
 
 /// The works of the selected publishers, narrowed by `$2` (an empty array
 /// selects them all).
-const SCOPE_WORKS: &str = "SELECT w.work_id, w.doi \
+const SCOPE_WORKS: &str = "SELECT w.work_id, w.doi, w.work_status \
        FROM public.work w \
        JOIN public.imprint i ON i.imprint_id = w.imprint_id \
       WHERE i.publisher_id = ANY($1) \
@@ -511,6 +511,7 @@ fn summary_sql() -> String {
                   WHERE match_status = 'NOT_FOUND' AND NOT unconfirmed) AS not_found, \
                 (SELECT count(*) FROM sw \
                   WHERE sw.doi IS NOT NULL \
+                    AND sw.work_status NOT IN ('withdrawn', 'cancelled') \
                     AND NOT EXISTS (SELECT 1 FROM st WHERE st.cited_work_id = sw.work_id)) \
                   AS not_yet, \
                 (SELECT COALESCE(sum(reported_count), 0)::bigint FROM st \
@@ -561,6 +562,8 @@ fn evaluate(
     request: &Validated,
     deadline: &ReadDeadline,
 ) -> Result<MetricCitations, MetricReadError> {
+    deadline.check()?;
+    sql_query(CUSTOM_PLANS_SQL).execute(connection)?;
     deadline.check()?;
     sql_query(STATEMENT_TIMEOUT_SQL).execute(connection)?;
 

@@ -80,6 +80,11 @@ pair from its own start. In detail:
   (`OFF` | `ON`, default `OFF`), read at process start. `OFF` answers
   `metricCitations` with `METRIC_CITATIONS_NOT_SERVED` after authorization; the
   citation tables and write path are maintained whatever the switch.
+  `lastRefreshedAt` is the oldest completed refresh across the matched works in
+  scope (null while one has none), not across every selected work: a work the
+  source does not know has nothing to be fresh, and `notYetRefreshedWorkCount`
+  and `notFoundWorkCount` report the others. `notYetRefreshedWorkCount` leaves
+  out withdrawn and cancelled works, which are never looked up.
 - **Windows and successions (3.6, 3.7).** A window `[window_start,
   window_end)` limits where an account's coverage counts and never lowers what
   a day requires; a succession groups accounts of one publisher and platform

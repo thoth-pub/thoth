@@ -198,9 +198,10 @@ fn the_summary_counts_every_state_and_never_counts_withdrawn_links() {
     assert_eq!(s.matched_work_count, 3);
     assert_eq!(s.unconfirmed_work_count, 2);
     assert_eq!(s.not_found_work_count, 1);
-    // works[5] has a DOI and no state; the cancelled work has a DOI and no
-    // state either, so it counts as not yet reached.
-    assert_eq!(s.not_yet_refreshed_work_count, 2);
+    // works[5] has a DOI and no state. The cancelled work has a DOI and no
+    // state either, but the write path never asks for it, so it is not
+    // counted as waiting.
+    assert_eq!(s.not_yet_refreshed_work_count, 1);
     assert_eq!(s.reported_count_total, 6);
     assert!(s.last_refreshed_at.is_some());
     let years: Vec<(Option<i32>, i32)> =
@@ -499,7 +500,7 @@ fn an_empty_catalogue_reads_as_zero_links_and_every_work_not_yet_reached() {
     let result = read(&f, &request(&f)).unwrap();
     assert_eq!(result.summary.link_count, 0);
     assert_eq!(result.summary.matched_work_count, 0);
-    assert_eq!(result.summary.not_yet_refreshed_work_count, 7);
+    assert_eq!(result.summary.not_yet_refreshed_work_count, 6);
     assert_eq!(result.summary.last_refreshed_at, None);
     assert!(result.links.is_empty());
     assert!(result.summary.by_citing_year.is_empty());
