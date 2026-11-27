@@ -76,6 +76,10 @@ pair from its own start. In detail:
 - **A server switch for serving (3.5).** `THOTH_METRIC_MONTH_SERVING` (`OFF` |
   `ON`, default `OFF`), read at process start; `OFF` keeps today's responses
   apart from `asOf`, and the projection is maintained whatever the switch.
+- **Citations serving switch (CITATIONS-01).** `THOTH_METRIC_CITATIONS_SERVING`
+  (`OFF` | `ON`, default `OFF`), read at process start. `OFF` answers
+  `metricCitations` with `METRIC_CITATIONS_NOT_SERVED` after authorization; the
+  citation tables and write path are maintained whatever the switch.
 - **Windows and successions (3.6, 3.7).** A window `[window_start,
   window_end)` limits where an account's coverage counts and never lowers what
   a day requires; a succession groups accounts of one publisher and platform

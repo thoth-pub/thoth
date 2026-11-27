@@ -6,8 +6,8 @@ use thoth::{
         async_worker::{launch, WorkerArgs},
         graphql::MutationGuardMode,
         model::{
-            distribution_job::DistributionJobCreation, metric_dashboard::MetricMonthServing,
-            metric_widget::MetricWidgetSwitch,
+            distribution_job::DistributionJobCreation, metric_citation::MetricCitationsServing,
+            metric_dashboard::MetricMonthServing, metric_widget::MetricWidgetSwitch,
         },
     },
     api_server,
@@ -35,6 +35,7 @@ lazy_static! {
                 .arg(arguments::distribution_job_creation())
                 .arg(arguments::metric_widget())
                 .arg(arguments::metric_month_serving())
+                .arg(arguments::metric_citations_serving())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -146,6 +147,21 @@ pub(crate) fn metric_month_serving(arguments: &ArgMatches) -> ThothResult<Metric
         .map_err(ThothError::InternalError)
 }
 
+/// Resolve the effective citations serving switch from parsed arguments
+/// (`CITATIONS-01`). Defaults to `OFF`; `clap` has already restricted the
+/// string to the two accepted values. Both `start graphql-api` and `init`
+/// register [`arguments::metric_citations_serving`].
+pub(crate) fn metric_citations_serving(
+    arguments: &ArgMatches,
+) -> ThothResult<MetricCitationsServing> {
+    arguments
+        .get_one::<String>("metric-citations-serving")
+        .map(String::as_str)
+        .unwrap_or("OFF")
+        .parse::<MetricCitationsServing>()
+        .map_err(ThothError::InternalError)
+}
+
 pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let database_url = arguments.get_one::<String>("db").unwrap().to_owned();
     let host = arguments.get_one::<String>("host").unwrap().to_owned();
@@ -162,6 +178,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let distribution_job_creation = distribution_job_creation(arguments)?;
     let metric_widget = metric_widget(arguments)?;
     let metric_month_serving = metric_month_serving(arguments)?;
+    let metric_citations_serving = metric_citations_serving(arguments)?;
 
     api_server(
         database_url,
@@ -176,6 +193,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         distribution_job_creation,
         metric_widget,
         metric_month_serving,
+        metric_citations_serving,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

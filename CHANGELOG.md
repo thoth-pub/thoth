@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add the citation write path: `beginCitationRefresh`, `citationRefreshWorks`, `submitCitationBatch` and `completeCitationRefresh`, for the metrics ingest service only
+  - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add the `metricCitations` read of citation links with a summary and cursor paging, for the metrics read service, behind `THOTH_METRIC_CITATIONS_SERVING` (off by default)
 
 ### Fixed
   - [1058](https://github.com/thoth-pub/thoth/issues/1058) - Match `workIsbnMatches` ISBNs stored with any hyphenation, not only the one the `isbn` crate chooses

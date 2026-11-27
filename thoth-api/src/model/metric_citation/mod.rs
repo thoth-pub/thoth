@@ -21,6 +21,8 @@
 //! truncates third-party text before it reaches these columns; the CHECK
 //! constraints are the last line of defence, not the sanitiser.
 
+use std::str::FromStr;
+
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -124,10 +126,53 @@ pub struct MetricCitationLink {
 }
 
 #[cfg(feature = "backend")]
+pub mod read;
+#[cfg(feature = "backend")]
 pub mod write;
 
 #[cfg(all(test, feature = "backend"))]
 mod tests;
 
 #[cfg(all(test, feature = "backend"))]
+mod read_tests;
+#[cfg(all(test, feature = "backend"))]
 pub(crate) mod write_tests;
+
+/// Whether `metricCitations` serves citation links
+/// (`THOTH_METRIC_CITATIONS_SERVING`, `CITATIONS-01`).
+///
+/// Read once at process start; there is no reload path. `Off`, the default,
+/// makes the read refuse with `METRIC_CITATIONS_NOT_SERVED` (after
+/// authorization). The tables and the write path are maintained whatever the
+/// value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetricCitationsServing {
+    #[default]
+    Off,
+    On,
+}
+
+impl FromStr for MetricCitationsServing {
+    type Err = String;
+
+    /// Accepts exactly `OFF` and `ON` and fails on anything else, so an
+    /// unparseable value stops the process rather than resolving to either.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "OFF" => Ok(MetricCitationsServing::Off),
+            "ON" => Ok(MetricCitationsServing::On),
+            other => Err(format!(
+                "Invalid metric citations serving setting: {other}. Expected OFF or ON."
+            )),
+        }
+    }
+}
+
+impl std::fmt::Display for MetricCitationsServing {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            MetricCitationsServing::Off => "OFF",
+            MetricCitationsServing::On => "ON",
+        })
+    }
+}

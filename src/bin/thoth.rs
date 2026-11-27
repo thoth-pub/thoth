@@ -1495,3 +1495,100 @@ mod metric_month_serving_control {
         }
     }
 }
+
+/// Control evidence for `THOTH_METRIC_CITATIONS_SERVING` (`CITATIONS-01`),
+/// which both production command paths (`start graphql-api` and `init`) must
+/// register because the `graphql-api` handler reads it. `OFF` is the merged
+/// default and an invalid value fails parsing instead of being coerced.
+#[cfg(test)]
+mod metric_citations_serving_control {
+    use super::*;
+    use clap::ArgMatches;
+    use std::env::{remove_var, set_var, var_os};
+    use thoth::api::model::metric_citation::MetricCitationsServing;
+
+    const SERVING_ENV: &str = "THOTH_METRIC_CITATIONS_SERVING";
+
+    fn parse(path: &[&str], extra: &[&str]) -> Result<ArgMatches, clap::Error> {
+        let mut argv = vec!["thoth"];
+        argv.extend_from_slice(path);
+        argv.extend_from_slice(extra);
+        let mut matches = THOTH.clone().try_get_matches_from(argv)?;
+        for name in path {
+            matches = matches
+                .remove_subcommand()
+                .filter(|(found, _)| found == name)
+                .map(|(_, sub)| sub)
+                .expect("sub-matches");
+        }
+        Ok(matches)
+    }
+
+    fn resolve(path: &[&str], extra: &[&str]) -> MetricCitationsServing {
+        commands::start::metric_citations_serving(&parse(path, extra).expect("should parse"))
+            .expect("setting should resolve")
+    }
+
+    #[test]
+    fn unset_yields_off_and_on_yields_on_on_both_production_paths() {
+        let _lock = super::test_env_lock::hold();
+        let previous = var_os(SERVING_ENV);
+        remove_var(SERVING_ENV);
+        for path in [&["init"][..], &["start", "graphql-api"][..]] {
+            assert_eq!(resolve(path, &[]), MetricCitationsServing::Off);
+            assert_eq!(
+                resolve(path, &["--metric-citations-serving", "OFF"]),
+                MetricCitationsServing::Off
+            );
+            assert_eq!(
+                resolve(path, &["--metric-citations-serving", "ON"]),
+                MetricCitationsServing::On
+            );
+            let error = parse(path, &["--metric-citations-serving", "MAYBE"])
+                .expect_err("an invalid value must fail parsing");
+            assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+        }
+        if let Some(previous) = previous {
+            set_var(SERVING_ENV, previous);
+        }
+    }
+
+    #[test]
+    fn both_paths_bind_the_documented_variable_and_the_off_default() {
+        let _lock = super::test_env_lock::hold();
+        let graphql_api = commands::start::COMMAND
+            .get_subcommands()
+            .find(|command| command.get_name() == "graphql-api")
+            .expect("start must declare graphql-api");
+        for command in [&*commands::INIT, graphql_api] {
+            let argument = command
+                .get_arguments()
+                .find(|arg| arg.get_id() == "metric-citations-serving")
+                .expect("metric-citations-serving must be registered");
+            assert_eq!(
+                argument.get_env().and_then(|env| env.to_str()),
+                Some(SERVING_ENV)
+            );
+            assert_eq!(argument.get_default_values(), ["OFF"]);
+        }
+    }
+
+    #[test]
+    fn the_typed_parser_accepts_exactly_off_and_on() {
+        assert_eq!(
+            "OFF".parse::<MetricCitationsServing>(),
+            Ok(MetricCitationsServing::Off)
+        );
+        assert_eq!(
+            "ON".parse::<MetricCitationsServing>(),
+            Ok(MetricCitationsServing::On)
+        );
+        for invalid in ["", "off", "on", "true", "1", "OFF "] {
+            assert!(invalid.parse::<MetricCitationsServing>().is_err());
+        }
+        assert_eq!(
+            MetricCitationsServing::default(),
+            MetricCitationsServing::Off
+        );
+    }
+}
