@@ -907,6 +907,36 @@ fn a_flap_back_onto_a_withdrawn_id_reactivates_it_only_without_a_doi_collision()
 }
 
 #[test]
+fn a_withdrawn_id_returning_without_its_old_doi_reactivates_without_failing_the_batch() {
+    let (_guard, f) = setup();
+    let work = f.works[0];
+    let seed = |ids: Vec<CitationLinkInput>, total: i32| {
+        let claim = claim(&f);
+        let r = begin(&f, claim.lease_token).unwrap();
+        submit(
+            &f,
+            claim.lease_token,
+            r.refresh_id,
+            "b1",
+            vec![matched(work, ids, true, total)],
+        )
+        .unwrap();
+        complete(&f, claim.lease_token, r.refresh_id).unwrap();
+    };
+    seed(vec![link("A", Some("10.3/a"))], 1);
+    seed(vec![link("B", None)], 1); // A withdrawn
+    seed(vec![link("B", None), link("X", Some("10.3/a"))], 2); // X takes the DOI
+    assert_eq!(links_of(&f, work, "WITHDRAWN"), 1);
+    // A returns with no DOI while X owns it: A must reactivate, not clash.
+    seed(
+        vec![link("A", None), link("B", None), link("X", Some("10.3/a"))],
+        3,
+    );
+    assert_eq!(links_of(&f, work, "ACTIVE"), 3);
+    assert_eq!(count(&f, &format!("SELECT count(*) FROM metric_citation_link WHERE cited_work_id = '{work}' AND citing_external_id = 'A' AND citing_doi IS NULL AND status = 'ACTIVE'")), 1);
+}
+
+#[test]
 fn a_work_with_more_than_two_thousand_links_spans_batches_and_is_swept_once() {
     let (_guard, f) = setup();
     let work = f.works[0];

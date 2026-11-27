@@ -753,7 +753,7 @@ impl MutationRoot {
     }
 
     #[graphql(
-        description = "Complete a running citation refresh. Requires the METRICS_INGEST_SERVICE role. All withdrawal happens here: for each work that was matched, fully enumerated and passes the server guard, active links not seen in this refresh are withdrawn. Releases the claim. Repeating the call returns nothing new."
+        description = "Complete a running citation refresh. Requires the METRICS_INGEST_SERVICE role. All withdrawal happens here: for each work that was matched, fully enumerated and passes the server guard, active links not seen in this refresh are withdrawn. Releases the claim. A repeated call is refused as a stale claim."
     )]
     fn complete_citation_refresh(
         context: &Context,

@@ -750,8 +750,6 @@ struct LinkRow {
     link_id: Uuid,
     #[diesel(sql_type = Text)]
     citing_external_id: String,
-    #[diesel(sql_type = Bool)]
-    active: bool,
 }
 
 #[derive(diesel::QueryableByName)]
@@ -820,7 +818,7 @@ fn store_link(
     link: &CleanLink,
 ) -> LifecycleResult<LinkResult> {
     let existing_by_id: Option<LinkRow> = sql_query(
-        "SELECT link_id, citing_external_id, (status = 'ACTIVE') AS active \
+        "SELECT link_id, citing_external_id \
            FROM metric_citation_link \
           WHERE cited_work_id = $1 AND source_id = $2 AND citing_external_id = $3 FOR UPDATE",
     )
@@ -831,7 +829,7 @@ fn store_link(
     .optional()?;
     let active_by_doi: Option<LinkRow> = match &link.doi {
         Some(doi) => sql_query(
-            "SELECT link_id, citing_external_id, TRUE AS active FROM metric_citation_link \
+            "SELECT link_id, citing_external_id FROM metric_citation_link \
               WHERE cited_work_id = $1 AND source_id = $2 AND citing_doi = $3 \
                 AND status = 'ACTIVE' FOR UPDATE",
         )
@@ -894,14 +892,6 @@ fn store_link(
         // Same id (and, when it has one, same DOI owner): update, touch and
         // reactivate. A WITHDRAWN row whose DOI is now another ACTIVE row's
         // was handled above as merged.
-        if !row.active {
-            sql_query(
-                "UPDATE metric_citation_link SET status = 'ACTIVE', withdrawn_at = NULL \
-                  WHERE link_id = $1",
-            )
-            .bind::<SqlUuid, _>(row.link_id)
-            .execute(connection)?;
-        }
         update_link_fields(connection, row.link_id, link)?;
         touch(connection, row.link_id)?;
         return Ok(LinkResult::Stored);
@@ -937,7 +927,7 @@ fn update_link_fields(
     link: &CleanLink,
 ) -> LifecycleResult<()> {
     sql_query(
-        "UPDATE metric_citation_link SET \
+        "UPDATE metric_citation_link SET status = 'ACTIVE', withdrawn_at = NULL, \
             citing_doi = $2, citing_title = $3, citing_type = $4, citing_publication_year = $5, \
             citing_publication_date = $6, citing_sort_date = $7, citing_venue = $8, \
             citing_authors = $9, citing_url = $10 \
@@ -1257,8 +1247,9 @@ struct WorkStateRow {
 /// the links seen are at least 50% of it, or the same lower count was seen on
 /// the previous complete refresh; otherwise nothing is withdrawn and the
 /// refresh ends COMPLETED_WITH_ERRORS. Progress goes to `last_completed_at`
-/// and the lease is released; the cursor is never written. Repeating the call
-/// returns the terminal refresh unchanged.
+/// and the lease is released; the cursor is never written. The lease release
+/// means a repeated call is refused as a stale claim; the driver reads the
+/// outcome from the first response.
 pub fn complete_citation_refresh(
     db: &PgPool,
     input: &CompleteCitationRefreshInput,
@@ -1395,12 +1386,13 @@ pub fn complete_citation_refresh(
 
         let unconfirmed = sql_query(
             "SELECT count(*) AS n FROM metric_citation_work_state s \
-              WHERE s.source_id = $1 AND s.unconfirmed \
+              WHERE s.source_id = $1 AND s.unconfirmed AND s.cited_work_id = ANY($3) \
                 AND s.last_attempted_at >= (SELECT started_at FROM metric_citation_refresh \
                                               WHERE refresh_id = $2)",
         )
         .bind::<SqlUuid, _>(authority.source_id)
         .bind::<SqlUuid, _>(input.refresh_id)
+        .bind::<Array<SqlUuid>, _>(folded.keys().copied().collect::<Vec<Uuid>>())
         .get_result::<Count>(connection)?
         .n;
         let status = if unconfirmed > 0 {
