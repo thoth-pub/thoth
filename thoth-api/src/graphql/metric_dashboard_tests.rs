@@ -1470,6 +1470,7 @@ fn every_read_resolver_authorizes_through_the_read_service_guard_first() {
         "list_metric_measures(&context.db)",
         "list_metric_platforms(&context.db)",
         "read_metric_data_version(&context.db)",
+        "read_citations(&context.db, context.metric_citations_serving, &input)",
     ] {
         let expected = format!(
             "context .require_metrics_read_service() .map_err(MetricReadError::from) .and_then(|_| {read})"
@@ -1489,7 +1490,7 @@ fn every_read_resolver_authorizes_through_the_read_service_guard_first() {
         query_source
             .matches("require_metrics_read_service()")
             .count(),
-        4
+        5
     );
 }
 

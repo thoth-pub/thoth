@@ -773,6 +773,9 @@ pub enum MetricReadError {
     /// `METRIC_READ_BUSY`: every concurrent-read slot of this API process
     /// stayed taken for the whole slot wait. Retryable.
     Busy,
+    /// `METRIC_CITATIONS_NOT_SERVED`: `THOTH_METRIC_CITATIONS_SERVING` is
+    /// `OFF`. Only `metricCitations` returns it, after authorization.
+    CitationsNotServed,
 }
 
 impl MetricReadError {
@@ -787,6 +790,7 @@ impl MetricReadError {
             MetricReadError::UnsupportedSourceGrain => "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN",
             MetricReadError::Unavailable => "INTERNAL_ERROR",
             MetricReadError::Busy => "METRIC_READ_BUSY",
+            MetricReadError::CitationsNotServed => "METRIC_CITATIONS_NOT_SERVED",
         }
     }
 
@@ -809,6 +813,7 @@ impl MetricReadError {
             }
             MetricReadError::Unavailable => "The Metrics read could not be completed.",
             MetricReadError::Busy => "The Metrics service is busy. Try again shortly.",
+            MetricReadError::CitationsNotServed => "Citation links are not served by this server.",
         }
     }
 }
@@ -3124,7 +3129,7 @@ impl ReadGuard {
     /// Take a slot, waiting at most `wait` in total on the monotonic clock,
     /// re-checked after every wake-up. Fails as [`MetricReadError::Busy`]
     /// when no slot frees in time.
-    fn acquire(&self, wait: StdDuration) -> Result<ReadPermit<'_>, MetricReadError> {
+    pub(crate) fn acquire(&self, wait: StdDuration) -> Result<ReadPermit<'_>, MetricReadError> {
         let started = Instant::now();
         let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
@@ -3174,7 +3179,8 @@ impl Drop for ReadPermit<'_> {
 }
 
 /// The guard every production `metricDashboard` read of this process takes.
-static METRIC_DASHBOARD_READS: ReadGuard = ReadGuard::new(METRIC_DASHBOARD_MAX_CONCURRENT_READS);
+pub(crate) static METRIC_DASHBOARD_READS: ReadGuard =
+    ReadGuard::new(METRIC_DASHBOARD_MAX_CONCURRENT_READS);
 
 /// The whole-read deadline (#980 Amendment 3 section 6): the instant after
 /// which the read starts no further statement, and whether it has refused
@@ -3228,7 +3234,7 @@ impl ReadDeadline {
 
     /// Allow the next statement, or refuse it once the deadline has passed:
     /// the read then rolls back and fails as [`MetricReadError::Unavailable`].
-    fn check(&self) -> Result<(), MetricReadError> {
+    pub(crate) fn check(&self) -> Result<(), MetricReadError> {
         if Instant::now() < self.at {
             return Ok(());
         }
@@ -3399,7 +3405,7 @@ pub(crate) fn metric_dashboard_with_controls(
 /// the failure goes through [`ReadDeadline::check`]: it is logged once as a
 /// deadline expiry and recorded on the deadline. A pool timeout that fires
 /// while the deadline still has time left is the pool's own failure.
-fn checkout(
+pub(crate) fn checkout(
     db: &PgPool,
     deadline: &ReadDeadline,
 ) -> Result<PooledConnection<ConnectionManager<PgConnection>>, MetricReadError> {

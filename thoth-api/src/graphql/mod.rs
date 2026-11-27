@@ -9,6 +9,8 @@ mod distribution_job_tests;
 #[cfg(test)]
 mod distribution_platform_tests;
 #[cfg(all(test, feature = "backend"))]
+mod metric_citation_read_tests;
+#[cfg(all(test, feature = "backend"))]
 mod metric_citation_write_tests;
 #[cfg(test)]
 mod metric_coverage_run_tests;

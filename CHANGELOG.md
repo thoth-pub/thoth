@@ -5,11 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [[1.15.0]](https://github.com/thoth-pub/thoth/releases/tag/v1.15.0) - 2026-11-27
 ### Added
   - [1071](https://github.com/thoth-pub/thoth/issues/1071) - Add the protected `metricDataVersion` query, a cheap read of the rollup frontier that lets a dashboard cache know when its data changed
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
   - [1079](https://github.com/thoth-pub/thoth/issues/1079) - Add the `QUARTER` reporting period for sources that report one calendar quarter per record, and a `QUARTER` timeline bucket to `metricDashboard` and `metricWidget`
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add the citation write path: `beginCitationRefresh`, `citationRefreshWorks`, `submitCitationBatch` and `completeCitationRefresh`, for the metrics ingest service only
+  - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add the `metricCitations` read of citation links with a summary and cursor paging, for the metrics read service, behind `THOTH_METRIC_CITATIONS_SERVING` (off by default)
 
 ### Fixed
   - [1080](https://github.com/thoth-pub/thoth/issues/1080) - Run metric ingestion on its own database pool (`THOTH_INGEST_POOL_SIZE`, default 4), so bursts of read requests cannot fail ingestion batches

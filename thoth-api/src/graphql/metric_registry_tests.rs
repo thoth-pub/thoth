@@ -730,6 +730,7 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "metricPlatforms",
     ];
     let wp4_widget_01_query_fields = ["metricWidget"];
+    let citations_01_query_fields = ["metricCitations"];
     let wp2_02_mutation_fields = ["updateMetricSourceCheckpoint"];
     let field_name = |line: &str| -> String {
         line.trim_start()
@@ -772,6 +773,7 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
                 !wp1_13_query_fields.contains(&name.as_str())
                     && !wp4_02_query_fields.contains(&name.as_str())
                     && !wp4_widget_01_query_fields.contains(&name.as_str())
+                    && !citations_01_query_fields.contains(&name.as_str())
             })
             .cloned()
             .collect(),
@@ -826,6 +828,11 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         in_group(&all_query_fields, &wp4_widget_01_query_fields),
         owned(&wp4_widget_01_query_fields),
         "the MET-WP4-WIDGET-01 public widget read must appear exactly once"
+    );
+    assert_eq!(
+        in_group(&all_query_fields, &citations_01_query_fields),
+        owned(&citations_01_query_fields),
+        "the CITATIONS-01 citation read must appear exactly once"
     );
     assert_eq!(
         in_group(&all_mutation_fields, &wp2_02_mutation_fields),
