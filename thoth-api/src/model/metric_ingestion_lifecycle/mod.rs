@@ -291,6 +291,14 @@ pub enum MetricLifecycleError {
     InvalidImportState,
     /// A lifecycle input is outside its approved bounds or format.
     LifecycleLimitExceeded,
+    /// A citation work is not one of the claimed publisher's works.
+    CitationWorkNotInPublisher,
+    /// No citation refresh of the claimed account carries the identifier.
+    CitationRefreshNotFound,
+    /// The citation refresh is not running under this claim.
+    CitationRefreshNotRunning,
+    /// A citation batch key was reused with a different payload.
+    CitationBatchIdempotencyMismatch,
     /// A failure owned by the canonical ingestion coordinator vocabulary.
     Ingestion(MetricIngestionErrorCode),
 }
@@ -311,6 +319,10 @@ impl MetricLifecycleError {
             ImportIncomplete => "IMPORT_INCOMPLETE".to_string(),
             InvalidImportState => "INVALID_IMPORT_STATE".to_string(),
             LifecycleLimitExceeded => "LIFECYCLE_LIMIT_EXCEEDED".to_string(),
+            CitationWorkNotInPublisher => "CITATION_WORK_NOT_IN_PUBLISHER".to_string(),
+            CitationRefreshNotFound => "CITATION_REFRESH_NOT_FOUND".to_string(),
+            CitationRefreshNotRunning => "CITATION_REFRESH_NOT_RUNNING".to_string(),
+            CitationBatchIdempotencyMismatch => "CITATION_BATCH_IDEMPOTENCY_MISMATCH".to_string(),
             Ingestion(code) => code.to_string(),
         }
     }
@@ -334,6 +346,14 @@ impl MetricLifecycleError {
             ImportIncomplete => "Not every expected batch of the metric import has been ingested.",
             InvalidImportState => "The metric import is not in a state this operation accepts.",
             LifecycleLimitExceeded => "A lifecycle input is outside its permitted bounds.",
+            CitationWorkNotInPublisher => "The work does not belong to the claimed publisher.",
+            CitationRefreshNotFound => {
+                "The citation refresh was not found for this source account."
+            }
+            CitationRefreshNotRunning => "The citation refresh is not running under this claim.",
+            CitationBatchIdempotencyMismatch => {
+                "A citation batch with this key already exists with a different payload."
+            }
             Ingestion(_) => "The metric ingestion request was refused.",
         }
     }
@@ -375,7 +395,7 @@ impl IntoFieldError for MetricLifecycleError {
     }
 }
 
-type LifecycleResult<T> = Result<T, MetricLifecycleError>;
+pub(crate) type LifecycleResult<T> = Result<T, MetricLifecycleError>;
 
 // --------------------------------------------------------------------------
 // Transport inputs and outputs
@@ -756,11 +776,11 @@ fn to_coordinator_batch(input: &IngestMetricBatchInput) -> LifecycleResult<Metri
 }
 
 /// What an eligible managed-DRIVER route resolves to.
-struct EligibleRoute {
+pub(crate) struct EligibleRoute {
     /// The account's pinned publisher.
-    publisher_id: Uuid,
+    pub(crate) publisher_id: Uuid,
     /// Stable code of the enabled platform row eligibility was decided from.
-    platform_code: String,
+    pub(crate) platform_code: String,
 }
 
 /// Whether one source account is an eligible managed-DRIVER route for its
@@ -772,7 +792,7 @@ struct EligibleRoute {
 /// without locks; the claim then revalidates every locked checkpoint's unit
 /// under locks before it grants a lease, and every later operation revalidates
 /// under locks again.
-fn check_eligibility(
+pub(crate) fn check_eligibility(
     connection: &mut PgConnection,
     source: &MetricSource,
     account: &MetricSourceAccount,
@@ -855,7 +875,7 @@ fn holds_live_claim(checkpoint: &LockedCheckpoint, lease_token: Uuid) -> bool {
 }
 
 /// Lock the account's checkpoint and require the caller's live claim.
-fn require_live_claim(
+pub(crate) fn require_live_claim(
     connection: &mut PgConnection,
     source_account_id: Uuid,
     lease_token: Uuid,

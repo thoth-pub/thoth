@@ -51,6 +51,11 @@ use crate::model::{
     issue::{Issue, IssuePolicy, NewIssue, PatchIssue},
     language::{Language, LanguagePolicy, NewLanguage, PatchLanguage},
     location::{Location, LocationPolicy, NewLocation, PatchLocation},
+    metric_citation::write::{
+        begin_citation_refresh, complete_citation_refresh, submit_citation_batch,
+        BeginCitationRefreshInput, CitationBatchResult, CitationRefresh,
+        CompleteCitationRefreshInput, SubmitCitationBatchInput,
+    },
     metric_coverage_run::{
         crud::rebuild_metric_coverage_runs, verification::verify_metric_coverage_runs,
         MetricCoverageRunRebuildResult, MetricCoverageRunVerificationPage,
@@ -721,6 +726,42 @@ impl MutationRoot {
     ) -> FieldResult<MetricImport> {
         authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
         complete_metric_import(&context.db, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Begin, or return the running, citation refresh of a claimed citation source account. Requires the METRICS_INGEST_SERVICE role. A refresh still running under an earlier, expired claim is set FAILED first. Repeating the call under the same claim returns the same refresh."
+    )]
+    fn begin_citation_refresh(
+        context: &Context,
+        #[graphql(description = "The claimed source account and its lease token")]
+        input: BeginCitationRefreshInput,
+    ) -> FieldResult<CitationRefresh> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        begin_citation_refresh(&context.db, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Commit one batch of a running citation refresh: at most 50 works, 2000 links and 1 MiB. Requires the METRICS_INGEST_SERVICE role. A batch only adds or updates links and never withdraws one. Repeating a committed batch returns its outcome; reusing a batch key with a different payload is refused."
+    )]
+    fn submit_citation_batch(
+        context: &Context,
+        #[graphql(description = "The batch, its refresh and the claim it is submitted under")]
+        input: SubmitCitationBatchInput,
+    ) -> FieldResult<CitationBatchResult> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        submit_citation_batch(&context.db, &input).map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Complete a running citation refresh. Requires the METRICS_INGEST_SERVICE role. All withdrawal happens here: for each work that was matched, fully enumerated and passes the server guard, active links not seen in this refresh are withdrawn. Releases the claim. A repeated call is refused as a stale claim."
+    )]
+    fn complete_citation_refresh(
+        context: &Context,
+        #[graphql(description = "Which refresh to complete, and under which claim")]
+        input: CompleteCitationRefreshInput,
+    ) -> FieldResult<CitationRefresh> {
+        authorize_metric_ingestion_lifecycle(context).map_err(IntoFieldError::into_field_error)?;
+        complete_citation_refresh(&context.db, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(description = "Create a new imprint with the specified values")]
