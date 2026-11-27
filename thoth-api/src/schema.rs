@@ -132,6 +132,18 @@ pub mod sql_types {
     pub struct MetricReportingGrain;
 
     #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_citation_match_status"))]
+    pub struct MetricCitationMatchStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_citation_link_status"))]
+    pub struct MetricCitationLinkStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
+    #[diesel(postgres_type(name = "metric_citation_refresh_status"))]
+    pub struct MetricCitationRefreshStatus;
+
+    #[derive(diesel::sql_types::SqlType, diesel::query_builder::QueryId)]
     #[diesel(postgres_type(name = "metric_source_acquisition_type"))]
     pub struct MetricSourceAcquisitionType;
 
@@ -1097,6 +1109,97 @@ table! {
         institution_id -> Uuid,
         value -> Int8,
         requires_country_coverage -> Bool,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricCitationMatchStatus;
+
+    metric_citation_work_state (cited_work_id, source_id) {
+        cited_work_id -> Uuid,
+        source_id -> Uuid,
+        match_status -> MetricCitationMatchStatus,
+        last_matched_at -> Nullable<Timestamptz>,
+        external_work_id -> Nullable<Text>,
+        reported_count -> Nullable<Int4>,
+        enumerated_count -> Nullable<Int4>,
+        guard_held_count -> Nullable<Int4>,
+        unconfirmed -> Bool,
+        last_attempted_at -> Nullable<Timestamptz>,
+        last_refreshed_at -> Nullable<Timestamptz>,
+        last_error_at -> Nullable<Timestamptz>,
+        last_refresh_id -> Nullable<Uuid>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricCitationLinkStatus;
+
+    metric_citation_link (link_id) {
+        link_id -> Uuid,
+        cited_work_id -> Uuid,
+        source_id -> Uuid,
+        citing_external_id -> Text,
+        citing_doi -> Nullable<Text>,
+        citing_title -> Nullable<Text>,
+        citing_type -> Nullable<Text>,
+        citing_publication_year -> Nullable<Int2>,
+        citing_publication_date -> Nullable<Date>,
+        citing_sort_date -> Date,
+        citing_venue -> Nullable<Text>,
+        citing_authors -> Nullable<Jsonb>,
+        citing_url -> Nullable<Text>,
+        status -> MetricCitationLinkStatus,
+        first_seen_at -> Timestamptz,
+        last_seen_at -> Timestamptz,
+        withdrawn_at -> Nullable<Timestamptz>,
+        last_refresh_id -> Nullable<Uuid>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+    use super::sql_types::MetricCitationRefreshStatus;
+
+    metric_citation_refresh (refresh_id) {
+        refresh_id -> Uuid,
+        source_account_id -> Uuid,
+        claim_token_hash -> Text,
+        status -> MetricCitationRefreshStatus,
+        started_at -> Timestamptz,
+        completed_at -> Nullable<Timestamptz>,
+        works_seen -> Int4,
+        works_matched -> Int4,
+        works_not_found -> Int4,
+        links_upserted -> Int4,
+        links_withdrawn -> Int4,
+        links_refused -> Int4,
+        links_merged -> Int4,
+        last_error -> Nullable<Text>,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_citation_refresh_seen (refresh_id, work_id, citing_external_id) {
+        refresh_id -> Uuid,
+        work_id -> Uuid,
+        citing_external_id -> Text,
+    }
+}
+
+table! {
+    use diesel::sql_types::*;
+
+    metric_citation_batch (refresh_id, batch_key) {
+        refresh_id -> Uuid,
+        batch_key -> Text,
+        payload_hash -> Text,
+        outcome -> Jsonb,
+        committed_at -> Timestamptz,
     }
 }
 
@@ -2248,6 +2351,11 @@ allow_tables_to_appear_in_same_query!(
     metric_import_batch,
     metric_import_error,
     metric_measure,
+    metric_citation_batch,
+    metric_citation_link,
+    metric_citation_refresh,
+    metric_citation_refresh_seen,
+    metric_citation_work_state,
     metric_native_country_month,
     metric_native_institution_month,
     metric_native_month,

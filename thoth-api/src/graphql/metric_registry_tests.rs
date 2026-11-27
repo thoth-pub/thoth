@@ -723,7 +723,12 @@ fn the_sdl_exposes_exactly_the_nine_approved_operations() {
         "updateMetricSourceAccount",
         "updateMetricSourceAccountWindow",
     ];
-    let wp4_02_query_fields = ["metricDashboard", "metricMeasures", "metricPlatforms"];
+    let wp4_02_query_fields = [
+        "metricDashboard",
+        "metricDataVersion",
+        "metricMeasures",
+        "metricPlatforms",
+    ];
     let wp4_widget_01_query_fields = ["metricWidget"];
     let wp2_02_mutation_fields = ["updateMetricSourceCheckpoint"];
     let field_name = |line: &str| -> String {
