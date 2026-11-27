@@ -7,6 +7,21 @@ use thoth_errors::ThothResult;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 
+/// Default size of the dedicated metric-ingestion pool (`THOTH_INGEST_POOL_SIZE`).
+///
+/// A batch call holds at most two connections (guard and coordinator), so four
+/// admit two concurrent batch calls and leave room for the lifecycle's
+/// short calls (claim, begin, checkpoint, complete).
+pub const DEFAULT_INGEST_POOL_SIZE: u32 = 4;
+
+/// The dedicated pool of the metric-ingestion lifecycle.
+///
+/// A distinct type, so that it can sit beside the ordinary [`PgPool`] in
+/// actix `Data` without the two being confused. Read traffic never draws from
+/// it, and ingestion never draws from the ordinary pool.
+#[derive(Clone)]
+pub struct IngestPool(pub std::sync::Arc<PgPool>);
+
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub fn init_pool(database_url: &str) -> PgPool {
@@ -14,6 +29,17 @@ pub fn init_pool(database_url: &str) -> PgPool {
     Pool::builder()
         .build(manager)
         .expect("Failed to create database pool.")
+}
+
+/// Build the metric-ingestion pool with at most `size` connections.
+pub fn init_ingest_pool(database_url: &str, size: u32) -> IngestPool {
+    let manager = ConnectionManager::<PgConnection>::new(database_url);
+    IngestPool(std::sync::Arc::new(
+        Pool::builder()
+            .max_size(size.max(2))
+            .build(manager)
+            .expect("Failed to create ingestion database pool."),
+    ))
 }
 
 pub fn run_migrations(database_url: &str) -> ThothResult<()> {

@@ -42,6 +42,7 @@ lazy_static! {
         .arg(arguments::metric_widget())
         // And again for `metric-month-serving` (`MET-WP4-MONTH-01`).
         .arg(arguments::metric_month_serving())
+        .arg(arguments::ingest_pool_size())
         .arg(arguments::aws_access_key_id())
         .arg(arguments::aws_secret_access_key())
         .arg(arguments::aws_region());

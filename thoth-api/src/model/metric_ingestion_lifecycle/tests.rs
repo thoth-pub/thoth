@@ -35,11 +35,11 @@ use uuid::Uuid;
 
 use super::{
     begin_metric_import, claim_metric_source_units, complete_metric_import, expected_batch_keys,
-    ingest_metric_batch_under_claim, update_metric_source_checkpoint, BeginMetricImportInput,
-    ClaimMetricSourceUnitsInput, CompleteMetricImportInput, IngestMetricBatchInput,
-    MetricLifecycleError as E, MetricSourceUnitClaim, NormalizedMetricCoverageAssertionInput,
-    NormalizedMetricObservationInput, UpdateMetricSourceCheckpointInput, DEFAULT_PARTITION_KEY,
-    MANAGED_IMPORT_MANIFEST_SCHEMA,
+    ingest_metric_batch_under_claim, ingest_metric_batch_within, update_metric_source_checkpoint,
+    BeginMetricImportInput, ClaimMetricSourceUnitsInput, CompleteMetricImportInput,
+    IngestMetricBatchInput, MetricLifecycleError as E, MetricSourceUnitClaim,
+    NormalizedMetricCoverageAssertionInput, NormalizedMetricObservationInput,
+    UpdateMetricSourceCheckpointInput, DEFAULT_PARTITION_KEY, MANAGED_IMPORT_MANIFEST_SCHEMA,
 };
 use crate::db::PgPool;
 use crate::model::distribution_job::DistributionJobCreation;
@@ -4516,7 +4516,7 @@ fn batch_worker(
     input: IngestMetricBatchInput,
 ) -> thread::JoinHandle<Result<super::MetricBatchResult, E>> {
     let pool = Arc::clone(pool);
-    thread::spawn(move || ingest_metric_batch_under_claim(&pool, &input))
+    thread::spawn(move || ingest_metric_batch_within(&pool, &input, SHORT_CHECKOUT))
 }
 
 /// Wait for `worker` to finish under a hang guard and return its result.
@@ -4686,6 +4686,9 @@ impl HeldStatement {
     }
 }
 
+/// A short checkout timeout for the tests that exhaust a pool on purpose.
+const SHORT_CHECKOUT: Duration = Duration::from_millis(300);
+
 #[test]
 fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exists() {
     let (_guard, f) = setup();
@@ -4702,7 +4705,7 @@ fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exist
     let one = sized_pool(&tag, 1, None, Duration::from_secs(2));
     let pid = tagged_backends(&f, &tag)[0];
     assert_eq!(
-        ingest_metric_batch_under_claim(&one, &input()),
+        ingest_metric_batch_within(&one, &input(), SHORT_CHECKOUT),
         Err(E::Ingestion(Code::InternalDatabaseError))
     );
     assert_untouched_since_checkout(&f, pid);
@@ -4734,7 +4737,7 @@ fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exist
         .find(|pid| !held.contains(pid))
         .expect("one idle connection");
     assert_eq!(
-        ingest_metric_batch_under_claim(&three, &input()),
+        ingest_metric_batch_within(&three, &input(), SHORT_CHECKOUT),
         Err(E::Ingestion(Code::InternalDatabaseError))
     );
     assert_untouched_since_checkout(&f, remaining);
@@ -4751,7 +4754,7 @@ fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exist
 
     // The refusal is retry-safe: with an idle second connection the identical
     // request commits once, as a first commit and not a replay.
-    let outcome = ingest_metric_batch_under_claim(&three, &input())
+    let outcome = ingest_metric_batch_within(&three, &input(), SHORT_CHECKOUT)
         .expect("two idle connections admit the batch");
     assert!(!outcome.replayed);
     assert_eq!(outcome.rows[0].classification, Class::Winner);
@@ -4759,54 +4762,90 @@ fn a_batch_is_refused_before_any_guard_work_when_no_idle_second_connection_exist
 }
 
 #[test]
-fn a_batch_is_refused_when_no_connection_is_idle_even_below_the_pool_maximum() {
+fn a_batch_waits_for_a_connection_released_within_the_timeout_and_then_commits() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-ip-wait", day(1))
+        .unwrap();
+    let input = batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
+
+    // Pool of three with two held elsewhere: the guard takes the last idle
+    // connection and waits for the coordinator's; one is released after 200 ms,
+    // inside a 5 s checkout timeout.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 3, None, Duration::from_secs(5));
+    let held_a = pool.get().unwrap();
+    let held_b = pool.get().unwrap();
+    let releaser = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(200));
+        drop(held_a);
+    });
+    let outcome = ingest_metric_batch_within(&pool, &input, Duration::from_secs(5))
+        .expect("a connection released inside the timeout admits the batch");
+    releaser.join().unwrap();
+    drop(held_b);
+    assert!(!outcome.replayed);
+    assert_eq!(outcome.rows[0].classification, Class::Winner);
+}
+
+#[test]
+fn concurrent_batches_on_the_smallest_pool_are_never_refused_for_capacity() {
+    let (_guard, f) = setup();
+    let claim = f.claim_a();
+    let import = f
+        .begin(claim.lease_token, "report-ip-conc", day(1))
+        .unwrap();
+
+    // Pool of two: each batch needs both connections. Two callers started
+    // together must be served one after another, none timing out on another
+    // caller that holds a single connection.
+    let tag = pool_tag();
+    let pool = sized_pool(&tag, 2, None, Duration::from_secs(10));
+    let workers: Vec<_> = (1..=2)
+        .map(|n| {
+            let pool = pool.clone();
+            let input = batch_input(
+                import.import_id,
+                claim.lease_token,
+                &format!("b{n}"),
+                "10",
+                day(1),
+            );
+            thread::spawn(move || {
+                ingest_metric_batch_within(&pool, &input, Duration::from_secs(10))
+            })
+        })
+        .collect();
+    for worker in workers {
+        let result = worker.join().unwrap();
+        assert!(
+            !matches!(result, Err(E::Ingestion(Code::InternalDatabaseError))),
+            "no caller is refused for connection capacity: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn a_batch_establishes_missing_connections_within_the_pool_maximum() {
     let (_guard, f) = setup();
     let claim = f.claim_a();
     let import = f
         .begin(claim.lease_token, "report-h2-idle", day(1))
         .unwrap();
-    let input = || batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
-    let before = f.snapshot();
+    let input = batch_input(import.import_id, claim.lease_token, "b1", "10", day(1));
 
-    // Four connections allowed, none kept idle: the guard checkout
-    // establishes the first connection on demand, and no idle second one
-    // exists to reserve, although three more could still be opened.
+    // Four connections allowed, none kept idle: the bounded checkout
+    // establishes both the guard's and the coordinator's connection on demand
+    // (`INGEST-POOL-01`; before it the second, non-blocking checkout refused).
     let tag = pool_tag();
     let pool = sized_pool(&tag, 4, Some(0), Duration::from_secs(5));
     assert_eq!(pool.state().connections, 0);
-    assert_eq!(
-        ingest_metric_batch_under_claim(&pool, &input()),
-        Err(E::Ingestion(Code::InternalDatabaseError))
-    );
-    let state = pool.state();
-    assert_eq!(
-        (state.connections, state.idle_connections),
-        (1, 1),
-        "one connection was established for the guard and returned; none was opened for the coordinator"
-    );
-    let established = tagged_backends(&f, &tag);
-    assert_eq!(established.len(), 1, "exactly one backend exists");
-    assert_untouched_since_checkout(&f, established[0]);
-    assert_eq!(f.snapshot(), before);
-
-    // The one connection is idle again, still alone: the same refusal.
-    assert_eq!(
-        ingest_metric_batch_under_claim(&pool, &input()),
-        Err(E::Ingestion(Code::InternalDatabaseError))
-    );
-    assert_eq!(pool.state().connections, 1);
-    assert_eq!(f.snapshot(), before);
-
-    // Once a second connection is idle, the identical request commits.
-    {
-        let _first = pool.get().unwrap();
-        let _second = pool.get().unwrap();
-    }
-    assert_eq!(pool.state().idle_connections, 2);
-    let outcome = ingest_metric_batch_under_claim(&pool, &input())
-        .expect("an idle second connection admits the batch");
+    let outcome = ingest_metric_batch_within(&pool, &input, SHORT_CHECKOUT)
+        .expect("both connections are established within the maximum");
     assert!(!outcome.replayed);
     assert_eq!(outcome.rows[0].classification, Class::Winner);
+    assert_eq!(pool.state().connections, 2);
 }
 
 #[test]

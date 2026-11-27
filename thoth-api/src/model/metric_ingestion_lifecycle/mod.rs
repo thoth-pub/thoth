@@ -154,6 +154,22 @@
 //! cannot replace the token while the coordinator runs. Nothing outside the
 //! local coordinator call happens inside the guard.
 //!
+//! # Dedicated pool and bounded checkouts (`INGEST-POOL-01`)
+//!
+//! The lifecycle resolvers run on a small pool of their own
+//! (`THOTH_INGEST_POOL_SIZE`, default 4), so read traffic cannot hold the
+//! connections a batch needs. A batch takes its guard and coordinator
+//! connections each with a bounded checkout of [`INGEST_CHECKOUT_TIMEOUT`]
+//! (5 s) instead of the non-blocking second checkout described below. The two
+//! checkouts happen inside one process-wide gate, so only one caller at a time
+//! can hold the guard connection while it waits for the second; it then waits
+//! only for batches that already hold both connections and will finish, so
+//! concurrent callers cannot hold one connection each and starve one another.
+//! A pool of at least two connections suffices. The H2 paragraphs below
+//! describe the guard order and the two-transaction seam, which are unchanged;
+//! where they say the second checkout is refused without waiting, read it as
+//! refused after the timeout.
+//!
 //! # Capacity admission and bounded guard waits (`MET-WP11-B-CORR-H2`)
 //!
 //! A caller never waits for pool capacity while it holds the guard. The batch
@@ -181,6 +197,8 @@
 
 use std::collections::BTreeSet;
 use std::str::FromStr;
+use std::sync::Mutex;
+use std::time::Duration;
 
 use chrono::NaiveDate;
 use diesel::pg::PgConnection;
@@ -246,6 +264,16 @@ pub const MAX_EXPECTED_BATCH_KEYS: usize = 100;
 /// The fixed schema of the server-owned manifest envelope a managed-DRIVER
 /// import stores.
 pub const MANAGED_IMPORT_MANIFEST_SCHEMA: &str = "thoth-managed-driver-import/1";
+/// How long a batch call waits for each of its two connections
+/// (`INGEST-POOL-01`). The lifecycle runs on its own small pool, so the wait
+/// is only ever for another ingestion call, never for read traffic.
+pub(crate) const INGEST_CHECKOUT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Serializes the moment a batch call takes its two connections, so that two
+/// callers can never each hold one connection while waiting for another
+/// (`INGEST-POOL-01`). Only the checkout is serialized, never the batch.
+static BATCH_CHECKOUT_GATE: Mutex<()> = Mutex::new(());
+
 /// The `lock_timeout` the batch guard transaction sets locally before it locks
 /// the checkpoint row (`MET-WP11-B-CORR-H2`, #988). It bounds the guard's wait
 /// for a checkpoint held by another transaction; it is not a whole-request
@@ -1205,14 +1233,14 @@ pub fn begin_metric_import(
 /// Ingest one expected batch of a claimed import through the canonical
 /// coordinator, under the two-connection lease guard.
 ///
-/// After the request-shape checks, the guard connection is checked out with
-/// the pool's ordinary blocking checkout and the coordinator's connection is
-/// reserved with exactly one non-blocking `try_get()` before the guard
-/// transaction opens or any checkpoint lock is taken (`MET-WP11-B-CORR-H2`,
-/// #988). Without an idle connection to reserve, the guard connection is
-/// released and the request fails as the sanitized `INTERNAL_DATABASE_ERROR`
-/// with no durable effect; there is no blocking fallback, third checkout or
-/// pool growth. With both connections held, the guard transaction sets
+/// After the request-shape checks, the guard connection and then the
+/// coordinator's connection are each checked out with a bounded wait
+/// ([`INGEST_CHECKOUT_TIMEOUT`], inside a process-wide checkout gate) before
+/// the guard transaction opens or any checkpoint lock is taken
+/// (`MET-WP11-B-CORR-H2`, #988; `INGEST-POOL-01`). When the second connection
+/// does not arrive in time, the guard connection is released and the request
+/// fails as the sanitized `INTERNAL_DATABASE_ERROR` with no durable effect;
+/// there is no third checkout or pool growth. With both connections held, the guard transaction sets
 /// [`GUARD_LOCK_TIMEOUT_SQL`], locks and validates the checkpoint and the
 /// batch key, then — still holding that lock — calls the unchanged
 /// coordinator on the reserved connection, which runs every attempt there
@@ -1224,21 +1252,39 @@ pub fn ingest_metric_batch_under_claim(
     db: &PgPool,
     input: &IngestMetricBatchInput,
 ) -> LifecycleResult<MetricBatchResult> {
+    ingest_metric_batch_within(db, input, INGEST_CHECKOUT_TIMEOUT)
+}
+
+/// [`ingest_metric_batch_under_claim`] with an explicit checkout timeout.
+pub(crate) fn ingest_metric_batch_within(
+    db: &PgPool,
+    input: &IngestMetricBatchInput,
+    checkout_timeout: Duration,
+) -> LifecycleResult<MetricBatchResult> {
     let batch = to_coordinator_batch(input)?;
 
-    let mut guard = db.get()?;
-    // Reserve the coordinator's connection before the guard transaction opens
-    // or any checkpoint lock is taken: one non-blocking checkout of an
-    // already-idle connection, refused rather than waited for.
-    let Some(mut canonical) = db.try_get() else {
-        drop(guard);
-        log::error!(
-            "metric ingestion lifecycle found no idle database connection to reserve for the \
-             canonical coordinator"
-        );
-        return Err(MetricLifecycleError::Ingestion(
-            MetricIngestionErrorCode::InternalDatabaseError,
-        ));
+    // Take both connections inside the gate: a caller that holds the guard
+    // connection and waits for the second can then only wait for batches that
+    // already hold both and will finish, never for another caller that is
+    // itself waiting. Nothing but the checkout is held under the gate.
+    let (mut guard, mut canonical) = {
+        let _gate = BATCH_CHECKOUT_GATE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let guard = db.get_timeout(checkout_timeout)?;
+        // Reserve the coordinator's connection before the guard transaction
+        // opens or any checkpoint lock is taken, with one bounded checkout.
+        let Ok(canonical) = db.get_timeout(checkout_timeout) else {
+            drop(guard);
+            log::error!(
+                "metric ingestion lifecycle found no database connection to reserve for the \
+                 canonical coordinator within the checkout timeout"
+            );
+            return Err(MetricLifecycleError::Ingestion(
+                MetricIngestionErrorCode::InternalDatabaseError,
+            ));
+        };
+        (guard, canonical)
     };
     guard.transaction(|connection| {
         sql_query(GUARD_LOCK_TIMEOUT_SQL).execute(connection)?;
