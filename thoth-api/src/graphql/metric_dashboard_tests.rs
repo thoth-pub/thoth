@@ -1214,7 +1214,7 @@ fn the_sdl_declares_exactly_the_approved_read_contract() {
     );
     assert_eq!(
         enum_values(&sdl, "enum MetricTimelineGrain {"),
-        ["AUTO", "DAY", "MONTH", "YEAR"]
+        ["AUTO", "DAY", "MONTH", "QUARTER", "YEAR"]
     );
 
     // Repository scalar spellings, and exactly one new scalar.
@@ -1350,7 +1350,7 @@ fn every_changed_dashboard_description_is_rendered_exactly() {
         (
             "type MetricDashboard {",
             Some("timelineGrain"),
-            "The timeline grain actually served: DAY, MONTH or YEAR, never AUTO",
+            "The timeline grain actually served: DAY, MONTH, QUARTER or YEAR, never AUTO",
         ),
         (
             "type MetricCoverageItem {",

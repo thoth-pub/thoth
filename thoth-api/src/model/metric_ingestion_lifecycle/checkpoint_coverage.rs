@@ -136,6 +136,9 @@ pub(super) struct CoverageGroup {
     /// Whether the registry pair row exists and lists `MONTH`; a missing pair
     /// row is `false`.
     pub(super) month_supported: bool,
+    /// Whether the registry pair row exists and lists `QUARTER`
+    /// (`MET-QUARTER-01`); a missing pair row is `false`.
+    pub(super) quarter_supported: bool,
     /// How many coverage rows the group holds.
     pub(super) rows: i64,
 }
@@ -156,6 +159,8 @@ pub(super) struct CoverageGroupRow {
     status: String,
     #[diesel(sql_type = Bool)]
     month_supported: bool,
+    #[diesel(sql_type = Bool)]
+    quarter_supported: bool,
     #[diesel(sql_type = BigInt)]
     rows: i64,
     #[diesel(sql_type = BigInt)]
@@ -179,6 +184,7 @@ impl From<CoverageGroupRow> for CoverageGroup {
             period_end: row.period_end,
             status: row.status,
             month_supported: row.month_supported,
+            quarter_supported: row.quarter_supported,
             rows: row.rows,
         }
     }
@@ -234,10 +240,15 @@ pub(super) fn judge_coverage(
         let rule_a = status == MetricCoverageStatus::Complete
             && start == envelope_start
             && end == envelope_end;
+        // A `PARTIAL` row is allowed only for a month on the allowlist, so a
+        // quarter is accepted only when `COMPLETE`.
+        let native_period = (group.month_supported
+            && period_matches_grain(MetricReportingGrain::Month, start, end))
+            || (group.quarter_supported
+                && period_matches_grain(MetricReportingGrain::Quarter, start, end));
         let rule_b = rule_b_enabled
-            && group.month_supported
             && start == envelope_start
-            && period_matches_grain(MetricReportingGrain::Month, start, end)
+            && native_period
             && match status {
                 MetricCoverageStatus::Complete => true,
                 MetricCoverageStatus::Partial => {
@@ -303,7 +314,66 @@ mod tests {
             period_end: end,
             status: status.into(),
             month_supported,
+            quarter_supported: false,
             rows,
+        }
+    }
+
+    fn quarter_group(
+        start: NaiveDate,
+        end: NaiveDate,
+        status: &str,
+        supported: bool,
+    ) -> CoverageGroup {
+        CoverageGroup {
+            quarter_supported: supported,
+            ..group("proquest", "downloads", start, end, status, false, 1)
+        }
+    }
+
+    #[test]
+    fn a_quarter_is_accepted_on_a_quarter_capable_pair_from_the_envelope_day() {
+        let start = date(2026, 1, 1);
+        let end = date(2026, 4, 1);
+        // COMPLETE on a pair that lists QUARTER, starting on the envelope day.
+        assert_eq!(
+            verdict(&[quarter_group(start, end, "COMPLETE", true)], start, true),
+            (true, false)
+        );
+        // Not accepted: PARTIAL, UNKNOWN, an unregistered pair, rule B off, or
+        // an envelope day that is not the quarter's first day.
+        for status in ["PARTIAL", "UNKNOWN"] {
+            assert_eq!(
+                verdict(&[quarter_group(start, end, status, true)], start, true),
+                (false, false)
+            );
+        }
+        assert_eq!(
+            verdict(&[quarter_group(start, end, "COMPLETE", false)], start, true),
+            (false, false)
+        );
+        assert_eq!(
+            verdict(&[quarter_group(start, end, "COMPLETE", true)], start, false),
+            (false, false)
+        );
+        assert_eq!(
+            verdict(
+                &[quarter_group(start, end, "COMPLETE", true)],
+                date(2026, 2, 1),
+                true
+            ),
+            (false, false)
+        );
+        // A misaligned or wrong-length period is never a quarter.
+        for (s, e) in [
+            (date(2026, 2, 1), date(2026, 5, 1)),
+            (date(2026, 1, 1), date(2026, 3, 1)),
+            (date(2026, 1, 1), date(2026, 7, 1)),
+        ] {
+            assert_eq!(
+                verdict(&[quarter_group(s, e, "COMPLETE", true)], s, true),
+                (false, false)
+            );
         }
     }
 

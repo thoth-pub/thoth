@@ -1397,6 +1397,9 @@ fn migration_lines() -> BTreeSet<String> {
         expected.insert(format!("constraint {table} {table}_pkey p {primary_key}"));
         if table != "metric_native_refusal" {
             expected.insert(format!("constraint {table} {table}_month_start_check c"));
+            // MET-QUARTER-01 (migration 20261129) adds the span to the three month tables.
+            expected.insert(format!("constraint {table} {table}_span_months_check c"));
+            expected.insert(format!("column {table}.span_months smallint NO"));
         }
         for column in key.iter().chain(columns.iter()) {
             expected.insert(format!("column {table}.{column} NO"));
@@ -1561,6 +1564,10 @@ fn the_migration_adds_exactly_its_schema_populates_exactly_and_rolls_back_only_w
             error.contains("MET-WP4-MONTH-01 rollback refused"),
             "{error}"
         );
+        // `revert` first reverted the newer, clear migrations (MET-QUARTER-01);
+        // re-applying them restores the schema, so only this stage's own
+        // refused revert could leave a difference.
+        apply(&mut connection);
         assert_eq!(
             catalog(&mut connection),
             with,
@@ -3347,4 +3354,395 @@ fn ingested_months_and_rolled_up_days_read_equal_to_an_independent_oracle() {
             "{name}: {counters:?}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// MET-QUARTER-01: quarters in the projection
+// ---------------------------------------------------------------------------
+
+fn quarter_obs(work: usize, start: NaiveDate, mask: u8, value: i64) -> Obs {
+    Obs {
+        work,
+        net: true,
+        start,
+        end: start + Months::new(3),
+        grain: MetricReportingGrain::Quarter,
+        mask,
+        country: 0,
+        institution: 0,
+        value,
+    }
+}
+
+/// `net_units` lists exactly `grains` (set directly, so the registry guard is
+/// bypassed to build the states the guard prevents).
+fn net_units_grains(fx: &Fx, grains: &str) {
+    exec(
+        &fx.pool,
+        &format!(
+            "UPDATE metric_platform_measure SET supported_grains = ARRAY[{grains}]::metric_reporting_grain[] \
+              WHERE measure_id = '{}'",
+            measure_id(fx, "net_units")
+        ),
+    );
+}
+
+fn spans(pool: &PgPool) -> Vec<String> {
+    lines(pool, "SELECT concat_ws('|', month_start, span_months, coalesce(value::text, 'null')) AS line FROM metric_native_month ORDER BY month_start")
+}
+
+#[test]
+fn a_quarter_is_validated_projected_with_its_span_and_matches_v_native() {
+    let (_guard, fx) = setup();
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    let q1 = date(2026, 1, 1);
+    assert!(fx
+        .ingest("q1", false, &[quarter_obs(0, q1, 0, 7)])
+        .is_some());
+    assert_eq!(spans(&fx.pool), ["2026-01-01|3|7"]);
+    // A country row of the same quarter joins the same key and carries the span.
+    let mut country = quarter_obs(0, q1, 2, 4);
+    country.country = 1;
+    assert!(fx.ingest("q1-country", false, &[country]).is_some());
+    assert_eq!(
+        lines(
+            &fx.pool,
+            "SELECT concat_ws('|', month_start, span_months, country_code, value) AS line FROM metric_native_country_month"
+        ),
+        ["2026-01-01|3|US|4"]
+    );
+    // A misaligned or wrong-length quarter is rejected and projects nothing.
+    for (label, start, end) in [
+        ("shifted", date(2026, 2, 1), date(2026, 5, 1)),
+        ("two months", date(2026, 4, 1), date(2026, 6, 1)),
+        ("half year", date(2026, 7, 1), date(2027, 1, 1)),
+    ] {
+        let mut bad = quarter_obs(1, start, 0, 3);
+        bad.end = end;
+        assert!(fx.ingest(label, false, &[bad]).is_some(), "{label}");
+        assert_eq!(spans(&fx.pool), ["2026-01-01|3|7"], "{label}");
+    }
+    assert_eq!(
+        v_native_total(&fx.pool),
+        0,
+        "V-NATIVE agrees with the writer"
+    );
+    let before = actual(&fx.pool);
+    repair(&fx.pool, fx.publisher_id);
+    assert_eq!(actual(&fx.pool), before, "repair equals ingestion");
+}
+
+#[test]
+fn a_month_and_an_overlapping_quarter_refuse_each_other_and_clear_together() {
+    let (_guard, fx) = setup();
+    let feb = date(2026, 2, 1);
+    net_units_grains(&fx, "'MONTH','REPORTING_PERIOD'");
+    let month = month_obs(0, true, feb, 0, 5);
+    assert!(fx.ingest("month", false, &[month]).is_some());
+    assert_eq!(spans(&fx.pool), ["2026-02-01|1|5"]);
+    // Build the state the registry guard prevents: both grains, different cells.
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    let mut country = quarter_obs(0, date(2026, 1, 1), 2, 4);
+    country.country = 1;
+    assert!(fx.ingest("quarter", false, &[country]).is_some());
+    assert!(spans(&fx.pool).is_empty(), "neither period is served");
+    assert_eq!(
+        lines(
+            &fx.pool,
+            "SELECT concat_ws('|', period_start, period_end, inconsistent) AS line FROM metric_native_refusal ORDER BY period_start"
+        ),
+        ["2026-01-01|2026-04-01|t", "2026-02-01|2026-03-01|t"]
+    );
+    assert_eq!(
+        v_native_total(&fx.pool),
+        0,
+        "V-NATIVE agrees with the writer"
+    );
+    let both = actual(&fx.pool);
+    repair(&fx.pool, fx.publisher_id);
+    assert_eq!(actual(&fx.pool), both, "repair equals ingestion");
+    // Withdrawing the month and rewriting the quarter clears both refusals.
+    exec(&fx.pool, &format!("UPDATE metric_record_revision SET status = 'RETRACTED' WHERE record_revision_id = (SELECT current_revision_id FROM metric_record WHERE {})", fx.record_where(&month)));
+    country.value = 6;
+    assert!(fx.ingest("quarter again", false, &[country]).is_some());
+    assert_eq!(
+        lines(
+            &fx.pool,
+            "SELECT concat_ws('|', month_start, span_months) AS line FROM metric_native_month"
+        ),
+        ["2026-01-01|3"]
+    );
+    assert!(actual(&fx.pool).refusals.is_empty());
+    assert_eq!(
+        v_native_total(&fx.pool),
+        0,
+        "V-NATIVE agrees after the clear"
+    );
+}
+
+#[test]
+fn the_registry_refuses_to_mix_month_and_quarter_on_a_pair_that_holds_the_other() {
+    use crate::model::metric_platform_measure::crud::update_metric_platform_measure;
+    use crate::model::metric_platform_measure::PatchMetricPlatformMeasure;
+
+    let (_guard, fx) = setup();
+    let patch = |grains: Vec<MetricReportingGrain>| PatchMetricPlatformMeasure {
+        platform_code: PLATFORM.into(),
+        measure_code: "net_units".into(),
+        supported_grains: grains,
+        supports_country: true,
+        supports_institution: true,
+        supports_publication: true,
+        direct_collection: true,
+        enabled: true,
+    };
+    // With no record the pair may switch grain; MONTH and QUARTER together
+    // are the CHECK's to refuse.
+    assert!(update_metric_platform_measure(
+        &fx.pool,
+        "test",
+        &patch(vec![
+            MetricReportingGrain::Month,
+            MetricReportingGrain::Quarter
+        ])
+    )
+    .is_err());
+    // A MONTH record then blocks adding QUARTER.
+    assert!(fx
+        .ingest(
+            "month",
+            false,
+            &[month_obs(0, true, date(2026, 2, 1), 0, 5)]
+        )
+        .is_some());
+    let refused = update_metric_platform_measure(
+        &fx.pool,
+        "test",
+        &patch(vec![
+            MetricReportingGrain::Quarter,
+            MetricReportingGrain::ReportingPeriod,
+        ]),
+    );
+    assert!(matches!(
+        refused,
+        Err(ThothError::DatabaseConstraintError(_))
+    ));
+    // And a QUARTER record blocks adding MONTH.
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    assert!(fx
+        .ingest("quarter", false, &[quarter_obs(1, date(2026, 4, 1), 0, 2)])
+        .is_some());
+    let refused = update_metric_platform_measure(
+        &fx.pool,
+        "test",
+        &patch(vec![
+            MetricReportingGrain::Month,
+            MetricReportingGrain::ReportingPeriod,
+        ]),
+    );
+    assert!(matches!(
+        refused,
+        Err(ThothError::DatabaseConstraintError(_))
+    ));
+}
+
+/// A served quarter counts in the buckets that contain it: `QUARTER` and
+/// `YEAR` timelines and the range total. A `MONTH` timeline cuts it (no
+/// bucket value, a `PARTIAL` pair). `OFF` refuses it, as it refuses a month.
+#[test]
+fn a_served_quarter_counts_in_quarter_and_year_buckets_and_is_cut_in_month_buckets() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2026, 1, 1), date(2026, 7, 1));
+    entitle_and_cover(&fx, start, end);
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    let net_units = measure_id(&fx, "net_units");
+    fx.ingest("q1", false, &[quarter_obs(0, date(2026, 1, 1), 0, 9)])
+        .expect("the quarter is ingested");
+    let read = |grain, serving| {
+        metric_dashboard_with_month_serving(
+            &fx.pool,
+            &native_request(
+                &fx,
+                &[],
+                &[net_units],
+                (Some(start), end),
+                grain,
+                (false, false),
+            ),
+            serving,
+        )
+    };
+    let buckets = |dashboard: &MetricDashboard| -> Vec<Option<String>> {
+        dashboard
+            .timeline
+            .iter()
+            .map(|bucket| bucket.value.map(|value| value.to_string()))
+            .collect()
+    };
+    let total = |dashboard: &MetricDashboard| {
+        dashboard
+            .totals
+            .iter()
+            .find(|total| total.measure_id == net_units)
+            .and_then(|total| total.value)
+            .map(|value| value.to_string())
+    };
+
+    let quarters = read(MetricTimelineGrain::Quarter, MetricMonthServing::On).expect("quarters");
+    assert_eq!(buckets(&quarters), [known("9"), known("0")]);
+    assert_eq!(total(&quarters), known("9"));
+    assert_eq!(quarters.coverage.status, MetricCoverageStatus::Complete);
+
+    let years = read(MetricTimelineGrain::Year, MetricMonthServing::On).expect("year");
+    assert_eq!(buckets(&years), [known("9")]);
+    assert_eq!(total(&years), known("9"));
+
+    let months = read(MetricTimelineGrain::Month, MetricMonthServing::On).expect("months");
+    assert_eq!(months.timeline.len(), 6);
+    assert_eq!(&buckets(&months)[..3], [None, None, None]);
+    assert_eq!(total(&months), known("9"));
+    assert_eq!(months.coverage.status, MetricCoverageStatus::Partial);
+
+    assert_eq!(
+        read(MetricTimelineGrain::Quarter, MetricMonthServing::Off),
+        Err(MetricReadError::UnsupportedSourceGrain),
+        "OFF refuses a quarter, as it refuses a month"
+    );
+}
+
+/// Two works of one pair hold a `MONTH` and a `QUARTER` that start on the same
+/// day (a state the registry guard prevents; built here by setting the grains
+/// directly). The read must fail closed in every timeline grain: the `TOTAL`
+/// rows are grouped by span, and a second row for one start never replaces
+/// the first.
+#[test]
+fn a_month_and_a_quarter_starting_on_one_day_fail_the_read_closed() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2026, 1, 1), date(2026, 7, 1));
+    entitle_and_cover(&fx, start, end);
+    let net_units = measure_id(&fx, "net_units");
+    net_units_grains(&fx, "'MONTH','REPORTING_PERIOD'");
+    fx.ingest("month", false, &[month_obs(0, true, start, 0, 5)])
+        .expect("the month is ingested");
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    fx.ingest("quarter", false, &[quarter_obs(1, start, 0, 100)])
+        .expect("the quarter is ingested");
+    assert_eq!(
+        spans(&fx.pool),
+        ["2026-01-01|1|5", "2026-01-01|3|100"],
+        "per work, both are served"
+    );
+    for grain in [
+        MetricTimelineGrain::Month,
+        MetricTimelineGrain::Quarter,
+        MetricTimelineGrain::Year,
+        MetricTimelineGrain::Day,
+    ] {
+        let read = metric_dashboard_with_month_serving(
+            &fx.pool,
+            &native_request(
+                &fx,
+                &[],
+                &[net_units],
+                (Some(start), end),
+                grain,
+                (false, false),
+            ),
+            MetricMonthServing::On,
+        );
+        assert_eq!(read, Err(MetricReadError::Unavailable), "{grain:?}");
+    }
+}
+
+/// A key widened by an overlap is classified against every record that
+/// overlaps it, not only against the records of the touched keys: a
+/// `REPORTING_PERIOD` ingested inside February re-derives the quarter, which
+/// must stay refused because March still overlaps it. Ingestion equals repair
+/// and V-NATIVE reads zero.
+#[test]
+fn a_recompute_classifies_a_widened_key_against_all_of_its_overlaps() {
+    let (_guard, fx) = setup();
+    net_units_grains(&fx, "'MONTH','REPORTING_PERIOD'");
+    fx.ingest(
+        "march",
+        false,
+        &[month_obs(0, true, date(2026, 3, 1), 0, 4)],
+    )
+    .expect("the month is ingested");
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    // A country cell of the quarter: a different cell from March's, so
+    // ingestion accepts both and the projection's conflict rule is what refuses.
+    let mut q1 = quarter_obs(0, date(2026, 1, 1), 2, 9);
+    q1.country = 1;
+    fx.ingest("q1", false, &[q1])
+        .expect("the quarter is ingested");
+    assert!(
+        spans(&fx.pool).is_empty(),
+        "the overlapping pair is refused: {:?}",
+        spans(&fx.pool)
+    );
+    let mut period = month_obs(0, true, date(2026, 2, 10), 0, 1);
+    period.end = date(2026, 2, 20);
+    period.grain = MetricReportingGrain::ReportingPeriod;
+    fx.ingest("period", false, &[period])
+        .expect("the period is ingested");
+    assert!(
+        spans(&fx.pool).is_empty(),
+        "the quarter is still refused: March overlaps it"
+    );
+    assert_eq!(
+        v_native_total(&fx.pool),
+        0,
+        "V-NATIVE agrees with the writer"
+    );
+    let ingested = actual(&fx.pool);
+    repair(&fx.pool, fx.publisher_id);
+    assert_eq!(actual(&fx.pool), ingested, "repair equals ingestion");
+}
+
+/// Widget parity: a pair whose only data is a quarter that starts before
+/// `startDate` is still a served pair (its bucket is cut, as on the
+/// dashboard), in `MONTH`, `QUARTER` and `YEAR` sections.
+#[test]
+fn the_widget_keeps_a_pair_whose_only_data_is_a_quarter_starting_before_the_range() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2026, 1, 1), date(2026, 7, 1));
+    entitle_and_cover(&fx, start, end);
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    fx.ingest("q1", false, &[quarter_obs(0, start, 0, 9)])
+        .expect("the quarter is ingested");
+    let net_units = measure_id(&fx, "net_units");
+    for (grain, from, to) in [
+        (MetricWidgetGrain::Month, date(2026, 2, 1), date(2026, 5, 1)),
+        (
+            MetricWidgetGrain::Quarter,
+            date(2026, 2, 1),
+            date(2026, 7, 1),
+        ),
+        (MetricWidgetGrain::Year, date(2026, 2, 1), date(2026, 7, 1)),
+    ] {
+        let widget = native_widget(&fx, 0, (Some(from), to), grain)
+            .unwrap_or_else(|error| panic!("{grain:?}: {error:?}"));
+        assert!(
+            widget
+                .work
+                .timeline
+                .iter()
+                .any(|bucket| bucket.measure_id == net_units),
+            "{grain:?}: the pair is served, its bucket cut"
+        );
+    }
+    // A quarter-aligned range serves the quarter's value.
+    let widget = native_widget(&fx, 0, (Some(start), end), MetricWidgetGrain::Quarter)
+        .expect("a quarter-aligned widget read");
+    assert_eq!(
+        widget
+            .work
+            .timeline
+            .iter()
+            .filter(|bucket| bucket.measure_id == net_units)
+            .map(|bucket| bucket.value.map(|value| value.to_string()))
+            .collect::<Vec<_>>(),
+        vec![known("9"), known("0")]
+    );
 }
