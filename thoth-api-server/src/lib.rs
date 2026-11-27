@@ -20,8 +20,8 @@ use thoth_api::{
         create_schema, run_mutation_guard, Context, GraphQLRequest, MutationGuardMode, Schema,
     },
     model::{
-        distribution_job::DistributionJobCreation, metric_dashboard::MetricMonthServing,
-        metric_widget::MetricWidgetSwitch,
+        distribution_job::DistributionJobCreation, metric_citation::MetricCitationsServing,
+        metric_dashboard::MetricMonthServing, metric_widget::MetricWidgetSwitch,
     },
     storage::{create_cloudfront_client, create_s3_client, CloudFrontClient, S3Client},
 };
@@ -104,6 +104,7 @@ async fn graphql(
     distribution_job_creation: Data<DistributionJobCreation>,
     metric_widget: Data<MetricWidgetSwitch>,
     metric_month_serving: Data<MetricMonthServing>,
+    metric_citations_serving: Data<MetricCitationsServing>,
     ingest_pool: Data<IngestPool>,
     user: Option<IntrospectedUser>,
     data: Json<GraphQLRequest>,
@@ -119,6 +120,9 @@ async fn graphql(
     // Whether both Metrics reads serve `MONTH` records (`MET-WP4-MONTH-01`),
     // read once at start like the widget switch.
     let metric_month_serving = *metric_month_serving.into_inner().as_ref();
+    // Whether `metricCitations` serves links (`CITATIONS-01`), read once at
+    // start like the month switch.
+    let metric_citations_serving = *metric_citations_serving.into_inner().as_ref();
 
     // Both paths produce ONE `GraphQLResponse`, which then flows through the
     // single existing status branch below. A guard rejection is an ordinary
@@ -147,6 +151,7 @@ async fn graphql(
             )
             .with_metric_widget(metric_widget)
             .with_metric_month_serving(metric_month_serving)
+            .with_metric_citations_serving(metric_citations_serving)
             .with_ingest_pool(Arc::clone(&ingest_pool.0));
             data.execute(&st, &ctx).await
         }
@@ -175,6 +180,7 @@ pub async fn start_server(
     distribution_job_creation: DistributionJobCreation,
     metric_widget: MetricWidgetSwitch,
     metric_month_serving: MetricMonthServing,
+    metric_citations_serving: MetricCitationsServing,
     ingest_pool_size: u32,
     aws_access_key_id: String,
     aws_secret_access_key: String,
@@ -225,6 +231,7 @@ pub async fn start_server(
             .app_data(Data::new(distribution_job_creation))
             .app_data(Data::new(metric_widget))
             .app_data(Data::new(metric_month_serving))
+            .app_data(Data::new(metric_citations_serving))
             .service(index)
             .service(graphql_index)
             .service(graphql)
@@ -306,6 +313,9 @@ mod tests {
                 // `MET-WP4-MONTH-01`: the monthly serving switch, at its
                 // default `OFF`.
                 .app_data(Data::new(MetricMonthServing::default()))
+                // `CITATIONS-01`: the citations serving switch, at its
+                // default `OFF`.
+                .app_data(Data::new(MetricCitationsServing::default()))
                 .service(graphql),
         )
         .await

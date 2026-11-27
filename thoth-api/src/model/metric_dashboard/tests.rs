@@ -6597,6 +6597,8 @@ pub(crate) fn oracle_buckets(
     while from < end {
         let to = match grain {
             MetricTimelineGrain::Year => d(from.year() + 1, 1, 1),
+            MetricTimelineGrain::Quarter if from.month() > 9 => d(from.year() + 1, 1, 1),
+            MetricTimelineGrain::Quarter => d(from.year(), (from.month() - 1) / 3 * 3 + 4, 1),
             MetricTimelineGrain::Month if from.month() == 12 => d(from.year() + 1, 1, 1),
             MetricTimelineGrain::Month => d(from.year(), from.month() + 1, 1),
             MetricTimelineGrain::Day | MetricTimelineGrain::Auto => from + Duration::days(1),
@@ -11062,6 +11064,7 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
                                     NativeMonth {
                                         total: Some(BigInt::new(5)),
                                         conflict: false,
+                                        span: 1,
                                     },
                                 ),
                                 (
@@ -11069,6 +11072,7 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
                                     NativeMonth {
                                         total: Some(BigInt::new(9)),
                                         conflict: true,
+                                        span: 1,
                                     },
                                 ),
                                 (
@@ -11076,6 +11080,7 @@ fn no_engine_structure_grows_with_the_days_of_the_range() {
                                     NativeMonth {
                                         total: None,
                                         conflict: false,
+                                        span: 1,
                                     },
                                 ),
                             ]),
@@ -12720,18 +12725,22 @@ fn month01_random_natives(case: &mut EngineCase, rng: &mut Rng) {
                 0 => NativeMonth {
                     total: Some(BigInt::ZERO),
                     conflict: false,
+                    span: 1,
                 },
                 1 | 2 => NativeMonth {
                     total: Some(BigInt::new(rng.below(30) as i128 - 8)),
                     conflict: false,
+                    span: 1,
                 },
                 3 => NativeMonth {
                     total: None,
                     conflict: true,
+                    span: 1,
                 },
                 _ => NativeMonth {
                     total: Some(BigInt::new(1 + rng.below(9) as i128)),
                     conflict: true,
+                    span: 1,
                 },
             };
             case.native.entry(pair).or_default().insert(month, native);
@@ -12918,6 +12927,7 @@ fn month01_conflict(case: &mut EngineCase, rng: &mut Rng, aligned: bool) {
             NativeMonth {
                 total: Some(BigInt::ZERO),
                 conflict: false,
+                span: 1,
             },
         );
     }
@@ -12927,6 +12937,7 @@ fn month01_conflict(case: &mut EngineCase, rng: &mut Rng, aligned: bool) {
             NativeMonth {
                 total,
                 conflict: true,
+                span: 1,
             },
         );
     }

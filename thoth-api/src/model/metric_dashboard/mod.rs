@@ -119,7 +119,7 @@ use chrono::{Datelike, Duration, NaiveDate, Utc};
 use diesel::pg::{Pg, PgConnection};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::{
-    Array, BigInt as SqlBigInt, Bool, Date, Nullable, Text, Timestamptz, Uuid as SqlUuid,
+    Array, BigInt as SqlBigInt, Bool, Date, Integer, Nullable, Text, Timestamptz, Uuid as SqlUuid,
 };
 use diesel::RunQueryDsl;
 use juniper::{graphql_value, FieldError, IntoFieldError};
@@ -264,6 +264,13 @@ pub enum MetricTimelineGrain {
         )
     )]
     Month,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "One bucket per calendar quarter (January to March, April to June, July to September, October to December), clipped to the served range. Each bucket is the exact sum of the daily values it contains. AUTO never chooses it"
+        )
+    )]
+    Quarter,
     #[cfg_attr(
         feature = "backend",
         graphql(
@@ -506,7 +513,7 @@ pub struct MetricDashboard {
     #[cfg_attr(
         feature = "backend",
         graphql(
-            description = "The timeline grain actually served: DAY, MONTH or YEAR, never AUTO"
+            description = "The timeline grain actually served: DAY, MONTH, QUARTER or YEAR, never AUTO"
         )
     )]
     pub timeline_grain: MetricTimelineGrain,
@@ -766,6 +773,9 @@ pub enum MetricReadError {
     /// `METRIC_READ_BUSY`: every concurrent-read slot of this API process
     /// stayed taken for the whole slot wait. Retryable.
     Busy,
+    /// `METRIC_CITATIONS_NOT_SERVED`: `THOTH_METRIC_CITATIONS_SERVING` is
+    /// `OFF`. Only `metricCitations` returns it, after authorization.
+    CitationsNotServed,
 }
 
 impl MetricReadError {
@@ -780,6 +790,7 @@ impl MetricReadError {
             MetricReadError::UnsupportedSourceGrain => "METRIC_QUERY_UNSUPPORTED_SOURCE_GRAIN",
             MetricReadError::Unavailable => "INTERNAL_ERROR",
             MetricReadError::Busy => "METRIC_READ_BUSY",
+            MetricReadError::CitationsNotServed => "METRIC_CITATIONS_NOT_SERVED",
         }
     }
 
@@ -802,6 +813,7 @@ impl MetricReadError {
             }
             MetricReadError::Unavailable => "The Metrics read could not be completed.",
             MetricReadError::Busy => "The Metrics service is busy. Try again shortly.",
+            MetricReadError::CitationsNotServed => "Citation links are not served by this server.",
         }
     }
 }
@@ -968,6 +980,26 @@ fn next_month(day: NaiveDate) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, 1).unwrap_or(NaiveDate::MAX)
 }
 
+/// The first day of the calendar quarter after `day`'s quarter.
+fn next_quarter(day: NaiveDate) -> NaiveDate {
+    let quarter_start_month = (day.month() - 1) / 3 * 3 + 1;
+    let (year, month) = if quarter_start_month + 3 > 12 {
+        (day.year() + 1, 1)
+    } else {
+        (day.year(), quarter_start_month + 3)
+    };
+    NaiveDate::from_ymd_opt(year, month, 1).unwrap_or(NaiveDate::MAX)
+}
+
+/// The first day of the month `months` after `day`, which is a first of month.
+fn add_months(day: NaiveDate, months: u32) -> NaiveDate {
+    let index = day.year() * 12
+        + i32::try_from(day.month0()).unwrap_or(0)
+        + i32::try_from(months).unwrap_or(0);
+    NaiveDate::from_ymd_opt(index.div_euclid(12), index.rem_euclid(12) as u32 + 1, 1)
+        .unwrap_or(NaiveDate::MAX)
+}
+
 /// The first day of the year after `day`'s year.
 fn next_year(day: NaiveDate) -> NaiveDate {
     NaiveDate::from_ymd_opt(day.year() + 1, 1, 1).unwrap_or(NaiveDate::MAX)
@@ -1010,6 +1042,7 @@ fn buckets_of(
                 bucket_start.succ_opt().unwrap_or(end)
             }
             MetricTimelineGrain::Month => next_month(bucket_start),
+            MetricTimelineGrain::Quarter => next_quarter(bucket_start),
             MetricTimelineGrain::Year => next_year(bucket_start),
         };
         let bucket_end = next.min(end);
@@ -1473,6 +1506,9 @@ struct NativeRow {
     additive_across_time: bool,
     #[diesel(sql_type = Bool)]
     additive_across_works: bool,
+    /// The period's span in months (`TOTAL` rows only): 1 or 3.
+    #[diesel(sql_type = Nullable<Integer>)]
+    span_months: Option<i32>,
 }
 
 /// One row of [`PAIR_STARTS_SQL`]: a pair's earliest evidence.
@@ -2009,7 +2045,7 @@ pub(crate) const CANONICAL_SQL: &str = "WITH lag AS ( \
                AND r.period_start < $5 \
                AND ($4::date IS NULL OR r.period_end > $4) \
                AND r.reporting_grain <> 'DAY' \
-               AND r.reporting_grain IN ('MONTH', 'REPORTING_PERIOD') \
+               AND r.reporting_grain IN ('MONTH', 'QUARTER', 'REPORTING_PERIOD') \
                AND NOT $14 \
                AND NOT (COALESCE(v.status = 'RETRACTED', FALSE) \
                         AND NOT EXISTS (SELECT 1 FROM public.metric_record_revision o \
@@ -2141,21 +2177,35 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                  SELECT n.work_id, n.platform_id, n.measure_id, n.month_start, n.value, n.live, \
                         n.requires_country_coverage, n.requires_institution_coverage, \
                         n.country_ambiguous, n.institution_ambiguous, \
+                        n.span_months, \
                         (($4::date IS NULL OR n.month_start >= $4) \
-                         AND (n.month_start + interval '1 month')::date <= $5) AS wholly_inside \
+                         AND (n.month_start + make_interval(months => n.span_months::int))::date \
+                             <= $5) AS wholly_inside \
                  FROM public.metric_native_month n \
                  WHERE n.work_id = ANY($1) \
                    AND (cardinality($2::uuid[]) = 0 OR n.platform_id = ANY($2)) \
                    AND (cardinality($3::uuid[]) = 0 OR n.measure_id = ANY($3)) \
                    AND n.month_start < $5 \
-                   AND ($4::date IS NULL OR (n.month_start + interval '1 month')::date > $4) \
+                   AND ($4::date IS NULL \
+                        OR (n.month_start + make_interval(months => n.span_months::int))::date \
+                           > $4) \
+             ), \
+             cell_months AS MATERIALIZED ( \
+                 SELECT c.work_id, c.platform_id, c.measure_id, c.month_start, \
+                        (c.month_start + make_interval(months => g.g))::date AS day_month \
+                 FROM cells c \
+                 CROSS JOIN (VALUES (0), (1), (2)) AS g(g) \
+                 WHERE c.live AND g.g < c.span_months \
              ), \
              live_keys AS MATERIALIZED ( \
                  SELECT array_agg(DISTINCT c.work_id) AS works, \
                         array_agg(DISTINCT c.platform_id) AS platforms, \
                         array_agg(DISTINCT c.measure_id) AS measures, \
-                        array_agg(DISTINCT c.month_start) AS months \
+                        array_agg(DISTINCT cm.day_month) AS months \
                  FROM cells c \
+                 JOIN cell_months cm \
+                   ON cm.work_id = c.work_id AND cm.platform_id = c.platform_id \
+                  AND cm.measure_id = c.measure_id AND cm.month_start = c.month_start \
                  WHERE c.live \
              ), \
              day_rows AS MATERIALIZED ( \
@@ -2177,19 +2227,21 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
              day_cells AS MATERIALIZED ( \
                  SELECT c.work_id, c.platform_id, c.measure_id, c.month_start, \
                         bool_or(d.live) AS live, bool_or(d.has_total) AS has_total \
-                 FROM cells c \
+                 FROM cell_months c \
                  JOIN day_rows d \
                    ON d.work_id = c.work_id AND d.platform_id = c.platform_id \
-                  AND d.measure_id = c.measure_id AND d.month_start = c.month_start \
-                 WHERE c.live \
+                  AND d.measure_id = c.measure_id AND d.month_start = c.day_month \
                  GROUP BY c.work_id, c.platform_id, c.measure_id, c.month_start \
              ), \
              zero_keys AS MATERIALIZED ( \
                  SELECT array_agg(DISTINCT z.work_id) AS works, \
                         array_agg(DISTINCT z.platform_id) AS platforms, \
                         array_agg(DISTINCT z.measure_id) AS measures, \
-                        array_agg(DISTINCT z.month_start) AS months \
+                        array_agg(DISTINCT cm.day_month) AS months \
                  FROM day_cells z \
+                 JOIN cell_months cm \
+                   ON cm.work_id = z.work_id AND cm.platform_id = z.platform_id \
+                  AND cm.measure_id = z.measure_id AND cm.month_start = z.month_start \
                  WHERE z.has_total AND NOT z.live \
              ), \
              section_rows AS MATERIALIZED ( \
@@ -2216,15 +2268,19 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                  UNION \
                  SELECT z.work_id, z.platform_id, z.measure_id, z.month_start \
                  FROM day_cells z \
+                 JOIN cell_months cm \
+                   ON cm.work_id = z.work_id AND cm.platform_id = z.platform_id \
+                  AND cm.measure_id = z.measure_id AND cm.month_start = z.month_start \
                  JOIN section_rows s \
-                   ON s.work_id = z.work_id AND s.platform_id = z.platform_id \
-                  AND s.measure_id = z.measure_id AND s.month_start = z.month_start \
+                   ON s.work_id = cm.work_id AND s.platform_id = cm.platform_id \
+                  AND s.measure_id = cm.measure_id AND s.month_start = cm.day_month \
                  WHERE z.has_total AND NOT z.live \
              ), \
              resolved AS MATERIALIZED ( \
                  SELECT c.work_id, c.platform_id, c.measure_id, c.month_start, c.value, \
                         c.requires_country_coverage, c.requires_institution_coverage, \
                         c.country_ambiguous, c.institution_ambiguous, c.wholly_inside, \
+                        c.span_months, \
                         k.work_id IS NOT NULL AS conflict \
                  FROM cells c \
                  LEFT JOIN conflicted k \
@@ -2240,7 +2296,8 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                     bool_or(p.has_month) AS has_month, \
                     bool_or(p.active_reporting_period) AS active_reporting_period, \
                     bool_or(p.inconsistent) AS inconsistent, \
-                    m.additive_across_time, m.additive_across_works \
+                    m.additive_across_time, m.additive_across_works, \
+                    NULL::int AS span_months \
              FROM ( \
                  SELECT c.platform_id, c.measure_id, TRUE AS has_month, \
                         FALSE AS active_reporting_period, FALSE AS inconsistent \
@@ -2263,14 +2320,14 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                     COALESCE(bool_or(r.requires_institution_coverage) \
                              FILTER (WHERE NOT r.conflict), FALSE), \
                     FALSE, FALSE, FALSE, bool_and(r.wholly_inside), bool_or(r.conflict), \
-                    FALSE, FALSE, FALSE, FALSE, FALSE \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, r.span_months::int \
              FROM resolved r \
-             GROUP BY r.platform_id, r.measure_id, r.month_start \
+             GROUP BY r.platform_id, r.measure_id, r.month_start, r.span_months \
              UNION ALL \
              SELECT 'COUNTRY', nc.platform_id, nc.measure_id, NULL::date, nc.country_code::text, \
                     NULL::uuid, NULL::text, NULL::text, SUM(nc.value)::text, FALSE, \
                     bool_or(nc.requires_institution_coverage), FALSE, FALSE, FALSE, FALSE, FALSE, \
-                    FALSE, FALSE, FALSE, FALSE, FALSE \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, NULL::int \
              FROM resolved r \
              JOIN public.metric_native_country_month nc \
                ON nc.work_id = r.work_id AND nc.platform_id = r.platform_id \
@@ -2280,7 +2337,8 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
              UNION ALL \
              SELECT 'INSTITUTION', v.platform_id, v.measure_id, NULL::date, NULL::text, \
                     v.institution_id, i.institution_name, i.ror, v.total, v.requires_country, \
-                    FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, \
+                    NULL::int \
              FROM ( \
                  SELECT ni.platform_id, ni.measure_id, ni.institution_id, \
                         SUM(ni.value)::text AS total, \
@@ -2299,7 +2357,7 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                     NULL::text, NULL::text, NULL::text, FALSE, FALSE, \
                     bool_or(r.value IS NULL), bool_or($6 AND r.country_ambiguous), \
                     bool_or($7 AND r.institution_ambiguous), FALSE, FALSE, \
-                    FALSE, FALSE, FALSE, FALSE, FALSE \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, NULL::int \
              FROM resolved r \
              WHERE r.wholly_inside AND NOT r.conflict \
              GROUP BY r.platform_id, r.measure_id \
@@ -3071,7 +3129,7 @@ impl ReadGuard {
     /// Take a slot, waiting at most `wait` in total on the monotonic clock,
     /// re-checked after every wake-up. Fails as [`MetricReadError::Busy`]
     /// when no slot frees in time.
-    fn acquire(&self, wait: StdDuration) -> Result<ReadPermit<'_>, MetricReadError> {
+    pub(crate) fn acquire(&self, wait: StdDuration) -> Result<ReadPermit<'_>, MetricReadError> {
         let started = Instant::now();
         let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
@@ -3121,7 +3179,8 @@ impl Drop for ReadPermit<'_> {
 }
 
 /// The guard every production `metricDashboard` read of this process takes.
-static METRIC_DASHBOARD_READS: ReadGuard = ReadGuard::new(METRIC_DASHBOARD_MAX_CONCURRENT_READS);
+pub(crate) static METRIC_DASHBOARD_READS: ReadGuard =
+    ReadGuard::new(METRIC_DASHBOARD_MAX_CONCURRENT_READS);
 
 /// The whole-read deadline (#980 Amendment 3 section 6): the instant after
 /// which the read starts no further statement, and whether it has refused
@@ -3175,7 +3234,7 @@ impl ReadDeadline {
 
     /// Allow the next statement, or refuse it once the deadline has passed:
     /// the read then rolls back and fails as [`MetricReadError::Unavailable`].
-    fn check(&self) -> Result<(), MetricReadError> {
+    pub(crate) fn check(&self) -> Result<(), MetricReadError> {
         if Instant::now() < self.at {
             return Ok(());
         }
@@ -3346,7 +3405,7 @@ pub(crate) fn metric_dashboard_with_controls(
 /// the failure goes through [`ReadDeadline::check`]: it is logged once as a
 /// deadline expiry and recorded on the deadline. A pool timeout that fires
 /// while the deadline still has time left is the pool's own failure.
-fn checkout(
+pub(crate) fn checkout(
     db: &PgPool,
     deadline: &ReadDeadline,
 ) -> Result<PooledConnection<ConnectionManager<PgConnection>>, MetricReadError> {
@@ -4032,7 +4091,12 @@ fn apply_native(
                     .month_start
                     .filter(|month| month.day() == 1)
                     .ok_or(MetricReadError::Unavailable)?;
-                let inside = month >= window.start && next_month(month) <= window.end;
+                let span = match row.span_months {
+                    Some(1) => 1,
+                    Some(3) => 3,
+                    _ => return Err(MetricReadError::Unavailable),
+                };
+                let inside = month >= window.start && add_months(month, span) <= window.end;
                 if inside != row.wholly_inside {
                     return Err(MetricReadError::Unavailable);
                 }
@@ -4041,13 +4105,23 @@ fn apply_native(
                     None => None,
                 };
                 if let Some(pair) = facts.get_mut(&key) {
-                    pair.native.insert(
-                        month,
-                        NativeMonth {
-                            total,
-                            conflict: row.conflict,
-                        },
-                    );
+                    // One start with two spans (a month and a quarter on one
+                    // pair) is a state the registry forbids; fail closed
+                    // rather than let one entry replace the other.
+                    if pair
+                        .native
+                        .insert(
+                            month,
+                            NativeMonth {
+                                total,
+                                conflict: row.conflict,
+                                span,
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(MetricReadError::Unavailable);
+                    }
                     if inside {
                         pair.depends_on_country |= row.requires_country;
                         pair.depends_on_institution |= row.requires_institution;
@@ -4551,7 +4625,7 @@ impl Window {
     fn monthly_timeline(&self) -> bool {
         matches!(
             self.grain,
-            MetricTimelineGrain::Month | MetricTimelineGrain::Year
+            MetricTimelineGrain::Month | MetricTimelineGrain::Quarter | MetricTimelineGrain::Year
         )
     }
 
@@ -4625,6 +4699,10 @@ fn bucket_count(start: NaiveDate, end: NaiveDate, grain: MetricTimelineGrain) ->
             i64::from(last.year() - start.year()) * 12 + i64::from(last.month())
                 - i64::from(start.month())
                 + 1
+        }
+        MetricTimelineGrain::Quarter => {
+            let index = |day: NaiveDate| i64::from(day.year()) * 4 + i64::from(day.month0() / 3);
+            index(last) - index(start) + 1
         }
         MetricTimelineGrain::Year => i64::from(last.year() - start.year()) + 1,
     };
@@ -4892,6 +4970,9 @@ struct NativeMonth {
     /// Whether some cell of the month is conflicted: its days are also
     /// reported, so the month is cut in every cell.
     conflict: bool,
+    /// The period's length in months: 1 for a `MONTH` record, 3 for a
+    /// `QUARTER` record (`MET-QUARTER-01`).
+    span: u32,
 }
 
 impl PairFacts {
@@ -4923,7 +5004,7 @@ impl PairFacts {
         let native = self
             .native
             .range(from..to)
-            .filter(move |(month, _)| next_month(**month) <= to)
+            .filter(move |(month, native)| add_months(**month, native.span) <= to)
             .filter_map(|(_, month)| month.total.as_ref());
         combine(months.chain(days).chain(native), || {
             coverage.justified(from, to)
@@ -4938,7 +5019,7 @@ impl PairFacts {
         self.native
             .iter()
             .filter(|(month, native)| {
-                let end = next_month(**month);
+                let end = add_months(**month, native.span);
                 let whole = **month >= window.start
                     && end <= window.end
                     && window
@@ -4950,10 +5031,10 @@ impl PairFacts {
                         .is_some_and(|(_, bucket_end)| end <= *bucket_end);
                 native.conflict || !whole
             })
-            .map(|(month, _)| {
+            .map(|(month, native)| {
                 (
                     (*month).max(window.start),
-                    next_month(*month).min(window.end),
+                    add_months(*month, native.span).min(window.end),
                 )
             })
             .filter(|(from, to)| from < to)

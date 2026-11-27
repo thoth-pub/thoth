@@ -68,6 +68,15 @@ pub enum MetricReportingGrain {
         graphql(description = "One calendar month")
     )]
     Month,
+    /// One calendar quarter.
+    #[cfg_attr(
+        feature = "backend",
+        db_rename = "QUARTER",
+        graphql(
+            description = "One calendar quarter (January to March, April to June, July to September, October to December)"
+        )
+    )]
+    Quarter,
     /// The source's own reporting period.
     #[cfg_attr(
         feature = "backend",

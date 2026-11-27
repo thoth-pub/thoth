@@ -76,13 +76,9 @@ fn the_sdl_adds_exactly_the_four_citation_operations() {
             .count(),
         1
     );
-    // No read of citation links exists yet (C3), and no second claim operation.
-    for absent in [
-        "metricCitations",
-        "claimCitation",
-        "withdrawCitation",
-        "deleteCitation",
-    ] {
+    // The read of citation links is C3's `metricCitations` (its own SDL test);
+    // there is no second claim operation and no per-link write.
+    for absent in ["claimCitation", "withdrawCitation", "deleteCitation"] {
         assert!(!sdl.contains(absent), "{absent}");
     }
     for value in ["RUNNING", "COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED"] {

@@ -92,7 +92,7 @@ static DATABASE_CONSTRAINT_ERRORS: Map<&'static str, &'static str> = phf_map! {
     "metric_platform_code_key" => "A metric platform with this code already exists.",
     "metric_platform_display_name_check" => "Metric platform display name must not be an empty string.",
     "metric_platform_measure_platform_id_measure_id_key" => "A mapping between this metric platform and this metric measure already exists.",
-    "metric_platform_measure_supported_grains_check" => "Supported grains must list at least one reporting grain, with no duplicates.",
+    "metric_platform_measure_supported_grains_check" => "Supported grains must list at least one reporting grain, with no duplicates, and never both MONTH and QUARTER.",
     "metric_registry_history_action_before_state_check" => "Metric registry history is invalid: a creation must record no previous state and an update must record one.",
     "metric_registry_history_actor_check" => "Metric registry history actor must not be an empty string.",
     // Metrics source administration (MET-WP1-13). Exactly the metric_source /

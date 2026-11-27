@@ -78,7 +78,7 @@ fn reporting_grain_enum_has_exactly_the_approved_labels() {
     let (_guard, pool) = setup_registry_db();
     assert_eq!(
         enum_labels(&pool, "metric_reporting_grain"),
-        ["DAY", "MONTH", "REPORTING_PERIOD"]
+        ["DAY", "MONTH", "QUARTER", "REPORTING_PERIOD"]
     );
 }
 
@@ -629,7 +629,7 @@ fn the_supported_grains_check_still_rejects_empty_and_duplicate_arrays() {
         };
         assert_eq!(
             message.as_ref(),
-            "Supported grains must list at least one reporting grain, with no duplicates."
+            "Supported grains must list at least one reporting grain, with no duplicates, and never both MONTH and QUARTER."
         );
         for leaked in [
             "metric_platform_measure_supported_grains_check",

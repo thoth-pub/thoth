@@ -590,6 +590,29 @@ fn period_grain_rules_are_exact() {
         date(2026, 3, 1),
         date(2026, 5, 1)
     ));
+    for (start, end) in [
+        (date(2026, 1, 1), date(2026, 4, 1)),
+        (date(2026, 4, 1), date(2026, 7, 1)),
+        (date(2026, 7, 1), date(2026, 10, 1)),
+        // The rollover from the last quarter into the next year.
+        (date(2026, 10, 1), date(2027, 1, 1)),
+    ] {
+        assert!(period_matches_grain(Quarter, start, end), "{start}");
+    }
+    for (start, end) in [
+        (date(2026, 2, 1), date(2026, 5, 1)),
+        (date(2026, 1, 1), date(2026, 3, 1)),
+        (date(2026, 1, 1), date(2026, 7, 1)),
+        (date(2026, 1, 2), date(2026, 4, 2)),
+        (date(2026, 10, 1), date(2026, 12, 31)),
+    ] {
+        assert!(!period_matches_grain(Quarter, start, end), "{start}");
+    }
+    assert!(!period_matches_grain(
+        Month,
+        date(2026, 1, 1),
+        date(2026, 4, 1)
+    ));
     assert!(period_matches_grain(
         ReportingPeriod,
         date(2026, 3, 1),
