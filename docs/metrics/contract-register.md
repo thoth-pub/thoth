@@ -2496,6 +2496,28 @@ database access:
 metricDashboard(input: MetricDashboardInput!): MetricDashboard!
 metricMeasures: [MetricMeasure!]!
 metricPlatforms: [MetricPlatform!]!
+metricDataVersion: MetricDataVersion!
+```
+
+`metricDataVersion` (`METRIC-DATA-VERSION-01`) takes no input and returns
+`version`, an opaque string that is equal for two reads when the rollup
+frontier (`applied_through_sequence`, `watermark_at`) is the same, and
+`rollupWatermark`. It reads one row of `metric_rollup_work_day_state`, reads no
+publisher or value and uses no dashboard read slot. It is not a coverage or
+freshness claim: coverage and import status are read live by `metricDashboard`
+and the exceptional monthly rebuild does not move the frontier, so a consumer
+that caches by this version also keeps a maximum age. The version does not
+cover the native-month projection read live under month serving, `next_sequence`
+(which drives `ROLLUP_LAG` and `isPartial`), metadata, selector, entitlement,
+source-account-window or registry changes, or the month-serving configuration.
+A consumer reads the version before the dashboard and stores that earlier
+version with the cached answer.
+
+```graphql
+type MetricDataVersion {
+  version: String!
+  rollupWatermark: Timestamp!
+}
 ```
 
 ```graphql
@@ -3747,7 +3769,7 @@ provisioning boundary below.
 | Role code | Purpose | Complete MOM-1 protected operation set | Consuming slice |
 | --- | --- | --- | --- |
 | `METRICS_INGEST_SERVICE` | Sphinx orchestration caller for managed-source ingestion | `claimMetricSourceUnits`, `updateMetricSourceCheckpoint`, `beginMetricImport`, `ingestMetricBatch`, `completeMetricImport`, `claimMetricRollupDeltas`, `completeMetricRollupDeltas`, `beginCitationRefresh`, `citationRefreshWorks`, `submitCitationBatch`, `completeCitationRefresh` | `MET-WP2-02` (ingestion, checkpoint and import lifecycle), `MET-WP4-01` (rollup-delta application), `CITATIONS-01` C2 (citation write path) |
-| `METRICS_READ_SERVICE` | Thoth-owned server-side Metrics query clients | `metricDashboard`, `metricMeasures`, `metricPlatforms` | `MET-WP4-02` |
+| `METRICS_READ_SERVICE` | Thoth-owned server-side Metrics query clients | `metricDashboard`, `metricMeasures`, `metricPlatforms`, `metricDataVersion` | `MET-WP4-02`, `METRIC-DATA-VERSION-01` |
 
 #### Policy invariants (tested)
 

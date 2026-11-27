@@ -38,13 +38,14 @@ use crate::model::{
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
     metric_citation::{
-        read::{metric_citations as read_metric_citations, MetricCitations, MetricCitationsInput},
+        read::{metric_citations as read_citations, MetricCitations, MetricCitationsInput},
         write::{citation_refresh_works, CitationRefreshWorksInput, CitationRefreshWorksPage},
     },
     metric_dashboard::{
         metric_dashboard_with_month_serving as read_metric_dashboard, MetricDashboard,
         MetricDashboardInput, MetricReadError,
     },
+    metric_data_version::{read_metric_data_version, MetricDataVersion},
     metric_measure::{
         crud::{list_metric_measures, metric_measure_by_code},
         MetricMeasure,
@@ -2357,9 +2358,18 @@ impl QueryRoot {
         context
             .require_metrics_read_service()
             .map_err(MetricReadError::from)
-            .and_then(|_| {
-                read_metric_citations(&context.db, context.metric_citations_serving, &input)
-            })
+            .and_then(|_| read_citations(&context.db, context.metric_citations_serving, &input))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "The version of the Metrics data a dashboard read is served from, which changes when the rollup frontier moves, so a service that caches dashboard reads can tell when to read again. Requires the METRICS_READ_SERVICE role. It takes no input, reads no publisher or value and does not use a dashboard read slot. It is not a coverage or freshness claim, so keep a maximum cache age as well"
+    )]
+    fn metric_data_version(context: &Context) -> FieldResult<MetricDataVersion> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| read_metric_data_version(&context.db))
             .map_err(IntoFieldError::into_field_error)
     }
 

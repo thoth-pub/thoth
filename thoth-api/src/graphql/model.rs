@@ -98,6 +98,12 @@ impl juniper::Context for Context {}
 
 pub struct Context {
     pub db: Arc<PgPool>,
+    /// The pool of the metric-ingestion lifecycle resolvers (`INGEST-POOL-01`).
+    ///
+    /// [`Context::new`] sets it to the ordinary pool; the server replaces it
+    /// with the dedicated ingestion pool through [`Context::with_ingest_pool`],
+    /// so `Context::new` keeps its signature.
+    pub ingest_db: Arc<PgPool>,
     pub user: Option<IntrospectedUser>,
     pub s3_client: Arc<S3Client>,
     pub cloudfront_client: Arc<CloudFrontClient>,
@@ -173,6 +179,7 @@ impl Context {
     ) -> Self {
         Self {
             loaders: RequestLoaders::for_request(Arc::clone(&pool)),
+            ingest_db: Arc::clone(&pool),
             db: pool,
             user,
             s3_client,
@@ -187,6 +194,13 @@ impl Context {
             async_registry: &PRODUCTION_REGISTRY,
             async_job_claims: AsyncJobClaimMemo::default(),
         }
+    }
+
+    /// Serve the metric-ingestion lifecycle resolvers from `pool` instead of
+    /// the ordinary pool.
+    pub fn with_ingest_pool(mut self, pool: Arc<PgPool>) -> Self {
+        self.ingest_db = pool;
+        self
     }
 
     /// Set whether the public `metricWidget` read is served.

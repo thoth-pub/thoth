@@ -36,6 +36,7 @@ lazy_static! {
                 .arg(arguments::metric_widget())
                 .arg(arguments::metric_month_serving())
                 .arg(arguments::metric_citations_serving())
+                .arg(arguments::ingest_pool_size())
                 .arg(arguments::aws_access_key_id())
                 .arg(arguments::aws_secret_access_key())
                 .arg(arguments::aws_region()),
@@ -179,6 +180,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
     let metric_widget = metric_widget(arguments)?;
     let metric_month_serving = metric_month_serving(arguments)?;
     let metric_citations_serving = metric_citations_serving(arguments)?;
+    let ingest_pool_size = *arguments.get_one::<u32>("ingest-pool-size").unwrap();
 
     api_server(
         database_url,
@@ -194,6 +196,7 @@ pub fn graphql_api(arguments: &ArgMatches) -> ThothResult<()> {
         metric_widget,
         metric_month_serving,
         metric_citations_serving,
+        ingest_pool_size,
         arguments
             .get_one::<String>("aws-access-key-id")
             .unwrap()

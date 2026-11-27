@@ -171,6 +171,18 @@ pub fn metric_citations_serving() -> Arg {
         .num_args(1)
 }
 
+/// Size of the dedicated metric-ingestion database pool (`INGEST-POOL-01`).
+pub fn ingest_pool_size() -> Arg {
+    Arg::new("ingest-pool-size")
+        .long("ingest-pool-size")
+        .value_name("THOTH_INGEST_POOL_SIZE")
+        .env("THOTH_INGEST_POOL_SIZE")
+        .default_value("4")
+        .value_parser(clap::value_parser!(u32).range(2..=64))
+        .help("Maximum connections of the metric-ingestion pool, separate from the API's ordinary pool")
+        .num_args(1)
+}
+
 pub fn key() -> Arg {
     Arg::new("key")
         .short('k')
