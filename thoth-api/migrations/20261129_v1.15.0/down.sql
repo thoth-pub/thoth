@@ -21,6 +21,7 @@ BEGIN
        OR EXISTS (SELECT 1 FROM public.metric_platform_measure
                   WHERE 'QUARTER'::public.metric_reporting_grain = ANY (supported_grains))
        OR EXISTS (SELECT 1 FROM public.metric_record WHERE reporting_grain = 'QUARTER')
+       OR EXISTS (SELECT 1 FROM public.metric_identifier_quarantine WHERE reporting_grain = 'QUARTER')
     THEN
         RAISE EXCEPTION 'MET-QUARTER-01 down refused: QUARTER data or registry entries exist';
     END IF;

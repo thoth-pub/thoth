@@ -314,7 +314,7 @@ macro_rules! month_insert_sql {
              (work_id, platform_id, measure_id, month_start, span_months, value, live, \
               requires_country_coverage, requires_institution_coverage, \
               country_ambiguous, institution_ambiguous) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, CASE WHEN MIN(s.span) = MAX(s.span) THEN MIN(s.span) END, \
                 (SUM(s.value) FILTER (WHERE s.mask = s.total_mask))::bigint, \
                 bool_or(s.value <> 0), \
                 COALESCE(bool_or(s.mask & 2 <> 0) FILTER (WHERE s.mask = s.total_mask), FALSE), \
@@ -334,7 +334,7 @@ macro_rules! country_insert_sql {
         "INSERT INTO public.metric_native_country_month \
              (work_id, platform_id, measure_id, month_start, span_months, country_code, value, \
               requires_institution_coverage) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), s.country_code, \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, CASE WHEN MIN(s.span) = MAX(s.span) THEN MIN(s.span) END, s.country_code, \
                 SUM(s.value)::bigint, \
                 bool_or(s.mask & 1 <> 0) \
          FROM served s \
@@ -349,7 +349,7 @@ macro_rules! institution_insert_sql {
         "INSERT INTO public.metric_native_institution_month \
              (work_id, platform_id, measure_id, month_start, span_months, institution_id, value, \
               requires_country_coverage) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), s.institution_id, \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, CASE WHEN MIN(s.span) = MAX(s.span) THEN MIN(s.span) END, s.institution_id, \
                 SUM(s.value)::bigint, \
                 bool_or(s.mask & 2 <> 0) \
          FROM served s \

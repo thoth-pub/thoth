@@ -3609,3 +3609,47 @@ fn a_served_quarter_counts_in_quarter_and_year_buckets_and_is_cut_in_month_bucke
         "OFF refuses a quarter, as it refuses a month"
     );
 }
+
+/// Two works of one pair hold a `MONTH` and a `QUARTER` that start on the same
+/// day (a state the registry guard prevents; built here by setting the grains
+/// directly). The read must fail closed in every timeline grain: the `TOTAL`
+/// rows are grouped by span, and a second row for one start never replaces
+/// the first.
+#[test]
+fn a_month_and_a_quarter_starting_on_one_day_fail_the_read_closed() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2026, 1, 1), date(2026, 7, 1));
+    entitle_and_cover(&fx, start, end);
+    let net_units = measure_id(&fx, "net_units");
+    net_units_grains(&fx, "'MONTH','REPORTING_PERIOD'");
+    fx.ingest("month", false, &[month_obs(0, true, start, 0, 5)])
+        .expect("the month is ingested");
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    fx.ingest("quarter", false, &[quarter_obs(1, start, 0, 100)])
+        .expect("the quarter is ingested");
+    assert_eq!(
+        spans(&fx.pool),
+        ["2026-01-01|1|5", "2026-01-01|3|100"],
+        "per work, both are served"
+    );
+    for grain in [
+        MetricTimelineGrain::Month,
+        MetricTimelineGrain::Quarter,
+        MetricTimelineGrain::Year,
+        MetricTimelineGrain::Day,
+    ] {
+        let read = metric_dashboard_with_month_serving(
+            &fx.pool,
+            &native_request(
+                &fx,
+                &[],
+                &[net_units],
+                (Some(start), end),
+                grain,
+                (false, false),
+            ),
+            MetricMonthServing::On,
+        );
+        assert_eq!(read, Err(MetricReadError::Unavailable), "{grain:?}");
+    }
+}

@@ -2315,9 +2315,9 @@ pub(crate) const NATIVE_MONTHS_SQL: &str = "WITH cells AS MATERIALIZED ( \
                     COALESCE(bool_or(r.requires_institution_coverage) \
                              FILTER (WHERE NOT r.conflict), FALSE), \
                     FALSE, FALSE, FALSE, bool_and(r.wholly_inside), bool_or(r.conflict), \
-                    FALSE, FALSE, FALSE, FALSE, FALSE, MIN(r.span_months)::int \
+                    FALSE, FALSE, FALSE, FALSE, FALSE, r.span_months::int \
              FROM resolved r \
-             GROUP BY r.platform_id, r.measure_id, r.month_start \
+             GROUP BY r.platform_id, r.measure_id, r.month_start, r.span_months \
              UNION ALL \
              SELECT 'COUNTRY', nc.platform_id, nc.measure_id, NULL::date, nc.country_code::text, \
                     NULL::uuid, NULL::text, NULL::text, SUM(nc.value)::text, FALSE, \
@@ -4099,14 +4099,23 @@ fn apply_native(
                     None => None,
                 };
                 if let Some(pair) = facts.get_mut(&key) {
-                    pair.native.insert(
-                        month,
-                        NativeMonth {
-                            total,
-                            conflict: row.conflict,
-                            span,
-                        },
-                    );
+                    // One start with two spans (a month and a quarter on one
+                    // pair) is a state the registry forbids; fail closed
+                    // rather than let one entry replace the other.
+                    if pair
+                        .native
+                        .insert(
+                            month,
+                            NativeMonth {
+                                total,
+                                conflict: row.conflict,
+                                span,
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(MetricReadError::Unavailable);
+                    }
                     if inside {
                         pair.depends_on_country |= row.requires_country;
                         pair.depends_on_institution |= row.requires_institution;

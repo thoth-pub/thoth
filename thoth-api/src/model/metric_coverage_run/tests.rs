@@ -2840,7 +2840,7 @@ fn the_planner_uses_the_native_grain_index_under_the_live_predicate_without_chan
            AND r.measure_id = ANY(ARRAY['{}']::uuid[]) \
            AND r.period_start < DATE '2025-12-31' \
            AND r.period_end > DATE '2025-01-01' \
-           AND r.reporting_grain IN ('MONTH', 'REPORTING_PERIOD') \
+           AND r.reporting_grain IN ('MONTH', 'QUARTER', 'REPORTING_PERIOD') \
            AND NOT (COALESCE(v.status = 'RETRACTED', FALSE) \
                     AND NOT EXISTS (SELECT 1 FROM public.metric_record_revision o \
                                     WHERE o.record_id = r.record_id AND o.status = 'CURRENT'))",

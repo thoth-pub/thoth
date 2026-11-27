@@ -1006,7 +1006,7 @@ pub(crate) const METRIC_WIDGET_PAIRS_SQL: &str = "SELECT served.platform_id, ser
                  FROM public.metric_native_month n \
                  WHERE $5 \
                    AND n.work_id = ANY($1) \
-                   AND n.month_start >= $2 \
+                   AND (n.month_start + make_interval(months => n.span_months::int))::date > $2 \
                    AND n.month_start < $3 \
              ) served \
              JOIN public.metric_platform p ON p.platform_id = served.platform_id \
