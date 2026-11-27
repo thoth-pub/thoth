@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+  - [1071](https://github.com/thoth-pub/thoth/issues/1071) - Add the protected `metricDataVersion` query, a cheap read of the rollup frontier that lets a dashboard cache know when its data changed
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add storage for citation links (five tables, no API yet)
   - [1074](https://github.com/thoth-pub/thoth/issues/1074) - Add the citation write path: `beginCitationRefresh`, `citationRefreshWorks`, `submitCitationBatch` and `completeCitationRefresh`, for the metrics ingest service only
 
