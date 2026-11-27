@@ -44,6 +44,7 @@ use crate::model::{
         metric_dashboard_with_month_serving as read_metric_dashboard, MetricDashboard,
         MetricDashboardInput, MetricReadError,
     },
+    metric_data_version::{read_metric_data_version, MetricDataVersion},
     metric_measure::{
         crud::{list_metric_measures, metric_measure_by_code},
         MetricMeasure,
@@ -2343,6 +2344,17 @@ impl QueryRoot {
             .require_metrics_read_service()
             .map_err(MetricReadError::from)
             .and_then(|_| read_metric_dashboard(&context.db, &input, context.metric_month_serving))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "The version of the Metrics data a dashboard read is served from, which changes when the rollup frontier moves, so a service that caches dashboard reads can tell when to read again. Requires the METRICS_READ_SERVICE role. It takes no input, reads no publisher or value and does not use a dashboard read slot. It is not a coverage or freshness claim, so keep a maximum cache age as well"
+    )]
+    fn metric_data_version(context: &Context) -> FieldResult<MetricDataVersion> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| read_metric_data_version(&context.db))
             .map_err(IntoFieldError::into_field_error)
     }
 
