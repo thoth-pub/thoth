@@ -63,7 +63,7 @@ pub enum MetricCitationLinkStatus {
 /// Lifecycle of one claimed refresh run.
 #[cfg_attr(
     feature = "backend",
-    derive(diesel_derive_enum::DbEnum),
+    derive(diesel_derive_enum::DbEnum, juniper::GraphQLEnum),
     ExistingTypePath = "crate::schema::sql_types::MetricCitationRefreshStatus"
 )]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString, Display)]
@@ -123,5 +123,11 @@ pub struct MetricCitationLink {
     pub last_refresh_id: Option<Uuid>,
 }
 
+#[cfg(feature = "backend")]
+pub mod write;
+
 #[cfg(all(test, feature = "backend"))]
 mod tests;
+
+#[cfg(all(test, feature = "backend"))]
+pub(crate) mod write_tests;

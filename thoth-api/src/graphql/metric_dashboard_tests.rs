@@ -171,6 +171,8 @@ const MEASURES: &str = "{ metricMeasures { measureId code enabled additiveAcross
 
 const PLATFORMS: &str = "{ metricPlatforms { platformId code enabled } }";
 
+const DATA_VERSION: &str = "{ metricDataVersion { version rollupWatermark } }";
+
 fn dashboard_variables(fx: &Fixture, publishers: JsonValue) -> JsonValue {
     json!({
         "input": {
@@ -193,6 +195,7 @@ fn operations(fx: &Fixture) -> Vec<(&'static str, &'static str, JsonValue)> {
         ),
         ("metricMeasures", MEASURES, json!({})),
         ("metricPlatforms", PLATFORMS, json!({})),
+        ("metricDataVersion", DATA_VERSION, json!({})),
     ]
 }
 
@@ -302,6 +305,33 @@ async fn every_row_of_the_read_service_matrix_holds_for_every_operation() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_data_version_is_stable_until_the_rollup_frontier_moves() {
+    let (_guard, fx) = setup();
+    let schema = create_schema();
+    let context = context_for(&fx.pool, Some(reader()));
+
+    let first = run(&schema, &context, DATA_VERSION, json!({})).await;
+    let first = data(&first, "metricDataVersion").clone();
+    let again = run(&schema, &context, DATA_VERSION, json!({})).await;
+    assert_eq!(
+        &first,
+        data(&again, "metricDataVersion"),
+        "two reads with no rollup work between them are equal"
+    );
+    assert!(first["version"].as_str().is_some_and(|v| !v.is_empty()));
+    assert!(first["rollupWatermark"].is_string());
+
+    commit(&fx, fx.works[0], fx.platform_id, fx.sessions, day_n(1), 7);
+    apply_all(&fx.pool);
+    let moved = run(&schema, &context, DATA_VERSION, json!({})).await;
+    assert_ne!(
+        first["version"],
+        data(&moved, "metricDataVersion")["version"],
+        "applying rollup work changes the version"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn denial_is_decided_before_any_metrics_database_access() {
     // The pool is unreachable. A denied caller that reached any Metrics read
     // would see an internal error instead of the fail-closed denial.
@@ -321,6 +351,7 @@ async fn denial_is_decided_before_any_metrics_database_access() {
             ("metricDashboard", DASHBOARD, fx_variables.clone()),
             ("metricMeasures", MEASURES, json!({})),
             ("metricPlatforms", PLATFORMS, json!({})),
+            ("metricDataVersion", DATA_VERSION, json!({})),
         ] {
             let response = run(&schema, &context, document, variables).await;
             if allowed {
@@ -1438,6 +1469,7 @@ fn every_read_resolver_authorizes_through_the_read_service_guard_first() {
         "read_metric_dashboard(&context.db, &input, context.metric_month_serving)",
         "list_metric_measures(&context.db)",
         "list_metric_platforms(&context.db)",
+        "read_metric_data_version(&context.db)",
     ] {
         let expected = format!(
             "context .require_metrics_read_service() .map_err(MetricReadError::from) .and_then(|_| {read})"
@@ -1457,7 +1489,7 @@ fn every_read_resolver_authorizes_through_the_read_service_guard_first() {
         query_source
             .matches("require_metrics_read_service()")
             .count(),
-        3
+        4
     );
 }
 
