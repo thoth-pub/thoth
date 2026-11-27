@@ -3653,3 +3653,96 @@ fn a_month_and_a_quarter_starting_on_one_day_fail_the_read_closed() {
         assert_eq!(read, Err(MetricReadError::Unavailable), "{grain:?}");
     }
 }
+
+/// A key widened by an overlap is classified against every record that
+/// overlaps it, not only against the records of the touched keys: a
+/// `REPORTING_PERIOD` ingested inside February re-derives the quarter, which
+/// must stay refused because March still overlaps it. Ingestion equals repair
+/// and V-NATIVE reads zero.
+#[test]
+fn a_recompute_classifies_a_widened_key_against_all_of_its_overlaps() {
+    let (_guard, fx) = setup();
+    net_units_grains(&fx, "'MONTH','REPORTING_PERIOD'");
+    fx.ingest(
+        "march",
+        false,
+        &[month_obs(0, true, date(2026, 3, 1), 0, 4)],
+    )
+    .expect("the month is ingested");
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    // A country cell of the quarter: a different cell from March's, so
+    // ingestion accepts both and the projection's conflict rule is what refuses.
+    let mut q1 = quarter_obs(0, date(2026, 1, 1), 2, 9);
+    q1.country = 1;
+    fx.ingest("q1", false, &[q1])
+        .expect("the quarter is ingested");
+    assert!(
+        spans(&fx.pool).is_empty(),
+        "the overlapping pair is refused: {:?}",
+        spans(&fx.pool)
+    );
+    let mut period = month_obs(0, true, date(2026, 2, 10), 0, 1);
+    period.end = date(2026, 2, 20);
+    period.grain = MetricReportingGrain::ReportingPeriod;
+    fx.ingest("period", false, &[period])
+        .expect("the period is ingested");
+    assert!(
+        spans(&fx.pool).is_empty(),
+        "the quarter is still refused: March overlaps it"
+    );
+    assert_eq!(
+        v_native_total(&fx.pool),
+        0,
+        "V-NATIVE agrees with the writer"
+    );
+    let ingested = actual(&fx.pool);
+    repair(&fx.pool, fx.publisher_id);
+    assert_eq!(actual(&fx.pool), ingested, "repair equals ingestion");
+}
+
+/// Widget parity: a pair whose only data is a quarter that starts before
+/// `startDate` is still a served pair (its bucket is cut, as on the
+/// dashboard), in `MONTH`, `QUARTER` and `YEAR` sections.
+#[test]
+fn the_widget_keeps_a_pair_whose_only_data_is_a_quarter_starting_before_the_range() {
+    let (_guard, fx) = setup();
+    let (start, end) = (date(2026, 1, 1), date(2026, 7, 1));
+    entitle_and_cover(&fx, start, end);
+    net_units_grains(&fx, "'QUARTER','REPORTING_PERIOD'");
+    fx.ingest("q1", false, &[quarter_obs(0, start, 0, 9)])
+        .expect("the quarter is ingested");
+    let net_units = measure_id(&fx, "net_units");
+    for (grain, from, to) in [
+        (MetricWidgetGrain::Month, date(2026, 2, 1), date(2026, 5, 1)),
+        (
+            MetricWidgetGrain::Quarter,
+            date(2026, 2, 1),
+            date(2026, 7, 1),
+        ),
+        (MetricWidgetGrain::Year, date(2026, 2, 1), date(2026, 7, 1)),
+    ] {
+        let widget = native_widget(&fx, 0, (Some(from), to), grain)
+            .unwrap_or_else(|error| panic!("{grain:?}: {error:?}"));
+        assert!(
+            widget
+                .work
+                .timeline
+                .iter()
+                .any(|bucket| bucket.measure_id == net_units),
+            "{grain:?}: the pair is served, its bucket cut"
+        );
+    }
+    // A quarter-aligned range serves the quarter's value.
+    let widget = native_widget(&fx, 0, (Some(start), end), MetricWidgetGrain::Quarter)
+        .expect("a quarter-aligned widget read");
+    assert_eq!(
+        widget
+            .work
+            .timeline
+            .iter()
+            .filter(|bucket| bucket.measure_id == net_units)
+            .map(|bucket| bucket.value.map(|value| value.to_string()))
+            .collect::<Vec<_>>(),
+        vec![known("9"), known("0")]
+    );
+}

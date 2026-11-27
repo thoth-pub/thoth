@@ -197,16 +197,42 @@ macro_rules! work_scope_sql {
     };
 }
 
-/// Every non-`DAY` record of the keys, read through
+/// Every non-`DAY` record of the keys and of every key whose records overlap
+/// theirs (so a key is classified against all of its overlaps; only the keys' own
+/// records, `in_keys`, are written), read through
 /// `metric_record_native_grain_idx` (its predicate restated so the partial
 /// index applies), with the revision its pointer names, by primary key.
 macro_rules! key_records_sql {
     () => {
-        "records AS ( \
+        "wide AS ( \
+             SELECT k.work_id, k.platform_id, k.measure_id, k.period_start \
+             FROM keys k \
+             UNION \
+             SELECT r2.work_id, r2.platform_id, r2.measure_id, r2.period_start \
+             FROM keys k \
+             JOIN public.metric_record r1 \
+               ON r1.work_id = k.work_id \
+              AND r1.platform_id = k.platform_id \
+              AND r1.measure_id = k.measure_id \
+              AND r1.period_start = k.period_start \
+              AND r1.reporting_grain <> 'DAY' \
+             JOIN public.metric_record r2 \
+               ON r2.work_id = r1.work_id \
+              AND r2.platform_id = r1.platform_id \
+              AND r2.measure_id = r1.measure_id \
+              AND r2.reporting_grain <> 'DAY' \
+              AND r2.period_start < r1.period_end \
+              AND r2.period_end > r1.period_start \
+         ), \
+         records AS ( \
              SELECT r.record_id, r.work_id, r.platform_id, r.measure_id, r.period_start, \
                     r.period_end, r.reporting_grain, r.publication_id, r.country_code, \
-                    r.institution_id, v.status, v.value \
-             FROM keys k \
+                    r.institution_id, v.status, v.value, \
+                    EXISTS (SELECT 1 FROM keys q \
+                            WHERE q.work_id = r.work_id AND q.platform_id = r.platform_id \
+                              AND q.measure_id = r.measure_id \
+                              AND q.period_start = r.period_start) AS in_keys \
+             FROM wide k \
              JOIN public.metric_record r \
                ON r.work_id = k.work_id \
               AND r.platform_id = k.platform_id \
@@ -296,7 +322,8 @@ macro_rules! served_sql {
                                 + (d.country_code IS NOT NULL)::int * 2 \
                                 + (d.institution_id IS NOT NULL)::int AS mask \
                      FROM cand d \
-                     WHERE NOT EXISTS (SELECT 1 FROM conflicted c \
+                     WHERE d.in_keys \
+                       AND NOT EXISTS (SELECT 1 FROM conflicted c \
                                        WHERE c.work_id = d.work_id \
                                          AND c.platform_id = d.platform_id \
                                          AND c.measure_id = d.measure_id \
@@ -383,6 +410,7 @@ macro_rules! refusal_insert_sql {
                                      WHERE o.record_id = d.record_id \
                                        AND o.status = 'CURRENT')) AS withdrawn \
              FROM records d \
+             WHERE d.in_keys \
          ) c \
          WHERE NOT c.served_month \
            AND NOT c.withdrawn \
