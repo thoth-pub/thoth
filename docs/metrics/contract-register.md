@@ -832,7 +832,10 @@ Contract:
   `SOURCE_NOT_FOUND`, `SOURCE_ACCOUNT_NOT_FOUND`, `SOURCE_NOT_ELIGIBLE`,
   `METRICS_COLLECT_NOT_ENTITLED`, `STALE_SOURCE_CLAIM`, `IMPORT_NOT_FOUND`,
   `IMPORT_IDEMPOTENCY_MISMATCH`, `UNEXPECTED_BATCH_KEY`, `IMPORT_INCOMPLETE`,
-  `INVALID_IMPORT_STATE` and `LIFECYCLE_LIMIT_EXCEEDED`, with fixed messages.
+  `INVALID_IMPORT_STATE` and `LIFECYCLE_LIMIT_EXCEEDED`, with fixed messages. The citation
+  operations (CITATIONS-01, below) add `CITATION_WORK_NOT_IN_PUBLISHER`,
+  `CITATION_REFRESH_NOT_FOUND`, `CITATION_REFRESH_NOT_RUNNING` and
+  `CITATION_BATCH_IDEMPOTENCY_MISMATCH`.
   A coordinator request failure carries its `MetricIngestionErrorCode` value
   unchanged, and a database failure is `INTERNAL_DATABASE_ERROR`; a refused
   coordinator-connection reservation, a guard lock-timeout expiry and a
@@ -3743,7 +3746,7 @@ provisioning boundary below.
 
 | Role code | Purpose | Complete MOM-1 protected operation set | Consuming slice |
 | --- | --- | --- | --- |
-| `METRICS_INGEST_SERVICE` | Sphinx orchestration caller for managed-source ingestion | `claimMetricSourceUnits`, `updateMetricSourceCheckpoint`, `beginMetricImport`, `ingestMetricBatch`, `completeMetricImport`, `claimMetricRollupDeltas`, `completeMetricRollupDeltas` | `MET-WP2-02` (ingestion, checkpoint and import lifecycle), `MET-WP4-01` (rollup-delta application) |
+| `METRICS_INGEST_SERVICE` | Sphinx orchestration caller for managed-source ingestion | `claimMetricSourceUnits`, `updateMetricSourceCheckpoint`, `beginMetricImport`, `ingestMetricBatch`, `completeMetricImport`, `claimMetricRollupDeltas`, `completeMetricRollupDeltas`, `beginCitationRefresh`, `citationRefreshWorks`, `submitCitationBatch`, `completeCitationRefresh` | `MET-WP2-02` (ingestion, checkpoint and import lifecycle), `MET-WP4-01` (rollup-delta application), `CITATIONS-01` C2 (citation write path) |
 | `METRICS_READ_SERVICE` | Thoth-owned server-side Metrics query clients | `metricDashboard`, `metricMeasures`, `metricPlatforms` | `MET-WP4-02` |
 
 #### Policy invariants (tested)
@@ -3816,3 +3819,38 @@ Sphinx `REQUIRES CHANGE` through the separate repository-local task
 thoth-pub/thoth-sphinx#38, which pins the merged H3 producer contract before
 any collection against it. No other known consumer selects `reasonCode` or
 decodes this enum.
+
+## Citation write path (CITATIONS-01, thoth#1074, slice C2)
+
+Four operations for the `METRICS_INGEST_SERVICE` role, under the same claim as
+the managed-DRIVER lifecycle (`claimMetricSourceUnits`) and only for a source
+whose `driver_key` is `openalex-citations`; the pinned publisher must hold
+`METRICS_COLLECT`. They write only the `metric_citation_*` tables and the
+checkpoint's `last_discovered_at`, `last_completed_at` and lease; the checkpoint
+`cursor` is never written. Inputs, bounds and rules:
+
+- `beginCitationRefresh(input)`: creates the claim's one RUNNING refresh, or
+  returns it. A refresh still RUNNING under an earlier token is set FAILED.
+- `citationRefreshWorks(input)` (query): up to 200 works of the claimed
+  publisher with a DOI, not withdrawn or cancelled, not looked up in the last
+  seven days, never-attempted first. A work submitted in this refresh, of any
+  outcome, is not returned again. `done` is true when none remain or 400 works
+  were submitted under this claim.
+- `submitCitationBatch(input)`: at most 50 works, 2,000 links and 1 MiB. Adds
+  and updates links, never withdraws. Text is sanitised at the boundary (NUL,
+  C0/C1 and bidi controls stripped, whitespace collapsed, NFC, then truncated by
+  characters). A DOI that is not in shape, or a URL that is not plain https, is
+  stored NULL; a link is refused only for a blank or over-long id or for
+  self-citation, and every id read counts as seen. Replay of a committed key and
+  payload returns its outcome; the same key with another payload is refused. A
+  work spanning batches declares `enumerationComplete` and the same
+  `enumeratedTotal` in every entry.
+- `completeCitationRefresh(input)`: the only place a link is withdrawn, as a
+  sweep for each work that was matched, fully enumerated and passes the fixed
+  server guard (previous count at most 2, or at least 50% seen, or the same lower
+  count twice). Releases the claim. NOT_FOUND and FAILED lookups never withdraw.
+
+Errors: the lifecycle codes above plus `CITATION_WORK_NOT_IN_PUBLISHER`,
+`CITATION_REFRESH_NOT_FOUND`, `CITATION_REFRESH_NOT_RUNNING` and
+`CITATION_BATCH_IDEMPOTENCY_MISMATCH`. The read (`metricCitations`) and its
+serving switch are slice C3.

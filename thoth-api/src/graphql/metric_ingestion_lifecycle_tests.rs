@@ -64,12 +64,12 @@ fn request(query: &str) -> GraphQLRequest {
     serde_json::from_value(json!({ "query": query })).expect("build GraphQL request")
 }
 
-async fn run(schema: &Schema, context: &Context, query: &str) -> JsonValue {
+pub(super) async fn run(schema: &Schema, context: &Context, query: &str) -> JsonValue {
     serde_json::to_value(request(query).execute(schema, context).await)
         .expect("serialize GraphQL response")
 }
 
-fn data<'a>(response: &'a JsonValue, field: &str) -> &'a JsonValue {
+pub(super) fn data<'a>(response: &'a JsonValue, field: &str) -> &'a JsonValue {
     assert!(
         response.get("errors").is_none()
             || response["errors"].as_array().is_some_and(Vec::is_empty),
@@ -115,7 +115,7 @@ fn assert_error(response: &JsonValue, expected_type: &str) {
     }
 }
 
-fn assert_unauthorized(response: &JsonValue) {
+pub(super) fn assert_unauthorized(response: &JsonValue) {
     let (message, kind) = only_error(response);
     assert_eq!(
         kind, "NO_ACCESS",
@@ -124,7 +124,7 @@ fn assert_unauthorized(response: &JsonValue) {
     assert_eq!(message, "Unauthorized");
 }
 
-fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
+pub(super) fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
     let mut project_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
     for (role, org_id) in roles {
         project_roles
@@ -147,19 +147,19 @@ fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
     }
 }
 
-fn context_for(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> Context {
+pub(super) fn context_for(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> Context {
     match user {
         Some(user) => test_db::test_context_with_user(Arc::clone(pool), user),
         None => test_db::test_context_anonymous(Arc::clone(pool)),
     }
 }
 
-fn ingest_user() -> IntrospectedUser {
+pub(super) fn ingest_user() -> IntrospectedUser {
     user_with(INGEST_USER, &[(Role::MetricsIngestService, "org")])
 }
 
 /// Every caller of the approved negative matrix that must be denied.
-fn denied(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>)> {
+pub(super) fn denied(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>)> {
     vec![
         ("anonymous / failed introspection", None),
         (
@@ -298,7 +298,7 @@ fn every_operation(import_id: &str, token: &str) -> Vec<(&'static str, String)> 
 // --------------------------------------------------------------------------
 
 /// Signatures with descriptions removed and whitespace collapsed.
-fn signatures(block: &str) -> String {
+pub(super) fn signatures(block: &str) -> String {
     let mut out = String::new();
     let mut in_string = false;
     let mut escaped = false;
