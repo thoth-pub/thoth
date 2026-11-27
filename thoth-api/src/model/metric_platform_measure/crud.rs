@@ -24,17 +24,18 @@
 
 use diesel::pg::PgConnection;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
-use thoth_errors::ThothResult;
+use thoth_errors::{ThothError, ThothResult};
 use uuid::Uuid;
 
 use super::{MetricPlatformMeasure, NewMetricPlatformMeasure, PatchMetricPlatformMeasure};
 use crate::db::PgPool;
 use crate::model::metric_measure::crud::by_code as measure_by_code;
 use crate::model::metric_platform::crud::by_code as platform_by_code;
+use crate::model::metric_platform_measure::MetricReportingGrain;
 use crate::model::metric_registry_history::{
     record_create, record_update, MetricRegistryHistoryEntity,
 };
-use crate::schema::metric_platform_measure;
+use crate::schema::{metric_platform_measure, metric_record};
 
 /// Resolve the `(platform_id, measure_id)` pair named by two exact codes.
 ///
@@ -155,6 +156,8 @@ pub(crate) fn update_metric_platform_measure(
             .for_update()
             .first::<MetricPlatformMeasure>(connection)?;
 
+        refuse_mixed_native_grain(connection, &current, &data.supported_grains)?;
+
         // A genuine no-op: every approved mutable field already holds the
         // requested value.
         if current.supported_grains == data.supported_grains
@@ -191,4 +194,47 @@ pub(crate) fn update_metric_platform_measure(
 
         Ok(updated)
     })
+}
+
+/// Refuse to list `QUARTER` for a pair that already holds `MONTH` records, or
+/// `MONTH` for one that already holds `QUARTER` records (`MET-QUARTER-01`).
+///
+/// A pair carries one native grain: its served periods are then never of two
+/// lengths, and a month and a quarter of the same work cannot overlap through
+/// different dimension cells. The mapping row is already locked `FOR UPDATE`
+/// by the caller, so a concurrent edit of the same pair waits; ingestion takes
+/// that row `FOR SHARE`, so no record of the other grain can be written while
+/// the check runs.
+fn refuse_mixed_native_grain(
+    connection: &mut PgConnection,
+    current: &MetricPlatformMeasure,
+    requested: &[MetricReportingGrain],
+) -> ThothResult<()> {
+    let adds = |grain| requested.contains(&grain) && !current.supported_grains.contains(&grain);
+    for (added, held, message) in [
+        (
+            MetricReportingGrain::Quarter,
+            MetricReportingGrain::Month,
+            "A pair that holds MONTH records cannot list the QUARTER grain.",
+        ),
+        (
+            MetricReportingGrain::Month,
+            MetricReportingGrain::Quarter,
+            "A pair that holds QUARTER records cannot list the MONTH grain.",
+        ),
+    ] {
+        if adds(added) {
+            let exists = diesel::select(diesel::dsl::exists(
+                metric_record::table
+                    .filter(metric_record::platform_id.eq(current.platform_id))
+                    .filter(metric_record::measure_id.eq(current.measure_id))
+                    .filter(metric_record::reporting_grain.eq(held)),
+            ))
+            .get_result::<bool>(connection)?;
+            if exists {
+                return Err(ThothError::DatabaseConstraintError(message.into()));
+            }
+        }
+    }
+    Ok(())
 }

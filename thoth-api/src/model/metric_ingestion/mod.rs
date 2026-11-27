@@ -1065,7 +1065,22 @@ pub(crate) fn period_matches_grain(
         MetricReportingGrain::Month => {
             period_start.day() == 1 && next_month_start(period_start) == Some(period_end)
         }
+        MetricReportingGrain::Quarter => {
+            matches!(period_start.month(), 1 | 4 | 7 | 10)
+                && period_start.day() == 1
+                && next_quarter_start(period_start) == Some(period_end)
+        }
         MetricReportingGrain::ReportingPeriod => period_end > period_start,
+    }
+}
+
+/// The first day of the calendar quarter after the one that starts on `date`.
+pub(crate) fn next_quarter_start(date: NaiveDate) -> Option<NaiveDate> {
+    let month = date.month() + 3;
+    if month > 12 {
+        NaiveDate::from_ymd_opt(date.year() + 1, month - 12, 1)
+    } else {
+        NaiveDate::from_ymd_opt(date.year(), month, 1)
     }
 }
 

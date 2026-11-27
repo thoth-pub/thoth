@@ -41,11 +41,18 @@
 //!   no `CURRENT` one. It is ignored;
 //! - *active reporting period*: a `REPORTING_PERIOD` record whose pointer
 //!   names a `CURRENT` revision;
-//! - *served month*: a `MONTH` record spanning exactly one calendar month
-//!   whose pointer names a `CURRENT` revision of that record; its value is
-//!   that revision's;
-//! - *inconsistent*: anything else of either grain, a `MONTH` record of any
-//!   other period included.
+//! - *served period* (`MET-QUARTER-01`): a `MONTH` record spanning exactly
+//!   one calendar month (`span_months` 1), or a `QUARTER` record spanning
+//!   exactly one calendar quarter (`span_months` 3), whose pointer names a
+//!   `CURRENT` revision of that record; its value is that revision's. The
+//!   columns called `month_start` hold the period's first day whatever its
+//!   span. A key whose served records carry two spans, or a served period that
+//!   overlaps a served period starting on another day of the same work,
+//!   platform and measure, is *conflicted*: neither is served and each is
+//!   inconsistent. The rule is symmetric, so a recompute widens its keys to
+//!   every key whose records overlap theirs;
+//! - *inconsistent*: anything else of any non-`DAY` grain, a `MONTH` or
+//!   `QUARTER` record of any other period included.
 //!
 //! **Resolution.** A key's served months form one cell, resolved exactly as
 //! `MET-WP4-03A` resolves a day (`metric_rollup_delta/crud.rs`, register
@@ -143,13 +150,37 @@ impl FromIterator<NativeMonthKey> for NativeMonthKeys {
     }
 }
 
-/// The keys of a recompute, from four parallel arrays.
+/// The keys of a recompute, from four parallel arrays, widened by every key
+/// of the same work, platform and measure whose non-`DAY` records overlap a
+/// record of a given key (`MET-QUARTER-01`: a served month and a served
+/// quarter that overlap refuse each other, so a write to one must re-derive
+/// the other). The widening reads `metric_record_native_grain_idx`.
 macro_rules! key_scope_sql {
     () => {
         "keys AS ( \
-             SELECT DISTINCT k.work_id, k.platform_id, k.measure_id, k.period_start \
-             FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
-                  AS k(work_id, platform_id, measure_id, period_start) \
+             SELECT DISTINCT x.work_id, x.platform_id, x.measure_id, x.period_start \
+             FROM ( \
+                 SELECT k.work_id, k.platform_id, k.measure_id, k.period_start \
+                 FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+                      AS k(work_id, platform_id, measure_id, period_start) \
+                 UNION \
+                 SELECT r2.work_id, r2.platform_id, r2.measure_id, r2.period_start \
+                 FROM unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
+                      AS k(work_id, platform_id, measure_id, period_start) \
+                 JOIN public.metric_record r1 \
+                   ON r1.work_id = k.work_id \
+                  AND r1.platform_id = k.platform_id \
+                  AND r1.measure_id = k.measure_id \
+                  AND r1.period_start = k.period_start \
+                  AND r1.reporting_grain <> 'DAY' \
+                 JOIN public.metric_record r2 \
+                   ON r2.work_id = r1.work_id \
+                  AND r2.platform_id = r1.platform_id \
+                  AND r2.measure_id = r1.measure_id \
+                  AND r2.reporting_grain <> 'DAY' \
+                  AND r2.period_start < r1.period_end \
+                  AND r2.period_end > r1.period_start \
+             ) x \
          )"
     };
 }
@@ -189,6 +220,42 @@ macro_rules! key_records_sql {
     };
 }
 
+/// The served periods of the keys: a `CURRENT` `MONTH` record of one calendar
+/// month (`span` 1) or `QUARTER` record of one calendar quarter (`span` 3),
+/// then the keys that must not be served. A key is *conflicted* when its served
+/// records carry two spans, or when a served period of the same work, platform
+/// and measure that starts on another day overlaps it. Both keys of an overlap
+/// are conflicted, so the rule is symmetric and whichever is written second is
+/// not the one refused.
+macro_rules! cand_sql {
+    () => {
+        "cand AS ( \
+             SELECT d.*, \
+                    CASE d.reporting_grain WHEN 'QUARTER' THEN 3 ELSE 1 END AS span \
+             FROM records d \
+             WHERE d.status = 'CURRENT' \
+               AND EXTRACT(DAY FROM d.period_start) = 1 \
+               AND ((d.reporting_grain = 'MONTH' \
+                     AND d.period_end = (d.period_start + interval '1 month')::date) \
+                 OR (d.reporting_grain = 'QUARTER' \
+                     AND EXTRACT(MONTH FROM d.period_start) IN (1, 4, 7, 10) \
+                     AND d.period_end = (d.period_start + interval '3 months')::date)) \
+         ), \
+         conflicted AS ( \
+             SELECT DISTINCT a.work_id, a.platform_id, a.measure_id, a.period_start \
+             FROM cand a \
+             JOIN cand b \
+               ON b.work_id = a.work_id \
+              AND b.platform_id = a.platform_id \
+              AND b.measure_id = a.measure_id \
+              AND ((b.period_start = a.period_start AND b.span <> a.span) \
+                OR (b.period_start <> a.period_start \
+                    AND b.period_start < a.period_end \
+                    AND b.period_end > a.period_start)) \
+         )"
+    };
+}
+
 /// The served months of the keys, each with its dimension mask (publication
 /// 4, country 2, institution 1), its cell's represented masks and the
 /// resolution of its cell, exactly as `MET-WP4-03A` resolves a day.
@@ -224,15 +291,16 @@ macro_rules! served_sql {
                             AS represented \
                  FROM ( \
                      SELECT d.work_id, d.platform_id, d.measure_id, d.period_start AS month_start, \
-                            d.country_code, d.institution_id, d.value, \
+                            d.span, d.country_code, d.institution_id, d.value, \
                             (d.publication_id IS NOT NULL)::int * 4 \
                                 + (d.country_code IS NOT NULL)::int * 2 \
                                 + (d.institution_id IS NOT NULL)::int AS mask \
-                     FROM records d \
-                     WHERE d.reporting_grain = 'MONTH' \
-                       AND d.status = 'CURRENT' \
-                       AND EXTRACT(DAY FROM d.period_start) = 1 \
-                       AND d.period_end = (d.period_start + interval '1 month')::date \
+                     FROM cand d \
+                     WHERE NOT EXISTS (SELECT 1 FROM conflicted c \
+                                       WHERE c.work_id = d.work_id \
+                                         AND c.platform_id = d.platform_id \
+                                         AND c.measure_id = d.measure_id \
+                                         AND c.period_start = d.period_start) \
                  ) m \
              ) x \
          )"
@@ -243,10 +311,10 @@ macro_rules! served_sql {
 macro_rules! month_insert_sql {
     () => {
         "INSERT INTO public.metric_native_month \
-             (work_id, platform_id, measure_id, month_start, value, live, \
+             (work_id, platform_id, measure_id, month_start, span_months, value, live, \
               requires_country_coverage, requires_institution_coverage, \
               country_ambiguous, institution_ambiguous) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), \
                 (SUM(s.value) FILTER (WHERE s.mask = s.total_mask))::bigint, \
                 bool_or(s.value <> 0), \
                 COALESCE(bool_or(s.mask & 2 <> 0) FILTER (WHERE s.mask = s.total_mask), FALSE), \
@@ -264,9 +332,9 @@ macro_rules! month_insert_sql {
 macro_rules! country_insert_sql {
     () => {
         "INSERT INTO public.metric_native_country_month \
-             (work_id, platform_id, measure_id, month_start, country_code, value, \
+             (work_id, platform_id, measure_id, month_start, span_months, country_code, value, \
               requires_institution_coverage) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, s.country_code, \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), s.country_code, \
                 SUM(s.value)::bigint, \
                 bool_or(s.mask & 1 <> 0) \
          FROM served s \
@@ -279,9 +347,9 @@ macro_rules! country_insert_sql {
 macro_rules! institution_insert_sql {
     () => {
         "INSERT INTO public.metric_native_institution_month \
-             (work_id, platform_id, measure_id, month_start, institution_id, value, \
+             (work_id, platform_id, measure_id, month_start, span_months, institution_id, value, \
               requires_country_coverage) \
-         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, s.institution_id, \
+         SELECT s.work_id, s.platform_id, s.measure_id, s.month_start, MIN(s.span), s.institution_id, \
                 SUM(s.value)::bigint, \
                 bool_or(s.mask & 2 <> 0) \
          FROM served s \
@@ -303,10 +371,12 @@ macro_rules! refusal_insert_sql {
              SELECT d.work_id, d.platform_id, d.measure_id, d.period_start, d.period_end, \
                     (d.reporting_grain = 'REPORTING_PERIOD' \
                      AND COALESCE(d.status = 'CURRENT', FALSE)) AS active_reporting_period, \
-                    (d.reporting_grain = 'MONTH' \
-                     AND COALESCE(d.status = 'CURRENT', FALSE) \
-                     AND EXTRACT(DAY FROM d.period_start) = 1 \
-                     AND d.period_end = (d.period_start + interval '1 month')::date) \
+                    (EXISTS (SELECT 1 FROM cand s WHERE s.record_id = d.record_id) \
+                     AND NOT EXISTS (SELECT 1 FROM conflicted c \
+                                     WHERE c.work_id = d.work_id \
+                                       AND c.platform_id = d.platform_id \
+                                       AND c.measure_id = d.measure_id \
+                                       AND c.period_start = d.period_start)) \
                         AS served_month, \
                     (COALESCE(d.status = 'RETRACTED', FALSE) \
                      AND NOT EXISTS (SELECT 1 FROM public.metric_record_revision o \
@@ -325,11 +395,12 @@ macro_rules! refusal_insert_sql {
 macro_rules! key_delete_sql {
     ($table:literal, $column:literal) => {
         concat!(
-            "DELETE FROM public.",
+            "WITH ",
+            key_scope_sql!(),
+            " DELETE FROM public.",
             $table,
             " n \
-             USING unnest($1::uuid[], $2::uuid[], $3::uuid[], $4::date[]) \
-                   AS k(work_id, platform_id, measure_id, period_start) \
+             USING keys k \
              WHERE n.work_id = k.work_id \
                AND n.platform_id = k.platform_id \
                AND n.measure_id = k.measure_id \
@@ -368,6 +439,8 @@ pub(crate) const NATIVE_MONTH_INSERT_SQL: &str = concat!(
     ", ",
     key_records_sql!(),
     ", ",
+    cand_sql!(),
+    ", ",
     served_sql!(),
     " ",
     month_insert_sql!()
@@ -377,6 +450,8 @@ pub(crate) const NATIVE_COUNTRY_MONTH_INSERT_SQL: &str = concat!(
     key_scope_sql!(),
     ", ",
     key_records_sql!(),
+    ", ",
+    cand_sql!(),
     ", ",
     served_sql!(),
     " ",
@@ -388,6 +463,8 @@ pub(crate) const NATIVE_INSTITUTION_MONTH_INSERT_SQL: &str = concat!(
     ", ",
     key_records_sql!(),
     ", ",
+    cand_sql!(),
+    ", ",
     served_sql!(),
     " ",
     institution_insert_sql!()
@@ -397,6 +474,8 @@ pub(crate) const NATIVE_REFUSAL_INSERT_SQL: &str = concat!(
     key_scope_sql!(),
     ", ",
     key_records_sql!(),
+    ", ",
+    cand_sql!(),
     " ",
     refusal_insert_sql!()
 );
@@ -429,6 +508,8 @@ pub(crate) const REPAIR_MONTH_INSERT_SQL: &str = concat!(
     ", ",
     key_records_sql!(),
     ", ",
+    cand_sql!(),
+    ", ",
     served_sql!(),
     " ",
     month_insert_sql!()
@@ -438,6 +519,8 @@ pub(crate) const REPAIR_COUNTRY_MONTH_INSERT_SQL: &str = concat!(
     work_scope_sql!(),
     ", ",
     key_records_sql!(),
+    ", ",
+    cand_sql!(),
     ", ",
     served_sql!(),
     " ",
@@ -449,6 +532,8 @@ pub(crate) const REPAIR_INSTITUTION_MONTH_INSERT_SQL: &str = concat!(
     ", ",
     key_records_sql!(),
     ", ",
+    cand_sql!(),
+    ", ",
     served_sql!(),
     " ",
     institution_insert_sql!()
@@ -458,6 +543,8 @@ pub(crate) const REPAIR_REFUSAL_INSERT_SQL: &str = concat!(
     work_scope_sql!(),
     ", ",
     key_records_sql!(),
+    ", ",
+    cand_sql!(),
     " ",
     refusal_insert_sql!()
 );

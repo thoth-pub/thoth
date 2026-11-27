@@ -754,7 +754,7 @@ fn the_sdl_declares_the_widget_grain_and_its_default() {
     assert!(!input.contains("MetricTimelineGrain"), "{input}");
     assert_eq!(
         signatures(sdl_block(&sdl, "enum MetricWidgetGrain {")),
-        "MONTHYEAR"
+        "MONTHQUARTERYEAR"
     );
     assert_eq!(sdl.matches("enum MetricWidgetGrain {").count(), 1);
 }

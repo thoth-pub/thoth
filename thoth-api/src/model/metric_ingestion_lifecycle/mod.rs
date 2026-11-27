@@ -1524,6 +1524,7 @@ pub fn update_metric_source_checkpoint(
                     c.period_end, \
                     c.coverage_status::text AS status, \
                     COALESCE('MONTH' = ANY(pm.supported_grains), false) AS month_supported, \
+                    COALESCE('QUARTER' = ANY(pm.supported_grains), false) AS quarter_supported, \
                     COUNT(*) AS rows, \
                     (SELECT COUNT(*) FROM metric_coverage WHERE import_id = $1) AS total \
                FROM metric_coverage c \
@@ -1532,7 +1533,7 @@ pub fn update_metric_source_checkpoint(
                LEFT JOIN metric_platform_measure pm \
                  ON pm.platform_id = c.platform_id AND pm.measure_id = c.measure_id \
               WHERE c.import_id = $1 \
-              GROUP BY 1, 2, 3, 4, 5, 6",
+              GROUP BY 1, 2, 3, 4, 5, 6, 7",
         )
         .bind::<SqlUuid, _>(import.import_id)
         .load(connection)?;

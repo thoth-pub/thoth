@@ -308,9 +308,11 @@ before the floor does.
 ```sql
 SELECT r.reporting_grain::text, count(*) AS records,
   count(*) FILTER (WHERE v.status = 'CURRENT') AS active,
-  count(*) FILTER (WHERE r.reporting_grain = 'MONTH'
+  count(*) FILTER (WHERE r.reporting_grain IN ('MONTH', 'QUARTER')
   AND NOT (EXTRACT(DAY FROM r.period_start) = 1
-  AND r.period_end = (r.period_start + interval '1 month')::date)) AS invalid_periods,
+  AND (r.reporting_grain = 'MONTH' OR EXTRACT(MONTH FROM r.period_start) IN (1, 4, 7, 10))
+  AND r.period_end = (r.period_start + CASE r.reporting_grain WHEN 'QUARTER'
+    THEN interval '3 months' ELSE interval '1 month' END)::date)) AS invalid_periods,
   count(*) FILTER (WHERE (v.status = 'CURRENT') IS NOT TRUE
   AND NOT (COALESCE(v.status = 'RETRACTED', FALSE)
   AND NOT EXISTS (SELECT 1 FROM metric_record_revision o
@@ -342,6 +344,7 @@ to 0. A count that returns is a defect, not a repair.
 WITH record AS (
   SELECT r.work_id, r.platform_id, r.measure_id, r.period_start, r.period_end,
     r.reporting_grain::text AS grain, r.country_code, r.institution_id, p.value,
+    CASE r.reporting_grain WHEN 'QUARTER' THEN 3 ELSE 1 END AS span,
     CASE WHEN r.publication_id IS NULL THEN 0 ELSE 4 END
       + CASE WHEN r.country_code IS NULL THEN 0 ELSE 2 END
       + CASE WHEN r.institution_id IS NULL THEN 0 ELSE 1 END AS mask,
@@ -349,10 +352,12 @@ WITH record AS (
       WHEN p.status = 'RETRACTED' AND NOT EXISTS (SELECT 1 FROM metric_record_revision c
         WHERE c.record_id = r.record_id AND c.status = 'CURRENT') THEN 'WITHDRAWN'
       WHEN p.status = 'CURRENT' AND r.reporting_grain = 'REPORTING_PERIOD' THEN 'ACTIVE'
-      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'MONTH'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain IN ('MONTH', 'QUARTER')
         AND r.period_start = date_trunc('month', r.period_start::timestamp)::date
-        AND r.period_end = (date_trunc('month', r.period_start::timestamp)
-          + interval '1 month')::date
+        AND (r.reporting_grain = 'MONTH' OR EXTRACT(MONTH FROM r.period_start) IN (1, 4, 7, 10))
+        AND r.period_end = (r.period_start::timestamp
+          + CASE r.reporting_grain WHEN 'QUARTER' THEN interval '3 months'
+            ELSE interval '1 month' END)::date
         THEN 'SERVED'
       ELSE 'INCONSISTENT'
     END AS class
@@ -360,9 +365,22 @@ WITH record AS (
   LEFT JOIN metric_record_revision p
     ON p.record_id = r.record_id AND p.record_revision_id = r.current_revision_id
   WHERE r.reporting_grain <> 'DAY'),
-served AS (SELECT * FROM record WHERE class = 'SERVED'),
+clash AS (
+  SELECT DISTINCT a.work_id, a.platform_id, a.measure_id, a.period_start
+  FROM record a JOIN record b
+    ON (b.work_id, b.platform_id, b.measure_id) = (a.work_id, a.platform_id, a.measure_id)
+    AND ((b.period_start = a.period_start AND b.span <> a.span)
+      OR (b.period_start <> a.period_start AND b.period_start < a.period_end
+        AND b.period_end > a.period_start))
+  WHERE a.class = 'SERVED' AND b.class = 'SERVED'),
+served AS (
+  SELECT * FROM record s WHERE s.class = 'SERVED' AND NOT EXISTS (
+    SELECT 1 FROM clash c
+    WHERE (c.work_id, c.platform_id, c.measure_id, c.period_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start))),
 cell AS (
   SELECT work_id, platform_id, measure_id, period_start AS month_start,
+    min(span) AS span_months,
     array_agg(DISTINCT mask) AS masks, bool_or(value <> 0) AS live
   FROM served GROUP BY work_id, platform_id, measure_id, period_start),
 choice AS (
@@ -379,7 +397,7 @@ expected_month AS (
       WHERE (s.work_id, s.platform_id, s.measure_id, s.period_start)
         = (c.work_id, c.platform_id, c.measure_id, c.month_start)
         AND s.mask = c.total_mask)::bigint AS value,
-    c.live,
+    c.span_months, c.live,
     COALESCE(c.total_mask & 2 = 2, FALSE) AS requires_country_coverage,
     COALESCE(c.total_mask & 1 = 1, FALSE) AS requires_institution_coverage,
     cardinality(c.country_minima) > 1 AS country_ambiguous,
@@ -387,7 +405,8 @@ expected_month AS (
   FROM choice c),
 expected_country AS (
   SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.country_code,
-    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage
+    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage,
+    min(s.span) AS span_months
   FROM served s JOIN choice c
     ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
       = (s.work_id, s.platform_id, s.measure_id, s.period_start)
@@ -395,7 +414,8 @@ expected_country AS (
   GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.country_code),
 expected_institution AS (
   SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.institution_id,
-    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage
+    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage,
+    min(s.span) AS span_months
   FROM served s JOIN choice c
     ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
       = (s.work_id, s.platform_id, s.measure_id, s.period_start)
@@ -403,8 +423,12 @@ expected_institution AS (
   GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.institution_id),
 expected_refusal AS (
   SELECT work_id, platform_id, measure_id, period_start, period_end,
-    bool_or(class = 'INCONSISTENT') AS inconsistent
-  FROM record WHERE class IN ('ACTIVE', 'INCONSISTENT')
+    bool_or(class <> 'ACTIVE') AS inconsistent
+  FROM record r WHERE class IN ('ACTIVE', 'INCONSISTENT')
+    OR (class = 'SERVED' AND EXISTS (
+      SELECT 1 FROM clash c
+      WHERE (c.work_id, c.platform_id, c.measure_id, c.period_start)
+        = (r.work_id, r.platform_id, r.measure_id, r.period_start)))
   GROUP BY work_id, platform_id, measure_id, period_start, period_end),
 diff AS (
   SELECT 'metric_native_month' AS relation,
@@ -417,9 +441,9 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.live, e.requires_country_coverage, e.requires_institution_coverage,
-        e.country_ambiguous, e.institution_ambiguous)
-      IS DISTINCT FROM (a.value, a.live, a.requires_country_coverage,
+    OR (e.value, e.span_months, e.live, e.requires_country_coverage,
+        e.requires_institution_coverage, e.country_ambiguous, e.institution_ambiguous)
+      IS DISTINCT FROM (a.value, a.span_months, a.live, a.requires_country_coverage,
         a.requires_institution_coverage, a.country_ambiguous, a.institution_ambiguous)
   UNION ALL
   SELECT 'metric_native_country_month',
@@ -432,8 +456,8 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.country_code::text)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.country_code::text)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.requires_institution_coverage)
-      IS DISTINCT FROM (a.value, a.requires_institution_coverage)
+    OR (e.value, e.span_months, e.requires_institution_coverage)
+      IS DISTINCT FROM (a.value, a.span_months, a.requires_institution_coverage)
   UNION ALL
   SELECT 'metric_native_institution_month',
     CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
@@ -445,8 +469,8 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.institution_id)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.institution_id)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.requires_country_coverage)
-      IS DISTINCT FROM (a.value, a.requires_country_coverage)
+    OR (e.value, e.span_months, e.requires_country_coverage)
+      IS DISTINCT FROM (a.value, a.span_months, a.requires_country_coverage)
   UNION ALL
   SELECT 'metric_native_refusal',
     CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
@@ -495,10 +519,12 @@ the key columns (identifiers only).
 
 ```sql
 WITH native_live AS (
-  SELECT DISTINCT r.work_id, r.platform_id, r.measure_id, r.period_start AS month_start
+  SELECT DISTINCT r.work_id, r.platform_id, r.measure_id,
+    (r.period_start + make_interval(months => g))::date AS month_start
   FROM metric_record r JOIN metric_record_revision v
   ON v.record_id = r.record_id AND v.record_revision_id = r.current_revision_id
-  WHERE r.reporting_grain <> 'DAY' AND r.reporting_grain = 'MONTH'
+  CROSS JOIN LATERAL generate_series(0, CASE r.reporting_grain WHEN 'QUARTER' THEN 2 ELSE 0 END) g
+  WHERE r.reporting_grain IN ('MONTH', 'QUARTER')
   AND v.status = 'CURRENT' AND v.value <> 0),
 day_live AS (
   SELECT work_id, platform_id, measure_id, month_start FROM metric_rollup_work_month WHERE value <> 0
@@ -520,7 +546,7 @@ WITH native_live AS (
   FROM metric_record r JOIN metric_record_revision v
   ON v.record_id = r.record_id AND v.record_revision_id = r.current_revision_id
   JOIN work w ON w.work_id = r.work_id JOIN imprint i ON i.imprint_id = w.imprint_id
-  WHERE r.reporting_grain <> 'DAY' AND r.reporting_grain = 'MONTH'
+  WHERE r.reporting_grain IN ('MONTH', 'QUARTER')
   AND v.status = 'CURRENT' AND v.value <> 0
   AND i.publisher_id = $1 AND r.platform_id = $2
   AND r.period_start <= $4 AND r.period_end > $3)
@@ -1345,6 +1371,7 @@ is there too:
 WITH record AS (
   SELECT r.work_id, r.platform_id, r.measure_id, r.period_start, r.period_end,
     r.reporting_grain::text AS grain, r.country_code, r.institution_id, p.value,
+    CASE r.reporting_grain WHEN 'QUARTER' THEN 3 ELSE 1 END AS span,
     CASE WHEN r.publication_id IS NULL THEN 0 ELSE 4 END
       + CASE WHEN r.country_code IS NULL THEN 0 ELSE 2 END
       + CASE WHEN r.institution_id IS NULL THEN 0 ELSE 1 END AS mask,
@@ -1352,10 +1379,12 @@ WITH record AS (
       WHEN p.status = 'RETRACTED' AND NOT EXISTS (SELECT 1 FROM metric_record_revision c
         WHERE c.record_id = r.record_id AND c.status = 'CURRENT') THEN 'WITHDRAWN'
       WHEN p.status = 'CURRENT' AND r.reporting_grain = 'REPORTING_PERIOD' THEN 'ACTIVE'
-      WHEN p.status = 'CURRENT' AND r.reporting_grain = 'MONTH'
+      WHEN p.status = 'CURRENT' AND r.reporting_grain IN ('MONTH', 'QUARTER')
         AND r.period_start = date_trunc('month', r.period_start::timestamp)::date
-        AND r.period_end = (date_trunc('month', r.period_start::timestamp)
-          + interval '1 month')::date
+        AND (r.reporting_grain = 'MONTH' OR EXTRACT(MONTH FROM r.period_start) IN (1, 4, 7, 10))
+        AND r.period_end = (r.period_start::timestamp
+          + CASE r.reporting_grain WHEN 'QUARTER' THEN interval '3 months'
+            ELSE interval '1 month' END)::date
         THEN 'SERVED'
       ELSE 'INCONSISTENT'
     END AS class
@@ -1363,9 +1392,22 @@ WITH record AS (
   LEFT JOIN metric_record_revision p
     ON p.record_id = r.record_id AND p.record_revision_id = r.current_revision_id
   WHERE r.reporting_grain <> 'DAY'),
-served AS (SELECT * FROM record WHERE class = 'SERVED'),
+clash AS (
+  SELECT DISTINCT a.work_id, a.platform_id, a.measure_id, a.period_start
+  FROM record a JOIN record b
+    ON (b.work_id, b.platform_id, b.measure_id) = (a.work_id, a.platform_id, a.measure_id)
+    AND ((b.period_start = a.period_start AND b.span <> a.span)
+      OR (b.period_start <> a.period_start AND b.period_start < a.period_end
+        AND b.period_end > a.period_start))
+  WHERE a.class = 'SERVED' AND b.class = 'SERVED'),
+served AS (
+  SELECT * FROM record s WHERE s.class = 'SERVED' AND NOT EXISTS (
+    SELECT 1 FROM clash c
+    WHERE (c.work_id, c.platform_id, c.measure_id, c.period_start)
+      = (s.work_id, s.platform_id, s.measure_id, s.period_start))),
 cell AS (
   SELECT work_id, platform_id, measure_id, period_start AS month_start,
+    min(span) AS span_months,
     array_agg(DISTINCT mask) AS masks, bool_or(value <> 0) AS live
   FROM served GROUP BY work_id, platform_id, measure_id, period_start),
 choice AS (
@@ -1382,7 +1424,7 @@ expected_month AS (
       WHERE (s.work_id, s.platform_id, s.measure_id, s.period_start)
         = (c.work_id, c.platform_id, c.measure_id, c.month_start)
         AND s.mask = c.total_mask)::bigint AS value,
-    c.live,
+    c.span_months, c.live,
     COALESCE(c.total_mask & 2 = 2, FALSE) AS requires_country_coverage,
     COALESCE(c.total_mask & 1 = 1, FALSE) AS requires_institution_coverage,
     cardinality(c.country_minima) > 1 AS country_ambiguous,
@@ -1390,7 +1432,8 @@ expected_month AS (
   FROM choice c),
 expected_country AS (
   SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.country_code,
-    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage
+    sum(s.value)::bigint AS value, bool_or(s.mask & 1 = 1) AS requires_institution_coverage,
+    min(s.span) AS span_months
   FROM served s JOIN choice c
     ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
       = (s.work_id, s.platform_id, s.measure_id, s.period_start)
@@ -1398,7 +1441,8 @@ expected_country AS (
   GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.country_code),
 expected_institution AS (
   SELECT s.work_id, s.platform_id, s.measure_id, s.period_start AS month_start, s.institution_id,
-    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage
+    sum(s.value)::bigint AS value, bool_or(s.mask & 2 = 2) AS requires_country_coverage,
+    min(s.span) AS span_months
   FROM served s JOIN choice c
     ON (c.work_id, c.platform_id, c.measure_id, c.month_start)
       = (s.work_id, s.platform_id, s.measure_id, s.period_start)
@@ -1406,8 +1450,12 @@ expected_institution AS (
   GROUP BY s.work_id, s.platform_id, s.measure_id, s.period_start, s.institution_id),
 expected_refusal AS (
   SELECT work_id, platform_id, measure_id, period_start, period_end,
-    bool_or(class = 'INCONSISTENT') AS inconsistent
-  FROM record WHERE class IN ('ACTIVE', 'INCONSISTENT')
+    bool_or(class <> 'ACTIVE') AS inconsistent
+  FROM record r WHERE class IN ('ACTIVE', 'INCONSISTENT')
+    OR (class = 'SERVED' AND EXISTS (
+      SELECT 1 FROM clash c
+      WHERE (c.work_id, c.platform_id, c.measure_id, c.period_start)
+        = (r.work_id, r.platform_id, r.measure_id, r.period_start)))
   GROUP BY work_id, platform_id, measure_id, period_start, period_end),
 diff AS (
   SELECT 'metric_native_month' AS relation,
@@ -1420,9 +1468,9 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.live, e.requires_country_coverage, e.requires_institution_coverage,
-        e.country_ambiguous, e.institution_ambiguous)
-      IS DISTINCT FROM (a.value, a.live, a.requires_country_coverage,
+    OR (e.value, e.span_months, e.live, e.requires_country_coverage,
+        e.requires_institution_coverage, e.country_ambiguous, e.institution_ambiguous)
+      IS DISTINCT FROM (a.value, a.span_months, a.live, a.requires_country_coverage,
         a.requires_institution_coverage, a.country_ambiguous, a.institution_ambiguous)
   UNION ALL
   SELECT 'metric_native_country_month',
@@ -1435,8 +1483,8 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.country_code::text)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.country_code::text)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.requires_institution_coverage)
-      IS DISTINCT FROM (a.value, a.requires_institution_coverage)
+    OR (e.value, e.span_months, e.requires_institution_coverage)
+      IS DISTINCT FROM (a.value, a.span_months, a.requires_institution_coverage)
   UNION ALL
   SELECT 'metric_native_institution_month',
     CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'
@@ -1448,8 +1496,8 @@ diff AS (
     ON (a.work_id, a.platform_id, a.measure_id, a.month_start, a.institution_id)
       = (e.work_id, e.platform_id, e.measure_id, e.month_start, e.institution_id)
   WHERE a.work_id IS NULL OR e.work_id IS NULL
-    OR (e.value, e.requires_country_coverage)
-      IS DISTINCT FROM (a.value, a.requires_country_coverage)
+    OR (e.value, e.span_months, e.requires_country_coverage)
+      IS DISTINCT FROM (a.value, a.span_months, a.requires_country_coverage)
   UNION ALL
   SELECT 'metric_native_refusal',
     CASE WHEN a.work_id IS NULL THEN 'missing' WHEN e.work_id IS NULL THEN 'unexpected'

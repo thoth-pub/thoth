@@ -217,6 +217,13 @@ pub enum MetricWidgetGrain {
     #[cfg_attr(
         feature = "backend",
         graphql(
+            description = "One bucket per calendar quarter, clipped to the served range. Each bucket is the exact sum of the daily values it contains. Like YEAR, it may omit startDate"
+        )
+    )]
+    Quarter,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
             description = "One bucket per calendar year, clipped to the served range. Each bucket is the exact sum of the daily values it contains"
         )
     )]
@@ -228,6 +235,7 @@ impl MetricWidgetGrain {
     fn engine(self) -> MetricTimelineGrain {
         match self {
             MetricWidgetGrain::Month => MetricTimelineGrain::Month,
+            MetricWidgetGrain::Quarter => MetricTimelineGrain::Quarter,
             MetricWidgetGrain::Year => MetricTimelineGrain::Year,
         }
     }
@@ -236,6 +244,7 @@ impl MetricWidgetGrain {
     fn name(self) -> &'static str {
         match self {
             MetricWidgetGrain::Month => "MONTH",
+            MetricWidgetGrain::Quarter => "QUARTER",
             MetricWidgetGrain::Year => "YEAR",
         }
     }
@@ -1156,6 +1165,11 @@ impl ValidatedInput {
         let last = self.end.pred_opt().unwrap_or(self.end);
         let count = match self.grain {
             MetricWidgetGrain::Month => months_between(self.start, last) + 1,
+            MetricWidgetGrain::Quarter => {
+                let index =
+                    |day: NaiveDate| i64::from(day.year()) * 4 + i64::from(day.month0() / 3);
+                index(last) - index(self.start) + 1
+            }
             MetricWidgetGrain::Year => i64::from(last.year() - self.start.year()) + 1,
         };
         usize::try_from(count).unwrap_or(0)

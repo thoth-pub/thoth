@@ -1095,6 +1095,7 @@ table! {
         country_code -> Bpchar,
         value -> Int8,
         requires_institution_coverage -> Bool,
+        span_months -> Int2,
     }
 }
 
@@ -1109,6 +1110,7 @@ table! {
         institution_id -> Uuid,
         value -> Int8,
         requires_country_coverage -> Bool,
+        span_months -> Int2,
     }
 }
 
@@ -1217,6 +1219,7 @@ table! {
         requires_institution_coverage -> Bool,
         country_ambiguous -> Bool,
         institution_ambiguous -> Bool,
+        span_months -> Int2,
     }
 }
 

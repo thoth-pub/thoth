@@ -608,7 +608,7 @@ async fn constraint_failures_reach_the_client_bounded_and_sanitised() {
         (
             "empty supported grains",
             empty_grains,
-            "Supported grains must list at least one reporting grain, with no duplicates.",
+            "Supported grains must list at least one reporting grain, with no duplicates, and never both MONTH and QUARTER.",
         ),
     ];
 
@@ -909,7 +909,7 @@ fn the_exposed_enums_carry_exactly_their_existing_database_values() {
         ("enum MetricMeasureUnit {", vec!["COUNT"]),
         (
             "enum MetricReportingGrain {",
-            vec!["DAY", "MONTH", "REPORTING_PERIOD"],
+            vec!["DAY", "MONTH", "QUARTER", "REPORTING_PERIOD"],
         ),
     ] {
         let block = sdl_block(&sdl, declaration);
