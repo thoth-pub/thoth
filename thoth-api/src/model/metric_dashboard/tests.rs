@@ -4245,6 +4245,7 @@ fn request_shape_is_validated_before_any_database_access() {
         languages: Some(distinct_languages(50)),
         funding_institution_ids: Some(ids(50)),
         affiliation_institution_ids: Some(ids(50)),
+        include_chapters: None,
     };
     assert_eq!(
         metric_dashboard(&unreachable, &input),
@@ -5094,6 +5095,82 @@ fn selected(
 
 fn sessions_total(fx: &Fixture, input: &MetricDashboardInput) -> Option<String> {
     total(&read(fx, input), fx.platform_id, fx.sessions)
+}
+
+#[test]
+fn include_chapters_adds_the_chapters_of_the_listed_works_only() {
+    let (_guard, fx) = setup();
+    let imprint = imprint_of(&fx, fx.works[0]);
+    let monograph = add_work(&fx, imprint, "monograph");
+    let other_book = add_work(&fx, imprint, "monograph");
+    let chapter = add_work(&fx, imprint, "book-chapter");
+    let other_chapter = add_work(&fx, imprint, "book-chapter");
+    let edited = add_work(&fx, imprint, "edited-book");
+    add_child_of(&fx, chapter, monograph, 1);
+    add_child_of(&fx, other_chapter, other_book, 1);
+    // Only a chapter follows its parent: a related edited book does not.
+    add_child_of(&fx, edited, monograph, 2);
+    // A chapter of the listed book that belongs to another publisher never
+    // reaches the selected publisher.
+    let foreign_chapter = add_work(&fx, imprint_of(&fx, fx.other_work), "book-chapter");
+    add_child_of(&fx, foreign_chapter, monograph, 3);
+    for (work_id, value) in [
+        (monograph, 1),
+        (chapter, 2),
+        (other_book, 4),
+        (other_chapter, 8),
+        (edited, 16),
+        (foreign_chapter, 1000),
+    ] {
+        commit(&fx, work_id, fx.platform_id, fx.sessions, day_n(1), value);
+    }
+    apply_all(&fx.pool);
+    let publisher = [fx.publisher_id];
+    let at = |edit: &dyn Fn(&mut MetricSelectorInput)| {
+        sessions_total(&fx, &selected(&fx, &publisher, |selector| edit(selector)))
+    };
+
+    assert_eq!(
+        at(&|s| s.work_ids = Some(vec![monograph])),
+        some("1"),
+        "the flag omitted selects exactly the listed works"
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(false);
+        }),
+        some("1")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(true);
+        }),
+        some("3"),
+        "the book and its chapter, not the edited book or a foreign chapter"
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph, other_book]);
+            s.include_chapters = Some(true);
+        }),
+        some("15")
+    );
+    assert_eq!(
+        at(&|s| {
+            s.work_ids = Some(vec![monograph]);
+            s.include_chapters = Some(true);
+            s.work_types = Some(vec![WorkType::BookChapter]);
+        }),
+        some("2"),
+        "the other lists still apply to the chapters"
+    );
+    assert_eq!(
+        at(&|s| s.include_chapters = Some(true)),
+        at(&|_| {}),
+        "without workIds the flag changes nothing"
+    );
 }
 
 #[test]

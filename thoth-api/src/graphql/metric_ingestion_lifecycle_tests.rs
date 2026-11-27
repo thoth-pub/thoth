@@ -64,12 +64,12 @@ fn request(query: &str) -> GraphQLRequest {
     serde_json::from_value(json!({ "query": query })).expect("build GraphQL request")
 }
 
-async fn run(schema: &Schema, context: &Context, query: &str) -> JsonValue {
+pub(super) async fn run(schema: &Schema, context: &Context, query: &str) -> JsonValue {
     serde_json::to_value(request(query).execute(schema, context).await)
         .expect("serialize GraphQL response")
 }
 
-fn data<'a>(response: &'a JsonValue, field: &str) -> &'a JsonValue {
+pub(super) fn data<'a>(response: &'a JsonValue, field: &str) -> &'a JsonValue {
     assert!(
         response.get("errors").is_none()
             || response["errors"].as_array().is_some_and(Vec::is_empty),
@@ -115,7 +115,7 @@ fn assert_error(response: &JsonValue, expected_type: &str) {
     }
 }
 
-fn assert_unauthorized(response: &JsonValue) {
+pub(super) fn assert_unauthorized(response: &JsonValue) {
     let (message, kind) = only_error(response);
     assert_eq!(
         kind, "NO_ACCESS",
@@ -124,7 +124,7 @@ fn assert_unauthorized(response: &JsonValue) {
     assert_eq!(message, "Unauthorized");
 }
 
-fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
+pub(super) fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
     let mut project_roles: HashMap<String, HashMap<String, String>> = HashMap::new();
     for (role, org_id) in roles {
         project_roles
@@ -147,19 +147,19 @@ fn user_with(user_id: &str, roles: &[(Role, &str)]) -> IntrospectedUser {
     }
 }
 
-fn context_for(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> Context {
+pub(super) fn context_for(pool: &Arc<PgPool>, user: Option<IntrospectedUser>) -> Context {
     match user {
         Some(user) => test_db::test_context_with_user(Arc::clone(pool), user),
         None => test_db::test_context_anonymous(Arc::clone(pool)),
     }
 }
 
-fn ingest_user() -> IntrospectedUser {
+pub(super) fn ingest_user() -> IntrospectedUser {
     user_with(INGEST_USER, &[(Role::MetricsIngestService, "org")])
 }
 
 /// Every caller of the approved negative matrix that must be denied.
-fn denied(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>)> {
+pub(super) fn denied(org: &str) -> Vec<(&'static str, Option<IntrospectedUser>)> {
     vec![
         ("anonymous / failed introspection", None),
         (
@@ -298,7 +298,7 @@ fn every_operation(import_id: &str, token: &str) -> Vec<(&'static str, String)> 
 // --------------------------------------------------------------------------
 
 /// Signatures with descriptions removed and whitespace collapsed.
-fn signatures(block: &str) -> String {
+pub(super) fn signatures(block: &str) -> String {
     let mut out = String::new();
     let mut in_string = false;
     let mut escaped = false;
@@ -683,20 +683,23 @@ fn every_resolver_authorizes_before_calling_the_lifecycle_coordinator() {
     for (resolver, coordinator) in [
         (
             "fn claim_metric_source_units(",
-            "claim_metric_source_units(&context.db",
+            "claim_metric_source_units(&context.ingest_db",
         ),
         (
             "fn update_metric_source_checkpoint(",
-            "update_metric_source_checkpoint(&context.db",
+            "update_metric_source_checkpoint(&context.ingest_db",
         ),
-        ("fn begin_metric_import(", "begin_metric_import(&context.db"),
+        (
+            "fn begin_metric_import(",
+            "begin_metric_import(&context.ingest_db",
+        ),
         (
             "fn ingest_metric_batch(",
-            "ingest_metric_batch_under_claim(&context.db",
+            "ingest_metric_batch_under_claim(&context.ingest_db",
         ),
         (
             "fn complete_metric_import(",
-            "complete_metric_import(&context.db",
+            "complete_metric_import(&context.ingest_db",
         ),
     ] {
         let body = source
@@ -1289,4 +1292,22 @@ async fn a_reporting_grain_mismatch_is_a_bounded_rejected_row_with_the_exact_rea
     assert_eq!(replay["replayed"], true);
     assert_eq!(replay["rows"], second["rows"]);
     assert_eq!(f.snapshot(), after);
+}
+
+#[test]
+fn the_ingestion_context_pool_defaults_to_the_ordinary_pool_and_can_be_replaced() {
+    let (_guard, f) = setup();
+    let pool = Arc::clone(&f.pool);
+    let context = context_for(&pool, Some(ingest_user()));
+    assert!(
+        Arc::ptr_eq(&context.db, &context.ingest_db),
+        "without a dedicated pool the lifecycle uses the ordinary one"
+    );
+
+    let dedicated = Arc::new(crate::db::init_pool(
+        &std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set"),
+    ));
+    let context = context.with_ingest_pool(Arc::clone(&dedicated));
+    assert!(Arc::ptr_eq(&context.ingest_db, &dedicated));
+    assert!(!Arc::ptr_eq(&context.db, &context.ingest_db));
 }

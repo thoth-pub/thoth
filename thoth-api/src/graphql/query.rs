@@ -37,6 +37,9 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
+    metric_citation::write::{
+        citation_refresh_works, CitationRefreshWorksInput, CitationRefreshWorksPage,
+    },
     metric_dashboard::{
         metric_dashboard_with_month_serving as read_metric_dashboard, MetricDashboard,
         MetricDashboardInput, MetricReadError,
@@ -2353,6 +2356,20 @@ impl QueryRoot {
             .map_err(MetricReadError::from)
             .and_then(|_| read_metric_data_version(&context.db))
             .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "The next works of the claimed publisher to look up for a running citation refresh. Requires the METRICS_INGEST_SERVICE role. Works have a DOI, are not withdrawn or cancelled and were not looked up in the last seven days; a work submitted in this refresh is never returned again. `done` is true when nothing qualifying remains or the claim's cap of 400 works is reached."
+    )]
+    fn citation_refresh_works(
+        context: &Context,
+        #[graphql(description = "The claim, the refresh and the page position")]
+        input: CitationRefreshWorksInput,
+    ) -> FieldResult<CitationRefreshWorksPage> {
+        context
+            .require_metrics_ingest_service()
+            .map_err(IntoFieldError::into_field_error)?;
+        citation_refresh_works(&context.db, &input).map_err(IntoFieldError::into_field_error)
     }
 
     #[graphql(

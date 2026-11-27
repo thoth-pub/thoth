@@ -333,6 +333,13 @@ pub struct MetricSelectorInput {
         )
     )]
     pub affiliation_institution_ids: Option<Vec<Uuid>>,
+    #[cfg_attr(
+        feature = "backend",
+        graphql(
+            description = "Whether the selected workIds also select the book chapters whose current is-child-of parent is one of them. Omitted or false selects exactly the listed works. Without workIds it has no effect, because every work is then selected already. The chapters must still belong to the selected publishers and satisfy every other list"
+        )
+    )]
+    pub include_chapters: Option<bool>,
 }
 
 /// One dashboard request.
@@ -907,6 +914,7 @@ struct Selector {
     languages: Vec<String>,
     funding_institutions: Vec<Uuid>,
     affiliation_institutions: Vec<Uuid>,
+    include_chapters: bool,
 }
 
 /// How a request's range is split between the monthly projections and the
@@ -1138,6 +1146,7 @@ fn validate(
             METRIC_DASHBOARD_MAX_SELECTOR_VALUES,
             TOO_MANY_AFFILIATION,
         )?,
+        include_chapters: selector.include_chapters.unwrap_or(false),
     };
     let grain = input.timeline_grain.unwrap_or_default();
     let end = input.end_date;
@@ -1693,7 +1702,9 @@ pub(crate) const PUBLISHERS_SQL: &str = "SELECT transaction_timestamp() AS as_of
 /// resolved-work bound, so an oversized selection is detected without being
 /// read in full; nothing is served from a stopped read.
 ///
-/// A series matches a work issued in it, or a book chapter whose current
+/// A work ID matches the work itself and, when `$10` (`includeChapters`) is
+/// true, every book chapter whose current `is-child-of` parent is a listed
+/// work. A series matches a work issued in it, or a book chapter whose current
 /// `is-child-of` parent is issued in it. A language matches any language
 /// record of the work. A funding institution matches any funding of the
 /// work, and an affiliation institution any affiliation of any of its
@@ -1723,7 +1734,12 @@ pub(crate) const WORKS_SQL: &str = "WITH unknown AS ( \
                  JOIN public.imprint i ON i.imprint_id = w.imprint_id \
                  WHERE i.publisher_id = ANY($1) \
                    AND (cardinality($2::uuid[]) = 0 OR w.imprint_id = ANY($2)) \
-                   AND (cardinality($4::uuid[]) = 0 OR w.work_id = ANY($4)) \
+                   AND (cardinality($4::uuid[]) = 0 OR w.work_id = ANY($4) \
+                        OR ($10::boolean AND w.work_type = 'book-chapter' \
+                            AND EXISTS (SELECT 1 FROM public.work_relation wr \
+                                        WHERE wr.relator_work_id = w.work_id \
+                                          AND wr.relation_type = 'is-child-of' \
+                                          AND wr.related_work_id = ANY($4)))) \
                    AND (cardinality($5::text[]) = 0 \
                         OR w.work_type = ANY($5::text[]::public.work_type[])) \
                    AND (cardinality($3::uuid[]) = 0 \
@@ -4095,6 +4111,7 @@ fn resolve_works(
         .bind::<Array<SqlUuid>, _>(&selector.funding_institutions)
         .bind::<Array<SqlUuid>, _>(&selector.affiliation_institutions)
         .bind::<SqlBigInt, _>(METRIC_DASHBOARD_MAX_RESOLVED_WORKS as i64 + 1)
+        .bind::<Bool, _>(selector.include_chapters)
         .load(connection)?;
     let unknown: BTreeSet<&str> = rows
         .iter()

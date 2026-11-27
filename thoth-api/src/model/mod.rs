@@ -901,6 +901,8 @@ pub mod issue;
 pub mod language;
 pub mod locale;
 pub mod location;
+#[cfg(feature = "backend")]
+pub mod metric_citation;
 pub mod metric_coverage;
 #[cfg(feature = "backend")]
 pub mod metric_coverage_run;
