@@ -151,6 +151,26 @@ pub fn metric_month_serving() -> Arg {
         .num_args(1)
 }
 
+/// The citations serving switch (`CITATIONS-01`, thoth#1074), read once at
+/// process start.
+///
+/// ```text
+/// OFF  metricCitations is refused as METRIC_CITATIONS_NOT_SERVED (the default)
+/// ON   metricCitations serves the stored citation links
+/// ```
+///
+/// The tables and the write path are maintained whatever the value.
+pub fn metric_citations_serving() -> Arg {
+    Arg::new("metric-citations-serving")
+        .long("metric-citations-serving")
+        .value_name("THOTH_METRIC_CITATIONS_SERVING")
+        .env("THOTH_METRIC_CITATIONS_SERVING")
+        .default_value("OFF")
+        .value_parser(["OFF", "ON"])
+        .help("Citation link serving in metricCitations: OFF or ON")
+        .num_args(1)
+}
+
 /// Size of the dedicated metric-ingestion database pool (`INGEST-POOL-01`).
 pub fn ingest_pool_size() -> Arg {
     Arg::new("ingest-pool-size")

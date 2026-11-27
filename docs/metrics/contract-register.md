@@ -3875,4 +3875,53 @@ checkpoint's `last_discovered_at`, `last_completed_at` and lease; the checkpoint
 Errors: the lifecycle codes above plus `CITATION_WORK_NOT_IN_PUBLISHER`,
 `CITATION_REFRESH_NOT_FOUND`, `CITATION_REFRESH_NOT_RUNNING` and
 `CITATION_BATCH_IDEMPOTENCY_MISMATCH`. The read (`metricCitations`) and its
-serving switch are slice C3.
+serving switch are slice C3, below. `completeCitationRefresh` releases the
+claim, so a repeated call is refused as `STALE_SOURCE_CLAIM`; the driver reads the
+outcome from the first response.
+
+## Citation read path (CITATIONS-01, thoth#1074, slice C3)
+
+One query, `metricCitations(input)`, for the `METRICS_READ_SERVICE` role. As for
+`metricDashboard`, holding the role supplies no entitlement: every selected
+publisher must hold `METRICS_DASHBOARD` through its package, checked on every
+page, and one unentitled publisher refuses the whole request (`NO_ACCESS`). No
+role, migration or table is added.
+
+- Order of refusals: the role (`NO_ACCESS`), then
+  `THOTH_METRIC_CITATIONS_SERVING` (`OFF`, the default, answers
+  `METRIC_CITATIONS_NOT_SERVED` to an authorized caller; a caller without the
+  role never learns the switch), then the request's shape, then the database.
+- Request: `publisherIds` 1 to 25, no duplicates, each existing; `workIds` at
+  most 100, each a work of a selected publisher (an unknown work and another
+  publisher's work get the same refusal); `citingFrom` and `citingTo` on the
+  citing work's sort date (a work known only by its year is dated 1 January of
+  that year, and `citingPublicationYear` is returned beside it); `sourceCodes` at
+  most 10, each existing; `first` 1 to 100 (default 50); `after`. Counts are never
+  summed across sources: while more than one source holds citation data the
+  request must name exactly one. Violations are `METRIC_QUERY_INVALID` or
+  `METRIC_QUERY_LIMIT_EXCEEDED`.
+- Order and cursor: `citing_sort_date` DESC, `link_id` DESC, a total order; the
+  sort date is the publication date, else 1 January of the year, else
+  `0001-01-01`, so undated links come last. The cursor is opaque, at most 512
+  characters, and bound to a hash of the selected publishers, works, sources and
+  dates, so any other request refuses it (`METRIC_QUERY_INVALID`).
+- Summary, over every work and filter and not only the page: `linkCount`
+  and `citedWorkCount` (active links; withdrawn links are never counted or
+  listed), `matchedWorkCount`, `unconfirmedWorkCount` (a failed attempt, a work no
+  longer found after a match, or an enumeration not confirmed; these may be
+  stale), `notFoundWorkCount` (not known to the source, excluding unconfirmed
+  works, so a failed never-matched work is unconfirmed and not "not found"),
+  `notYetRefreshedWorkCount` (works with a DOI that no attempt has reached),
+  `reportedCountTotal` (the source's own counts of matched works, which can
+  differ from the links listed), `lastRefreshedAt` (the oldest completed refresh
+  across matched works, null when any matched work has none) and `byCitingYear`
+  (null year for citing works with none).
+- The summary and the page are one `READ ONLY, REPEATABLE READ` snapshot, taken
+  under `metricDashboard`'s concurrent-read slots and whole-read deadline
+  (`METRIC_READ_BUSY`, `INTERNAL_ERROR`). Statements are set-based and their
+  number does not depend on the data.
+- Every link names its `source` (`code`) and its cited work. Text is plain text
+  from a third party and must be escaped on display. The `openalex` platform has
+  no measures, so it never enters `metricDashboard`.
+
+New error code: `METRIC_CITATIONS_NOT_SERVED`.

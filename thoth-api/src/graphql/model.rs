@@ -140,6 +140,12 @@ pub struct Context {
     /// [`Context::with_metric_month_serving`], so `Context::new` keeps its
     /// signature.
     pub(crate) metric_month_serving: crate::model::metric_dashboard::MetricMonthServing,
+    /// Whether `metricCitations` serves links (`CITATIONS-01`,
+    /// `THOTH_METRIC_CITATIONS_SERVING`).
+    ///
+    /// Default `OFF`; set once at process start through
+    /// [`Context::with_metric_citations_serving`].
+    pub(crate) metric_citations_serving: crate::model::metric_citation::MetricCitationsServing,
     /// How many `metricWidget` resolutions this request has claimed
     /// (`MET-WP4-WIDGET-01` specification section 4.1 step 3).
     ///
@@ -181,6 +187,8 @@ impl Context {
             job_creation,
             metric_widget: crate::model::metric_widget::MetricWidgetSwitch::default(),
             metric_month_serving: crate::model::metric_dashboard::MetricMonthServing::default(),
+            metric_citations_serving:
+                crate::model::metric_citation::MetricCitationsServing::default(),
             metric_widget_claims: AtomicUsize::new(0),
             work_filter_options_claims: AtomicUsize::new(0),
             async_registry: &PRODUCTION_REGISTRY,
@@ -210,6 +218,15 @@ impl Context {
         month_serving: crate::model::metric_dashboard::MetricMonthServing,
     ) -> Self {
         self.metric_month_serving = month_serving;
+        self
+    }
+
+    /// Set whether `metricCitations` serves links.
+    pub fn with_metric_citations_serving(
+        mut self,
+        serving: crate::model::metric_citation::MetricCitationsServing,
+    ) -> Self {
+        self.metric_citations_serving = serving;
         self
     }
 

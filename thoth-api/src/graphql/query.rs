@@ -37,8 +37,9 @@ use crate::model::{
     language::{Language, LanguageCode, LanguageRelation},
     locale::LocaleCode,
     location::{Location, LocationOrderBy, LocationPlatform},
-    metric_citation::write::{
-        citation_refresh_works, CitationRefreshWorksInput, CitationRefreshWorksPage,
+    metric_citation::{
+        read::{metric_citations as read_citations, MetricCitations, MetricCitationsInput},
+        write::{citation_refresh_works, CitationRefreshWorksInput, CitationRefreshWorksPage},
     },
     metric_dashboard::{
         metric_dashboard_with_month_serving as read_metric_dashboard, MetricDashboard,
@@ -2344,6 +2345,20 @@ impl QueryRoot {
             .require_metrics_read_service()
             .map_err(MetricReadError::from)
             .and_then(|_| read_metric_dashboard(&context.db, &input, context.metric_month_serving))
+            .map_err(IntoFieldError::into_field_error)
+    }
+
+    #[graphql(
+        description = "Citation links of the selected publishers' works as a bounded, paginated read with a summary, read in one snapshot. Requires the METRICS_READ_SERVICE role, and every selected publisher must be entitled to the Metrics dashboard. Works the source does not know are counted as not found, never as zero, and unconfirmed works are counted apart because their links may be out of date. Counts are never summed across sources. Refused as METRIC_CITATIONS_NOT_SERVED while this server does not serve citations"
+    )]
+    fn metric_citations(
+        context: &Context,
+        #[graphql(description = "The bounded request")] input: MetricCitationsInput,
+    ) -> FieldResult<MetricCitations> {
+        context
+            .require_metrics_read_service()
+            .map_err(MetricReadError::from)
+            .and_then(|_| read_citations(&context.db, context.metric_citations_serving, &input))
             .map_err(IntoFieldError::into_field_error)
     }
 
