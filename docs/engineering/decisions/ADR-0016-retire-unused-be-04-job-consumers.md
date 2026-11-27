@@ -1,7 +1,9 @@
 # ADR-0016 - Retire the unused BE-04 job surface by removing its consumers
 
-Status: PROPOSED
+Status: APPROVED
 Date: 2026-11-27
+Approved by: Javi, CTO
+Approval date: 2026-11-27
 Decision owner: CTO
 Decision input: Javi, CTO, 2026-11-27 (recorded on #957): the BE-04 `distribution_job*` API and tables were a first prototype that was never used, so retiring and dropping them is acceptable.
 Programmes affected: Shared Backend Architecture (THOTH-ASYNC-01); Publisher Services and Distribution Configuration
@@ -45,4 +47,4 @@ Authority condition: this ADR becomes repository-authoritative only when this ex
 
 ## 4. Approval
 
-PROPOSED. Approval of the exact content by the CTO and independent exact-head review are required before this is repository-authoritative (`docs/engineering/decisions/README.md`, Route B). Approval is not authorization for any implementation, merge, release or migration.
+Approved by Javi, CTO, on 2026-11-27, for the exact content at `430a9075886f00b83f8936a4b9bd9d7ccb9d71ea` (recorded on #957), following independent review round 1 `CHANGES REQUIRED` (fixed) and a light re-check of the corrected head. The content reached `develop` through PR #1086 (merge `f6e426ba33885082f24928f09524162b61dd602a`); this status update changes metadata only. Approval is not authorization for any implementation, merge, release or migration: B3 and B4 each need their own specification, review and grant.
